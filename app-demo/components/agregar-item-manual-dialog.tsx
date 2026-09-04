@@ -127,17 +127,18 @@ export function AgregarItemManualDialog({
     pendienteAprobacion?: boolean
   }) {
     onAgregar({
-      id: crypto.randomUUID(),
-      padreId: padreId === "ninguno" ? null : padreId,
-      nivel: Number(nivel),
-      codigo: opts.codigo,
-      descripcion: opts.descripcion,
-      unidad: opts.unidad,
-      cantidad: cantidad ? Number(cantidad) : null,
-      valorUnitario: opts.valorUnitario ?? null,
-      guardado: false,
-      pendienteAprobacion: opts.pendienteAprobacion ?? false,
-    })
+  id: crypto.randomUUID(),
+  padreId: padreId === "ninguno" ? null : padreId,
+  nivel: Number(nivel),
+  codigo: opts.codigo,
+  descripcion: opts.descripcion,
+  unidad: opts.unidad,
+  cantidad: cantidad ? Number(cantidad) : null,
+  valorUnitario: opts.valorUnitario ?? null,
+  precioOriginal: null,
+  guardado: false,
+  pendienteAprobacion: opts.pendienteAprobacion ?? false,
+})
     limpiarFormulario()
   }
 
