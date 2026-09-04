@@ -126,8 +126,9 @@ function TablaCategoriasManoObra({
           <thead>
             <tr>
               <th className={headClasesCandidatos}>Categoría</th>
-              <th className={`${headClasesCandidatos} w-32`}>Grupo</th>
-              <th className={`${headClasesCandidatos} w-28 text-right`}>Valor / hora</th>
+              <th className={`${headClasesCandidatos} w-28`}>Grupo</th>
+              <th className={`${headClasesCandidatos} w-20 text-center`}>Unidad</th>
+              <th className={`${headClasesCandidatos} w-28 text-right`}>Valor</th>
               <th className={`${headClasesCandidatos} w-24 text-right`}>% Similitud</th>
             </tr>
           </thead>
@@ -151,6 +152,7 @@ function TablaCategoriasManoObra({
                     {c.categoria}
                   </td>
                   <td className={`${celdaCandidato} text-muted-foreground`}>{c.grupo ?? "—"}</td>
+                  <td className={`${celdaCandidato} text-center font-medium`}>{c.unidad}</td>
                   <td className={`${celdaCandidato} text-right`}>
                     {sinPrecio ? (
                       <span className="text-amber-600">sin precio</span>

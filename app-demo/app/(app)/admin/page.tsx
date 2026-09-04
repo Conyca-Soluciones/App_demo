@@ -254,7 +254,7 @@ function TabUsuarios({ grupos, proyectos }: { grupos: Grupo[]; proyectos: Proyec
   const [creando, setCreando] = useState(false)
   //Nuevos scopes
   const [esAdmin_insumos, setadmin_insumos] = useState(false)
-
+  const [esAdmin_mo, setadmin_mo] = useState(false)
   // Cambiar contraseña de una cuenta ya existente -- ej. "esta cuenta
   // ahora la va a usar otra persona".
   const [passwordNuevaPorUsuario, setPasswordNuevaPorUsuario] = useState<Record<string, string>>({})
@@ -390,6 +390,11 @@ function TabUsuarios({ grupos, proyectos }: { grupos: Grupo[]; proyectos: Proyec
 
             <input type="checkbox" checked={esAdmin_insumos} onChange={(e) => setadmin_insumos(e.target.checked)} />
             Puede modificar maestro de insumos
+
+            <input type="checkbox" checked={esAdmin_insumos} onChange={(e) => setadmin_mo(e.target.checked)} />
+            Puede acceptar solicitudes de mo
+
+            
 
             {/* Aca añadaria los siguientes scopes de permisos */}
           </label>

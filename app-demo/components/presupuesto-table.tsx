@@ -171,6 +171,83 @@ const FILA_ESTILO_POR_ESTADO: Record<EstadoApuFila, string> = {
   listo: "bg-emerald-50/60 hover:bg-emerald-100/60",
 }
 
+// ---------------------------------------------------------------------
+// Alerta de sobrecosto vs. presupuesto original (columna "Valor total"
+// del Excel importado, guardada tal cual en item.precioOriginal -- ver
+// CLAUDE.md). Umbral de $1.000: diferencias menores son redondeo, no un
+// sobrecosto real que valga la pena alertar.
+//
+// Rollup por capítulo: si ALGÚN descendiente con costo no trae
+// precioOriginal (ej. un ítem agregado a mano, nunca importado), el
+// capítulo completo NO se marca en alerta -- un total original
+// incompleto subestima el original y daría una alerta falsa. Se prefiere
+// silencio a un falso positivo acá.
+// ---------------------------------------------------------------------
+const UMBRAL_ALERTA_PRESUPUESTO = 1000
+
+function excedePresupuestoOriginal(
+  valorTotal: number | null | undefined,
+  precioOriginal: number | null | undefined
+): boolean {
+  if (valorTotal == null || precioOriginal == null) return false
+  return valorTotal - precioOriginal > UMBRAL_ALERTA_PRESUPUESTO
+}
+
+type RollupCapitulo = {
+  totalCalculado: number
+  totalOriginal: number | null
+  excede: boolean
+}
+
+function calcularRollupsPorCapitulo(data: ItemPresupuesto[]): Map<string, RollupCapitulo> {
+  const hijosDirectos = new Map<string, string[]>()
+  for (const item of data) {
+    if (!item.padreId) continue
+    const lista = hijosDirectos.get(item.padreId) ?? []
+    lista.push(item.id)
+    hijosDirectos.set(item.padreId, lista)
+  }
+
+  const porId = new Map(data.map((i) => [i.id, i]))
+
+  function recolectarDescendientes(id: string): ItemPresupuesto[] {
+    const resultado: ItemPresupuesto[] = []
+    for (const hijoId of hijosDirectos.get(id) ?? []) {
+      const hijo = porId.get(hijoId)
+      if (!hijo) continue
+      resultado.push(hijo)
+      resultado.push(...recolectarDescendientes(hijoId))
+    }
+    return resultado
+  }
+
+  const rollups = new Map<string, RollupCapitulo>()
+
+  for (const item of data) {
+    if (!hijosDirectos.has(item.id)) continue // no es capítulo (no tiene hijos) -- no se calcula rollup
+
+    // Solo cuentan los descendientes que son ítems REALES de presupuesto
+    // (con valorTotal propio) -- los subcapítulos intermedios ya
+    // contribuyen 0 y no hay que filtrarlos aparte.
+    const itemsConCosto = recolectarDescendientes(item.id).filter((d) => d.valorTotal != null)
+
+    const totalCalculado = itemsConCosto.reduce((s, d) => s + (d.valorTotal ?? 0), 0)
+    const todosConOriginal =
+      itemsConCosto.length > 0 && itemsConCosto.every((d) => d.precioOriginal != null)
+    const totalOriginal = todosConOriginal
+      ? itemsConCosto.reduce((s, d) => s + (d.precioOriginal ?? 0), 0)
+      : null
+
+    rollups.set(item.id, {
+      totalCalculado,
+      totalOriginal,
+      excede: totalOriginal != null && totalCalculado - totalOriginal > UMBRAL_ALERTA_PRESUPUESTO,
+    })
+  }
+
+  return rollups
+}
+
 function EtiquetaEstadoApu({
   estado,
   motivos,
@@ -309,6 +386,8 @@ export function PresupuestoTable({
     )
   }
 
+  const rollupsPorCapitulo = calcularRollupsPorCapitulo(data)
+
   return (
     // overflow-hidden -> overflow-x-auto: antes el scroll horizontal de
     // una tabla ancha se lo comía el layout completo (había que cerrar
@@ -325,6 +404,7 @@ export function PresupuestoTable({
             <TableHead className={`w-28 text-right ${headClasses}`}>Cantidad</TableHead>
             <TableHead className={`w-32 text-right ${headClasses}`}>Valor unitario</TableHead>
             <TableHead className={`w-32 text-right ${headClasses}`}>Valor total</TableHead>
+            <TableHead className={`w-32 text-right ${headClasses}`}>Presupuesto original</TableHead>
             <TableHead className={`w-40 ${headClasses}`}>APU</TableHead>
             <TableHead className={`w-10 ${headClasses}`} />
           </TableRow>
@@ -335,6 +415,16 @@ export function PresupuestoTable({
             const estadoApu = estadoApuDeFila(item, estadosApu?.[item.id])
             const estiloEstado = FILA_ESTILO_POR_ESTADO[estadoApu]
 
+            const rollup = rollupsPorCapitulo.get(item.id)
+            // Fila hoja: compara su propio valorTotal/precioOriginal.
+            // Fila capítulo (tiene rollup): compara los totales sumados
+            // de sus descendientes -- ver calcularRollupsPorCapitulo.
+            const excedePresupuesto = rollup
+              ? rollup.excede
+              : excedePresupuestoOriginal(item.valorTotal, item.precioOriginal)
+
+            const valorOriginalMostrado = rollup ? rollup.totalOriginal : item.precioOriginal
+
             return (
             <TableRow
               key={item.id}
@@ -344,9 +434,11 @@ export function PresupuestoTable({
               className={
                 item.id === idResaltado
                   ? "bg-accent hover:bg-accent cursor-pointer transition-colors"
-                  : soloLectura
-                    ? "bg-muted/20 hover:bg-muted/20"
-                    : `cursor-pointer ${estiloEstado || (item.guardado ? "bg-muted/20 hover:bg-muted/20" : "hover:bg-accent/60")}`
+                  : excedePresupuesto
+                    ? "bg-red-600/25 hover:bg-red-600/35 cursor-pointer transition-colors"
+                    : soloLectura
+                      ? "bg-muted/20 hover:bg-muted/20"
+                      : `cursor-pointer ${estiloEstado || (item.guardado ? "bg-muted/20 hover:bg-muted/20" : "hover:bg-accent/60")}`
               }
             >
               <TableCell
@@ -423,10 +515,26 @@ export function PresupuestoTable({
               </TableCell>
 
               <TableCell
-                className={`${cellClasses} border-b px-2 py-1 text-right text-xs font-medium`}
+                className={`${cellClasses} border-b px-2 py-1 text-right text-xs font-medium ${
+                  excedePresupuesto ? "text-red-950" : ""
+                }`}
               >
-                {item.valorTotal != null
-                  ? item.valorTotal.toLocaleString("es-CO", {
+                {(rollup ? rollup.totalCalculado : item.valorTotal) != null
+                  ? (rollup ? rollup.totalCalculado : item.valorTotal!).toLocaleString("es-CO", {
+                      style: "currency",
+                      currency: "COP",
+                      maximumFractionDigits: 0,
+                    })
+                  : "—"}
+              </TableCell>
+
+              <TableCell
+                className={`${cellClasses} border-b px-2 py-1 text-right text-xs ${
+                  excedePresupuesto ? "font-semibold text-red-950" : "text-muted-foreground"
+                }`}
+              >
+                {valorOriginalMostrado != null
+                  ? valorOriginalMostrado.toLocaleString("es-CO", {
                       style: "currency",
                       currency: "COP",
                       maximumFractionDigits: 0,
@@ -448,6 +556,14 @@ export function PresupuestoTable({
                     motivos={motivosRechazo?.[item.id]}
                     onRevisar={() => onRevisarItem?.(item.id)}
                   />
+                  {excedePresupuesto && (
+                    <span
+                      title="El valor calculado supera el presupuesto original del Excel en más de $1.000"
+                      className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                    >
+                      ⚠ SUPERA PRESUPUESTO
+                    </span>
+                  )}
                 </div>
               </TableCell>
 
