@@ -144,7 +144,7 @@ export async function requerirScope(scope: ScopeAdmin) {
   // columnas y se elige cuál mirar en JS, no en la query.
   const { data: perfil, error } = await supabase
     .from("perfiles")
-    .select("es_admin, admin_insumos, admin_proyectos, admin_usuarios")
+    .select("es_admin, admin_insumos, admin_proyectos, admin_usuarios,admin_mano_obra")
     .eq("id", user.id)
     .single()
  

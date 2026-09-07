@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import {
   listarSolicitudesManoObra,
   aprobarSolicitudManoObra,
@@ -30,7 +30,12 @@ const FILTROS: { valor: Vista; etiqueta: string }[] = [
   { valor: "catalogo", etiqueta: "Catálogo" },
 ]
 
-export default function AdminManoObraPage() {
+// Contenido real de la página -- usa useSearchParams(), así que NO puede
+// ser el export default directo: Next.js exige que cualquier componente
+// que lea searchParams esté envuelto en <Suspense>, o el build falla con
+// "useSearchParams() should be wrapped in a suspense boundary" al
+// intentar prerenderizar la ruta. Ver AdminManoObraPage más abajo.
+function AdminManoObraContent() {
   const [vista, setVista] = useState<Vista>("pendiente")
   const [solicitudes, setSolicitudes] = useState<SolicitudManoObra[]>([])
   const [cargando, setCargando] = useState(true)
@@ -45,7 +50,10 @@ export default function AdminManoObraPage() {
 
   function descartarAviso() {
     setMostrarNoAutorizado(false)
-    router.replace("/presupuestos")
+    // OJO: antes mandaba a "/presupuestos" (ruta distinta), sacando al
+    // usuario de admin-mano-obra en vez de solo limpiar el query param
+    // en la página donde ya estaba.
+    router.replace("/presupuestos/admin-mano-obra")
   }
 
   function cargar() {
@@ -168,6 +176,24 @@ export default function AdminManoObraPage() {
         <TablaResueltas solicitudes={solicitudes} estado={vista} />
       )}
     </main>
+  )
+}
+
+// El export default real: solo envuelve AdminManoObraContent en
+// Suspense. El fallback se ve un instante mientras Next resuelve los
+// searchParams -- en la práctica es casi instantáneo salvo en el
+// primer load frío.
+export default function AdminManoObraPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto w-full max-w-[1400px] flex-1 p-6">
+          <p className="text-sm text-muted-foreground">Cargando…</p>
+        </main>
+      }
+    >
+      <AdminManoObraContent />
+    </Suspense>
   )
 }
 

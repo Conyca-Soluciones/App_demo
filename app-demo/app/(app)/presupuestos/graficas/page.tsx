@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ComposicionChart } from "@/components/composicion-chart"
 import {
@@ -27,7 +27,12 @@ import {
 // ya sabe cuál presupuesto es.
 // ---------------------------------------------------------------------------
 
-export default function GraficasPresupuesto() {
+// Contenido real de la página -- usa useSearchParams(), así que NO puede
+// ser el export default directo: Next.js exige que cualquier componente
+// que lea searchParams esté envuelto en <Suspense>, o el build falla con
+// "useSearchParams() should be wrapped in a suspense boundary" al
+// intentar prerenderizar la ruta. Ver GraficasPresupuesto más abajo.
+function GraficasPresupuestoContent() {
   const searchParams = useSearchParams()
   const presupuestoId = searchParams.get("presupuestoId")
 
@@ -118,5 +123,23 @@ export default function GraficasPresupuesto() {
       {/* Acá es donde entraría "presupuesto actual vs ejecución" cuando
           exista una fuente de gasto real -- ver nota en CLAUDE.md. */}
     </main>
+  )
+}
+
+// El export default real: solo envuelve GraficasPresupuestoContent en
+// Suspense. El fallback se ve un instante mientras Next resuelve los
+// searchParams -- en la práctica es casi instantáneo salvo en el primer
+// load frío.
+export default function GraficasPresupuesto() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-4xl p-6">
+          <p className="text-sm text-muted-foreground">Cargando…</p>
+        </main>
+      }
+    >
+      <GraficasPresupuestoContent />
+    </Suspense>
   )
 }

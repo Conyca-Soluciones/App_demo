@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import {
   listarSolicitudesInsumos,
   aprobarSolicitudInsumo,
@@ -25,7 +25,12 @@ const FILTROS: { valor: Estado; etiqueta: string }[] = [
   { valor: "rechazado", etiqueta: "Rechazadas" },
 ]
 
-export default function AdminInsumosPage() {
+// Contenido real de la página -- usa useSearchParams(), así que NO puede
+// ser el export default directo: Next.js exige que cualquier componente
+// que lea searchParams esté envuelto en <Suspense>, o el build falla con
+// "useSearchParams() should be wrapped in a suspense boundary" al
+// intentar prerenderizar la ruta. Ver AdminInsumosPage más abajo.
+function AdminInsumosContent() {
   const [estadoFiltro, setEstadoFiltro] = useState<Estado>("pendiente")
   const [solicitudes, setSolicitudes] = useState<SolicitudInsumo[]>([])
   const [cargando, setCargando] = useState(true)
@@ -41,8 +46,11 @@ export default function AdminInsumosPage() {
 
   function descartarAviso() {
     setMostrarNoAutorizado(false)
-    // limpia el query param de la URL sin recargar la página
-    router.replace("/presupuestos")
+    // limpia el query param de la URL sin recargar la página -- OJO:
+    // antes esto mandaba a "/presupuestos" (una ruta distinta), lo que
+    // sacaba al usuario de admin-insumos en vez de solo limpiar el
+    // query param en la página donde ya estaba.
+    router.replace("/presupuestos/admin-insumos")
   }
 
   function cargar() {
@@ -166,6 +174,24 @@ export default function AdminInsumosPage() {
         <TablaResueltas solicitudes={solicitudes} estado={estadoFiltro} />
       )}
     </main>
+  )
+}
+
+// El export default real: solo envuelve AdminInsumosContent en
+// Suspense. El fallback se ve un instante mientras Next resuelve los
+// searchParams -- en la práctica es casi instantáneo salvo en el
+// primer load frío.
+export default function AdminInsumosPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto w-full max-w-[1400px] flex-1 p-6">
+          <p className="text-sm text-muted-foreground">Cargando…</p>
+        </main>
+      }
+    >
+      <AdminInsumosContent />
+    </Suspense>
   )
 }
 
