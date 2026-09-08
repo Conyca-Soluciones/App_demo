@@ -37,8 +37,8 @@ import type { FilaRevisionImport, CandidatoInsumo, CategoriaManoObra } from "@/l
 // (presupuesto-table.tsx, admin-insumos/page.tsx): encabezado azul de
 // marca, celdas con borde.
 const headClasesCandidatos =
-  "border-r border-b bg-primary px-2 py-1.5 text-left text-[11px] font-medium text-primary-foreground last:border-r-0"
-const celdaCandidato = "border-r px-2 py-1.5 text-xs last:border-r-0"
+  "border-r border-b bg-primary px-3 py-2 text-left text-xs font-medium text-primary-foreground last:border-r-0"
+const celdaCandidato = "border-r px-3 py-2 text-sm last:border-r-0"
 
 /**
  * Tabla de candidatos de insumo (nombre/unidad/valor/% similitud) --
@@ -276,6 +276,18 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
   const rechazadosManoObra = useMemo(() => rechazadosTodo.filter((f) => f.tipo === "MO"), [rechazadosTodo])
   const autoMatch = useMemo(() => filas.filter((f) => f.estado === "auto_match"), [filas])
 
+  // ---------- tabs: Insumos / Mano de obra ----------
+  // Separados en dos pestañas porque son flujos de revisión distintos
+  // (candidatos del maestro vs. categorías de mano de obra) -- antes
+  // vivían todos apilados en un solo scroll larguísimo. El auto-match
+  // nunca aplica a mano de obra (ver actions.ts / handoff), así que esa
+  // sección se queda en la pestaña de Insumos.
+  const [tabActiva, setTabActiva] = useState<"insumos" | "mano_obra">("insumos")
+  const totalPendientesInsumos = pendientes.length + rechazados.length + autoMatch.length
+  const totalPendientesManoObra = pendientesManoObra.length + rechazadosManoObra.length
+  const sinNadaEnTabInsumos = totalPendientesInsumos === 0
+  const sinNadaEnTabManoObra = totalPendientesManoObra === 0
+
   function agruparPorItem(lista: FilaRevisionImport[]) {
     const grupos = new Map<string, FilaRevisionImport[]>()
     for (const fila of lista) {
@@ -343,69 +355,25 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
     setCorrecciones((prev) => ({ ...prev, [revisionId]: nuevoInsumoId }))
   }
 
-  // ---------- selección múltiple: rechazados (por línea) ----------
-  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
-  const toggleSeleccionado = (id: string) => {
-    setSeleccionados((prev) => {
-      const copia = new Set(prev)
-      if (copia.has(id)) copia.delete(id)
-      else copia.add(id)
-      return copia
-    })
-  }
-  const todosSeleccionados = rechazados.length > 0 && seleccionados.size === rechazados.length
-  const toggleSeleccionarTodos = () => {
-    setSeleccionados(todosSeleccionados ? new Set() : new Set(rechazados.map((f) => f.id)))
-  }
-  const aplicarEnLote = (accion: "mejor_candidato" | "solicitud") => {
-    setElecciones((prev) => {
-      const nuevo = { ...prev }
-      for (const id of seleccionados) {
-        if (accion === "mejor_candidato") {
-          const fila = rechazados.find((f) => f.id === id)
-          if (fila && fila.candidatos.length > 0) {
-            nuevo[id] = { tipo: "maestro", insumoId: fila.candidatos[0].id }
-          }
-          continue
-        }
-        nuevo[id] = { tipo: "solicitud" }
-      }
-      return nuevo
-    })
-  }
+  // ---------- "seleccionados" (rechazados) -- YA NO es un checkbox manual:
+  // una línea queda "seleccionada" automáticamente en cuanto el usuario le
+  // elige un candidato o la marca como solicitud (ver elegirCandidato /
+  // marcarSolicitud arriba). "Guardar seleccionados" guarda todas las que
+  // ya tengan una elección hecha, de una sola vez.
+  const idsRechazadosConEleccion = useMemo(
+    () => rechazados.filter((f) => elecciones[f.id]).map((f) => f.id),
+    [rechazados, elecciones]
+  )
 
-  // ---------- selección múltiple: grupos de pendientes (por descripción) ----------
-  const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
-  const toggleGrupoSeleccionado = (clave: string) => {
-    setGruposSeleccionados((prev) => {
-      const copia = new Set(prev)
-      if (copia.has(clave)) copia.delete(clave)
-      else copia.add(clave)
-      return copia
-    })
-  }
-  const clavesGruposPendientes = Array.from(gruposPendientes.keys())
-  const todosGruposSeleccionados =
-    clavesGruposPendientes.length > 0 && gruposSeleccionados.size === clavesGruposPendientes.length
-  const toggleTodosGruposSeleccionados = () => {
-    setGruposSeleccionados(todosGruposSeleccionados ? new Set() : new Set(clavesGruposPendientes))
-  }
-  const aplicarEnLoteGrupos = (accion: "mejor_candidato" | "solicitud") => {
-    setElecciones((prev) => {
-      const nuevo = { ...prev }
-      for (const clave of gruposSeleccionados) {
-        const filasGrupo = gruposPendientes.get(clave) ?? []
-        for (const f of filasGrupo) {
-          if (accion === "mejor_candidato") {
-            if (f.candidatos.length > 0) nuevo[f.id] = { tipo: "maestro", insumoId: f.candidatos[0].id }
-            continue
-          }
-          nuevo[f.id] = { tipo: "solicitud" }
-        }
-      }
-      return nuevo
-    })
-  }
+  // ---------- "seleccionados" (grupos de pendientes, por descripción) --
+  // mismo criterio: un grupo cuenta como "seleccionado" en cuanto tiene
+  // una elección hecha (se comparte entre todas las filas del grupo).
+  const clavesGruposConEleccion = useMemo(
+    () => Array.from(gruposPendientes.entries())
+      .filter(([, filasGrupo]) => elecciones[filasGrupo[0].id])
+      .map(([clave]) => clave),
+    [gruposPendientes, elecciones]
+  )
 
   // Guardar UNA línea de una vez (en vez de esperar a un botón "guardar
   // todo" al final) -- así el ingeniero ve el progreso inmediato, y
@@ -486,18 +454,12 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
   }
 
   async function guardarSeleccionados() {
-    const ids = Array.from(seleccionados).filter((id) => elecciones[id])
-    await guardarIds(ids)
-    setSeleccionados(new Set())
+    await guardarIds(idsRechazadosConEleccion)
   }
 
   async function guardarGruposSeleccionados() {
-    const ids = Array.from(gruposSeleccionados)
-      .flatMap((clave) => gruposPendientes.get(clave) ?? [])
-      .filter((f) => elecciones[f.id])
-      .map((f) => f.id)
+    const ids = clavesGruposConEleccion.flatMap((clave) => gruposPendientes.get(clave) ?? []).map((f) => f.id)
     await guardarIds(ids)
-    setGruposSeleccionados(new Set())
   }
 
   async function guardarGrupo(filasGrupo: FilaRevisionImport[]) {
@@ -541,8 +503,8 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
   return (
     <Dialog open={open} onOpenChange={handleIntentoCerrar}>
       <DialogContent
-        className="max-w-6xl w-[95vw] max-h-[92vh] overflow-y-auto"
-        style={{ maxWidth: "1200px", width: "95vw" }}
+        className="max-w-7xl w-[95vw] max-h-[92vh] overflow-y-auto"
+        style={{ maxWidth: "1500px", width: "95vw" }}
       >
         {pidiendoConfirmacionCierre ? (
           <div className="space-y-4 p-2">
@@ -577,43 +539,72 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
               <DialogTitle>Revisión de APU</DialogTitle>
             </DialogHeader>
 
-            {cargando && <p className="text-sm text-muted-foreground">Cargando…</p>}
+            {cargando && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground border rounded-lg p-4">
+                <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                Cargando revisión…
+              </div>
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             {!cargando && datos && (
               <div className="space-y-6">
-                {pendientes.length > 0 && (
+                <div className="flex gap-1 border-b">
+                  <button
+                    type="button"
+                    onClick={() => setTabActiva("insumos")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      tabActiva === "insumos"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Insumos
+                    {totalPendientesInsumos > 0 && (
+                      <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+                        {totalPendientesInsumos}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTabActiva("mano_obra")}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      tabActiva === "mano_obra"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Mano de obra
+                    {totalPendientesManoObra > 0 && (
+                      <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+                        {totalPendientesManoObra}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {tabActiva === "insumos" && sinNadaEnTabInsumos && (
+                  <p className="text-sm text-muted-foreground">No hay nada que revisar en Insumos.</p>
+                )}
+                {tabActiva === "mano_obra" && sinNadaEnTabManoObra && (
+                  <p className="text-sm text-muted-foreground">No hay nada que revisar en Mano de obra.</p>
+                )}
+
+                {tabActiva === "insumos" && pendientes.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold">Pendientes de resolver</h3>
 
                     {gruposPendientes.size > 1 && (
                       <div className="flex flex-wrap items-center gap-2 border rounded-lg p-2 bg-muted/30">
-                        <label className="flex items-center gap-1.5 text-sm mr-2">
-                          <input
-                            type="checkbox"
-                            checked={todosGruposSeleccionados}
-                            onChange={toggleTodosGruposSeleccionados}
-                          />
-                          Seleccionar todos ({gruposSeleccionados.size}/{gruposPendientes.size})
-                        </label>
-                        <span className="text-xs text-muted-foreground">Aplicar a los seleccionados:</span>
+                        <span className="text-sm text-muted-foreground mr-auto">
+                          {clavesGruposConEleccion.length} de {gruposPendientes.size} con una elección hecha
+                        </span>
                         <Button
                           size="sm"
-                          variant="outline"
-                          disabled={gruposSeleccionados.size === 0}
-                          onClick={() => aplicarEnLoteGrupos("mejor_candidato")}
+                          disabled={clavesGruposConEleccion.length === 0}
+                          onClick={guardarGruposSeleccionados}
                         >
-                          Elegir mejor candidato
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={gruposSeleccionados.size === 0}
-                          onClick={() => aplicarEnLoteGrupos("solicitud")}
-                        >
-                          Marcar como solicitud
-                        </Button>
-                        <Button size="sm" disabled={gruposSeleccionados.size === 0} onClick={guardarGruposSeleccionados}>
                           Guardar seleccionados
                         </Button>
                       </div>
@@ -626,9 +617,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                         filasGrupo={filasGrupo}
                         itemsPorId={datos.itemsPorId}
                         elecciones={elecciones}
-                        seleccionado={gruposSeleccionados.has(clave)}
                         guardandoIds={guardandoIds}
-                        onToggleSeleccionado={() => toggleGrupoSeleccionado(clave)}
                         onElegirCandidato={(insumoId) => elegirCandidatoGrupo(filasGrupo, insumoId)}
                         onMarcarSolicitud={() => marcarSolicitudGrupo(filasGrupo)}
                         onGuardarGrupo={() => guardarGrupo(filasGrupo)}
@@ -637,7 +626,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                   </section>
                 )}
 
-                {pendientesManoObra.length > 0 && (
+                {tabActiva === "mano_obra" && pendientesManoObra.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold">Mano de obra -- confirma la categoría</h3>
                     <p className="text-xs text-muted-foreground">
@@ -649,10 +638,15 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                       const eleccion = elecciones[fila.id]
                       const guardando = guardandoIds.has(fila.id)
                       return (
-                        <div key={fila.id} className="border rounded-lg p-3 space-y-2">
-                          <p className="text-sm font-medium text-muted-foreground">
-                            {item?.codigo} — {item?.descripcion}
-                          </p>
+                        <div key={fila.id} className="border rounded-lg p-4 space-y-2">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">
+                              {item?.codigo} — {item?.descripcion}
+                            </p>
+                            <p className="text-xs italic text-muted-foreground/70">
+                              Está en el presupuesto como: {fila.descripcionOriginal}
+                            </p>
+                          </div>
                           <TablaCategoriasManoObra
                             categorias={fila.candidatos as CategoriaManoObra[]}
                             seleccionado={eleccion?.tipo === "mano_obra" ? eleccion.categoriaId : undefined}
@@ -678,7 +672,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                   </section>
                 )}
 
-                {rechazados.length > 0 && (
+                {tabActiva === "insumos" && rechazados.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold text-red-700">
                       Rechazados por admin -- necesitan otra opción
@@ -686,18 +680,14 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
 
                     {rechazados.length > 1 && (
                       <div className="flex flex-wrap items-center gap-2 border rounded-lg p-2 bg-muted/30">
-                        <label className="flex items-center gap-1.5 text-sm mr-2">
-                          <input type="checkbox" checked={todosSeleccionados} onChange={toggleSeleccionarTodos} />
-                          Seleccionar todos ({seleccionados.size}/{rechazados.length})
-                        </label>
-                        <span className="text-xs text-muted-foreground">Aplicar a los seleccionados:</span>
-                        <Button size="sm" variant="outline" disabled={seleccionados.size === 0} onClick={() => aplicarEnLote("mejor_candidato")}>
-                          Elegir mejor candidato
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={seleccionados.size === 0} onClick={() => aplicarEnLote("solicitud")}>
-                          Marcar como solicitud
-                        </Button>
-                        <Button size="sm" disabled={seleccionados.size === 0} onClick={guardarSeleccionados}>
+                        <span className="text-sm text-muted-foreground mr-auto">
+                          {idsRechazadosConEleccion.length} de {rechazados.length} con una elección hecha
+                        </span>
+                        <Button
+                          size="sm"
+                          disabled={idsRechazadosConEleccion.length === 0}
+                          onClick={guardarSeleccionados}
+                        >
                           Guardar seleccionados
                         </Button>
                       </div>
@@ -709,9 +699,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                         item={datos.itemsPorId[itemId]}
                         filas={filasItem}
                         elecciones={elecciones}
-                        seleccionados={seleccionados}
                         guardandoIds={guardandoIds}
-                        onToggleSeleccionado={toggleSeleccionado}
                         onElegirCandidato={elegirCandidato}
                         onMarcarSolicitud={marcarSolicitud}
                         onGuardarLinea={guardarLinea}
@@ -721,7 +709,8 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                   </section>
                 )}
 
-                {rechazadosManoObra.length > 0 && (
+
+                {tabActiva === "mano_obra" && rechazadosManoObra.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold text-red-700">
                       Mano de obra rechazada por admin -- elige otra categoría
@@ -731,10 +720,15 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                       const eleccion = elecciones[fila.id]
                       const guardando = guardandoIds.has(fila.id)
                       return (
-                        <div key={fila.id} className="border rounded-lg p-3 space-y-2 bg-red-50/40 border-red-200">
-                          <p className="text-sm font-medium text-muted-foreground">
-                            {item?.codigo} — {item?.descripcion}
-                          </p>
+                        <div key={fila.id} className="border rounded-lg p-4 space-y-2 bg-red-50/40 border-red-200">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">
+                              {item?.codigo} — {item?.descripcion}
+                            </p>
+                            <p className="text-xs italic text-muted-foreground/70">
+                              Está en el presupuesto como: {fila.descripcionOriginal}
+                            </p>
+                          </div>
                           {fila.motivoRechazo && (
                             <p className="text-xs text-red-700">
                               <span className="font-medium">Motivo del rechazo:</span> {fila.motivoRechazo}
@@ -765,7 +759,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                   </section>
                 )}
 
-                {autoMatch.length > 0 && (
+                {tabActiva === "insumos" && autoMatch.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold">Automáticos -- confirma que estén bien</h3>
                     {Array.from(autoMatchPorItem.entries()).map(([itemId, filasItem]) => {
@@ -778,7 +772,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                           {filasItem.map((fila) => {
                             const tieneCorreccionSinGuardar = !!correcciones[fila.id]
                             return (
-                              <div key={fila.id} className="border rounded-lg p-3 space-y-2 ml-2 bg-emerald-50/40">
+                              <div key={fila.id} className="border rounded-lg p-4 space-y-2 ml-2 bg-emerald-50/40">
                                 <div className="flex items-center justify-between">
                                   <span className="font-medium">{fila.descripcionOriginal}</span>
                                   <span className="text-xs text-emerald-700">✓ auto-match</span>
@@ -806,9 +800,6 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
                   </section>
                 )}
 
-                {filas.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No hay nada que revisar aquí.</p>
-                )}
               </div>
             )}
 
@@ -816,7 +807,7 @@ export function RevisionApuDialog({ open, itemIds, onCerrar, onCambio }: Props) 
               <Button variant="outline" onClick={() => handleIntentoCerrar(false)}>
                 Cerrar
               </Button>
-              {faltanPorResolver === 0 && (
+              {!cargando && datos && faltanPorResolver === 0 && (
                 <span className="text-sm text-emerald-700 self-center">✓ Todo resuelto</span>
               )}
             </DialogFooter>
@@ -839,9 +830,7 @@ function GrupoInsumoPendiente({
   filasGrupo,
   itemsPorId,
   elecciones,
-  seleccionado,
   guardandoIds,
-  onToggleSeleccionado,
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarGrupo,
@@ -850,9 +839,7 @@ function GrupoInsumoPendiente({
   filasGrupo: FilaRevisionImport[]
   itemsPorId: Record<string, { codigo: string; descripcion: string }>
   elecciones: Record<string, Eleccion>
-  seleccionado: boolean
   guardandoIds: Set<string>
-  onToggleSeleccionado: () => void
   onElegirCandidato: (insumoId: string) => void
   onMarcarSolicitud: () => void
   onGuardarGrupo: () => void
@@ -866,9 +853,9 @@ function GrupoInsumoPendiente({
     .join(", ")
 
   return (
-    <div className="border rounded-lg p-3 space-y-2">
+    <div className={`border rounded-lg p-4 space-y-2 ${eleccion ? "border-primary/40 bg-primary/5" : ""}`}>
       <div className="flex items-center gap-2">
-        <input type="checkbox" checked={seleccionado} onChange={onToggleSeleccionado} />
+        {eleccion && <span className="text-primary">✓</span>}
         <span className="font-medium">{primera.descripcionOriginal}</span>
         <span className="text-xs text-muted-foreground">
           {primera.cantidad} {primera.unidad}
@@ -914,19 +901,19 @@ function GrupoInsumoPendiente({
 }
 
 // ---------------------------------------------------------------------------
-// Un grupo de líneas (pendientes o rechazadas) de UN ítem -- con checkbox
-// individual, candidatos, y opción de solicitud. Compartido entre las
-// secciones "Pendientes" y "Rechazados" (mismo diseño, la única
-// diferencia es si se muestra el motivo del rechazo).
+// Un grupo de líneas (pendientes o rechazadas) de UN ítem -- candidatos y
+// opción de solicitud. Compartido entre las secciones "Pendientes" y
+// "Rechazados" (mismo diseño, la única diferencia es si se muestra el
+// motivo del rechazo). Una fila cuenta como "seleccionada" (para el botón
+// "Guardar seleccionados" de arriba) en cuanto tiene una elección hecha --
+// no hay checkbox manual.
 // ---------------------------------------------------------------------------
 
 function FilaGrupoItem({
   item,
   filas,
   elecciones,
-  seleccionados,
   guardandoIds,
-  onToggleSeleccionado,
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarLinea,
@@ -935,9 +922,7 @@ function FilaGrupoItem({
   item: { codigo: string; descripcion: string } | undefined
   filas: FilaRevisionImport[]
   elecciones: Record<string, Eleccion>
-  seleccionados: Set<string>
   guardandoIds: Set<string>
-  onToggleSeleccionado: (id: string) => void
   onElegirCandidato: (revisionId: string, insumoId: string) => void
   onMarcarSolicitud: (revisionId: string) => void
   onGuardarLinea: (revisionId: string) => void
@@ -954,14 +939,16 @@ function FilaGrupoItem({
         return (
           <div
             key={fila.id}
-            className={`border rounded-lg p-3 space-y-2 ml-2 ${mostrarMotivoRechazo ? "bg-red-50/40 border-red-200" : ""}`}
+            className={`border rounded-lg p-4 space-y-2 ml-2 ${
+              eleccion
+                ? "border-primary/40 bg-primary/5"
+                : mostrarMotivoRechazo
+                  ? "bg-red-50/40 border-red-200"
+                  : ""
+            }`}
           >
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={seleccionados.has(fila.id)}
-                onChange={() => onToggleSeleccionado(fila.id)}
-              />
+              {eleccion && <span className="text-primary">✓</span>}
               <span className="font-medium">{fila.descripcionOriginal}</span>
               <span className="text-xs text-muted-foreground">
                 {fila.cantidad} {fila.unidad}

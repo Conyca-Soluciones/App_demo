@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import type { ItemPresupuesto, EstadoApuItem, MotivoRechazoPorItem } from "@/app/(app)/presupuestos/actions"
 
 const inputClasses =
-  "h-7 w-full rounded-none border-none bg-transparent px-2 shadow-none " +
+  "h-9 w-full rounded-none border-none bg-transparent px-3 text-sm shadow-none " +
   "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
 
 // Igual que inputClasses pero para el textarea de descripción: sin
@@ -22,12 +22,12 @@ const inputClasses =
 // desbordarse en una sola línea como hacía el <Input>.
 const textareaClasses =
   "block w-full resize-none overflow-hidden rounded-none border-none bg-transparent " +
-  "px-2 py-1 text-xs leading-snug shadow-none " +
+  "px-3 py-2 text-sm leading-snug shadow-none " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
 
 // Encabezado en azul de marca (bg-primary/text-primary-foreground) --
 // mismo tratamiento que ya usan admin-tecnico y admin-insumos.
-const headClasses = "h-8 border-r border-b bg-primary px-2 text-xs font-medium text-primary-foreground last:border-r-0"
+const headClasses = "h-11 border-r border-b bg-primary px-3 text-sm font-medium text-primary-foreground last:border-r-0"
 const cellClasses = "border-r p-0 align-middle last:border-r-0"
 
 // Textarea que ajusta su alto solo, según el texto -- así la caja de
@@ -114,7 +114,7 @@ function CantidadItemGuardadoEditable({
             setEditando(false)
           }
         }}
-        className="w-full rounded border px-1.5 py-0.5 text-right text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-full rounded border px-2 py-1 text-right text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
     )
   }
@@ -126,7 +126,7 @@ function CantidadItemGuardadoEditable({
         setEditando(true)
       }}
       title="Doble click para editar la cantidad"
-      className={`block cursor-pointer rounded px-2 py-1 text-right text-xs transition-colors ${
+      className={`block cursor-pointer rounded px-3 py-2 text-right text-sm transition-colors ${
         guardadoReciente
           ? "bg-emerald-50 text-emerald-700"
           : "text-muted-foreground hover:bg-muted"
@@ -271,12 +271,12 @@ function EtiquetaEstadoApu({
             e.stopPropagation()
             onRevisar?.()
           }}
-          className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 hover:bg-red-200"
+          className="rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800 hover:bg-red-200"
         >
           RECHAZADO
         </button>
         {motivoTexto && (
-          <span className="text-[10px] text-red-700 text-center leading-tight break-words">
+          <span className="text-xs text-red-700 text-center leading-tight break-words">
             {motivoTexto}
           </span>
         )}
@@ -293,7 +293,7 @@ function EtiquetaEstadoApu({
           onRevisar?.()
         }}
         title="Hay insumos de este ítem esperando aprobación -- click para revisar"
-        className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-200"
+        className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
       >
         PENDIENTE DE APROBACIÓN
       </button>
@@ -303,7 +303,7 @@ function EtiquetaEstadoApu({
   return (
     <span
       title="Todos los insumos de este APU ya están en la base"
-      className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800"
+      className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800"
     >
       LISTO PARA SUBIR
     </span>
@@ -398,15 +398,15 @@ export function PresupuestoTable({
       <Table className="table-fixed border-separate border-spacing-0">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className={`w-32 ${headClasses}`}>Código</TableHead>
-            <TableHead className={`w-[420px] ${headClasses}`}>Descripción</TableHead>
-            <TableHead className={`w-24 ${headClasses}`}>Unidad</TableHead>
-            <TableHead className={`w-28 text-right ${headClasses}`}>Cantidad</TableHead>
-            <TableHead className={`w-32 text-right ${headClasses}`}>Valor unitario</TableHead>
-            <TableHead className={`w-32 text-right ${headClasses}`}>Valor total</TableHead>
-            <TableHead className={`w-32 text-right ${headClasses}`}>Presupuesto original</TableHead>
-            <TableHead className={`w-40 ${headClasses}`}>APU</TableHead>
-            <TableHead className={`w-10 ${headClasses}`} />
+            <TableHead className={`w-36 ${headClasses}`}>Código</TableHead>
+            <TableHead className={`w-[520px] ${headClasses}`}>Descripción</TableHead>
+            <TableHead className={`w-28 ${headClasses}`}>Unidad</TableHead>
+            <TableHead className={`w-32 text-right ${headClasses}`}>Cantidad</TableHead>
+            <TableHead className={`w-36 text-right ${headClasses}`}>Valor unitario</TableHead>
+            <TableHead className={`w-36 text-right ${headClasses}`}>Valor total</TableHead>
+            <TableHead className={`w-36 text-right ${headClasses}`}>Presupuesto original</TableHead>
+            <TableHead className={`w-48 ${headClasses}`}>APU</TableHead>
+            <TableHead className={`w-12 ${headClasses}`} />
           </TableRow>
         </TableHeader>
 
@@ -442,18 +442,18 @@ export function PresupuestoTable({
               }
             >
               <TableCell
-                className={`${cellClasses} border-b px-2 font-mono text-xs text-muted-foreground`}
+                className={`${cellClasses} border-b px-3 py-2 font-mono text-sm text-muted-foreground`}
               >
                 {item.codigo}
               </TableCell>
 
               <TableCell
                 className={`${cellClasses} border-b`}
-                style={{ paddingLeft: `${(item.nivel - 1) * 20}px` }}
+                style={{ paddingLeft: `${(item.nivel - 1) * 24}px` }}
               >
                 {item.guardado ? (
                   <span
-                    className={`block whitespace-normal break-words px-2 py-1 text-xs ${item.nivel === 1 ? "font-semibold" : ""}`}
+                    className={`block whitespace-normal break-words px-3 py-2 text-sm ${item.nivel === 1 ? "font-semibold" : ""}`}
                   >
                     {item.descripcion}
                   </span>
@@ -470,7 +470,7 @@ export function PresupuestoTable({
 
               <TableCell className={`${cellClasses} border-b`}>
                 {item.guardado ? (
-                  <span className="block px-2 py-1 text-xs text-muted-foreground">
+                  <span className="block px-3 py-2 text-sm text-muted-foreground">
                     {item.unidad ?? "—"}
                   </span>
                 ) : (
@@ -491,7 +491,7 @@ export function PresupuestoTable({
                     }
                   />
                 ) : item.guardado ? (
-                  <span className="block px-2 py-1 text-right text-xs text-muted-foreground">
+                  <span className="block px-3 py-2 text-right text-sm text-muted-foreground">
                     {item.cantidad ?? "—"}
                   </span>
                 ) : (
@@ -504,7 +504,7 @@ export function PresupuestoTable({
                 )}
               </TableCell>
 
-              <TableCell className={`${cellClasses} border-b px-2 py-1 text-right text-xs`}>
+              <TableCell className={`${cellClasses} border-b px-3 py-2 text-right text-sm`}>
                 {item.valorUnitario != null
                   ? item.valorUnitario.toLocaleString("es-CO", {
                       style: "currency",
@@ -515,7 +515,7 @@ export function PresupuestoTable({
               </TableCell>
 
               <TableCell
-                className={`${cellClasses} border-b px-2 py-1 text-right text-xs font-medium ${
+                className={`${cellClasses} border-b px-3 py-2 text-right text-sm font-medium ${
                   excedePresupuesto ? "text-red-950" : ""
                 }`}
               >
@@ -529,7 +529,7 @@ export function PresupuestoTable({
               </TableCell>
 
               <TableCell
-                className={`${cellClasses} border-b px-2 py-1 text-right text-xs ${
+                className={`${cellClasses} border-b px-3 py-2 text-right text-sm ${
                   excedePresupuesto ? "font-semibold text-red-950" : "text-muted-foreground"
                 }`}
               >
@@ -542,12 +542,12 @@ export function PresupuestoTable({
                   : "—"}
               </TableCell>
 
-              <TableCell className={`${cellClasses} border-b px-2 text-center`}>
+              <TableCell className={`${cellClasses} border-b px-3 py-2 text-center`}>
                 <div className="flex flex-col items-center gap-1">
                   <button
                     type="button"
                     onClick={() => onEditarApu?.(item)}
-                    className="text-xs text-primary underline-offset-2 hover:underline"
+                    className="text-sm text-primary underline-offset-2 hover:underline"
                   >
                     {item.apuId ? "Editar APU" : "Agregar APU"}
                   </button>
@@ -559,7 +559,7 @@ export function PresupuestoTable({
                   {excedePresupuesto && (
                     <span
                       title="El valor calculado supera el presupuesto original del Excel en más de $1.000"
-                      className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                      className="rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white"
                     >
                       ⚠ SUPERA PRESUPUESTO
                     </span>
@@ -567,17 +567,17 @@ export function PresupuestoTable({
                 </div>
               </TableCell>
 
-              <TableCell className={`${cellClasses} border-b px-1 text-center`}>
+              <TableCell className={`${cellClasses} border-b px-2 py-2 text-center`}>
                 <div className="flex items-center justify-center gap-1">
                   {item.guardado && (
-                    <span title="Guardado en la base de datos" className="text-xs text-emerald-600">
+                    <span title="Guardado en la base de datos" className="text-sm text-emerald-600">
                       ✓
                     </span>
                   )}
                   {item.pendienteAprobacion && (
                     <span
                       title="Insumo nuevo pendiente de aprobación"
-                      className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                      className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
                     >
                       Pend.
                     </span>
