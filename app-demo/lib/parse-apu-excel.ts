@@ -49,6 +49,14 @@ export interface LineaInsumoApu {
   tipo: TipoInsumoApu;
   unidad: string | null;
   cantidad: number;
+  // Solo se usa para líneas tipo EQUIPO (ver recalcular_valor_apu en la
+  // base -- equipo multiplica cantidad × rendimiento × valor_hora).
+  // null si la plantilla de este archivo no trae columna "Rendimiento"
+  // -- la plantilla base (ver docstring arriba) nunca la tuvo, así que
+  // en la práctica esto va a venir null hasta que se agregue esa
+  // columna a la plantilla que usan los ingenieros. El resto del
+  // pipeline (apu_import_revision, item_apu) ya trata null como 1.
+  rendimiento: number | null;
 }
 
 export interface BloqueApu {
@@ -140,6 +148,10 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
   const colTipo = header.findIndex((h) => h === "tipo");
   const colUnidad = header.findIndex((h) => h.includes("unidad"));
   const colCantidad = header.findIndex((h) => h.includes("cantidad"));
+  // Opcional -- -1 (findIndex "no encontrado") si la plantilla no la
+  // trae, y eso está bien: no es una columna obligatoria como las de
+  // arriba, así que su ausencia no debe cortar el import.
+  const colRendimiento = header.findIndex((h) => h.includes("rendimiento"));
 
   const bloques: BloqueApu[] = [];
   const erroresEstructura: string[] = [];
@@ -154,6 +166,7 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
     const tipoRaw = fila[colTipo];
     const unidad = celdaTexto(fila[colUnidad]);
     const cantidad = celdaNumero(fila[colCantidad]);
+    const rendimiento = colRendimiento >= 0 ? celdaNumero(fila[colRendimiento]) : null;
 
     if (!codigo && !nombre) continue; // fila vacía, se ignora en silencio
 
@@ -187,6 +200,7 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
         tipo,
         unidad,
         cantidad: cantidad ?? 0,
+        rendimiento,
       });
       continue;
     }
