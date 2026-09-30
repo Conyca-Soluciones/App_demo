@@ -32,7 +32,7 @@ const ESTADO_BADGE: Record<
   EstadoEntrega,
   { label: string; variant: "default" | "secondary" | "outline" }
 > = {
-  sin_entregar: { label: "Sin entregar", variant: "outline" },
+  sin_entregar: { label: "Aprobada", variant: "default" },
   entrega_parcial: { label: "Entrega parcial", variant: "secondary" },
   entregada: { label: "Entregada", variant: "default" },
 }

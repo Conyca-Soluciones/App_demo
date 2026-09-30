@@ -3319,6 +3319,11 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { requerirScope, requerirAdmin } from "@/lib/permisos"
+import {
+  calcularEstadoVisible,
+  type EstadoEntregaOrden,
+  type EstadoOrdenVisible,
+} from "@/lib/ordenes-compra-estado"
 
 // ---------------------------------------------------------------------------
 // Compras -- cola de pedidos aprobados listos para generar orden de compra
@@ -3714,7 +3719,7 @@ export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResume
   }))
 }
 
-export type OrdenCompraEstado = "pendiente_aprobacion" | "aprobada" | "rechazada"
+export type OrdenCompraEstado = "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
 
 export type LineaOrdenCompraDetalle = {
   id: string
@@ -3731,6 +3736,8 @@ export type OrdenCompraDetalle = {
   id: string
   numero: number
   estado: OrdenCompraEstado
+  estadoEntrega: EstadoEntregaOrden
+  estadoVisible: EstadoOrdenVisible
   proyectoCodigo: string | null
   proyectoNombre: string | null
   proyectoCiudad: string | null
@@ -3770,7 +3777,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
+      id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, observaciones, enviada, created_at, aprobada_at, motivo_rechazo,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
@@ -3800,6 +3807,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     id: d.id,
     numero: d.numero,
     estado: d.estado,
+    estadoEntrega: d.estado_entrega,
+    estadoVisible: calcularEstadoVisible(d.estado, d.estado_entrega),
     proyectoCodigo: d.proyecto?.codigo ?? null,
     proyectoNombre: d.proyecto?.nombre ?? null,
     proyectoCiudad: d.proyecto?.ciudad ?? null,
@@ -3868,6 +3877,8 @@ export type OrdenCompraListado = {
   id: string
   numero: number
   estado: OrdenCompraEstado
+  estadoEntrega: EstadoEntregaOrden
+  estadoVisible: EstadoOrdenVisible
   enviada: boolean
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -3891,7 +3902,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, enviada, created_at,
+      id, numero, estado, estado_entrega, enviada, created_at,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
@@ -3905,6 +3916,8 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     id: o.id,
     numero: o.numero,
     estado: o.estado,
+    estadoEntrega: o.estado_entrega,
+    estadoVisible: calcularEstadoVisible(o.estado, o.estado_entrega),
     enviada: o.enviada,
     proyectoCodigo: o.proyecto?.codigo ?? null,
     proyectoNombre: o.proyecto?.nombre ?? null,

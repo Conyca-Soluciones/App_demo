@@ -55,7 +55,7 @@ export type InsumoEjecucion = {
   valorSalida: number
 }
 
-export type OrdenCompraEstado = "pendiente_aprobacion" | "aprobada" | "rechazada"
+export type OrdenCompraEstado = "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
 
 export type OrdenCompraResumenEstado = {
   id: string

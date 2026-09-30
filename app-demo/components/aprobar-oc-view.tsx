@@ -375,6 +375,7 @@ const ESTADO_BADGE: Record<
   pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
   aprobada: { label: "Aprobada", variant: "default" },
   rechazada: { label: "Rechazada", variant: "destructive" },
+  cancelada: { label: "Cancelada", variant: "destructive" },
 }
 
 const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[] = [
@@ -382,6 +383,7 @@ const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[]
   { valor: "pendiente_aprobacion", etiqueta: "Pendientes" },
   { valor: "aprobada", etiqueta: "Aprobadas" },
   { valor: "rechazada", etiqueta: "Rechazadas" },
+  { valor: "cancelada", etiqueta: "Canceladas" },
 ]
 
 function Tile({ etiqueta, valor, color }: { etiqueta: string; valor: number; color?: string }) {
@@ -421,7 +423,7 @@ export function AprobarOCView() {
   }, [])
 
   const conteos = useMemo(() => {
-    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0 }
+    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0, cancelada: 0 }
     if (!ordenes) return base
     base.total = ordenes.length
     for (const o of ordenes) base[o.estado] += 1

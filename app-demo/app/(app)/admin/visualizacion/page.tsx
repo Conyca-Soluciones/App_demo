@@ -49,6 +49,7 @@ const ESTADO_BADGE: Record<OrdenCompraEstado, { label: string; variant: "default
   pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
   aprobada: { label: "Aprobada", variant: "default" },
   rechazada: { label: "Rechazada", variant: "destructive" },
+  cancelada: { label: "Cancelada", variant: "destructive" },
 }
 
 function Tile({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle?: string }) {
@@ -166,7 +167,7 @@ export default function VisualizacionPage() {
     const pctInsumosComprados =
       insumosPresupuestados.length > 0 ? (insumosConCompra / insumosPresupuestados.length) * 100 : 0
 
-    const ocPorEstado = { pendiente_aprobacion: 0, aprobada: 0, rechazada: 0 } as Record<OrdenCompraEstado, number>
+    const ocPorEstado = { pendiente_aprobacion: 0, aprobada: 0, rechazada: 0, cancelada: 0 } as Record<OrdenCompraEstado, number>
     for (const o of resumen.ordenes) ocPorEstado[o.estado] += 1
 
     return {

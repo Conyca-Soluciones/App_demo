@@ -16,33 +16,21 @@ import {
 import {
   listarTodasLasOrdenesCompra,
   type OrdenCompraListado,
-  type OrdenCompraEstado,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import {
+  ESTADO_VISIBLE_BADGE,
+  FILTROS_ESTADO_VISIBLE,
+  type EstadoOrdenVisible,
+} from "@/lib/ordenes-compra-estado"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
-
-const ESTADO_BADGE: Record<
-  OrdenCompraEstado,
-  { label: string; variant: "default" | "destructive" | "secondary" }
-> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-}
-
-const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[] = [
-  { valor: "todas", etiqueta: "Todas" },
-  { valor: "pendiente_aprobacion", etiqueta: "Pendientes" },
-  { valor: "aprobada", etiqueta: "Aprobadas" },
-  { valor: "rechazada", etiqueta: "Rechazadas" },
-]
 
 export function TodasLasOrdenesView() {
   const router = useRouter()
   const [ordenes, setOrdenes] = useState<OrdenCompraListado[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [filtroEstado, setFiltroEstado] = useState<OrdenCompraEstado | "todas">("todas")
+  const [filtroEstado, setFiltroEstado] = useState<EstadoOrdenVisible | "todas">("todas")
 
   useEffect(() => {
     listarTodasLasOrdenesCompra()
@@ -53,7 +41,7 @@ export function TodasLasOrdenesView() {
   const ordenesFiltradas = useMemo(() => {
     if (!ordenes) return []
     if (filtroEstado === "todas") return ordenes
-    return ordenes.filter((o) => o.estado === filtroEstado)
+    return ordenes.filter((o) => o.estadoVisible === filtroEstado)
   }, [ordenes, filtroEstado])
 
   return (
@@ -61,7 +49,7 @@ export function TodasLasOrdenesView() {
       <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
 
       <div className="flex gap-2">
-        {FILTROS_ESTADO.map((f) => (
+        {FILTROS_ESTADO_VISIBLE.map((f) => (
           <Button
             key={f.valor}
             size="sm"
@@ -103,7 +91,7 @@ export function TodasLasOrdenesView() {
             </TableHeader>
             <TableBody>
               {ordenesFiltradas.map((orden) => {
-                const badge = ESTADO_BADGE[orden.estado]
+                const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
                 return (
                   <TableRow
                     key={orden.id}

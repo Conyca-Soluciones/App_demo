@@ -302,3 +302,25 @@ revoke all on function public.registrar_entrada_almacen(uuid, text, text, jsonb)
 grant execute on function public.listar_ordenes_para_entrada() to authenticated;
 grant execute on function public.detalle_orden_para_entrada(uuid) to authenticated;
 grant execute on function public.registrar_entrada_almacen(uuid, text, text, jsonb) to authenticated;
+
+-- Estado 'cancelada' para órdenes de compra (el estado visible combina
+-- estado + estado_entrega, ver lib/ordenes-compra-estado.ts). El nombre del
+-- check existente no está en el repo, así que se busca por su definición.
+do $$
+declare
+  v_nombre text;
+begin
+  for v_nombre in
+    select c.conname
+      from pg_constraint c
+     where c.conrelid = 'public.ordenes_compra'::regclass
+       and c.contype = 'c'
+       and pg_get_constraintdef(c.oid) ilike '%pendiente_aprobacion%'
+  loop
+    execute format('alter table public.ordenes_compra drop constraint %I', v_nombre);
+  end loop;
+
+  alter table public.ordenes_compra
+    add constraint ordenes_compra_estado_check
+    check (estado in ('pendiente_aprobacion', 'aprobada', 'rechazada', 'cancelada'));
+end $$;

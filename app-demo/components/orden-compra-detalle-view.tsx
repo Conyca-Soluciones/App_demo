@@ -23,6 +23,7 @@
 // } from "@/components/ui/dialog"
 // import { Textarea } from "@/components/ui/textarea"
 // import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
+import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 // import {
 //   obtenerOrdenCompraDetalle,
 //   obtenerPermisosOrdenCompra,
@@ -135,7 +136,7 @@
 //     )
 //   }
 
-//   const badge = ESTADO_BADGE[orden.estado]
+//   const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
 //   const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
 //   const puedeMarcarEnviada = permisos.rolCompras && orden.estado === "aprobada" && !orden.enviada
 //   // Misma fórmula que usan orden-compra-pdf.tsx y generar-oc-view.tsx, para
@@ -406,15 +407,6 @@ const formatoMoneda = new Intl.NumberFormat("es-CO", {
   maximumFractionDigits: 0,
 })
 
-const ESTADO_BADGE: Record<
-  OrdenCompraDetalle["estado"],
-  { label: string; variant: "default" | "destructive" | "secondary" }
-> = {
-  pendiente_aprobacion: { label: "Pendiente de aprobación", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-}
-
 // onCerrar es opcional: si se pasa (uso dentro de un Dialog), el botón de
 // arriba cierra el diálogo en vez de navegar -- la página standalone
 // (/almacen/ordenes-compra/[id]) sigue funcionando igual, sin pasarlo.
@@ -502,7 +494,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     )
   }
 
-  const badge = ESTADO_BADGE[orden.estado]
+  const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
   const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
   const puedeMarcarEnviada = permisos.rolCompras && orden.estado === "aprobada" && !orden.enviada
   // Misma fórmula que usan orden-compra-pdf.tsx y generar-oc-view.tsx, para
