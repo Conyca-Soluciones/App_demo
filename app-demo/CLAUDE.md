@@ -799,6 +799,31 @@ filtran/ordenan en el cliente) con edición en línea por celda
 - Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
   (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
 
+## Tablas tipo Excel y encabezado estándar (implementado)
+
+- `components/tabla-excel.tsx` (`TablaExcel`, `PaginacionExcel`): diseño de
+  Proveedores como componente de SOLO presentación (el filtrado/orden/
+  paginación los hace cada página). Lo usan Maestro de insumos y el Catálogo
+  de MO/equipo (`admin-mo`). Proveedores todavía tiene su propia copia (con
+  edición en línea) -- pendiente unificar.
+- `components/encabezado-pagina.tsx`: menú + título + subtítulo + (opcional)
+  `SelectorProyecto`. Inventario y Salidas ya usan el proyecto del header.
+- Nuevo proveedor: `crearProveedor` asigna `PV####` (siguiente número) y
+  reintenta si choca con `proveedores_id_prov_key` (UNIQUE, aplicado).
+
+## Rendimiento: índices y hallazgos (2026-09-30)
+
+Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
+- `ORDER BY col <-> término LIMIT n` (todas las `buscar_*_candidatos`) solo
+  usa índices **GiST** de trigramas; los GIN no sirven para ordenar. Se
+  agregaron (93 ms -> 5 ms). Cualquier búsqueda nueva por similitud con
+  ORDER BY necesita GiST.
+- FKs sin índice hacían que borrar en cascada fuera O(padres × hijos); se
+  indexaron (`20261004200000_indices_rendimiento.sql`, aplicada).
+- **Riesgo de seguridad sin resolver**: RLS de `maestro_insumos` (UPDATE) y
+  de `mano_obra_categorias`/`equipo_categorias` (ALL) permite a cualquier
+  autenticado. No se cambió (se pidió no tocar backend).
+
 ## Pendientes generales
 
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de
