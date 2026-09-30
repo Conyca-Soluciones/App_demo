@@ -13,6 +13,7 @@ import { NextResponse, type NextRequest } from "next/server"
 // entrada de "/admin-tecnico" de "admin_proyectos" a "admin_tecnica".
 
 const RUTAS_POR_SCOPE: Record<string, "admin_insumos" | "admin_proyectos" | "admin_usuarios"> = {
+  "/almacen/entradas": "admin_insumos",
   "/admin-tecnico": "admin_proyectos", // TODO: migrar a admin_tecnica cuando exista ese scope
   "/presupuestos/admin-insumos": "admin_insumos",
 }
