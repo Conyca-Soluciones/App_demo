@@ -98,7 +98,7 @@ begin
     coalesce(sum(r.recibida), 0)
   from ordenes_compra o
   join proyectos pr on pr.id = o.proyecto_id
-  left join proveedores pv on pv.id = o.proveedor_id
+  left join proveedores pv on pv.unique_id = o.proveedor_id
   left join ordenes_compra_items i on i.orden_compra_id = o.id
   left join lateral (
     select sum(ei.cantidad) as recibida
@@ -135,7 +135,7 @@ begin
     into v_orden
     from ordenes_compra o
     join proyectos pr on pr.id = o.proyecto_id
-    left join proveedores pv on pv.id = o.proveedor_id
+    left join proveedores pv on pv.unique_id = o.proveedor_id
    where o.id = p_orden_id;
 
   if not found then
