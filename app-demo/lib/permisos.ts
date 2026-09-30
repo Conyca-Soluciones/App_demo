@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import { permisosDesdeBanderas, type PermisosRol } from "@/lib/pestanas"
 
 // ---------------------------------------------------------------------------
 // Permisos efectivos de un usuario sobre los proyectos = unión de todo lo
@@ -50,53 +51,113 @@ export async function obtenerPermisosUsuario(
 //   return { esAdmin: false, veTodosProyectos: false, puedeEditarTodos: false, proyectos }
 // }
 
-// Lanza un error si quien está autenticado ahora mismo no es admin --
-// para usar al inicio de cada acción del panel de admin.
+// ---------------------------------------------------------------------------
+// Permisos del usuario actual (rol, pestañas, acciones).
+//
+// El middleware calcula esto UNA vez por request (RPC permisos_rol_usuario) y
+// lo deja en el header x-permisos del request que sigue hacia el handler; acá
+// se lee sin volver a golpear Supabase. SEGURIDAD: el middleware borra
+// SIEMPRE estos headers si vienen del cliente antes de escribir los suyos --
+// antes se copiaban tal cual y solo se sobrescribían en algunas rutas, así que
+// un usuario con sesión podía mandar "x-es-admin: true" a una Server Action y
+// pasar requerirAdmin (que además usa la llave de servicio).
+//
+// Si el header no está (llamada que no pasó por el middleware) se consulta la
+// base. Si la migración de roles todavía no se corrió (la función no existe),
+// se cae a las banderas anteriores de perfiles: nada se rompe al desplegar el
+// código antes que el SQL.
+// ---------------------------------------------------------------------------
 
-// Antes: SIEMPRE llamaba auth.getUser() + SELECT perfiles.es_admin,
-// aunque el middleware YA hubiera hecho exactamente esa verificación
-// unos milisegundos antes, en la misma petición HTTP (toda ruta bajo
-// /admin pasa primero por el middleware, que ya confirma es_admin=true
-// antes de dejar pasar la request -- ver middleware.ts). Ahora lee esa
-// verificación ya hecha desde los headers x-user-id / x-es-admin que el
-// middleware inyecta -- solo vuelve a golpear Supabase si por algún
-// motivo esos headers no vinieran (ej. la función se invoca en un
-// contexto que no pasó por este middleware, como un test o una llamada
-// directa fuera de Next.js).
-export async function requerirAdmin() {
-  const headersList = await headers()
-  const userIdDesdeMiddleware = headersList.get("x-user-id")
-  const esAdminDesdeMiddleware = headersList.get("x-es-admin")
- 
-  if (userIdDesdeMiddleware && esAdminDesdeMiddleware === "true") {
-    return { id: userIdDesdeMiddleware } as { id: string }
-  }
- 
-  // Fallback: el middleware no confirmó nada (o esta llamada no pasó
-  // por él) -- se verifica desde cero, como antes.
+async function permisosDesdePerfil(userId: string): Promise<PermisosRol> {
   const supabase = await createClient()
- 
+  const { data } = await supabase
+    .from("perfiles")
+    .select("es_admin, admin_insumos, admin_proyectos, admin_mano_obra, rol_compras")
+    .eq("id", userId)
+    .single()
+
+  return permisosDesdeBanderas(data)
+}
+
+export async function obtenerUsuarioId(): Promise<string | null> {
+  const desdeMiddleware = (await headers()).get("x-user-id")
+  if (desdeMiddleware) return desdeMiddleware
+
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
- 
-  if (!user) {
+  return user?.id ?? null
+}
+
+export async function obtenerPermisosRol(): Promise<PermisosRol | null> {
+  const headersList = await headers()
+  const crudo = headersList.get("x-permisos")
+  if (crudo) {
+    try {
+      return JSON.parse(decodeURIComponent(crudo)) as PermisosRol
+    } catch {
+      // header corrupto: se recalcula abajo
+    }
+  }
+
+  const userId = await obtenerUsuarioId()
+  if (!userId) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("permisos_rol_usuario", { p_usuario_id: userId })
+  if (error || !data) {
+    return await permisosDesdePerfil(userId)
+  }
+  return data as PermisosRol
+}
+
+// Lanza un error si quien está autenticado ahora mismo no es Administrador --
+// para usar al inicio de cada acción del panel de admin.
+export async function requerirAdmin() {
+  const permisos = await obtenerPermisosRol()
+  const userId = permisos ? await obtenerUsuarioId() : null
+
+  if (!permisos || !userId) {
     throw new Error("No autenticado.")
   }
- 
-  const { data: perfil, error } = await supabase
-    .from("perfiles")
-    .select("es_admin")
-    .eq("id", user.id)
-    .single()
- 
-  if (error || !perfil?.es_admin) {
+  if (!permisos.esAdministrador) {
     throw new Error("Esta acción requiere permisos de administrador.")
   }
- 
-  return user
+  return { id: userId }
 }
- 
+
+// Exige una ACCIÓN del rol (ver ACCIONES en lib/pestanas.ts). El
+// Administrador puede todo. La base vuelve a validar la acción por dentro
+// (tiene_accion) en las funciones y políticas que la usan.
+export async function requerirAccion(accion: string) {
+  const permisos = await obtenerPermisosRol()
+  const userId = permisos ? await obtenerUsuarioId() : null
+
+  if (!permisos || !userId) {
+    throw new Error("No autenticado.")
+  }
+  if (!permisos.esAdministrador && !permisos.acciones.includes(accion)) {
+    throw new Error("No tienes permiso para esta acción.")
+  }
+  return { id: userId }
+}
+
+// Exige tener una PESTAÑA (para acciones que no son de una acción concreta,
+// ej. la visualización de proyectos). Un usuario sin rol solo pasa si es
+// Administrador.
+export async function requerirPestana(clave: string) {
+  const permisos = await obtenerPermisosRol()
+  const userId = permisos ? await obtenerUsuarioId() : null
+
+  if (!permisos || !userId) {
+    throw new Error("No autenticado.")
+  }
+  if (!permisos.esAdministrador && (permisos.sinRol || !permisos.pestanas.includes(clave))) {
+    throw new Error("No tienes permiso para esta acción.")
+  }
+  return { id: userId }
+}
 
 // ---------------------------------------------------------------------------
 // AGREGAR esto al final de lib/permisos.ts -- no reemplaza nada de lo que
@@ -110,54 +171,18 @@ export async function requerirAdmin() {
 // perfiles, y las funciones SQL equivalentes admin_insumos(uuid) etc.
 // que ya validan es_admin OR el flag puntual -- esto solo replica esa
 // misma regla del lado de TS, para las Server Actions).
+// Scopes anteriores -> acción equivalente. Se conservan para las llamadas
+// existentes a requerirScope("..."); el código nuevo usa requerirAccion.
 export type ScopeAdmin = "admin_insumos" | "admin_proyectos" | "admin_usuarios" | "admin_mano_obra" | "rol_compras"
 
-// Lanza un error si quien está autenticado ahora mismo no tiene el scope
-// pedido (ni tampoco es_admin general) -- para usar al inicio de cada
-// acción de un panel de admin específico (ej. /admin-insumos).
-
-
-
- 
-export async function requerirScope(scope: ScopeAdmin) {
-  const headersList = await headers()
-  const userIdDesdeMiddleware = headersList.get("x-user-id")
-  const tieneScopeDesdeMiddleware =
-    headersList.get(`x-scope-${scope}`) === "true" || headersList.get("x-es-admin") === "true"
- 
-  if (userIdDesdeMiddleware && tieneScopeDesdeMiddleware) {
-    return { id: userIdDesdeMiddleware } as { id: string }
-  }
- 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
- 
-  if (!user) {
-    throw new Error("No autenticado.")
-  }
- 
-  // select FIJO (mismo motivo que en middleware.ts): un .select() con
-  // template string dinámico (`es_admin, ${scope}`) rompe la inferencia
-  // de tipos de Supabase con un ParserError -- se piden siempre las 4
-  // columnas y se elige cuál mirar en JS, no en la query.
-  const { data: perfil, error } = await supabase
-    .from("perfiles")
-    .select("es_admin, admin_insumos, admin_proyectos, admin_usuarios,admin_mano_obra,rol_compras")
-    .eq("id", user.id)
-    .single()
- 
-  if (error || !perfil) {
-    throw new Error("Esta acción requiere permisos de administrador.")
-  }
- 
-  const tienePermiso = perfil.es_admin || perfil[scope]
- 
-  if (!tienePermiso) {
-    throw new Error("No tienes permiso para esta acción.")
-  }
- 
-  return user
+const ACCION_DE_SCOPE: Record<Exclude<ScopeAdmin, "admin_usuarios">, string> = {
+  admin_insumos: "aprobar_insumos",
+  admin_proyectos: "aprobar_pedidos",
+  admin_mano_obra: "aprobar_mano_obra",
+  rol_compras: "comprar",
 }
- 
+
+export async function requerirScope(scope: ScopeAdmin) {
+  if (scope === "admin_usuarios") return await requerirAdmin()
+  return await requerirAccion(ACCION_DE_SCOPE[scope])
+}

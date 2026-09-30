@@ -3,6 +3,7 @@
 // app/(app)/admin-tecnico/actions.ts
 
 import { createClient } from "@/lib/supabase/server"
+import { requerirAccion } from "@/lib/permisos"
 
 export type PedidoPendiente = {
   id: string
@@ -31,6 +32,7 @@ export type PedidoPendiente = {
 // (ver migracion_fk_perfiles.sql), igual que ya hace con
 // presupuesto_item -> presupuesto -> proyecto.
 export async function verPedidosPendientes(): Promise<PedidoPendiente[]> {
+  await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -85,6 +87,7 @@ export async function resolverPedido(
   estado: "aprobado" | "rechazado",
   comentario?: string
 ) {
+  await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
   const {

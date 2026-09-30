@@ -3318,7 +3318,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirScope, requerirAdmin } from "@/lib/permisos"
+import { requerirScope, requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
   type EstadoEntregaOrden,
@@ -3657,23 +3657,30 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
 // Aprobación de OC + pantalla de detalle
 // ---------------------------------------------------------------------------
 
-export type PermisosOrdenCompra = { esAdmin: boolean; rolCompras: boolean }
+// Qué puede hacer el usuario con las órdenes de compra (lo decide su rol; ver
+// Roles y permisos). Los nombres esAdmin / rolCompras se conservan porque las
+// pantallas ya los usan: esAdmin = puede aprobar/rechazar, rolCompras = puede
+// comprar (crear la orden, marcarla como enviada).
+export type PermisosOrdenCompra = {
+  esAdmin: boolean
+  rolCompras: boolean
+  puedeDesaprobar: boolean
+  puedeCancelar: boolean
+}
 
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { esAdmin: false, rolCompras: false }
+  const permisos = await obtenerPermisosRol()
+  if (!permisos) {
+    return { esAdmin: false, rolCompras: false, puedeDesaprobar: false, puedeCancelar: false }
+  }
 
-  const { data, error } = await supabase
-    .from("perfiles")
-    .select("es_admin, rol_compras")
-    .eq("id", user.id)
-    .single()
-
-  if (error) throw new Error(error.message)
-  return { esAdmin: data.es_admin, rolCompras: data.rol_compras }
+  const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
+  return {
+    esAdmin: puede("aprobar_oc"),
+    rolCompras: puede("comprar"),
+    puedeDesaprobar: puede("desaprobar_oc"),
+    puedeCancelar: puede("cancelar_oc"),
+  }
 }
 
 export type OrdenCompraResumen = {
@@ -3688,7 +3695,7 @@ export type OrdenCompraResumen = {
 }
 
 export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResumen[]> {
-  await requerirAdmin()
+  await requerirAccion("aprobar_oc")
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -3849,14 +3856,14 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
 }
 
 export async function aprobarOrdenCompra(ordenId: string): Promise<void> {
-  await requerirAdmin()
+  await requerirAccion("aprobar_oc")
   const supabase = await createClient()
   const { error } = await supabase.rpc("aprobar_orden_compra", { p_orden_id: ordenId })
   if (error) throw new Error(error.message)
 }
 
 export async function rechazarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
-  await requerirAdmin()
+  await requerirAccion("aprobar_oc")
   if (!motivo.trim()) throw new Error("El motivo de rechazo es obligatorio.")
   const supabase = await createClient()
   const { error } = await supabase.rpc("rechazar_orden_compra", {

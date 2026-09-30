@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAdmin } from "@/lib/permisos"
+import { requerirPestana } from "@/lib/permisos"
 
 // ---------------------------------------------------------------------------
 // Panel admin/visualizacion -- estado de obra: cuánto se ha comprado (vía OC
@@ -29,7 +29,7 @@ import { requerirAdmin } from "@/lib/permisos"
 export type ProyectoParaVisualizacion = { id: string; codigo: string | null; nombre: string }
 
 export async function listarProyectosParaVisualizacion(): Promise<ProyectoParaVisualizacion[]> {
-  await requerirAdmin()
+  await requerirPestana("admin.visualizacion")
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -71,7 +71,7 @@ export type ResumenEjecucionProyecto = {
 }
 
 export async function obtenerResumenEjecucion(proyectoId: string): Promise<ResumenEjecucionProyecto> {
-  await requerirAdmin()
+  await requerirPestana("admin.visualizacion")
   const supabase = await createClient()
 
   const [{ data: insumos, error: errorInsumos }, { data: ordenes, error: errorOrdenes }] = await Promise.all([

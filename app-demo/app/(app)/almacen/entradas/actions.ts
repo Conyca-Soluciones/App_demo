@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirScope } from "@/lib/permisos"
+import { requerirAccion } from "@/lib/permisos"
 
 // ---------------------------------------------------------------------------
 // ENTRADAS de almacén -- recepción de material contra órdenes de compra.
@@ -32,7 +32,7 @@ export type OrdenParaEntrada = {
 export async function listarOrdenesParaEntrada(
   incluirEntregadas = false
 ): Promise<OrdenParaEntrada[]> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("listar_ordenes_para_entrada", {
     p_incluir_entregadas: incluirEntregadas,
@@ -99,7 +99,7 @@ export type DetalleOrdenEntrada = {
 export async function obtenerDetalleOrdenParaEntrada(
   ordenId: string
 ): Promise<DetalleOrdenEntrada> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("detalle_orden_para_entrada", {
     p_orden_id: ordenId,
@@ -154,7 +154,7 @@ export type DatosEntrada = {
 
 // Devuelve el estado_entrega en el que quedó la OC tras registrar la entrada.
 export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntrega> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
 
   const lineas = datos.lineas.filter((l) => l.cantidad > 0)
   if (lineas.length === 0) {
@@ -187,7 +187,7 @@ export type DatosEdicionEntrada = {
 // Corrige cantidades / remisión / observaciones de una entrada. Devuelve el
 // estado_entrega en que queda la OC (puede volver de entregada a parcial).
 export async function editarEntrada(datos: DatosEdicionEntrada): Promise<EstadoEntrega> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("editar_entrada_almacen", {
@@ -203,7 +203,7 @@ export async function editarEntrada(datos: DatosEdicionEntrada): Promise<EstadoE
 // Anula la entrada completa (queda registrada). No se puede si el material
 // ya salió de bodega y el inventario quedaría negativo.
 export async function anularEntrada(entradaId: string, motivo: string): Promise<EstadoEntrega> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
   if (!motivo.trim()) throw new Error("El motivo de anulación es obligatorio.")
 
   const supabase = await createClient()

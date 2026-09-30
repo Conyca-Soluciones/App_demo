@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirScope } from "@/lib/permisos"
+import { requerirAccion } from "@/lib/permisos"
 
 // ---------------------------------------------------------------------------
 // SALIDAS de bodega hacia obra. Limitadas por el inventario disponible
@@ -63,7 +63,7 @@ export type DatosSalida = {
 
 // Devuelve cuántas líneas se registraron.
 export async function registrarSalida(datos: DatosSalida): Promise<number> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
 
   const lineas = datos.lineas.filter((l) => l.cantidad > 0)
   if (lineas.length === 0) {
@@ -82,7 +82,7 @@ export async function registrarSalida(datos: DatosSalida): Promise<number> {
 }
 
 export async function anularSalida(salidaId: string, motivo: string): Promise<void> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
   if (!motivo.trim()) throw new Error("El motivo de anulación es obligatorio.")
 
   const supabase = await createClient()
@@ -103,7 +103,7 @@ export type DatosEdicionSalida = {
 // Corrige una salida. El tope es lo disponible más lo que esta misma salida
 // ya tenía sacado. Para cambiar de insumo, anula y registra de nuevo.
 export async function editarSalida(datos: DatosEdicionSalida): Promise<void> {
-  await requerirScope("admin_insumos")
+  await requerirAccion("gestionar_almacen")
   if (!(datos.cantidad > 0)) throw new Error("La cantidad debe ser mayor que cero.")
 
   const supabase = await createClient()
