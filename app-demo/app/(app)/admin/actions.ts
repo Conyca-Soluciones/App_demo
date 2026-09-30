@@ -17,6 +17,7 @@ export type Empresa = {
   id: string
   nit: string
   razonSocial: string
+  logoUrl: string | null
 }
 
 export async function listarEmpresas(): Promise<Empresa[]> {
@@ -25,14 +26,19 @@ export async function listarEmpresas(): Promise<Empresa[]> {
 
   const { data, error } = await supabase
     .from("empresas")
-    .select("id, nit, razon_social")
+    .select("id, nit, razon_social, logo_url")
     .order("razon_social")
 
   if (error) {
     throw new Error(error.message)
   }
 
-  return (data ?? []).map((e) => ({ id: e.id, nit: e.nit, razonSocial: e.razon_social }))
+  return (data ?? []).map((e) => ({
+    id: e.id,
+    nit: e.nit,
+    razonSocial: e.razon_social,
+    logoUrl: e.logo_url,
+  }))
 }
 
 // Mensaje legible para los errores típicos de la base (NIT repetido, filas
@@ -45,22 +51,49 @@ function mensajeErrorEmpresa(error: { code?: string; message: string }, accion: 
   return error.message
 }
 
-export async function crearEmpresa(input: { nit: string; razonSocial: string }): Promise<Empresa> {
+// Tope del data URL del logo (el cliente ya lo reduce a 256 px; esto es solo
+// una red de seguridad contra llamadas directas a la action).
+const MAX_LOGO_CHARS = 400_000
+
+function validarLogo(logoUrl: string | null | undefined) {
+  if (!logoUrl) return null
+  if (!/^data:image\/(png|jpeg|webp);base64,/.test(logoUrl)) {
+    throw new Error("El logo debe ser una imagen PNG, JPG o WebP.")
+  }
+  if (logoUrl.length > MAX_LOGO_CHARS) throw new Error("La imagen del logo es demasiado grande.")
+  return logoUrl
+}
+
+export async function crearEmpresa(input: {
+  nit: string
+  razonSocial: string
+  logoUrl?: string | null
+}): Promise<Empresa> {
   await requerirAdmin()
   const nit = input.nit.trim()
   const razonSocial = input.razonSocial.trim()
   if (!nit) throw new Error("El NIT es obligatorio.")
   if (!razonSocial) throw new Error("La razón social es obligatoria.")
+  const logoUrl = validarLogo(input.logoUrl)
 
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("empresas")
-    .insert({ nit, razon_social: razonSocial })
-    .select("id, nit, razon_social")
+    .insert({ nit, razon_social: razonSocial, logo_url: logoUrl })
+    .select("id, nit, razon_social, logo_url")
     .single()
 
   if (error) throw new Error(mensajeErrorEmpresa(error, "crear la empresa"))
-  return { id: data.id, nit: data.nit, razonSocial: data.razon_social }
+  return { id: data.id, nit: data.nit, razonSocial: data.razon_social, logoUrl: data.logo_url }
+}
+
+// null quita el logo.
+export async function actualizarLogoEmpresa(empresaId: string, logoUrl: string | null) {
+  await requerirAdmin()
+  const logo = validarLogo(logoUrl)
+  const supabase = await createClient()
+  const { error } = await supabase.from("empresas").update({ logo_url: logo }).eq("id", empresaId)
+  if (error) throw new Error(mensajeErrorEmpresa(error, "actualizar el logo"))
 }
 
 export async function editarEmpresa(

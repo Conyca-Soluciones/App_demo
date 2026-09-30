@@ -9,6 +9,7 @@ import {
   crearEmpresa,
   editarEmpresa,
   eliminarEmpresa,
+  actualizarLogoEmpresa,
   type Proyecto,
   type Empresa,
 } from "./actions"
@@ -238,6 +239,49 @@ function TabProyectos({
   )
 }
 
+// Reduce la imagen elegida a máx. 256 px y la devuelve como data URL (PNG si
+// tiene transparencia probable, JPEG si no) para guardarla sin Storage.
+function leerLogo(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) return reject(new Error("El archivo debe ser una imagen."))
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const escala = Math.min(1, 256 / Math.max(img.width, img.height))
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.max(1, Math.round(img.width * escala))
+      canvas.height = Math.max(1, Math.round(img.height * escala))
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL(file.type === "image/jpeg" ? "image/jpeg" : "image/png", 0.9))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error("No se pudo leer la imagen."))
+    }
+    img.src = url
+  })
+}
+
+function LogoEmpresa({ src, size = 40 }: { src: string | null; size?: number }) {
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt="Logo"
+      style={{ width: size, height: size }}
+      className="shrink-0 rounded border bg-white object-contain"
+    />
+  ) : (
+    <div
+      style={{ width: size, height: size }}
+      className="flex shrink-0 items-center justify-center rounded border border-dashed text-[10px] text-muted-foreground"
+    >
+      Sin logo
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Tab de Empresas -- razones sociales bajo las que CONYCA ejecuta proyectos.
 // Cada proyecto se enlaza a una (dropdown "Empresa" de Proyectos) y de ahí
@@ -258,6 +302,7 @@ function TabEmpresas({
 }) {
   const [nitNuevo, setNitNuevo] = useState("")
   const [razonNueva, setRazonNueva] = useState("")
+  const [logoNuevo, setLogoNuevo] = useState<string | null>(null)
   const [creando, setCreando] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [nitEditando, setNitEditando] = useState("")
@@ -272,12 +317,13 @@ function TabEmpresas({
     setCreando(true)
     setError(null)
     try {
-      const nueva = await crearEmpresa({ nit: nitNuevo, razonSocial: razonNueva })
+      const nueva = await crearEmpresa({ nit: nitNuevo, razonSocial: razonNueva, logoUrl: logoNuevo })
       setEmpresas((prev) =>
         [...prev, nueva].sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es"))
       )
       setNitNuevo("")
       setRazonNueva("")
+      setLogoNuevo(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear la empresa.")
     } finally {
@@ -316,6 +362,27 @@ function TabEmpresas({
     }
   }
 
+  async function cambiarLogo(empresaId: string, file: File | null) {
+    setError(null)
+    try {
+      const logoUrl = file ? await leerLogo(file) : null
+      await actualizarLogoEmpresa(empresaId, logoUrl)
+      setEmpresas((prev) => prev.map((x) => (x.id === empresaId ? { ...x, logoUrl } : x)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo actualizar el logo.")
+    }
+  }
+
+  async function elegirLogoNuevo(file: File | null) {
+    if (!file) return
+    setError(null)
+    try {
+      setLogoNuevo(await leerLogo(file))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo leer la imagen.")
+    }
+  }
+
   async function handleEliminar(e: Empresa) {
     if (!confirm(`¿Eliminar la empresa "${e.razonSocial}"?`)) return
     setEliminandoId(e.id)
@@ -350,6 +417,26 @@ function TabEmpresas({
             className="h-9 w-80"
           />
         </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Logo (opcional)</label>
+          <div className="flex items-center gap-2">
+            <LogoEmpresa src={logoNuevo} size={36} />
+            <Input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="h-9 w-56"
+              onChange={(ev) => {
+                elegirLogoNuevo(ev.target.files?.[0] ?? null)
+                ev.target.value = ""
+              }}
+            />
+            {logoNuevo && (
+              <Button size="sm" variant="ghost" onClick={() => setLogoNuevo(null)}>
+                Quitar
+              </Button>
+            )}
+          </div>
+        </div>
         <Button
           size="sm"
           onClick={handleCrear}
@@ -364,6 +451,7 @@ function TabEmpresas({
       <div className="divide-y rounded-lg border">
         {empresas.map((e) => (
           <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+            <LogoEmpresa src={e.logoUrl} />
             {editandoId === e.id ? (
               <>
                 <Input
@@ -393,6 +481,23 @@ function TabEmpresas({
                 <span className="w-28 shrink-0 text-xs text-muted-foreground">
                   {proyectosDe(e.id)} {proyectosDe(e.id) === 1 ? "proyecto" : "proyectos"}
                 </span>
+                <label className="inline-flex h-8 cursor-pointer items-center rounded-md px-2.5 text-sm font-medium hover:bg-accent">
+                  {e.logoUrl ? "Cambiar logo" : "Subir logo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(ev) => {
+                      cambiarLogo(e.id, ev.target.files?.[0] ?? null)
+                      ev.target.value = ""
+                    }}
+                  />
+                </label>
+                {e.logoUrl && (
+                  <Button size="sm" variant="ghost" onClick={() => cambiarLogo(e.id, null)}>
+                    Quitar logo
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => empezarAEditar(e)}>
                   Editar
                 </Button>

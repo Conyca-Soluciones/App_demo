@@ -14,45 +14,113 @@ const formatoFecha = (iso: string | null) =>
     ? new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
     : "—"
 
+const AZUL = "#3B6EA5"
+const GRIS_BORDE = "#D0D7DE"
+const GRIS_TEXTO = "#57606A"
+
 const styles = StyleSheet.create({
-  page: { padding: 30, fontSize: 9, fontFamily: "Helvetica" },
-  row: { flexDirection: "row" },
-  headerLeft: { flex: 2 },
-  headerRight: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
-  logo: { width: 150, objectFit: "contain" },
-  labelValue: { flexDirection: "row", marginBottom: 2 },
-  label: { width: 100, color: "#555" },
+  page: {
+    paddingHorizontal: 30,
+    paddingTop: 28,
+    paddingBottom: 50,
+    fontSize: 9,
+    fontFamily: "Helvetica",
+    color: "#1F2328",
+  },
+
+  // Encabezado: logo de la empresa (izquierda) y datos de la orden (derecha)
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingBottom: 10,
+    borderBottomWidth: 2,
+    borderColor: AZUL,
+  },
+  headerLeft: { flex: 1, flexDirection: "row", alignItems: "center" },
+  logoEmpresa: { width: 70, height: 70, objectFit: "contain", marginRight: 12 },
+  empresaNombre: { fontSize: 12, fontFamily: "Helvetica-Bold", color: AZUL, marginBottom: 2 },
+  empresaDato: { fontSize: 8.5, color: GRIS_TEXTO, marginBottom: 1 },
+  headerRight: { alignItems: "flex-end" },
+  logoConyca: { width: 90, objectFit: "contain", marginBottom: 6 },
+  tituloOrden: { fontSize: 13, fontFamily: "Helvetica-Bold", color: AZUL },
+  numeroOrden: { fontSize: 11, fontFamily: "Helvetica-Bold", marginTop: 2 },
+  fechaOrden: { fontSize: 8.5, color: GRIS_TEXTO, marginTop: 2 },
+
+  // Tarjetas de datos
+  cards: { flexDirection: "row", marginTop: 12 },
+  card: { flex: 1, borderWidth: 1, borderColor: GRIS_BORDE, borderRadius: 3 },
+  cardGap: { marginRight: 10 },
+  cardTitulo: {
+    backgroundColor: AZUL,
+    color: "#fff",
+    fontSize: 8.5,
+    fontFamily: "Helvetica-Bold",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  cardBody: { padding: 8 },
+  labelValue: { flexDirection: "row", marginBottom: 3 },
+  label: { width: 68, color: GRIS_TEXTO },
   value: { flex: 1 },
-  tituloBloque: { fontSize: 10, fontFamily: "Helvetica-Bold", marginBottom: 4, marginTop: 12 },
-  box: { borderWidth: 1, borderColor: "#999", padding: 8, marginBottom: 8 },
-  boxCols: { flexDirection: "row" },
-  boxColLeft: { flex: 1, marginRight: 20 },
-  boxColRight: { flex: 1 },
-  table: { marginTop: 10, borderWidth: 1, borderColor: "#999" },
-  tr: { flexDirection: "row" },
-  th: { backgroundColor: "#3B6EA5", color: "#fff", padding: 4, fontSize: 8, fontFamily: "Helvetica-Bold" },
-  td: { padding: 4, fontSize: 8, borderTopWidth: 1, borderColor: "#ccc" },
+
+  // Tabla de insumos
+  table: { marginTop: 12, borderWidth: 1, borderColor: GRIS_BORDE },
+  tr: { flexDirection: "row", alignItems: "stretch" },
+  trPar: { flexDirection: "row", alignItems: "stretch", backgroundColor: "#F6F8FA" },
+  th: { backgroundColor: AZUL, color: "#fff", padding: 4, fontSize: 8, fontFamily: "Helvetica-Bold" },
+  td: { padding: 4, fontSize: 8, borderTopWidth: 1, borderColor: GRIS_BORDE },
   colInsumo: { flex: 3 },
-  colUm: { width: 35 },
-  colCant: { width: 45, textAlign: "right" },
-  colPrecio: { width: 60, textAlign: "right" },
-  colDto: { width: 35, textAlign: "right" },
-  colIva: { width: 60, textAlign: "right" },
-  colTotal: { width: 65, textAlign: "right" },
-  totales: { alignSelf: "flex-end", width: 220, marginTop: 6 },
-  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 1 },
+  colUm: { width: 34 },
+  colCant: { width: 44, textAlign: "right" },
+  colPrecio: { width: 62, textAlign: "right" },
+  colDto: { width: 36, textAlign: "right" },
+  colIva: { width: 70, textAlign: "right" },
+  colTotal: { width: 68, textAlign: "right" },
+
+  // Notas y totales
+  bottom: { flexDirection: "row", marginTop: 10, alignItems: "flex-start" },
+  notas: { flex: 1, marginRight: 16 },
+  notaTitulo: { fontFamily: "Helvetica-Bold", marginBottom: 2 },
+  nota: { marginBottom: 6, lineHeight: 1.3 },
+  totales: { width: 210, borderWidth: 1, borderColor: GRIS_BORDE, padding: 8 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 1.5 },
   totalRowFinal: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 2,
-    borderTopWidth: 1,
-    borderColor: "#333",
-    marginTop: 2,
+    paddingTop: 4,
+    marginTop: 3,
+    borderTopWidth: 1.5,
+    borderColor: AZUL,
   },
-  firmas: { flexDirection: "row", marginTop: 40, justifyContent: "space-between" },
+  totalFinalTxt: { fontFamily: "Helvetica-Bold", fontSize: 10, color: AZUL },
+
+  firmas: { flexDirection: "row", marginTop: 44, justifyContent: "space-between" },
   firma: { width: "30%", borderTopWidth: 1, borderColor: "#333", paddingTop: 4 },
-  footer: { marginTop: 20, fontSize: 7, color: "#666" },
+  firmaLabel: { fontSize: 7.5, color: GRIS_TEXTO },
+  footer: {
+    position: "absolute",
+    bottom: 20,
+    left: 30,
+    right: 30,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    fontSize: 7,
+    color: GRIS_TEXTO,
+    borderTopWidth: 0.5,
+    borderColor: GRIS_BORDE,
+    paddingTop: 4,
+  },
 })
+
+function Dato({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.labelValue}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.value}>{value}</Text>
+    </View>
+  )
+}
 
 export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
   const lineasCalculables = orden.lineas.map((l) => ({
@@ -69,125 +137,55 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.row}>
+        <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.labelValue}>
-              <Text style={styles.label}>Empresa</Text>
-              <Text style={styles.value}>{orden.empresaNombre ?? orden.proyectoNombre ?? "—"}</Text>
-            </View>
-            <View style={styles.labelValue}>
-              <Text style={styles.label}>NIT</Text>
-              <Text style={styles.value}>{orden.empresaNit ?? "N/A"}</Text>
-            </View>
-            <View style={styles.labelValue}>
-              <Text style={styles.label}>Dirección</Text>
-              <Text style={styles.value}>N/A</Text>
-            </View>
-            <View style={styles.labelValue}>
-              <Text style={styles.label}>Teléfono</Text>
-              <Text style={styles.value}>N/A</Text>
-            </View>
-            <View style={styles.labelValue}>
-              <Text style={styles.label}>Ciudad</Text>
-              <Text style={styles.value}>{orden.proyectoCiudad ?? "N/A"}</Text>
-            </View>
-            <View style={styles.labelValue}>
-              <Text style={styles.label}>Fecha y hora de impresión</Text>
-              <Text style={styles.value}>{new Date().toLocaleString("es-CO")}</Text>
+            {orden.empresaLogoUrl && <Image src={orden.empresaLogoUrl} style={styles.logoEmpresa} />}
+            <View>
+              <Text style={styles.empresaNombre}>
+                {orden.empresaNombre ?? orden.proyectoNombre ?? "—"}
+              </Text>
+              <Text style={styles.empresaDato}>NIT: {orden.empresaNit ?? "N/A"}</Text>
+              <Text style={styles.empresaDato}>Ciudad: {orden.proyectoCiudad ?? "N/A"}</Text>
             </View>
           </View>
           <View style={styles.headerRight}>
-            <Image src={LOGO_CONYCA_PATH} style={styles.logo} />
+            <Image src={LOGO_CONYCA_PATH} style={styles.logoConyca} />
+            <Text style={styles.tituloOrden}>ORDEN DE COMPRA</Text>
+            <Text style={styles.numeroOrden}>No. {orden.numero}</Text>
+            <Text style={styles.fechaOrden}>Fecha: {formatoFecha(orden.createdAt)}</Text>
           </View>
         </View>
 
-        <View style={[styles.row, { marginTop: 10, justifyContent: "space-between" }]}>
-          <Text>FECHA: {formatoFecha(orden.createdAt)}</Text>
-          <Text>ORDEN DE COMPRA No. {orden.numero}</Text>
-        </View>
-
-        <Text style={styles.tituloBloque}>Datos proveedor</Text>
-        <View style={styles.box}>
-          <View style={styles.boxCols}>
-            <View style={styles.boxColLeft}>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Proveedor</Text>
-                <Text style={styles.value}>{orden.proveedorNombre}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>NIT</Text>
-                <Text style={styles.value}>{orden.proveedorNit ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Dirección</Text>
-                <Text style={styles.value}>{orden.proveedorDireccion ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Ciudad</Text>
-                <Text style={styles.value}>{orden.proveedorCiudad ?? "—"}</Text>
-              </View>
-            </View>
-            <View style={styles.boxColRight}>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Teléfono</Text>
-                <Text style={styles.value}>{orden.proveedorTelefono ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>{orden.proveedorEmail ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Contacto</Text>
-                <Text style={styles.value}>{orden.proveedorContacto ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Condiciones de Pago</Text>
-                <Text style={styles.value}>{orden.condicionesPago ?? "—"}</Text>
-              </View>
+        <View style={styles.cards}>
+          <View style={[styles.card, styles.cardGap]}>
+            <Text style={styles.cardTitulo}>DATOS DEL PROVEEDOR</Text>
+            <View style={styles.cardBody}>
+              <Dato label="Proveedor" value={orden.proveedorNombre} />
+              <Dato label="NIT" value={orden.proveedorNit ?? "—"} />
+              <Dato label="Dirección" value={orden.proveedorDireccion ?? "—"} />
+              <Dato label="Ciudad" value={orden.proveedorCiudad ?? "—"} />
+              <Dato label="Teléfono" value={orden.proveedorTelefono ?? "—"} />
+              <Dato label="Email" value={orden.proveedorEmail ?? "—"} />
+              <Dato label="Contacto" value={orden.proveedorContacto ?? "—"} />
+              <Dato label="Cond. de pago" value={orden.condicionesPago ?? "—"} />
             </View>
           </View>
-        </View>
-
-        <Text style={styles.tituloBloque}>Datos proyecto</Text>
-        <View style={styles.box}>
-          <View style={styles.boxCols}>
-            <View style={styles.boxColLeft}>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Proyecto</Text>
-                <Text style={styles.value}>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Sitio de Entrega</Text>
-                <Text style={styles.value}>{orden.sitioEntrega ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Contacto</Text>
-                <Text style={styles.value}>{orden.contactoNombre ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Fecha de Entrega</Text>
-                <Text style={styles.value}>{formatoFecha(orden.fechaEntrega)}</Text>
-              </View>
-            </View>
-            <View style={styles.boxColRight}>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Teléfono</Text>
-                <Text style={styles.value}>{orden.telefono ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Ciudad</Text>
-                <Text style={styles.value}>{orden.ciudad ?? "—"}</Text>
-              </View>
-              <View style={styles.labelValue}>
-                <Text style={styles.label}>Email</Text>
-                <Text style={styles.value}>{orden.email ?? "—"}</Text>
-              </View>
+          <View style={styles.card}>
+            <Text style={styles.cardTitulo}>DATOS DEL PROYECTO / ENTREGA</Text>
+            <View style={styles.cardBody}>
+              <Dato label="Proyecto" value={orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"} />
+              <Dato label="Sitio de entrega" value={orden.sitioEntrega ?? "—"} />
+              <Dato label="Fecha de entrega" value={formatoFecha(orden.fechaEntrega)} />
+              <Dato label="Ciudad" value={orden.ciudad ?? "—"} />
+              <Dato label="Contacto" value={orden.contactoNombre ?? "—"} />
+              <Dato label="Teléfono" value={orden.telefono ?? "—"} />
+              <Dato label="Email" value={orden.email ?? "—"} />
             </View>
           </View>
         </View>
 
         <View style={styles.table}>
-          <View style={styles.tr}>
+          <View style={styles.tr} fixed>
             <Text style={[styles.th, styles.colInsumo]}>Insumo</Text>
             <Text style={[styles.th, styles.colUm]}>U.M.</Text>
             <Text style={[styles.th, styles.colCant]}>Cant.</Text>
@@ -196,7 +194,7 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
             <Text style={[styles.th, styles.colIva]}>IVA</Text>
             <Text style={[styles.th, styles.colTotal]}>Total</Text>
           </View>
-          {orden.lineas.map((linea) => {
+          {orden.lineas.map((linea, idx) => {
             const c = calcularLinea({
               cantidad: linea.cantidad,
               precioUnitario: linea.precioUnitario,
@@ -204,7 +202,7 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
               porcentajeIva: linea.porcentajeIva,
             })
             return (
-              <View style={styles.tr} key={linea.id}>
+              <View style={idx % 2 === 1 ? styles.trPar : styles.tr} key={linea.id} wrap={false}>
                 <Text style={[styles.td, styles.colInsumo]}>
                   {linea.insumoCodigo} - {linea.insumoDescripcion}
                 </Text>
@@ -221,52 +219,60 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
           })}
         </View>
 
-        <View style={styles.totales}>
-          <View style={styles.totalRow}>
-            <Text>Subtotal</Text>
-            <Text>{formatoMoneda(bruto)}</Text>
+        <View style={styles.bottom} wrap={false}>
+          <View style={styles.notas}>
+            <Text style={styles.notaTitulo}>Son:</Text>
+            <Text style={styles.nota}>{totalEnLetras}</Text>
+            <Text style={styles.notaTitulo}>Observaciones:</Text>
+            <Text style={styles.nota}>Pedidos Obra. {orden.observaciones ?? ""}</Text>
+            <Text style={styles.notaTitulo}>Favor facturar a nombre de:</Text>
+            <Text style={styles.nota}>
+              {orden.empresaNombre ?? orden.proyectoNombre ?? "—"} · Proyecto:{" "}
+              {orden.proyectoCodigo ?? "—"}
+            </Text>
           </View>
-          <View style={styles.totalRow}>
-            <Text>Descuento</Text>
-            <Text>{formatoMoneda(totales.descuento)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text>IVA</Text>
-            <Text>{formatoMoneda(totales.iva)}</Text>
-          </View>
-          <View style={styles.totalRowFinal}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>TOTAL</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{formatoMoneda(totales.total)}</Text>
-          </View>
-        </View>
-
-        <Text style={{ marginTop: 10 }}>Son: {totalEnLetras}</Text>
-
-        <Text style={{ marginTop: 4 }}>
-          Descripción: Pedidos Obra  Observaciones: {orden.observaciones ?? ""}
-        </Text>
-
-        <Text style={{ marginTop: 4 }}>
-          FAVOR FACTURAR A NOMBRE DE: {orden.empresaNombre ?? orden.proyectoNombre ?? "—"}  PROYECTO:{" "}
-          {orden.proyectoCodigo ?? "—"}
-        </Text>
-
-        <View style={styles.firmas}>
-          <View style={styles.firma}>
-            <Text>Elaboró: {orden.creadaPorNombre ?? "—"}</Text>
-          </View>
-          <View style={styles.firma}>
-            <Text>Aprobó: {orden.aprobadaPorNombre ?? "—"}</Text>
-          </View>
-          <View style={styles.firma}>
-            <Text>Firma y sello del cliente:</Text>
+          <View style={styles.totales}>
+            <View style={styles.totalRow}>
+              <Text>Subtotal</Text>
+              <Text>{formatoMoneda(bruto)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text>Descuento</Text>
+              <Text>{formatoMoneda(totales.descuento)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text>IVA</Text>
+              <Text>{formatoMoneda(totales.iva)}</Text>
+            </View>
+            <View style={styles.totalRowFinal}>
+              <Text style={styles.totalFinalTxt}>TOTAL</Text>
+              <Text style={styles.totalFinalTxt}>{formatoMoneda(totales.total)}</Text>
+            </View>
           </View>
         </View>
 
-        <Text style={styles.footer}>
-          Documento generado automáticamente. Los nombres de Elaboró/Aprobó se muestran como
-          constancia mientras se habilitan las firmas digitalizadas.
-        </Text>
+        <View style={styles.firmas} wrap={false}>
+          <View style={styles.firma}>
+            <Text>{orden.creadaPorNombre ?? "—"}</Text>
+            <Text style={styles.firmaLabel}>Elaboró</Text>
+          </View>
+          <View style={styles.firma}>
+            <Text>{orden.aprobadaPorNombre ?? "—"}</Text>
+            <Text style={styles.firmaLabel}>Aprobó</Text>
+          </View>
+          <View style={styles.firma}>
+            <Text> </Text>
+            <Text style={styles.firmaLabel}>Firma y sello del cliente</Text>
+          </View>
+        </View>
+
+        <View style={styles.footer} fixed>
+          <Text>
+            Generado el {new Date().toLocaleString("es-CO")} · Las firmas se muestran como constancia
+            mientras se habilitan las firmas digitalizadas.
+          </Text>
+          <Text render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
+        </View>
       </Page>
     </Document>
   )
