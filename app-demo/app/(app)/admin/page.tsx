@@ -250,6 +250,9 @@ function TabGrupos({
 // Tab de Usuarios
 // ---------------------------------------------------------------------------
 function TabUsuarios({ grupos, proyectos }: { grupos: Grupo[]; proyectos: Proyecto[] }) {
+  // Nombre de grupo por id: la lista de usuarios lo consulta por cada grupo
+  // de cada usuario (antes con grupos.find -> O(usuarios × grupos)).
+  const nombreGrupo = new Map(grupos.map((g) => [g.id, g.nombre]))
   const [usuarios, setUsuarios] = useState<UsuarioConGrupos[]>([])
   const [usuarioAbiertoId, setUsuarioAbiertoId] = useState<string | null>(null)
   const [asignacionesDelUsuario, setAsignacionesDelUsuario] = useState<AsignacionProyecto[]>([])
@@ -488,7 +491,7 @@ function TabUsuarios({ grupos, proyectos }: { grupos: Grupo[]; proyectos: Proyec
               </div>
               <span className="text-xs text-muted-foreground">
                 {u.grupoIds
-                  .map((id) => grupos.find((g) => g.id === id)?.nombre)
+                  .map((id) => nombreGrupo.get(id))
                   .filter(Boolean)
                   .join(", ") || "sin grupo"}
               </span>

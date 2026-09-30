@@ -998,15 +998,23 @@ export default function Presupuestos() {
   // server action tipo eliminarItemPresupuesto(id) y llamarla acá.
   function handleEliminarItem(id: string) {
     setPresupuesto((prev) => {
+      // Mapa padre -> hijos y recorrido desde `id`: O(n). Antes se repetían
+      // pasadas completas sobre la lista hasta que no apareciera ningún hijo
+      // nuevo (O(n²) si los ítems venían en orden inverso).
+      const hijosPorPadre = new Map<string, string[]>()
+      for (const item of prev) {
+        if (!item.padreId) continue
+        const lista = hijosPorPadre.get(item.padreId) ?? []
+        lista.push(item.id)
+        hijosPorPadre.set(item.padreId, lista)
+      }
       const idsAEliminar = new Set<string>([id])
-      let cambio = true
-      while (cambio) {
-        cambio = false
-        for (const item of prev) {
-          if (item.padreId && idsAEliminar.has(item.padreId) && !idsAEliminar.has(item.id)) {
-            idsAEliminar.add(item.id)
-            cambio = true
-          }
+      const pendientes = [id]
+      while (pendientes.length > 0) {
+        for (const hijoId of hijosPorPadre.get(pendientes.pop()!) ?? []) {
+          if (idsAEliminar.has(hijoId)) continue
+          idsAEliminar.add(hijoId)
+          pendientes.push(hijoId)
         }
       }
       return prev.filter((item) => !idsAEliminar.has(item.id))

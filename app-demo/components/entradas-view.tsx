@@ -213,6 +213,9 @@ function DetalleEntrada({
     if (!editando || !detalle) return
     setError(null)
 
+    // Índice por id: evita un .find() sobre todas las líneas de la orden por
+    // cada línea editada (O(n·m) -> O(n + m)).
+    const lineaPorId = new Map(detalle.lineas.map((x) => [x.id, x]))
     const lineas: { id: string; cantidad: number }[] = []
     for (const l of editando.lineas) {
       const cantidad = parsearCantidad(edCantidades[l.id] ?? "")
@@ -221,7 +224,7 @@ function DetalleEntrada({
         return
       }
       // Máximo = ordenado - lo recibido en OTRAS entradas vigentes.
-      const linea = detalle.lineas.find((x) => x.id === l.ordenCompraItemId)
+      const linea = lineaPorId.get(l.ordenCompraItemId)
       if (linea) {
         const maximo = linea.cantidadOrdenada - (linea.cantidadRecibida - l.cantidad)
         if (cantidad > maximo) {
