@@ -15,7 +15,10 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, X } from "lucide-react"
+import { Pencil, Plus, Search, X } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
+import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { useSearchParams, useRouter } from "next/navigation"
 
 const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
@@ -185,11 +188,9 @@ function AdminManoObraContent() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{config.titulo}</h1>
-        <p className="text-sm text-muted-foreground">{config.subtitulo}</p>
-      </div>
+    <>
+    <EncabezadoPagina titulo={config.titulo} subtitulo={config.subtitulo} />
+    <main className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 space-y-6 p-4 sm:p-6">
 
       {mostrarNoAutorizado && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -264,6 +265,7 @@ function AdminManoObraContent() {
         <TablaResueltas solicitudes={solicitudes} estado={vista} />
       )}
     </main>
+    </>
   )
 }
 
@@ -592,13 +594,6 @@ type Direccion = "asc" | "desc"
 
 const FILAS_POR_PAGINA_CATALOGO = 50
 
-const COLUMNAS_CATALOGO: { key: ColumnaOrdenableCatalogo; label: string; alinear?: "right" }[] = [
-  { key: "grupo", label: "Grupo" },
-  { key: "categoria", label: "Categoría" },
-  { key: "unidad", label: "Unidad" },
-  { key: "valor_unitario", label: "Valor", alinear: "right" },
-]
-
 function CatalogoRecurso({
   tabla,
   unidadesSugeridas,
@@ -721,32 +716,44 @@ function CatalogoRecurso({
     setAgregando(false)
   }
 
+  // Mismo diseño que Proveedores (components/tabla-excel.tsx). La edición
+  // sigue siendo con el diálogo de siempre: doble clic en la fila, o el
+  // botón "Editar" (el doble clic no existe en pantallas táctiles).
+  const botonEditar = (c: CategoriaRecursoFila) => (
+    <button
+      type="button"
+      onClick={() => setCategoriaEditando(c)}
+      aria-label={`Editar ${c.categoria}`}
+      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-primary/10"
+    >
+      <Pencil className="size-3.5" /> Editar
+    </button>
+  )
+  const columnasTabla: ColumnaExcel<CategoriaRecursoFila>[] = [
+    { clave: "categoria", titulo: "Categoría", ancho: 380, fija: true, texto: (c) => c.categoria },
+    { clave: "grupo", titulo: "Grupo", ancho: 240, texto: (c) => c.grupo ?? "" },
+    { clave: "unidad", titulo: "Unidad", ancho: 110, alinear: "center", texto: (c) => c.unidad },
+    { clave: "valor_unitario", titulo: "Valor", ancho: 160, alinear: "right", texto: (c) => formatearMoneda(c.valor_unitario), claseCelda: "tabular-nums" },
+    { clave: "acciones", titulo: "", ancho: 96, alinear: "center", ordenable: false, texto: () => "", celda: botonEditar },
+  ]
+  const claseFiltro = "h-9 w-auto max-w-[16rem] rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        {loading
-          ? "Cargando categorías…"
-          : `${filasProcesadas.length.toLocaleString("es-CO")} de ${categorias.length.toLocaleString("es-CO")} categorías`}
-      </p>
-
       {!loading && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative w-full sm:w-80">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por categoría o grupo..."
-              className="w-full rounded-lg border bg-background py-2 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="Buscar por categoría o grupo…"
+              className="h-9 w-full rounded-md border bg-background pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
 
-          <select
-            value={filtroGrupo}
-            onChange={(e) => setFiltroGrupo(e.target.value)}
-            className="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} className={claseFiltro} aria-label="Filtrar por grupo">
             <option value="todos">Todos los grupos</option>
             {grupos.map((g) => (
               <option key={g} value={g}>
@@ -755,11 +762,7 @@ function CatalogoRecurso({
             ))}
           </select>
 
-          <select
-            value={filtroUnidad}
-            onChange={(e) => setFiltroUnidad(e.target.value)}
-            className="rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <select value={filtroUnidad} onChange={(e) => setFiltroUnidad(e.target.value)} className={claseFiltro} aria-label="Filtrar por unidad">
             <option value="todos">Todas las unidades</option>
             {unidades.map((u) => (
               <option key={u} value={u}>
@@ -769,116 +772,56 @@ function CatalogoRecurso({
           </select>
 
           {hayFiltrosActivos && (
-            <button
-              onClick={limpiarFiltros}
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-              Limpiar filtros
+            <button onClick={limpiarFiltros} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <X className="size-3.5" />
+              Quitar filtros
             </button>
           )}
 
-          <Button size="sm" className="ml-auto" onClick={() => setAgregando(true)}>
-            + Agregar categoría
+          <span className="text-xs text-muted-foreground tabular-nums sm:ml-auto">
+            {`${filasProcesadas.length.toLocaleString("es-CO")} de ${categorias.length.toLocaleString("es-CO")} categorías`}
+          </span>
+
+          <Button size="sm" className="gap-1.5" onClick={() => setAgregando(true)}>
+            <Plus className="size-4" /> Agregar categoría
           </Button>
         </div>
       )}
 
-      {loading && <p className="text-sm text-muted-foreground">Cargando…</p>}
-
-      {!loading && (
-        <>
-          <div className="overflow-hidden rounded-xl border">
-            <div className="max-h-[65vh] overflow-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
-                  <tr>
-                    {COLUMNAS_CATALOGO.map((col) => (
-                      <th
-                        key={col.key}
-                        className={`whitespace-nowrap border-b px-4 py-3 font-medium ${
-                          col.alinear === "right" ? "text-right" : "text-left"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => alternarOrden(col.key)}
-                          className={`inline-flex select-none items-center gap-1.5 hover:text-foreground ${
-                            columnaOrden === col.key ? "text-foreground" : "text-muted-foreground"
-                          } ${col.alinear === "right" ? "flex-row-reverse" : ""}`}
-                        >
-                          {col.label}
-                          {columnaOrden === col.key ? (
-                            direccionOrden === "asc" ? (
-                              <ArrowUp className="h-3.5 w-3.5" />
-                            ) : (
-                              <ArrowDown className="h-3.5 w-3.5" />
-                            )
-                          ) : (
-                            <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/40" />
-                          )}
-                        </button>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filasPagina.map((c, idx) => (
-                    <tr
-                      key={c.id}
-                      onDoubleClick={() => setCategoriaEditando(c)}
-                      title="Doble click para editar esta categoría"
-                      className={`cursor-pointer border-b last:border-b-0 hover:bg-muted/40 ${
-                        idx % 2 === 1 ? "bg-muted/10" : ""
-                      }`}
-                    >
-                      <td className="px-4 py-2.5 text-muted-foreground">{c.grupo ?? "—"}</td>
-                      <td className="px-4 py-2.5">{c.categoria}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground">{c.unidad}</td>
-                      <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono">
-                        {formatearMoneda(c.valor_unitario)}
-                      </td>
-                    </tr>
-                  ))}
-                  {filasPagina.length === 0 && (
-                    <tr>
-                      <td colSpan={COLUMNAS_CATALOGO.length} className="px-4 py-10 text-center text-muted-foreground">
-                        No hay categorías que coincidan con la búsqueda o los filtros.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {filasProcesadas.length > FILAS_POR_PAGINA_CATALOGO && (
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>
-                Página {paginaActual} de {totalPaginas}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
-                  disabled={paginaActual === 1}
-                  className="rounded-lg border px-3 py-1.5 disabled:opacity-40"
-                >
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-                  disabled={paginaActual === totalPaginas}
-                  className="rounded-lg border px-3 py-1.5 disabled:opacity-40"
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+      {loading && (
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       )}
+
+      {!loading && filasPagina.length === 0 && (
+        <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+          No hay categorías que coincidan con la búsqueda o los filtros.
+        </div>
+      )}
+
+      {!loading && filasPagina.length > 0 && (
+        <TablaExcel
+          filas={filasPagina}
+          columnas={columnasTabla}
+          claveFila={(c) => c.id}
+          orden={{ clave: columnaOrden, dir: direccionOrden }}
+          onOrdenar={(clave) => alternarOrden(clave as ColumnaOrdenableCatalogo)}
+          onDobleClickFila={setCategoriaEditando}
+          tituloFila="Doble clic para editar esta categoría"
+          claseAltoMax="max-h-[calc(100svh-20rem)]"
+          tarjeta={{
+            titulo: (c) => c.categoria,
+            subtitulo: (c) => c.grupo ?? "Sin grupo",
+            esquina: botonEditar,
+            campos: ["unidad", "valor_unitario"],
+          }}
+        />
+      )}
+
+      {!loading && <PaginacionExcel pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} />}
 
       {categoriaEditando && (
         <EditarCategoriaRecursoDialog
