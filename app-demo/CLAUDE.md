@@ -858,10 +858,16 @@ ingeniero lo haga a mano ítem por ítem.
 
 ```
 lib/parse-apu-excel.ts       -- parser de la hoja "APU" (bloques capítulo/ítem/insumo)
-lib/apu-item-flow.ts          -- tipos y helpers de la decisión por ítem (recomendado/manual/auto-escaneo)
-lib/apu-import-types.ts       -- tipos compartidos (ApuRecomendado, ResolucionInsumo, etc.)
-components/revision-import-apu-dialog.tsx  -- diálogo de 2 fases (decisión por ítem, luego por insumo)
+lib/apu-import-types.ts       -- tipos compartidos (ResolucionInsumo, FilaRevisionImport, etc.)
+components/revision-apu-dialog.tsx  -- revisión de líneas pendientes del import
 ```
+
+**Nota (2026-09-30)**: el flujo descrito en esta sección quedó
+desactualizado -- hoy el matching y el guardado corren del lado del
+servidor en `matchearYGuardarImportApu`, por tandas de 40 ítems desde
+`page.tsx`. `lib/apu-item-flow.ts`, `lib/matching-apu-import.ts`,
+`components/revision-import-apu-dialog.tsx` y `buscarApusSimilares` se
+eliminaron (no se usaban).
 
 `app/presupuestos/actions.ts` y `app/presupuestos/page.tsx` se
 extendieron (no se reescribieron desde cero) con las funciones nuevas

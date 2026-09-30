@@ -3,7 +3,7 @@
  * Corre 100% en el cliente (igual que el parser de la hoja PRESUPUESTO ya
  * existente) -- no toca la base de datos, solo transforma el Excel en
  * estructuras JS. El matching contra el maestro de insumos es un paso
- * aparte (ver lib/matching-apu-import.ts) porque ese sí necesita DB.
+ * aparte (matchearYGuardarImportApu en actions.ts) porque ese sí necesita DB.
  *
  * Estructura esperada de la hoja (validada contra un archivo real de
  * ejemplo, ver notas en el bloque de abajo):
@@ -33,16 +33,6 @@ const TIPOS_VALIDOS: readonly TipoInsumoApu[] = [
   "EQUIPO",
   "TRANSPORTE",
 ] as const;
-
-// Grupo de categoría usado como FILTRO en el matching contra el maestro
-// (ver lib/matching-apu-import.ts) -- ADAPTAR estos strings para que
-// coincidan exactamente con los grupos reales de categorias-apu.ts.
-export const GRUPO_POR_TIPO: Record<TipoInsumoApu, string> = {
-  INSUMO: "Materiales",
-  MO: "Mano de Obra",
-  EQUIPO: "Equipo y Herramienta",
-  TRANSPORTE: "Transporte",
-};
 
 export interface LineaInsumoApu {
   descripcion: string;
