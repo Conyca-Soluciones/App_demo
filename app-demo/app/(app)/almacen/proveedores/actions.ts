@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerUsuarioId, requerirAccion } from "@/lib/permisos"
 import {
   COLUMNA_DE_CAMPO,
+  ETIQUETA_CAMPO,
   validarCampo,
   type CampoEditable,
   type Proveedor,
@@ -87,4 +88,67 @@ export async function actualizarProveedor(
     throw new Error("No se guardó el cambio: el proveedor no existe o no tienes permiso para editarlo.")
   }
   return mapearProveedor(data[0])
+}
+
+// Siguiente ID tipo "PV0395": el mayor número actual + 1. Los IDs viejos no
+// tienen el mismo relleno de ceros ("PV001" y "PV0394" conviven), así que
+// se compara el NÚMERO, no el texto. Un solo recorrido: O(n).
+function siguienteIdProv(existentes: (string | null)[], saltar: number): string {
+  let mayor = 0
+  for (const id of existentes) {
+    const n = Number((id ?? "").replace(/\D/g, ""))
+    if (Number.isFinite(n) && n > mayor) mayor = n
+  }
+  return `PV${String(mayor + 1 + saltar).padStart(4, "0")}`
+}
+
+export type NuevoProveedorInput = Partial<Record<CampoEditable, string>>
+
+// Crea un proveedor. Mismo permiso que editar (acción 'comprar' o admin; la
+// política proveedores_insert exige lo mismo en la base). El ID se asigna
+// acá; si otra persona creó uno al mismo tiempo, el UNIQUE de id_prov hace
+// fallar el INSERT (23505) y se reintenta con el número siguiente.
+export async function crearProveedor(input: NuevoProveedorInput): Promise<Proveedor> {
+  await requerirAccion("comprar")
+
+  const fila: Record<string, string | number | null> = {}
+  for (const campo of Object.keys(COLUMNA_DE_CAMPO) as CampoEditable[]) {
+    const crudo = input[campo] ?? ""
+    if (campo !== "nombre" && crudo.trim() === "") continue
+    const validado = validarCampo(campo, crudo)
+    if (!validado.ok) throw new Error(`${ETIQUETA_CAMPO[campo]}: ${validado.error}`)
+    fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
+  }
+  if (!fila.estado) fila.estado = "ACTIVO"
+
+  const supabase = await createClient()
+
+  // Mismo número de documento = casi seguro el mismo proveedor dos veces.
+  if (fila.numero_documento !== undefined) {
+    const { data: repetido, error: errorRepetido } = await supabase
+      .from("proveedores")
+      .select("id_prov, nombre")
+      .eq("numero_documento", fila.numero_documento)
+      .limit(1)
+    if (errorRepetido) throw new Error(errorRepetido.message)
+    if (repetido && repetido.length > 0) {
+      throw new Error(`Ya existe un proveedor con ese número de documento: ${repetido[0].nombre} (${repetido[0].id_prov}).`)
+    }
+  }
+
+  const { data: ids, error: errorIds } = await supabase.from("proveedores").select("id_prov")
+  if (errorIds) throw new Error(errorIds.message)
+  const existentes = (ids ?? []).map((r) => r.id_prov as string | null)
+
+  for (let intento = 0; intento < 3; intento++) {
+    const { data, error } = await supabase
+      .from("proveedores")
+      .insert({ ...fila, id_prov: siguienteIdProv(existentes, intento) })
+      .select(SELECT_PROVEEDOR)
+      .single()
+
+    if (!error) return mapearProveedor(data)
+    if (error.code !== "23505") throw new Error(error.message)
+  }
+  throw new Error("No se pudo asignar un ID al proveedor (muchas personas creando a la vez). Intenta de nuevo.")
 }

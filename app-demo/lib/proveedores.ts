@@ -38,6 +38,20 @@ export const COLUMNA_DE_CAMPO = {
 
 export type CampoEditable = keyof typeof COLUMNA_DE_CAMPO
 
+export const ETIQUETA_CAMPO: Record<CampoEditable, string> = {
+  nombre: "Proveedor",
+  estado: "Estado",
+  tipoProveedor: "Tipo proveedor",
+  tipoDocumento: "Tipo documento",
+  numeroDocumento: "N° documento",
+  digitoVerificacion: "Dígito verif.",
+  nombreContacto: "Contacto",
+  telefono: "Teléfono",
+  correo: "Correo",
+  ciudad: "Ciudad",
+  direccion: "Dirección",
+}
+
 // Valores que ya existen en la base (se guardan en MAYÚSCULAS).
 export const OPCIONES: Partial<Record<CampoEditable, string[]>> = {
   estado: ["ACTIVO", "INACTIVO"],

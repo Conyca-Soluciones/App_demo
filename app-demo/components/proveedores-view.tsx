@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown, Loader2, Search, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, Loader2, Plus, Search, X } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { actualizarProveedor, listarProveedores } from "@/app/(app)/almacen/proveedores/actions"
-import { OPCIONES, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
+import { actualizarProveedor, crearProveedor, listarProveedores } from "@/app/(app)/almacen/proveedores/actions"
+import { ETIQUETA_CAMPO, OPCIONES, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
 
 // ---------------------------------------------------------------------------
 // Proveedores: tabla tipo Excel con edición en línea (clic en la celda,
@@ -45,19 +47,7 @@ const ANCHO_TABLA = COLUMNAS.reduce((acc, c) => acc + c.ancho, 0)
 // Las columnas fijas a la izquierda (ID y Proveedor) y su offset.
 const IZQUIERDA_FIJA: Partial<Record<Columna["campo"], number>> = { idProv: 0, nombre: COLUMNAS[0].ancho }
 
-const ETIQUETA: Record<CampoEditable, string> = {
-  nombre: "Proveedor",
-  estado: "Estado",
-  tipoProveedor: "Tipo proveedor",
-  tipoDocumento: "Tipo documento",
-  numeroDocumento: "N° documento",
-  digitoVerificacion: "Dígito verif.",
-  nombreContacto: "Contacto",
-  telefono: "Teléfono",
-  correo: "Correo",
-  ciudad: "Ciudad",
-  direccion: "Dirección",
-}
+const ETIQUETA = ETIQUETA_CAMPO
 // Orden de los campos en la tarjeta de móvil (nombre y estado van arriba).
 const CAMPOS_TARJETA: CampoEditable[] = [
   "tipoProveedor",
@@ -278,6 +268,141 @@ function CeldaEditable({
 }
 
 // ---------------------------------------------------------------------------
+// Diálogo "Nuevo proveedor". El ID (PV0395...) lo asigna el servidor.
+// ---------------------------------------------------------------------------
+
+// Orden de los campos en el formulario (nombre ocupa toda la fila).
+const CAMPOS_FORMULARIO: CampoEditable[] = [
+  "nombre",
+  "tipoProveedor",
+  "estado",
+  "tipoDocumento",
+  "numeroDocumento",
+  "digitoVerificacion",
+  "nombreContacto",
+  "telefono",
+  "correo",
+  "ciudad",
+  "direccion",
+]
+const FORMULARIO_VACIO: Partial<Record<CampoEditable, string>> = { estado: "ACTIVO" }
+
+function NuevoProveedorDialog({
+  abierto,
+  onAbiertoChange,
+  onCreado,
+}: {
+  abierto: boolean
+  onAbiertoChange: (abierto: boolean) => void
+  onCreado: (p: Proveedor) => void
+}) {
+  const [valores, setValores] = useState<Partial<Record<CampoEditable, string>>>(FORMULARIO_VACIO)
+  const [errores, setErrores] = useState<Partial<Record<CampoEditable, string>>>({})
+  const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
+  const [guardando, setGuardando] = useState(false)
+
+  function cambiarAbierto(abrir: boolean) {
+    if (guardando) return
+    if (!abrir) {
+      setValores(FORMULARIO_VACIO)
+      setErrores({})
+      setErrorGeneral(null)
+    }
+    onAbiertoChange(abrir)
+  }
+
+  async function crear(e: React.FormEvent) {
+    e.preventDefault()
+    const nuevosErrores: Partial<Record<CampoEditable, string>> = {}
+    for (const campo of CAMPOS_FORMULARIO) {
+      const crudo = valores[campo] ?? ""
+      if (campo !== "nombre" && crudo.trim() === "") continue
+      const r = validarCampo(campo, crudo)
+      if (!r.ok) nuevosErrores[campo] = r.error
+    }
+    setErrores(nuevosErrores)
+    if (Object.keys(nuevosErrores).length > 0) return
+
+    setGuardando(true)
+    setErrorGeneral(null)
+    try {
+      const creado = await crearProveedor(valores)
+      onCreado(creado)
+      setValores(FORMULARIO_VACIO)
+      onAbiertoChange(false)
+    } catch (err) {
+      setErrorGeneral(err instanceof Error ? err.message : "No se pudo crear el proveedor.")
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <Dialog open={abierto} onOpenChange={cambiarAbierto}>
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Nuevo proveedor</DialogTitle>
+        </DialogHeader>
+        <form id="form-nuevo-proveedor" onSubmit={crear} className="grid gap-3 sm:grid-cols-2" noValidate>
+          {CAMPOS_FORMULARIO.map((campo) => {
+            const opciones = OPCIONES[campo]
+            const id = `nuevo-proveedor-${campo}`
+            const claseCampo = `h-9 w-full min-w-0 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              errores[campo] ? "border-destructive" : ""
+            }`
+            return (
+              <div key={campo} className={`min-w-0 space-y-1 ${campo === "nombre" || campo === "direccion" ? "sm:col-span-2" : ""}`}>
+                <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+                  {campo === "nombre" ? "Nombre del proveedor *" : ETIQUETA[campo]}
+                </label>
+                {opciones ? (
+                  <select
+                    id={id}
+                    value={valores[campo] ?? ""}
+                    onChange={(e) => setValores((v) => ({ ...v, [campo]: e.target.value }))}
+                    className={claseCampo}
+                  >
+                    <option value="">— Sin valor —</option>
+                    {opciones.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id={id}
+                    autoFocus={campo === "nombre"}
+                    value={valores[campo] ?? ""}
+                    inputMode={campo === "numeroDocumento" || campo === "digitoVerificacion" ? "numeric" : campo === "telefono" ? "tel" : campo === "correo" ? "email" : undefined}
+                    onChange={(e) => {
+                      setValores((v) => ({ ...v, [campo]: e.target.value }))
+                      if (errores[campo]) setErrores((er) => ({ ...er, [campo]: undefined }))
+                    }}
+                    className={claseCampo}
+                  />
+                )}
+                {errores[campo] && <p className="text-xs text-destructive">{errores[campo]}</p>}
+              </div>
+            )
+          })}
+        </form>
+        {errorGeneral && <p className="text-sm text-destructive">{errorGeneral}</p>}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => cambiarAbierto(false)} disabled={guardando}>
+            Cancelar
+          </Button>
+          <Button type="submit" form="form-nuevo-proveedor" disabled={guardando}>
+            {guardando && <Loader2 className="size-4 animate-spin" />}
+            Crear proveedor
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página
 // ---------------------------------------------------------------------------
 
@@ -292,6 +417,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
   // los filtros (se guarda junto a la "clave" de filtros con la que se amplió).
   const [paginaMovil, setPaginaMovil] = useState({ clave: "", n: TAMANO_PAGINA_MOVIL })
   const [aviso, setAviso] = useState<Aviso>(null)
+  const [nuevoAbierto, setNuevoAbierto] = useState(false)
 
   useEffect(() => {
     listarProveedores()
@@ -381,7 +507,27 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
               : "Consulta de proveedores (solo lectura)."}
           </p>
         </div>
+        {puedeEditar && (
+          <Button className="ml-auto gap-1.5" onClick={() => setNuevoAbierto(true)}>
+            <Plus className="size-4" /> Nuevo proveedor
+          </Button>
+        )}
       </header>
+
+      {puedeEditar && (
+        <NuevoProveedorDialog
+          abierto={nuevoAbierto}
+          onAbiertoChange={setNuevoAbierto}
+          onCreado={(p) => {
+            setProveedores((prev) => (prev ? [...prev, p] : [p]))
+            // Que se vea: se limpian los filtros y la búsqueda apunta al nuevo.
+            setFiltroEstado("todos")
+            setFiltroTipo("todos")
+            setBusqueda(p.idProv ?? p.nombre)
+            setAviso({ tipo: "ok", texto: `Proveedor creado: ${p.nombre} (${p.idProv}).` })
+          }}
+        />
+      )}
 
       <main className="@container mx-auto w-full max-w-[1800px] min-w-0 flex-1 space-y-4 p-4 sm:p-6">
         {/* Barra de filtros: se acomoda en varias líneas en pantallas chicas */}
