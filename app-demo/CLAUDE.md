@@ -820,9 +820,19 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   ORDER BY necesita GiST.
 - FKs sin índice hacían que borrar en cascada fuera O(padres × hijos); se
   indexaron (`20261004200000_indices_rendimiento.sql`, aplicada).
-- **Riesgo de seguridad sin resolver**: RLS de `maestro_insumos` (UPDATE) y
-  de `mano_obra_categorias`/`equipo_categorias` (ALL) permite a cualquier
-  autenticado. No se cambió (se pidió no tocar backend).
+- Catálogos (resuelto, `20261005100000_seguridad_catalogos.sql`):
+  `maestro_insumos` UPDATE exige `aprobar_insumos`; `mano_obra_categorias` /
+  `equipo_categorias` se leen con sesión y se escriben con
+  `aprobar_mano_obra`. Siguen abiertas a cualquier autenticado: `apu`,
+  `item_apu`, `apu_import_revision`, `transporte_precios`.
+- Ninguna función de `public` es ejecutable sin sesión
+  (`20261005200000_funciones_sin_anon.sql`); las nuevas tampoco (default
+  privileges). `test_fase1_compras` (prueba que inserta datos) sin permiso
+  para nadie -- pendiente decidir si se borra.
+- Permisos fallan CERRADO: si `permisos_rol_usuario` falla, el middleware
+  niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
+- Middleware usa `getClaims()` (JWT ES256 validado localmente), no
+  `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
 
 ## Pendientes generales
 
