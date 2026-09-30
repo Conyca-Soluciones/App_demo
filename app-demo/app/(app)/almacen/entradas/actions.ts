@@ -27,10 +27,16 @@ export type OrdenParaEntrada = {
   cantidadRecibida: number
 }
 
-export async function listarOrdenesParaEntrada(): Promise<OrdenParaEntrada[]> {
+// incluirEntregadas = true también trae las OC ya entregadas, para poder
+// abrirlas y corregir una entrada.
+export async function listarOrdenesParaEntrada(
+  incluirEntregadas = false
+): Promise<OrdenParaEntrada[]> {
   await requerirScope("admin_insumos")
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("listar_ordenes_para_entrada")
+  const { data, error } = await supabase.rpc("listar_ordenes_para_entrada", {
+    p_incluir_entregadas: incluirEntregadas,
+  })
   if (error) throw new Error(error.message)
 
   return (data ?? []).map((o: any) => ({
@@ -57,6 +63,15 @@ export type LineaEntrada = {
   cantidadPendiente: number
 }
 
+export type LineaEntradaRegistrada = {
+  id: string // entradas_almacen_items.id
+  ordenCompraItemId: string
+  insumoDescripcion: string
+  um: string | null
+  cantidad: number
+  cantidadOriginal: number | null // solo si la cantidad fue editada
+}
+
 export type EntradaRegistrada = {
   id: string
   numero: number
@@ -64,7 +79,10 @@ export type EntradaRegistrada = {
   observaciones: string | null
   recibidoPor: string | null
   createdAt: string
-  lineas: { insumoDescripcion: string; um: string | null; cantidad: number }[]
+  anuladaAt: string | null
+  motivoAnulacion: string | null
+  editadaAt: string | null
+  lineas: LineaEntradaRegistrada[]
 }
 
 export type DetalleOrdenEntrada = {
@@ -112,10 +130,16 @@ export async function obtenerDetalleOrdenParaEntrada(
       observaciones: e.observaciones,
       recibidoPor: e.recibido_por,
       createdAt: e.created_at,
+      anuladaAt: e.anulada_at,
+      motivoAnulacion: e.motivo_anulacion,
+      editadaAt: e.editada_at,
       lineas: (e.lineas ?? []).map((l: any) => ({
+        id: l.id,
+        ordenCompraItemId: l.orden_compra_item_id,
         insumoDescripcion: l.insumo_descripcion,
         um: l.um,
         cantidad: Number(l.cantidad),
+        cantidadOriginal: l.cantidad_original === null ? null : Number(l.cantidad_original),
       })),
     })),
   }
@@ -151,4 +175,42 @@ export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntre
 
   const detalle = await obtenerDetalleOrdenParaEntrada(datos.ordenId)
   return detalle.estadoEntrega
+}
+
+export type DatosEdicionEntrada = {
+  entradaId: string
+  remision?: string | null
+  observaciones?: string | null
+  lineas: { id: string; cantidad: number }[] // id = LineaEntradaRegistrada.id
+}
+
+// Corrige cantidades / remisión / observaciones de una entrada. Devuelve el
+// estado_entrega en que queda la OC (puede volver de entregada a parcial).
+export async function editarEntrada(datos: DatosEdicionEntrada): Promise<EstadoEntrega> {
+  await requerirScope("admin_insumos")
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("editar_entrada_almacen", {
+    p_entrada_id: datos.entradaId,
+    p_remision: datos.remision ?? null,
+    p_observaciones: datos.observaciones ?? null,
+    p_lineas: datos.lineas.map((l) => ({ id: l.id, cantidad: l.cantidad })),
+  })
+  if (error) throw new Error(error.message)
+  return data as EstadoEntrega
+}
+
+// Anula la entrada completa (queda registrada). No se puede si el material
+// ya salió de bodega y el inventario quedaría negativo.
+export async function anularEntrada(entradaId: string, motivo: string): Promise<EstadoEntrega> {
+  await requerirScope("admin_insumos")
+  if (!motivo.trim()) throw new Error("El motivo de anulación es obligatorio.")
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("anular_entrada_almacen", {
+    p_entrada_id: entradaId,
+    p_motivo: motivo.trim(),
+  })
+  if (error) throw new Error(error.message)
+  return data as EstadoEntrega
 }

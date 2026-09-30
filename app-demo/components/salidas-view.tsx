@@ -35,6 +35,7 @@ import {
 } from "@/app/(app)/almacen/inventario/actions"
 import {
   anularSalida,
+  editarSalida,
   listarSalidasDelProyecto,
   registrarSalida,
   type SalidaRegistrada,
@@ -64,6 +65,12 @@ export function SalidasView() {
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+
+  const [editando, setEditando] = useState<SalidaRegistrada | null>(null)
+  const [edCantidad, setEdCantidad] = useState("")
+  const [edRetira, setEdRetira] = useState("")
+  const [edObservaciones, setEdObservaciones] = useState("")
+  const [procesandoEdicion, setProcesandoEdicion] = useState(false)
 
   const [anulando, setAnulando] = useState<SalidaRegistrada | null>(null)
   const [motivo, setMotivo] = useState("")
@@ -144,6 +151,54 @@ export function SalidasView() {
       setError(e instanceof Error ? e.message : "No se pudo registrar la salida.")
     } finally {
       setGuardando(false)
+    }
+  }
+
+  function abrirEdicion(salida: SalidaRegistrada) {
+    setError(null)
+    setAviso(null)
+    setEditando(salida)
+    setEdCantidad(String(salida.cantidad))
+    setEdRetira(salida.retira ?? "")
+    setEdObservaciones(salida.observaciones ?? "")
+  }
+
+  // Tope al editar: lo disponible + lo que esta misma salida ya tenía sacado.
+  const maximoEdicion = useMemo(() => {
+    if (!editando || !inventario) return null
+    const inv = inventario.find((i) => i.insumoCodigo === editando.insumoCodigo)
+    return (inv?.cantidadDisponible ?? 0) + editando.cantidad
+  }, [editando, inventario])
+
+  async function confirmarEdicion() {
+    if (!editando || !proyectoId) return
+    const cantidad = parsearCantidad(edCantidad)
+    if (Number.isNaN(cantidad) || cantidad <= 0) {
+      setError("La cantidad debe ser mayor que cero.")
+      setEditando(null)
+      return
+    }
+    if (maximoEdicion !== null && cantidad > maximoEdicion) {
+      setError(`No hay suficiente inventario: máximo ${formatoNumero.format(maximoEdicion)}.`)
+      setEditando(null)
+      return
+    }
+    setProcesandoEdicion(true)
+    try {
+      await editarSalida({
+        salidaId: editando.id,
+        cantidad,
+        retira: edRetira,
+        observaciones: edObservaciones,
+      })
+      setEditando(null)
+      setAviso("Salida corregida.")
+      cargar(proyectoId)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo editar la salida.")
+      setEditando(null)
+    } finally {
+      setProcesandoEdicion(false)
     }
   }
 
@@ -328,6 +383,11 @@ export function SalidasView() {
                         <TableCell>{s.insumoDescripcion}</TableCell>
                         <TableCell className="text-right">
                           {formatoNumero.format(s.cantidad)} {s.insumoUm ?? ""}
+                          {s.cantidadOriginal !== null && (
+                            <span className="block text-xs text-muted-foreground">
+                              (antes {formatoNumero.format(s.cantidadOriginal)})
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>{s.retira ?? "—"}</TableCell>
                         <TableCell>{s.registradoPorNombre ?? "—"}</TableCell>
@@ -336,15 +396,22 @@ export function SalidasView() {
                             <span title={s.motivoAnulacion ?? ""}>
                               <Badge variant="destructive">Anulada</Badge>
                             </span>
+                          ) : s.editadaAt ? (
+                            <Badge variant="outline">Editada</Badge>
                           ) : (
                             <Badge variant="outline">Registrada</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
                           {!s.anuladaAt && (
-                            <Button variant="ghost" size="sm" onClick={() => setAnulando(s)}>
-                              Anular
-                            </Button>
+                            <>
+                              <Button variant="ghost" size="sm" onClick={() => abrirEdicion(s)}>
+                                Editar
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => setAnulando(s)}>
+                                Anular
+                              </Button>
+                            </>
                           )}
                         </TableCell>
                       </TableRow>
@@ -358,6 +425,52 @@ export function SalidasView() {
           </div>
         </>
       )}
+
+      <Dialog
+        open={editando !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setEditando(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar salida</DialogTitle>
+          </DialogHeader>
+          {editando && (
+            <p className="text-sm text-muted-foreground">
+              {editando.insumoDescripcion}
+              {maximoEdicion !== null &&
+                ` — máximo permitido: ${formatoNumero.format(maximoEdicion)} ${editando.insumoUm ?? ""}`}
+              . Para cambiar de insumo, anula la salida y regístrala de nuevo.
+            </p>
+          )}
+          <Input
+            inputMode="decimal"
+            placeholder="Cantidad"
+            value={edCantidad}
+            onChange={(e) => setEdCantidad(e.target.value)}
+          />
+          <Input
+            placeholder="¿Quién retira el material?"
+            value={edRetira}
+            onChange={(e) => setEdRetira(e.target.value)}
+          />
+          <Textarea
+            placeholder="Observaciones"
+            value={edObservaciones}
+            onChange={(e) => setEdObservaciones(e.target.value)}
+            rows={2}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditando(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarEdicion} disabled={procesandoEdicion}>
+              {procesandoEdicion ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={anulando !== null}

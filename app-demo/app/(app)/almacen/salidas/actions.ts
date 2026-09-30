@@ -20,9 +20,11 @@ export type SalidaRegistrada = {
   insumoDescripcion: string
   insumoUm: string | null
   cantidad: number
+  cantidadOriginal: number | null // solo si la cantidad fue editada
   retira: string | null
   observaciones: string | null
   registradoPorNombre: string | null
+  editadaAt: string | null
   anuladaAt: string | null
   motivoAnulacion: string | null
 }
@@ -42,9 +44,11 @@ export async function listarSalidasDelProyecto(proyectoId: string): Promise<Sali
     insumoDescripcion: s.insumo_descripcion,
     insumoUm: s.insumo_um,
     cantidad: Number(s.cantidad),
+    cantidadOriginal: s.cantidad_original === null ? null : Number(s.cantidad_original),
     retira: s.retira,
     observaciones: s.observaciones,
     registradoPorNombre: s.registrado_por_nombre,
+    editadaAt: s.editada_at,
     anuladaAt: s.anulada_at,
     motivoAnulacion: s.motivo_anulacion,
   }))
@@ -85,6 +89,29 @@ export async function anularSalida(salidaId: string, motivo: string): Promise<vo
   const { error } = await supabase.rpc("anular_salida_almacen", {
     p_salida_id: salidaId,
     p_motivo: motivo.trim(),
+  })
+  if (error) throw new Error(error.message)
+}
+
+export type DatosEdicionSalida = {
+  salidaId: string
+  cantidad: number
+  retira?: string | null
+  observaciones?: string | null
+}
+
+// Corrige una salida. El tope es lo disponible más lo que esta misma salida
+// ya tenía sacado. Para cambiar de insumo, anula y registra de nuevo.
+export async function editarSalida(datos: DatosEdicionSalida): Promise<void> {
+  await requerirScope("admin_insumos")
+  if (!(datos.cantidad > 0)) throw new Error("La cantidad debe ser mayor que cero.")
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("editar_salida_almacen", {
+    p_salida_id: datos.salidaId,
+    p_cantidad: datos.cantidad,
+    p_retira: datos.retira ?? null,
+    p_observaciones: datos.observaciones ?? null,
   })
   if (error) throw new Error(error.message)
 }
