@@ -23,7 +23,6 @@
 // } from "@/components/ui/dialog"
 // import { Textarea } from "@/components/ui/textarea"
 // import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
-import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 // import {
 //   obtenerOrdenCompraDetalle,
 //   obtenerPermisosOrdenCompra,
@@ -388,6 +387,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
+import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import {
   obtenerOrdenCompraDetalle,
   obtenerPermisosOrdenCompra,
