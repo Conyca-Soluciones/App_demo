@@ -9,6 +9,8 @@ import ExcelJS from "exceljs"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { SelectorProyecto, AvisoSinProyecto } from "@/components/selector-proyecto"
+import { useProyectoActual } from "@/components/proyecto-actual-provider"
 import { ExportTemplateButton } from "@/components/export-template-button"
 
 import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError } from "@/lib/calcular-nivel"
@@ -17,7 +19,6 @@ import { agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-con
 import { RevisionApuDialog } from "@/components/revision-apu-dialog"
 import {
   crearPresupuesto,
-  verProyectos,
   verPresupuestoDeProyecto,
   cargarItemsDePresupuesto,
   cargarItemsConEstadoApu,
@@ -445,8 +446,10 @@ function formatoCantidadExcel(valor: unknown): string {
 // ---------------------------------------------------------------------------
 
 export default function Presupuestos() {
-  const [proyectos, setProyectos] = useState<{ id: string; codigo: string | null; nombre: string }[]>([])
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
+  // Proyecto escogido en /inicio (o en el selector del header) -- ya no se
+  // elige acá. Ver lib/proyecto-actual.ts.
+  const { proyecto: proyectoActual } = useProyectoActual()
+  const proyectoId = proyectoActual?.id ?? null
   const [presupuestoDbId, setPresupuestoDbId] = useState<string | null>(null)
   const [presupuesto, setPresupuesto] = useState<ItemPresupuesto[]>([])
   const [guardando, setGuardando] = useState(false)
@@ -746,14 +749,6 @@ export default function Presupuestos() {
     }
   }
 
-  useEffect(() => {
-    verProyectos()
-      .then(setProyectos)
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos")
-      )
-  }, [])
-
   // Al elegir proyecto, se resuelve su ÚNICO presupuesto (o null) -- ya
   // no hay lista que traer ni "aviso descartado" que rastrear.
     useEffect(() => {
@@ -1042,8 +1037,7 @@ export default function Presupuestos() {
         idPresupuesto = presupuestoDbId
         setVersionPendienteDesdeImport(null)
       } else if (!idPresupuesto) {
-        const proyecto = proyectos.find((p) => p.id === proyectoId)
-        const nombre = `Presupuesto ${proyecto?.nombre ?? ""} — ${new Date().toLocaleDateString("es-CO")}`
+        const nombre = `Presupuesto ${proyectoActual?.nombre ?? ""} — ${new Date().toLocaleDateString("es-CO")}`
         const nuevo = await crearPresupuesto(proyectoId, nombre)
         idPresupuesto = nuevo.id
         setPresupuestoDbId(nuevo.id)
@@ -1153,7 +1147,7 @@ export default function Presupuestos() {
       // Nombre de proyecto -- se necesita antes (para el subtítulo del
       // encabezado de marca) y después (para el nombre del archivo), así
       // que se calcula una sola vez acá arriba.
-      const nombreProyecto = proyectos.find((p) => p.id === proyectoId)?.nombre ?? "proyecto"
+      const nombreProyecto = proyectoActual?.nombre ?? "proyecto"
       const subtituloMarca = `${nombreProyecto} -- generado el ${new Date().toLocaleDateString("es-CO")}`
 
       // =====================================================
@@ -1401,12 +1395,6 @@ export default function Presupuestos() {
     0
   )
 
-  // Para mostrar el CÓDIGO del proyecto en el trigger del Select -- sin
-  // hijos explícitos, SelectValue muestra el `value` crudo (el UUID).
-  // Si el proyecto no tiene código, se cae al nombre para no dejar el
-  // trigger vacío.
-  const proyectoSeleccionado = proyectos.find((p) => p.id === proyectoId) ?? null
-
   return (
     <>
       <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b bg-background px-6">
@@ -1414,9 +1402,10 @@ export default function Presupuestos() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Nuevo presupuesto</h1>
           <p className="text-sm text-muted-foreground">
-            Seleccione un proyecto e importe el presupuesto.
+            Importe el presupuesto del proyecto.
           </p>
         </div>
+        <SelectorProyecto className="ml-auto" />
       </header>
 
       <div className="flex w-full min-w-0 items-start">
@@ -1438,23 +1427,6 @@ export default function Presupuestos() {
       <main className="mx-auto w-full max-w-[1800px] flex-1 min-w-0 space-y-6 p-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Select value={proyectoId} onValueChange={setProyectoId}>
-              <SelectTrigger className="h-10 w-64 rounded-sm">
-                <SelectValue placeholder="Selecciona un proyecto">
-                  {proyectoSeleccionado
-                    ? proyectoSeleccionado.codigo ?? proyectoSeleccionado.nombre
-                    : "Selecciona un proyecto"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {proyectos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <FileUpload
               accept=".xlsx,.xls"
               onFileSelected={handleFileSelected}
@@ -1493,11 +1465,7 @@ export default function Presupuestos() {
             />
           </div>
 
-          {!proyectoId && (
-            <p className="text-xs text-muted-foreground">
-              Seleccione un proyecto para habilitar la importación.
-            </p>
-          )}
+          {!proyectoId && <AvisoSinProyecto />}
           <p className="text-xs text-muted-foreground">
             Use puntos (1, 1.1, 4.1.1.1) o dígitos
             seguidos (1, 101, 10101) para numerar los items del presupuesto. Si el archivo trae una

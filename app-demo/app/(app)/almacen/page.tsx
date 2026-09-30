@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { SelectorProyecto, AvisoSinProyecto } from "@/components/selector-proyecto"
+import { useProyectoActual } from "@/components/proyecto-actual-provider"
 import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,17 +18,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { HistorialDialog } from "@/components/historial-timeline"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 
 import {
-  verProyectos,
   buscarPresupuestoActivo,
   verPedidosDeProyecto,
   cancelarPedido,
@@ -71,8 +65,10 @@ function BadgeEstado({ estado }: { estado: PedidoRegistro["estado"] }) {
 }
 
 export default function Almacen() {
-  const [proyectos, setProyectos] = useState<{ id: string; codigo: string | null; nombre: string }[]>([])
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
+  // Proyecto escogido en /inicio (o en el selector del header). Ver
+  // lib/proyecto-actual.ts.
+  const { proyecto: proyectoSeleccionado } = useProyectoActual()
+  const proyectoId = proyectoSeleccionado?.id ?? null
   const [error, setError] = useState<string | null>(null)
   const [dialogoPedido, setDialogoPedido] = useState(false)
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
@@ -98,12 +94,6 @@ export default function Almacen() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setUsuarioId(data.user?.id ?? null))
-  }, [])
-
-  useEffect(() => {
-    verProyectos()
-      .then(setProyectos)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos"))
   }, [])
 
   useEffect(() => {
@@ -190,8 +180,6 @@ export default function Almacen() {
     }
   }
 
-  const proyectoSeleccionado = proyectos.find((p) => p.id === proyectoId)
-
   return (
     <>
       <header className="flex h-16 items-center gap-4 border-b px-6">
@@ -199,27 +187,15 @@ export default function Almacen() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Pedidos de insumos</h1>
           <p className="text-sm text-muted-foreground">
-            Seleccione un proyecto para hacer un pedido de insumos de almacén.
+            Pedidos de insumos de almacén del proyecto.
           </p>
         </div>
+        <SelectorProyecto className="ml-auto" />
       </header>
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Select value={proyectoId ?? ""} onValueChange={setProyectoId}>
-              <SelectTrigger className="h-10 w-64 rounded-sm">
-                <SelectValue placeholder="Selecciona un proyecto" />
-              </SelectTrigger>
-              <SelectContent>
-                {proyectos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             <Button
               type="button"
               size="sm"
@@ -231,11 +207,7 @@ export default function Almacen() {
             </Button>
           </div>
 
-          {!proyectoId && (
-            <p className="text-xs text-muted-foreground">
-              Selecciona un proyecto para habilitar la creación de pedidos.
-            </p>
-          )}
+          {!proyectoId && <AvisoSinProyecto />}
           {proyectoId && cargandoPresupuesto && (
             <p className="text-xs text-muted-foreground">Cargando presupuesto del proyecto…</p>
           )}

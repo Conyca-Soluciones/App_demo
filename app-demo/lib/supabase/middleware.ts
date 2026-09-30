@@ -86,8 +86,10 @@ export async function updateSession(request: NextRequest) {
   requestHeaders.set("x-permisos", encodeURIComponent(JSON.stringify(permisos)))
 
   if (esRutaPublica) {
+    // Con sesión, /login lleva a la landing de proyectos (/inicio), que
+    // después manda a rutaInicio(permisos).
     const url = request.nextUrl.clone()
-    url.pathname = rutaInicio(permisos)
+    url.pathname = "/inicio"
     return NextResponse.redirect(url)
   }
 
