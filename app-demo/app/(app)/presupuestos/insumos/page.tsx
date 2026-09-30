@@ -224,10 +224,10 @@ export default function MaestroInsumos() {
   // Descripción quedan fijas al hacer scroll horizontal.
   const columnasTabla: ColumnaExcel<Insumo>[] = [
     { clave: "codigo", titulo: "Código", ancho: 96, fija: true, texto: (i) => String(i.codigo), claseCelda: "font-mono text-xs text-muted-foreground" },
-    { clave: "descripcion", titulo: "Descripción", ancho: 420, fija: true, texto: (i) => i.descripcion },
-    { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (i) => i.tipo ?? "" },
-    { clave: "u_m", titulo: "U.M.", ancho: 90, alinear: "center", texto: (i) => i.u_m ?? "" },
-    { clave: "agrupacion", titulo: "Agrupación", ancho: 240, texto: (i) => i.agrupacion ?? "" },
+    { clave: "descripcion", titulo: "Descripción", ancho: 320, fija: true, flexible: true, texto: (i) => i.descripcion },
+    { clave: "tipo", titulo: "Tipo", ancho: 200, texto: (i) => i.tipo ?? "" },
+    { clave: "u_m", titulo: "U.M.", ancho: 150, alinear: "center", texto: (i) => i.u_m ?? "" },
+    { clave: "agrupacion", titulo: "Agrupación", ancho: 280, texto: (i) => i.agrupacion ?? "" },
     { clave: "precioEfectivo", titulo: "Valor unitario", ancho: 160, alinear: "right", texto: textoPrecio, claseCelda: "tabular-nums" },
   ]
 

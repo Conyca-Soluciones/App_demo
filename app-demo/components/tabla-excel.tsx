@@ -21,6 +21,10 @@ export type ColumnaExcel<T> = {
   alinear?: "right" | "center"
   // Fija a la izquierda. Deben ser las PRIMERAS columnas.
   fija?: boolean
+  // Absorbe el espacio sobrante cuando la tabla es más angosta que la
+  // página (así el encabezado azul llega hasta el borde). `ancho` pasa a ser
+  // su mínimo. Usar en UNA columna de texto largo (ej. Descripción).
+  flexible?: boolean
   ordenable?: boolean // default true
   // Texto plano de la celda (para `title`, tarjeta y celda por defecto).
   texto: (fila: T) => string
@@ -79,10 +83,16 @@ export function TablaExcel<T>({
     <div className="@container">
       {/* ---------- Tabla (cuando hay espacio) ---------- */}
       <div className={`hidden overflow-auto rounded-lg border @3xl:block ${claseAltoMax}`}>
-        <table className="table-fixed border-separate border-spacing-0 text-sm" style={{ width: anchoTabla }}>
+        {/* Ancho = todo el disponible, nunca menos que la suma de columnas
+            (si no cabe, aparece el scroll horizontal). Con table-fixed, la
+            columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
+        <table
+          className="w-full table-fixed border-separate border-spacing-0 text-sm"
+          style={{ minWidth: anchoTabla }}
+        >
           <colgroup>
             {columnas.map((c) => (
-              <col key={c.clave} style={{ width: c.ancho }} />
+              <col key={c.clave} style={c.flexible ? undefined : { width: c.ancho }} />
             ))}
           </colgroup>
           <thead>

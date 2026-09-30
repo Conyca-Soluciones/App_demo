@@ -730,7 +730,7 @@ function CatalogoRecurso({
     </button>
   )
   const columnasTabla: ColumnaExcel<CategoriaRecursoFila>[] = [
-    { clave: "categoria", titulo: "Categoría", ancho: 380, fija: true, texto: (c) => c.categoria },
+    { clave: "categoria", titulo: "Categoría", ancho: 340, fija: true, flexible: true, texto: (c) => c.categoria },
     { clave: "grupo", titulo: "Grupo", ancho: 240, texto: (c) => c.grupo ?? "" },
     { clave: "unidad", titulo: "Unidad", ancho: 110, alinear: "center", texto: (c) => c.unidad },
     { clave: "valor_unitario", titulo: "Valor", ancho: 160, alinear: "right", texto: (c) => formatearMoneda(c.valor_unitario), claseCelda: "tabular-nums" },
