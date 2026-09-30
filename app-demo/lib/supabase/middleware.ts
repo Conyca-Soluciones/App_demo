@@ -63,14 +63,20 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims() valida el JWT LOCALMENTE (firma ES256 contra la llave
+  // pública del proyecto, que se descarga una vez y queda en caché) y
+  // refresca la sesión si venció. Antes se usaba getUser(), que hace una
+  // llamada de red a Supabase Auth en CADA request (navegación, server
+  // action, prefetch). Diferencia a tener en cuenta: un usuario borrado o
+  // bloqueado conserva acceso hasta que venza su token (1 h por defecto);
+  // la base (RLS) sigue validando el mismo token en cada consulta.
+  const { data: datosClaims } = await supabase.auth.getClaims()
+  const userId = datosClaims?.claims?.sub ?? null
 
   const pathname = request.nextUrl.pathname
   const esRutaPublica = RUTAS_PUBLICAS.includes(pathname)
 
-  if (!user) {
+  if (!userId) {
     if (!esRutaPublica) {
       //No hay sesison y quiere acceder ruta privada redirecciona a login
       const url = request.nextUrl.clone()
@@ -80,9 +86,9 @@ export async function updateSession(request: NextRequest) {
     return conCookies(supabaseResponse, requestHeaders)
   }
 
-  requestHeaders.set("x-user-id", user.id)
+  requestHeaders.set("x-user-id", userId)
 
-  const permisos = await cargarPermisos(supabase, user.id)
+  const permisos = await cargarPermisos(supabase, userId)
   requestHeaders.set("x-permisos", encodeURIComponent(JSON.stringify(permisos)))
 
   if (esRutaPublica) {
@@ -110,10 +116,35 @@ export async function updateSession(request: NextRequest) {
   return conCookies(supabaseResponse, requestHeaders)
 }
 
+// Caché corto de permisos por usuario, en memoria del proceso. Una
+// navegación dispara varios requests seguidos (página, RSC, server actions)
+// y todos pedían el mismo RPC. Con 30 s de vida, un cambio de rol o de
+// pestañas tarda como máximo eso en aplicarse (la base sigue validando las
+// acciones con tiene_accion en cada función/política que las usa).
+const PERMISOS_TTL_MS = 30_000
+const MAX_USUARIOS_EN_CACHE = 1000
+const cachePermisos = new Map<string, { permisos: PermisosRol; expira: number }>()
+
 // Permisos del usuario. Si la función SQL no existe todavía (migración de
 // roles sin correr) o falla, se cae a las banderas de perfiles: el código se
 // puede desplegar antes que el SQL sin romper nada.
 async function cargarPermisos(
+  supabase: ReturnType<typeof createServerClient>,
+  userId: string
+): Promise<PermisosRol> {
+  const ahora = Date.now()
+  const enCache = cachePermisos.get(userId)
+  if (enCache && enCache.expira > ahora) return enCache.permisos
+
+  const permisos = await consultarPermisos(supabase, userId)
+  // Tope de tamaño: si crece de más se vacía entero (O(1) amortizado, y la
+  // próxima consulta de cada usuario simplemente vuelve a la base).
+  if (cachePermisos.size >= MAX_USUARIOS_EN_CACHE) cachePermisos.clear()
+  cachePermisos.set(userId, { permisos, expira: ahora + PERMISOS_TTL_MS })
+  return permisos
+}
+
+async function consultarPermisos(
   supabase: ReturnType<typeof createServerClient>,
   userId: string
 ): Promise<PermisosRol> {
@@ -130,7 +161,8 @@ async function cargarPermisos(
 }
 
 function conCookies(supabaseResponse: NextResponse, requestHeaders: Headers) {
-  //Mirar optimizacion porque esto es O(N2) creo
+  // O(número de cookies), una pasada: copia las cookies de sesión refrescadas
+  // a la respuesta final que lleva los headers del request.
   const respuestaFinal = NextResponse.next({
     request: { headers: requestHeaders },
   })

@@ -93,7 +93,8 @@ export default function Almacen() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => setUsuarioId(data.user?.id ?? null))
+    // getClaims valida el token localmente; getUser hacía una llamada a Supabase Auth.
+    supabase.auth.getClaims().then(({ data }) => setUsuarioId(data?.claims?.sub ?? null))
   }, [])
 
   useEffect(() => {

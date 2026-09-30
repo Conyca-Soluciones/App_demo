@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirScope, requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
+import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
   type EstadoEntregaOrden,
@@ -182,15 +182,13 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
   await requerirScope("rol_compras")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   const { error } = await supabase
     .from("pedidos_insumos")
     .update({
       rechazado_compras_at: new Date().toISOString(),
-      rechazado_compras_por: user?.id ?? null,
+      rechazado_compras_por: userId ?? null,
       observaciones_compras: motivo,
     })
     .eq("id", pedidoId)
@@ -468,10 +466,8 @@ export type OrdenCompraDetalle = {
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error("No autenticado.")
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
 
   const { data, error } = await supabase
     .from("ordenes_compra")
@@ -623,10 +619,8 @@ export type OrdenCompraListado = {
 // quien. Un ingeniero ve las OC de sus proyectos, Compras/admin las ve todas.
 export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[]> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error("No autenticado.")
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
 
   const { data, error } = await supabase
     .from("ordenes_compra")
@@ -707,10 +701,8 @@ export type Notificacion = {
 // el resto del módulo: revisar si el volumen crece.
 export async function listarNotificaciones(): Promise<Notificacion[]> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) throw new Error("No autenticado.")
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
 
   const { data, error } = await supabase
     .from("notificaciones")

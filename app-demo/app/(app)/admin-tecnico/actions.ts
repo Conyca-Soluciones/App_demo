@@ -3,7 +3,7 @@
 // app/(app)/admin-tecnico/actions.ts
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
+import { requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 
 export type PedidoPendiente = {
   id: string
@@ -99,17 +99,15 @@ export async function resolverPedido(
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
-  if (!user) throw new Error("No autenticado.")
+  if (!userId) throw new Error("No autenticado.")
 
   const { error } = await supabase
     .from("pedidos_insumos")
     .update({
       estado,
-      resuelto_por: user.id,
+      resuelto_por: userId,
       resuelto_at: new Date().toISOString(),
       comentario_resolucion: comentario ?? null,
     })

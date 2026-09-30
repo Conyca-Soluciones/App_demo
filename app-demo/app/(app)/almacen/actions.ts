@@ -3,7 +3,7 @@
 // app/(app)/almacen/actions.ts
 
 import { createClient } from "@/lib/supabase/server"
-import { obtenerPermisosUsuario } from "@/lib/permisos"
+import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -13,15 +13,13 @@ import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } f
 export async function verProyectos() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
-  if (!user) {
+  if (!userId) {
     throw new Error("No autenticado.")
   }
 
-  const permisos = await obtenerPermisosUsuario(user.id)
+  const permisos = await obtenerPermisosUsuario(userId)
 
   if (permisos.veTodosProyectos) {
     const { data, error } = await supabase
@@ -160,11 +158,9 @@ export type NuevoPedidoInput = {
 export async function crearPedido(input: NuevoPedidoInput) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
-  if (!user) {
+  if (!userId) {
     throw new Error("No autenticado.")
   }
 
@@ -264,7 +260,7 @@ export async function crearPedido(input: NuevoPedidoInput) {
       urgente: input.urgente,
       observaciones: input.observaciones,
       soporte_url: input.soporteUrl,
-      solicitado_por: user.id,
+      solicitado_por: userId,
     }))
   )
 

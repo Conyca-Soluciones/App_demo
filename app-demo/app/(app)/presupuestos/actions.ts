@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { buscarSimilares } from "@/lib/similitud-texto"
-import { obtenerPermisosUsuario } from "@/lib/permisos"
+import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { requerirScope } from "@/lib/permisos"
 import { combinarBloquesConResoluciones } from "@/lib/apu-import-types"
 import type {
@@ -45,15 +45,13 @@ export async function crearPresupuesto(proyectoId: string, nombre: string) {
 export async function verProyectos() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
-  if (!user) {
+  if (!userId) {
     throw new Error("No autenticado.")
   }
 
-  const permisos = await obtenerPermisosUsuario(user.id)
+  const permisos = await obtenerPermisosUsuario(userId)
 
   if (permisos.veTodosProyectos) {
     const { data, error } = await supabase
@@ -872,9 +870,7 @@ export async function buscarEquipoSimilares(termino: string, umbral = 0.3): Prom
 export async function crearSolicitudInsumo(input: SolicitudInsumoInput) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   const { data, error } = await supabase
     .from("solicitudes_insumos")
@@ -883,7 +879,7 @@ export async function crearSolicitudInsumo(input: SolicitudInsumoInput) {
       tipo: input.tipo ?? null,
       u_m: input.uM ?? null,
       agrupacion: input.agrupacion ?? null,
-      solicitado_por: user?.id ?? null,
+      solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
       estado: "pendiente",
     })
@@ -1008,9 +1004,7 @@ export async function aprobarSolicitudInsumo(
   await requerirScope("admin_insumos")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   if (input.vrUnitario == null || PRECIOS_PLACEHOLDER.includes(input.vrUnitario) || input.vrUnitario <= 0) {
     throw new Error("La solicitud necesita un precio real -- no puede quedar en 0 ni vacío.")
@@ -1058,7 +1052,7 @@ export async function aprobarSolicitudInsumo(
       estado: "aprobado",
       codigo_maestro_asignado: insumoNuevo.codigo,
       resuelto_at: new Date().toISOString(),
-      resuelto_por: user?.id ?? null,
+      resuelto_por: userId ?? null,
     })
     .eq("id", input.solicitudId)
 
@@ -1114,9 +1108,7 @@ export async function rechazarSolicitudInsumo(solicitudId: string, motivo?: stri
   await requerirScope("admin_insumos")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   // Antes este `motivo` se recibía pero nunca se guardaba en ningún lado
   // -- ahora sí, en solicitudes_insumos.motivo_rechazo. La tabla del
@@ -1129,7 +1121,7 @@ export async function rechazarSolicitudInsumo(solicitudId: string, motivo?: stri
       estado: "rechazado",
       motivo_rechazo: motivo ?? null,
       resuelto_at: new Date().toISOString(),
-      resuelto_por: user?.id ?? null,
+      resuelto_por: userId ?? null,
     })
     .eq("id", solicitudId)
 
@@ -1797,9 +1789,7 @@ export type SolicitudManoObraInput = {
 export async function crearSolicitudManoObra(input: SolicitudManoObraInput) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   const { data, error } = await supabase
     .from("solicitudes_mano_obra")
@@ -1807,7 +1797,7 @@ export async function crearSolicitudManoObra(input: SolicitudManoObraInput) {
       descripcion: input.descripcion,
       grupo_sugerido: input.grupoSugerido ?? null,
       valor_propuesto: input.valorPropuesto ?? null,
-      solicitado_por: user?.id ?? null,
+      solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
       estado: "pendiente",
     })
@@ -1976,9 +1966,7 @@ export async function aprobarSolicitudManoObra(
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   if (input.valorUnitario == null || input.valorUnitario <= 0) {
     throw new Error("La solicitud necesita un valor real -- no puede quedar en 0 ni vacío.")
@@ -2030,7 +2018,7 @@ export async function aprobarSolicitudManoObra(
       estado: "aprobado",
       categoria_asignada_id: categoriaNueva.id,
       resuelto_at: new Date().toISOString(),
-      resuelto_por: user?.id ?? null,
+      resuelto_por: userId ?? null,
     })
     .eq("id", input.solicitudId)
 
@@ -2064,9 +2052,7 @@ export async function rechazarSolicitudManoObra(solicitudId: string, motivo?: st
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   const { error } = await supabase
     .from("solicitudes_mano_obra")
@@ -2074,7 +2060,7 @@ export async function rechazarSolicitudManoObra(solicitudId: string, motivo?: st
       estado: "rechazado",
       motivo_rechazo: motivo ?? null,
       resuelto_at: new Date().toISOString(),
-      resuelto_por: user?.id ?? null,
+      resuelto_por: userId ?? null,
     })
     .eq("id", solicitudId)
 
@@ -2100,9 +2086,7 @@ export type SolicitudEquipoInput = {
 export async function crearSolicitudEquipo(input: SolicitudEquipoInput) {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   const { data, error } = await supabase
     .from("solicitudes_equipo")
@@ -2110,7 +2094,7 @@ export async function crearSolicitudEquipo(input: SolicitudEquipoInput) {
       descripcion: input.descripcion,
       grupo_sugerido: input.grupoSugerido ?? null,
       valor_propuesto: input.valorPropuesto ?? null,
-      solicitado_por: user?.id ?? null,
+      solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
       estado: "pendiente",
     })
@@ -2232,9 +2216,7 @@ export async function aprobarSolicitudEquipo(
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   if (input.valorUnitario == null || input.valorUnitario <= 0) {
     throw new Error("La solicitud necesita un valor real -- no puede quedar en 0 ni vacío.")
@@ -2286,7 +2268,7 @@ export async function aprobarSolicitudEquipo(
       estado: "aprobado",
       categoria_asignada_id: categoriaNueva.id,
       resuelto_at: new Date().toISOString(),
-      resuelto_por: user?.id ?? null,
+      resuelto_por: userId ?? null,
     })
     .eq("id", input.solicitudId)
 
@@ -2310,9 +2292,7 @@ export async function rechazarSolicitudEquipo(solicitudId: string, motivo?: stri
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   const { error } = await supabase
     .from("solicitudes_equipo")
@@ -2320,7 +2300,7 @@ export async function rechazarSolicitudEquipo(solicitudId: string, motivo?: stri
       estado: "rechazado",
       motivo_rechazo: motivo ?? null,
       resuelto_at: new Date().toISOString(),
-      resuelto_por: user?.id ?? null,
+      resuelto_por: userId ?? null,
     })
     .eq("id", solicitudId)
 
@@ -4150,9 +4130,7 @@ export async function importarPreciosTransporte(
     for (const p of data ?? []) preciosExistentes.set(p.apu_import_revision_id, { id: p.id, valor_unitario: p.valor_unitario })
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userId = await obtenerUsuarioId()
 
   let sinCambios = 0
   const idsNuevos = new Set<string>() // revisionId sin transporte_precios previo -- necesitan item_apu nuevo
@@ -4194,7 +4172,7 @@ export async function importarPreciosTransporte(
       descripcion_original: fila.descripcion_original,
       valor_unitario: f.valorUnitario,
       unidad: fila.unidad,
-      cargado_por: user?.id ?? null,
+      cargado_por: userId ?? null,
     })
   }
 
