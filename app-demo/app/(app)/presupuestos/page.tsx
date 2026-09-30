@@ -23,7 +23,7 @@ import {
   cargarItemsConEstadoApu,
   cargarVersionConEstadoApu,
   AñadirItemPresuouesto,
-  recalcularValorItemDesdeApu,
+  recalcularValoresItemsDesdeApu,
   obtenerApusParaExportar,
   actualizarCantidadPresupuestoItem,
   listarVersiones,
@@ -1074,15 +1074,18 @@ export default function Presupuestos() {
       setVersiones(listaVersiones)
       setVersionViendoId(listaVersiones.find((v: VersionPresupuesto) => v.esActual)?.id ?? null)
 
-      const itemsConApuPendiente = itemsNuevos.filter((i) => i.apuId)
-      for (const item of itemsConApuPendiente) {
+      const idsConApuPendiente = itemsNuevos.filter((i) => i.apuId).map((i) => i.id)
+      if (idsConApuPendiente.length > 0) {
         try {
-          const { valorUnitario, valorTotal } = await recalcularValorItemDesdeApu(item.id)
+          const { valores, fallidos } = await recalcularValoresItemsDesdeApu(idsConApuPendiente)
+          if (fallidos.length > 0) {
+            console.error(`No se pudo recalcular el valor de ${fallidos.length} ítem(s):`, fallidos)
+          }
           setPresupuesto((prev) =>
-            prev.map((i) => (i.id === item.id ? { ...i, valorUnitario, valorTotal } : i))
+            prev.map((i) => (valores[i.id] ? { ...i, ...valores[i.id] } : i))
           )
         } catch (e) {
-          console.error(`No se pudo recalcular el valor del ítem ${item.id}:`, e)
+          console.error("No se pudieron recalcular los valores de los ítems con APU:", e)
         }
       }
 

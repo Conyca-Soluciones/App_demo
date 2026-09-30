@@ -2388,6 +2388,66 @@ export async function recalcularValorItemDesdeApu(
     valorTotal: actualizado.valor_total,
   }
 }
+
+// Versión en lote de recalcularValorItemDesdeApu, para cuando se guardan
+// muchos ítems con APU de una vez (handleGuardar en page.tsx). Antes eso
+// era un loop secuencial desde el cliente: 1 server action + 3 round-trips
+// por ítem. Acá: 1 SELECT de apu_id por tanda de ids, 1 RPC por APU
+// ÚNICO (en paralelo, de a 15 -- recalcular_valor_apu ya propaga a todos
+// los ítems que usan ese apu_id), y 1 SELECT final de valores por tanda.
+// Un APU cuyo RPC falla no tumba al resto: sus ítems quedan fuera de
+// `valores` y se reportan en `fallidos`.
+export async function recalcularValoresItemsDesdeApu(presupuestoItemIds: string[]): Promise<{
+  valores: Record<string, ValorRecalculado>
+  fallidos: string[]
+}> {
+  if (presupuestoItemIds.length === 0) return { valores: {}, fallidos: [] }
+
+  const supabase = await createClient()
+  const TAMANO_LOTE = 200
+
+  const items = await seleccionarEnLotesPorIds(presupuestoItemIds, TAMANO_LOTE, async (lote) => {
+    const { data, error } = await supabase
+      .from("presupuesto_items")
+      .select("id, apu_id")
+      .in("id", lote)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+  const apuIdsUnicos = Array.from(new Set(items.map((i) => i.apu_id).filter((id): id is string => !!id)))
+
+  const apusFallidos = new Set<string>()
+  await procesarEnLotes(apuIdsUnicos, 15, async (apuId) => {
+    const { error } = await supabase.rpc("recalcular_valor_apu", { p_apu_id: apuId })
+    if (error) {
+      console.error(`No se pudo recalcular el APU ${apuId}:`, error.message)
+      apusFallidos.add(apuId)
+    }
+  })
+
+  const fallidos = items.filter((i) => i.apu_id && apusFallidos.has(i.apu_id)).map((i) => i.id)
+  const idsALeer = items.filter((i) => !apusFallidos.has(i.apu_id ?? "")).map((i) => i.id)
+
+  const actualizados = await seleccionarEnLotesPorIds(idsALeer, TAMANO_LOTE, async (lote) => {
+    const { data, error } = await supabase
+      .from("presupuesto_items")
+      .select("id, apu_id, valor_unitario, valor_total")
+      .in("id", lote)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+  const valores: Record<string, ValorRecalculado> = {}
+  for (const fila of actualizados) {
+    // mismo criterio que recalcularValorItemDesdeApu: sin APU -> 0 / null
+    valores[fila.id] = fila.apu_id
+      ? { valorUnitario: fila.valor_unitario ?? 0, valorTotal: fila.valor_total }
+      : { valorUnitario: 0, valorTotal: null }
+  }
+
+  return { valores, fallidos }
+}
 // ---------------------------------------------------------------------------
 // Import de APU desde Excel (hoja "APU" de la plantilla) -- agregar esto al
 // final de actions.ts. NO se reimplementa nada que ya exista: reusa
