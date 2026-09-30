@@ -48,7 +48,7 @@ export const PESTANAS: Pestana[] = [
 
   { clave: "almacen.insumos", titulo: "Insumos maestro", seccion: "Almacén", url: "/presupuestos/insumos", rutas: ["/presupuestos/insumos"] },
   { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Almacén", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
-  { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Almacén", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"], nota: "Todavía sin página propia: hoy abre la de Aprobación de insumos." },
+  { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Almacén", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
   { clave: "almacen.entradas", titulo: "Entradas", seccion: "Almacén", url: "/almacen/entradas", rutas: ["/almacen/entradas"] },
   { clave: "almacen.inventario", titulo: "Inventario", seccion: "Almacén", url: "/almacen/inventario", rutas: ["/almacen/inventario"] },
   { clave: "almacen.salidas", titulo: "Salidas", seccion: "Almacén", url: "/almacen/salidas", rutas: ["/almacen/salidas"] },
@@ -227,6 +227,7 @@ export function permisosDesdeBanderas(b: BanderasPerfil | null | undefined): Per
 const RUTAS_ACCION_SIN_ROL: Record<string, string> = {
   "/almacen/entradas": "gestionar_almacen",
   "/almacen/salidas": "gestionar_almacen",
+  "/almacen/proveedores": "comprar",
   "/admin-tecnico": "aprobar_pedidos",
   "/presupuestos/admin-insumos": "aprobar_insumos",
 }

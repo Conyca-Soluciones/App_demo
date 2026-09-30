@@ -754,6 +754,51 @@ Rediseño con tono azul de marca (extraído del logo real de CONYCA,
   ambigüedad de "cuál") -- se eliminó el popup/tarjeta que antes pedía
   clic en "Continuar".
 
+## Proyecto actual y landing `/inicio` (implementado)
+
+Al iniciar sesión se llega a `/inicio` (landing con tarjetas de proyectos,
+búsqueda, y el último usado primero). El proyecto escogido queda para
+Presupuestos y Pedidos: ya no tienen su propio `<Select>` de proyecto.
+
+- Se guarda en la cookie `proyecto_actual` (JSON con id, código y nombre,
+  30 días, httpOnly) -- `lib/proyecto-actual.ts`. Cookie y no
+  localStorage para que el layout del servidor la lea en el primer render.
+  **No es un permiso**: las Server Actions siguen validando el acceso.
+- `ProyectoActualProvider` (en `app/(app)/layout.tsx`) la expone con
+  `useProyectoActual()`, trae la lista de proyectos UNA vez, y corrige la
+  cookie si el proyecto ya no está en la lista (acceso quitado/renombrado).
+- `SelectorProyecto` va en el header de cada página que trabaja sobre un
+  proyecto (hoy Presupuestos y Pedidos). `AvisoSinProyecto` si no hay uno.
+- `/inicio?next=/ruta` vuelve a esa ruta tras escoger (solo rutas internas).
+  Sin `next`, va a `rutaInicio(permisos)`. `/login` con sesión y `/`
+  redirigen a `/inicio`.
+- Pendiente: `inventario-view.tsx` y `salidas-view.tsx` todavía tienen su
+  propio selector de proyecto -- no se migraron (no se pidió).
+
+## Proveedores `/almacen/proveedores` (implementado)
+
+Tabla tipo Excel sobre `proveedores` (~400 filas, se traen todas y se
+filtran/ordenan en el cliente) con edición en línea por celda
+(`components/proveedores-view.tsx`, validación compartida en
+`lib/proveedores.ts`, usada en cliente y otra vez en el servidor).
+
+- Sin textos montados: `table-fixed` + ancho fijo por columna + `truncate`
+  con el texto completo en `title`. ID y Proveedor fijos al hacer scroll.
+- Tabla o tarjetas se decide con **container query** (`@container` /
+  `@3xl:`), no con breakpoint de pantalla: con el sidebar abierto en una
+  tablet quedan ~460px y la tabla no sirve.
+- Si un valor no valida y el usuario hace clic afuera, se descarta (no se
+  retiene el foco -- eso "atrapaba" la celda). El foco tras error se da en
+  un efecto porque el input sigue `disabled` justo después del await.
+- Permisos: ver = pestaña `almacen.proveedores`; editar = acción `comprar`
+  o Administrador. Política RLS `proveedores_update`
+  (`20261004000000_proveedores_editar.sql`, ya aplicada) con la misma regla
+  que `proveedores_select`. RLS no da error al bloquear un UPDATE (0 filas),
+  por eso `actualizarProveedor` revisa que vuelva la fila.
+- Sin alta ni borrado de proveedores por ahora (solo edición).
+- Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
+  (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
+
 ## Pendientes generales
 
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de
