@@ -18,13 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { verProyectos } from "@/app/(app)/almacen/actions"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { SinProyecto } from "@/components/sin-proyecto"
+import { etiquetaProyecto } from "@/lib/proyecto-actual"
 import {
   obtenerInventarioProyecto,
   type InsumoInventario,
 } from "@/app/(app)/almacen/inventario/actions"
-
-type ProyectoOpcion = { id: string; codigo: string | null; nombre: string }
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
@@ -34,20 +34,12 @@ const formatoMoneda = new Intl.NumberFormat("es-CO", {
 })
 
 export function InventarioView() {
-  const [proyectos, setProyectos] = useState<ProyectoOpcion[]>([])
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
+  // El proyecto se elige en /inicio (landing); acá solo se lee.
+  const { proyecto: proyectoActual } = useProyectoActual()
+  const proyectoId = proyectoActual?.id ?? null
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   const [busqueda, setBusqueda] = useState("")
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    verProyectos()
-      .then((data: ProyectoOpcion[]) => {
-        setProyectos(data)
-        if (data.length === 1) setProyectoId(data[0].id)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos."))
-  }, [])
 
   useEffect(() => {
     if (!proyectoId) {
@@ -87,18 +79,12 @@ export function InventarioView() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={proyectoId ?? ""} onValueChange={(v) => setProyectoId(v || null)}>
-          <SelectTrigger className="w-80">
-            <SelectValue placeholder="Selecciona un proyecto" />
-          </SelectTrigger>
-          <SelectContent>
-            {proyectos.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <p className="text-sm text-muted-foreground">
+          Proyecto:{" "}
+          <span className="font-medium text-foreground">
+            {proyectoActual ? etiquetaProyecto(proyectoActual) : "sin seleccionar"}
+          </span>
+        </p>
 
         {inventario && (
           <div className="relative w-72">
@@ -128,9 +114,7 @@ export function InventarioView() {
       )}
 
       {!proyectoId ? (
-        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-muted-foreground">
-          Selecciona un proyecto para ver su inventario.
-        </div>
+        <SinProyecto />
       ) : inventario === null && !error ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando inventario...

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
-import { ChevronRight, LayoutDashboard, LogOut } from "lucide-react"
+import { ArrowLeftRight, Building2, ChevronRight, LayoutDashboard, LogOut } from "lucide-react"
 
 import {
   Collapsible,
@@ -30,6 +30,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { handleLogout } from "./logout-button"
 import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
 import { construirMenu, type PermisosRol } from "@/lib/pestanas"
+import { useProyectoActual } from "@/components/proyecto-provider"
 
 // El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
@@ -41,6 +42,7 @@ const usuarioActual = { nombre: "Sofia", rol: "Usuario", iniciales: "SP" }
 
 export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   const navMain = permisos ? construirMenu(permisos) : []
+  const { proyecto } = useProyectoActual()
   const rolVisible =
     permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : usuarioActual.rol)
 
@@ -141,6 +143,35 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
       </SidebarContent>
 
       <SidebarFooter className="border-t">
+        {/* Proyecto actual + acceso al landing para cambiarlo. Es el ÚNICO
+            lugar de la app desde donde se cambia de proyecto. */}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => router.push("/inicio")}
+                aria-label="Cambiar proyecto"
+                className="flex w-full items-center gap-2 rounded-md border bg-sidebar-accent/40 px-2 py-2 text-left transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+              />
+            }
+          >
+            <Building2 className="size-4 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-xs font-semibold">
+                {proyecto ? proyecto.codigo ?? proyecto.nombre : "Sin proyecto"}
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {proyecto ? "Cambiar proyecto" : "Seleccionar proyecto"}
+              </span>
+            </div>
+            <ArrowLeftRight className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {proyecto ? `${proyecto.nombre} — cambiar proyecto` : "Seleccionar proyecto"}
+          </TooltipContent>
+        </Tooltip>
+
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">

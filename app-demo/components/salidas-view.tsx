@@ -28,7 +28,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { verProyectos } from "@/app/(app)/almacen/actions"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { SinProyecto } from "@/components/sin-proyecto"
+import { etiquetaProyecto } from "@/lib/proyecto-actual"
 import {
   obtenerInventarioProyecto,
   type InsumoInventario,
@@ -41,8 +43,6 @@ import {
   type SalidaRegistrada,
 } from "@/app/(app)/almacen/salidas/actions"
 
-type ProyectoOpcion = { id: string; codigo: string | null; nombre: string }
-
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -54,8 +54,9 @@ function parsearCantidad(texto: string): number {
 }
 
 export function SalidasView() {
-  const [proyectos, setProyectos] = useState<ProyectoOpcion[]>([])
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
+  // El proyecto se elige en /inicio (landing); acá solo se lee.
+  const { proyecto: proyectoActual } = useProyectoActual()
+  const proyectoId = proyectoActual?.id ?? null
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   const [historial, setHistorial] = useState<SalidaRegistrada[] | null>(null)
   const [busqueda, setBusqueda] = useState("")
@@ -75,15 +76,6 @@ export function SalidasView() {
   const [anulando, setAnulando] = useState<SalidaRegistrada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
-
-  useEffect(() => {
-    verProyectos()
-      .then((data: ProyectoOpcion[]) => {
-        setProyectos(data)
-        if (data.length === 1) setProyectoId(data[0].id)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos."))
-  }, [])
 
   function cargar(pid: string) {
     setError(null)
@@ -228,18 +220,12 @@ export function SalidasView() {
         </p>
       </div>
 
-      <Select value={proyectoId ?? ""} onValueChange={(v) => setProyectoId(v || null)}>
-        <SelectTrigger className="w-80">
-          <SelectValue placeholder="Selecciona un proyecto" />
-        </SelectTrigger>
-        <SelectContent>
-          {proyectos.map((p) => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <p className="text-sm text-muted-foreground">
+          Proyecto:{" "}
+          <span className="font-medium text-foreground">
+            {proyectoActual ? etiquetaProyecto(proyectoActual) : "sin seleccionar"}
+          </span>
+        </p>
 
       {aviso && (
         <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
@@ -253,9 +239,7 @@ export function SalidasView() {
       )}
 
       {!proyectoId ? (
-        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-muted-foreground">
-          Selecciona un proyecto para registrar salidas.
-        </div>
+        <SinProyecto />
       ) : inventario === null ? (
         !error && (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">

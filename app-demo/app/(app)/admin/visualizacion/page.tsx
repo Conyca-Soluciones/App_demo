@@ -1,5 +1,8 @@
 "use client"
 
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { SinProyecto } from "@/components/sin-proyecto"
+import { etiquetaProyecto } from "@/lib/proyecto-actual"
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, Search } from "lucide-react"
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts"
@@ -21,7 +24,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  listarProyectosParaVisualizacion,
   obtenerResumenEjecucion,
   type ProyectoParaVisualizacion,
   type ResumenEjecucionProyecto,
@@ -123,23 +125,13 @@ function GraficaAvance({
 }
 
 export default function VisualizacionPage() {
-  const [proyectos, setProyectos] = useState<ProyectoParaVisualizacion[]>([])
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
+  // El proyecto se elige en /inicio (landing); acá solo se lee.
+  const { proyecto: proyectoActual } = useProyectoActual()
+  const proyectoId = proyectoActual?.id ?? null
   const [resumen, setResumen] = useState<ResumenEjecucionProyecto | null>(null)
-  const [cargandoProyectos, setCargandoProyectos] = useState(true)
   const [cargandoResumen, setCargandoResumen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busquedaInsumo, setBusquedaInsumo] = useState("")
-
-  useEffect(() => {
-    listarProyectosParaVisualizacion()
-      .then((lista) => {
-        setProyectos(lista)
-        setProyectoId(lista[0]?.id ?? null)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos."))
-      .finally(() => setCargandoProyectos(false))
-  }, [])
 
   useEffect(() => {
     if (!proyectoId) {
@@ -204,19 +196,11 @@ export default function VisualizacionPage() {
           </p>
         </div>
 
-        {!cargandoProyectos && proyectos.length > 0 && (
-          <Select value={proyectoId ?? ""} onValueChange={(id) => id && setProyectoId(id)}>
-            <SelectTrigger className="h-9 w-64">
-              <SelectValue placeholder="Selecciona un proyecto" />
-            </SelectTrigger>
-            <SelectContent>
-              {proyectos.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {proyectoActual && (
+          <p className="text-sm text-muted-foreground">
+            Proyecto:{" "}
+            <span className="font-medium text-foreground">{etiquetaProyecto(proyectoActual)}</span>
+          </p>
         )}
       </div>
 
@@ -226,12 +210,8 @@ export default function VisualizacionPage() {
         </div>
       )}
 
-      {cargandoProyectos ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando proyectos...
-        </div>
-      ) : proyectos.length === 0 ? (
-        <p className="py-16 text-center text-sm text-muted-foreground">No hay proyectos todavía.</p>
+      {!proyectoActual ? (
+        <SinProyecto />
       ) : cargandoResumen || !totales || !resumen ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando estado de obra...

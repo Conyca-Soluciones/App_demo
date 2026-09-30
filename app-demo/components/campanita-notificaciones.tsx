@@ -14,12 +14,12 @@ const formatoFecha = (iso: string) =>
 
 // A dónde navega cada tipo de notificación al hacer click.
 //
-// OJO: un pedido rechazado en Compras (rechazado_compras_at) NO tiene hoy
+// OJO: una requisición rechazada en Compras (rechazado_compras_at) NO tiene hoy
 // una vista de detalle propia. El filtro "Rechazados" que existe en
 // /almacen es del rechazo de subgerencia técnica (columna `estado`), un
-// flujo distinto -- un pedido rechazado por Compras sigue con
+// flujo distinto -- una requisición rechazada por Compras sigue con
 // estado='aprobado' y no aparece resaltado ahí. Por ahora lo mandamos al
-// registro general de pedidos del proyecto; si quieres que se vea marcado
+// registro general de requisiciones del proyecto; si quieres que se vea marcado
 // específicamente, hace falta una vista nueva (pendiente, fuera del
 // alcance de hoy).
 function rutaDestino(n: Notificacion): string {

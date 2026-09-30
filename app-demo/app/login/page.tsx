@@ -28,7 +28,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push("/presupuestos")
+    router.push("/inicio")
     router.refresh()
   }
 

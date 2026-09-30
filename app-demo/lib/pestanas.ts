@@ -38,30 +38,31 @@ export type Pestana = {
   nota?: string
 }
 
-// Orden = orden del menú y de las filas de la matriz.
+// Orden = orden del menú y de las filas de la matriz. Las claves NO cambian
+// aunque se renombre o se mueva una pestaña (en la base están como
+// 'tab.<clave>'): solo cambian título y sección.
 export const PESTANAS: Pestana[] = [
   { clave: "presupuestos.elaboracion", titulo: "Elaboración de presupuestos", seccion: "Presupuestos", url: "/presupuestos", rutas: ["/presupuestos", "/presupuestos/apu", "/presupuestos/graficas"] },
 
-  { clave: "tecnico.pedidos", titulo: "Pedidos", seccion: "Técnico", url: "/almacen", rutas: ["/almacen"] },
-  { clave: "tecnico.aprobar_pedidos", titulo: "Aprobación de pedidos", seccion: "Técnico", url: "/admin-tecnico", rutas: ["/admin-tecnico"] },
-  { clave: "tecnico.aprobar_mano_obra", titulo: "Aprobación de mano de obra", seccion: "Técnico", url: "/presupuestos/admin-mo", rutas: ["/presupuestos/admin-mo"] },
+  { clave: "tecnico.pedidos", titulo: "Elaboración de requisiciones", seccion: "Requisiciones", url: "/almacen", rutas: ["/almacen"] },
+  { clave: "tecnico.aprobar_pedidos", titulo: "Aprobación de requisiciones", seccion: "Requisiciones", url: "/admin-tecnico", rutas: ["/admin-tecnico"] },
+  { clave: "tecnico.aprobar_mano_obra", titulo: "Aprobación de mano de obra", seccion: "Requisiciones", url: "/presupuestos/admin-mo", rutas: ["/presupuestos/admin-mo"] },
 
-  { clave: "almacen.insumos", titulo: "Insumos maestro", seccion: "Almacén", url: "/presupuestos/insumos", rutas: ["/presupuestos/insumos"] },
-  { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Almacén", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
-  { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Almacén", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"], nota: "Todavía sin página propia: hoy abre la de Aprobación de insumos." },
-  { clave: "almacen.entradas", titulo: "Entradas", seccion: "Almacén", url: "/almacen/entradas", rutas: ["/almacen/entradas"] },
   { clave: "almacen.inventario", titulo: "Inventario", seccion: "Almacén", url: "/almacen/inventario", rutas: ["/almacen/inventario"] },
+  { clave: "almacen.entradas", titulo: "Entradas", seccion: "Almacén", url: "/almacen/entradas", rutas: ["/almacen/entradas"] },
   { clave: "almacen.salidas", titulo: "Salidas", seccion: "Almacén", url: "/almacen/salidas", rutas: ["/almacen/salidas"] },
 
-  { clave: "compras.comprar_pedidos", titulo: "Comprar pedidos", seccion: "Compras", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
+  { clave: "compras.comprar_pedidos", titulo: "Requisiciones", seccion: "Compras", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
   { clave: "compras.ordenes", titulo: "Órdenes de compra", seccion: "Compras", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
   { clave: "compras.aprobar_oc", titulo: "Aprobación de órdenes de compra", seccion: "Compras", url: "/almacen/aprobar-oc", rutas: ["/almacen/aprobar-oc"] },
+  { clave: "almacen.insumos", titulo: "Maestra de insumos", seccion: "Compras", url: "/presupuestos/insumos", rutas: ["/presupuestos/insumos"] },
+  { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Compras", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
+  { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"], nota: "Todavía sin página propia: hoy abre la de Aprobación de insumos." },
 
-  { clave: "contratos.contratos", titulo: "Contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
-  { clave: "contratos.cortes", titulo: "Cortes de proyectos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
-  { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
+  { clave: "contratos.contratos", titulo: "Elaboración de contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
+  { clave: "contratos.cortes", titulo: "Elaboración de actas", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
-  { clave: "admin.visualizacion", titulo: "Visualización de proyectos", seccion: "Administración", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
+  { clave: "admin.visualizacion", titulo: "Visualización", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
 ]
 
 // Pestañas que SOLO ve el Administrador (no aparecen en la matriz).
@@ -81,13 +82,13 @@ export type Accion = {
 
 export const ACCIONES: Accion[] = [
   { clave: "editar_presupuestos", titulo: "Editar presupuestos", descripcion: "Crear y modificar presupuestos, APU y versiones de los proyectos a los que tiene acceso.", seccion: "Presupuestos" },
-  { clave: "aprobar_pedidos", titulo: "Aprobar pedidos de insumos", descripcion: "Aprobar o rechazar los pedidos de insumos de los ingenieros (y ver los de todos los proyectos).", seccion: "Técnico" },
-  { clave: "desaprobar_pedidos", titulo: "Desaprobar pedidos de insumos", descripcion: "Devolver un pedido aprobado a pendiente, si todavía no está en una orden de compra.", seccion: "Técnico" },
-  { clave: "cancelar_pedidos", titulo: "Cancelar pedidos de insumos", descripcion: "Cancelar pedidos de otras personas y pedidos ya aprobados que no estén en una orden de compra. Quien hizo un pedido siempre puede cancelar el suyo mientras esté pendiente.", seccion: "Técnico" },
-  { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Técnico" },
-  { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar el maestro de insumos.", seccion: "Almacén" },
+  { clave: "aprobar_pedidos", titulo: "Aprobar requisiciones", descripcion: "Aprobar o rechazar las requisiciones de insumos de los ingenieros (y ver las de todos los proyectos).", seccion: "Requisiciones" },
+  { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
+  { clave: "cancelar_pedidos", titulo: "Cancelar requisiciones", descripcion: "Cancelar requisiciones de otras personas y requisiciones ya aprobadas que no estén en una orden de compra. Quien hizo una requisición siempre puede cancelar la suya mientras esté pendiente.", seccion: "Requisiciones" },
+  { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Requisiciones" },
+  { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar la maestra de insumos.", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
-  { clave: "comprar", titulo: "Comprar", descripcion: "Comprar pedidos, crear órdenes de compra y marcarlas como enviadas.", seccion: "Compras" },
+  { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones, crear órdenes de compra y marcarlas como enviadas.", seccion: "Compras" },
   { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
@@ -147,8 +148,18 @@ export function puedeAccederRuta(permisos: PermisosRol, pathname: string): boole
   return e.claves.some((c) => permisos.pestanas.includes(c))
 }
 
-// A dónde mandar al usuario cuando entra sin ruta o no puede ver la que pidió.
-export function rutaInicio(permisos: PermisosRol): string {
+// Landing (selección de proyecto): a donde se llega al iniciar sesión y a
+// donde se manda a quien no puede ver la ruta que pidió. Es una ruta libre
+// (no pertenece a ninguna pestaña), así que nunca se le niega a nadie.
+export const RUTA_LANDING = "/inicio"
+
+export function rutaInicio(_permisos?: PermisosRol): string {
+  return RUTA_LANDING
+}
+
+// A dónde ir DESPUÉS de elegir un proyecto: la primera pestaña a la que el
+// rol tiene acceso.
+export function rutaPrimeraPestana(permisos: PermisosRol): string {
   if (permisos.esAdministrador || permisos.sinRol) return "/presupuestos"
   const primera = PESTANAS.find((p) => permisos.pestanas.includes(p.clave) && p.url !== "/")
   return primera ? primera.url : "/sin-acceso"
@@ -166,19 +177,20 @@ export function construirMenu(permisos: PermisosRol): GrupoMenu[] {
 
   for (const p of PESTANAS) {
     if (!veTodo && !permisos.pestanas.includes(p.clave)) continue
-    // Sin rol y sin ser Administrador: la sección de administración no se
-    // muestra (sus rutas les están bloqueadas).
-    if (permisos.sinRol && !permisos.esAdministrador && p.seccion === "Administración") continue
+    // Sin rol y sin ser Administrador: la sección Control no se muestra (sus
+    // rutas les están bloqueadas).
+    if (permisos.sinRol && !permisos.esAdministrador && p.seccion === "Control") continue
     const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
     g.items.push({ titulo: p.titulo, url: p.url })
     grupos.set(p.seccion, g)
   }
 
+  // "Administrador": solo el Administrador, siempre al final.
   if (permisos.esAdministrador) {
-    const g = grupos.get("Administración") ?? { titulo: "Administración", items: [] }
-    // Control administrativo, Roles y Usuarios primero; Visualización después.
-    g.items = [...PESTANAS_SOLO_ADMIN.map((x) => ({ titulo: x.titulo, url: x.url })), ...g.items]
-    grupos.set("Administración", g)
+    grupos.set("Administrador", {
+      titulo: "Administrador",
+      items: PESTANAS_SOLO_ADMIN.map((x) => ({ titulo: x.titulo, url: x.url })),
+    })
   }
 
   return [...grupos.values()]

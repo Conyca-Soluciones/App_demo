@@ -1068,3 +1068,41 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   (el Líder Técnico las recibe en la migración).
 - Nota: el parser `pglast` no puede validar funciones de disparador (falla con
   cualquiera, incluso `return new;`): esas se revisan leyendo el SQL.
+
+
+## Landing de proyecto y menú reorganizado (implementado)
+
+- **El proyecto se elige UNA sola vez**, en `/inicio` (landing): a donde se llega
+  al iniciar sesión (login, `/` y `/login` ya autenticado redirigen ahí) y a
+  donde se manda a quien no puede ver la ruta que pidió
+  (`?error=no-autorizado`). Es una ruta libre: no pertenece a ninguna pestaña.
+  Al elegir un proyecto se va a la primera pestaña del rol
+  (`rutaPrimeraPestana`).
+- **Dónde vive**: cookie `proyecto_actual` (httpOnly, 30 días) que fija la
+  acción `seleccionarProyecto` (`app/(app)/inicio/actions.ts`). No da acceso a
+  nada: `layout.tsx` la valida contra `listarMisProyectos()` (RLS de
+  `proyectos`) y la ignora si el proyecto ya no es accesible. El layout la
+  entrega a las pantallas con `ProyectoProvider` /
+  `useProyectoActual()` (`components/proyecto-provider.tsx`). Cambiar de
+  proyecto = `seleccionarProyecto` + `router.refresh()`: las pantallas que
+  dependen de `proyecto.id` se recargan solas. Sin proyecto elegido, las
+  pantallas muestran `components/sin-proyecto.tsx` (enlace al landing).
+- **Ya no hay selector de proyecto** en: Elaboración de requisiciones
+  (`almacen/page.tsx`), Inventario, Salidas, Compras > Requisiciones (panel de
+  filtros), Elaboración de presupuestos y Visualización. Solo se muestra el
+  proyecto actual. El cambio se hace desde el botón "Cambiar proyecto" de la
+  esquina inferior izquierda del menú lateral.
+- **No filtran por proyecto actual** (siguen viendo todos los proyectos que el
+  usuario tiene): Aprobación de requisiciones, Órdenes de compra, Aprobación
+  de órdenes de compra, Entradas (van por orden de compra).
+- **Menú** (`lib/pestanas.ts`): Presupuestos / Requisiciones / Almacén /
+  Compras / Contratos / Control / Administrador. "Pedidos" pasó a llamarse
+  **Requisiciones** en pantalla; las rutas (`/almacen`, `/admin-tecnico`,
+  `/almacen/comprar-pedidos`...), las tablas (`pedidos_insumos`), las
+  funciones SQL y las CLAVES de permisos (`tecnico.pedidos`,
+  `compras.comprar_pedidos`, acciones `aprobar_pedidos`...) NO cambiaron, para
+  no romper nada ni perder los permisos guardados. Solo cambian títulos y
+  secciones. "Elaboración de actas" es la pestaña `contratos.cortes` (antes
+  "Cortes de proyectos"); "Informes" se quitó del menú.
+- Los mensajes de error que lanza la base (`raise exception '... pedido ...'`)
+  todavía dicen "pedido": cambiarlos requiere recrear las funciones SQL.
