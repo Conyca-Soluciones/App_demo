@@ -34,3 +34,15 @@ export type PresupuestoActivo = {
   presupuestoId: string
   versionActualId: string
 }
+
+// Máximo de insumos distintos en un mismo pedido. Vive acá (no en
+// actions.ts) porque un archivo "use server" solo puede exportar funciones
+// async, no constantes.
+export const MAX_INSUMOS_POR_PEDIDO = 50
+
+// Un insumo ya agregado al pedido, con los ítems del presupuesto a los que
+// aplica y la cantidad de cada uno.
+export type LineaPedido = {
+  insumo: InsumoAgrupado
+  items: ItemSeleccionable[]
+}

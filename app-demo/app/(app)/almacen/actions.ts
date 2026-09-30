@@ -4,7 +4,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosUsuario } from "@/lib/permisos"
-import type { InsumoAgrupado, PresupuestoActivo } from "./types"
+import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
 
 // ---------------------------------------------------------------------------
 // Proyectos
@@ -126,29 +126,47 @@ export type ItemDePedido = {
   cantidad: number
 }
 
-export type NuevoPedidoInput = {
+export type InsumoDePedido = {
   insumoId: string
   items: ItemDePedido[]
+}
+
+// Un pedido reúne hasta MAX_INSUMOS_POR_PEDIDO insumos (ver types.ts); cada
+// insumo puede repartirse entre varios ítems del presupuesto. Todas las
+// filas comparten grupo_pedido_id, fecha, urgencia y observaciones.
+export type NuevoPedidoInput = {
+  insumos: InsumoDePedido[]
   fechaRequerida: string
   urgente: boolean
   observaciones: string | null
   soporteUrl: string | null
 }
 
-// Revalida en el servidor antes de insertar -- dos cosas:
+// Ejecuta fn sobre cada elemento en tandas paralelas (un pedido de 50
+// insumos puede implicar cientos de consultas de validación).
+async function enTandas<T, R>(xs: T[], tam: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = []
+  for (let i = 0; i < xs.length; i += tam) {
+    out.push(...(await Promise.all(xs.slice(i, i + tam).map(fn))))
+  }
+  return out
+}
+
+// Revalida en el servidor antes de insertar -- tres cosas:
 //
-//  1. Tope de cantidad: ahora usa disponible_insumo_item, una consulta
-//     PUNTUAL (un insumo, un ítem) en vez de buscar_insumos_presupuesto
-//     con p_limite:1000 -- ya no trae ni descarta cientos de filas
-//     irrelevantes solo para revalidar una. Resuelve el punto 5
-//     (crearPedido no debía volver a llamar la búsqueda completa).
+//  0. Forma: entre 1 y MAX_INSUMOS_POR_PEDIDO insumos distintos, cada uno
+//     con al menos un ítem y cantidades positivas.
+//
+//  1. Tope de cantidad: disponible_insumo_item, una consulta PUNTUAL
+//     (un insumo, un ítem), para cada combinación del pedido.
 //
 //  2. Duplicado exacto: si YA existe un pedido PENDIENTE para el mismo
 //     insumo + mismo ítem + misma cantidad + misma fecha_requerida, se
 //     bloquea -- evita que un doble clic o un refresh accidental cree
-//     el mismo pedido dos veces. Solo compara contra pendientes (un
-//     pedido ya aprobado o rechazado no cuenta como "el mismo pedido
-//     en curso").
+//     el mismo pedido dos veces. Solo compara contra pendientes.
+//
+// El insert final es UNO solo: o se crean todas las filas del pedido o
+// ninguna.
 export async function crearPedido(input: NuevoPedidoInput) {
   const supabase = await createClient()
 
@@ -160,68 +178,105 @@ export async function crearPedido(input: NuevoPedidoInput) {
     throw new Error("No autenticado.")
   }
 
-  if (input.items.length === 0) {
-    throw new Error("Selecciona al menos un ítem del presupuesto para este pedido.")
+  // -- 0. Forma del pedido --
+  if (input.insumos.length === 0) {
+    throw new Error("Agrega al menos un insumo al pedido.")
+  }
+  if (input.insumos.length > MAX_INSUMOS_POR_PEDIDO) {
+    throw new Error(`Un pedido puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
+  }
+  if (new Set(input.insumos.map((i) => i.insumoId)).size !== input.insumos.length) {
+    throw new Error("Hay un insumo repetido en el pedido.")
+  }
+  for (const ins of input.insumos) {
+    if (ins.items.length === 0) {
+      throw new Error("Cada insumo del pedido necesita al menos un ítem del presupuesto.")
+    }
+    if (new Set(ins.items.map((it) => it.presupuestoItemId)).size !== ins.items.length) {
+      throw new Error("Un insumo tiene el mismo ítem del presupuesto repetido.")
+    }
+    for (const it of ins.items) {
+      if (!Number.isFinite(it.cantidad) || it.cantidad <= 0) {
+        throw new Error("Todas las cantidades del pedido deben ser mayores que cero.")
+      }
+    }
   }
 
-  for (const item of input.items) {
-    // -- 1. Tope de cantidad (consulta puntual) --
-    const { data: disponible, error: errorDisponible } = await supabase.rpc(
-      "disponible_insumo_item",
-      {
-        p_presupuesto_item_id: item.presupuestoItemId,
-        p_insumo_id: input.insumoId,
-      }
+  const nombreInsumo = async (insumoId: string) => {
+    const { data } = await supabase
+      .from("maestro_insumos")
+      .select("descripcion")
+      .eq("id", insumoId)
+      .maybeSingle()
+    return data?.descripcion ?? "un insumo"
+  }
+
+  // -- 1. Tope de cantidad (consulta puntual por insumo + ítem) --
+  const pares = input.insumos.flatMap((ins) =>
+    ins.items.map((it) => ({ insumoId: ins.insumoId, item: it }))
+  )
+  const topes = await enTandas(pares, 10, async ({ insumoId, item }) => {
+    const { data, error } = await supabase.rpc("disponible_insumo_item", {
+      p_presupuesto_item_id: item.presupuestoItemId,
+      p_insumo_id: insumoId,
+    })
+    if (error) throw new Error(error.message)
+    return { insumoId, cantidad: item.cantidad, disponible: Number(data ?? 0) }
+  })
+  const excedido = topes.find((t) => t.cantidad > t.disponible)
+  if (excedido) {
+    throw new Error(
+      `La cantidad pedida de "${await nombreInsumo(excedido.insumoId)}" supera lo disponible del presupuesto (máximo ${excedido.disponible}).`
     )
-    if (errorDisponible) throw new Error(errorDisponible.message)
+  }
 
-    if (item.cantidad > (disponible ?? 0)) {
-      throw new Error(
-        `Una de las cantidades pedidas supera lo disponible del presupuesto (máximo ${disponible ?? 0}).`
-      )
-    }
-
-    // -- 2. Duplicado exacto contra pendientes --
-    const { data: duplicado, error: errorDuplicado } = await supabase
+  // -- 2. Duplicado exacto contra pendientes (una consulta por insumo) --
+  const duplicados = await enTandas(input.insumos, 10, async (ins) => {
+    const { data, error } = await supabase
       .from("pedidos_insumos")
-      .select("id")
-      .eq("presupuesto_item_id", item.presupuestoItemId)
-      .eq("insumo_id", input.insumoId)
-      .eq("cantidad", item.cantidad)
+      .select("presupuesto_item_id, cantidad")
+      .eq("insumo_id", ins.insumoId)
       .eq("fecha_requerida", input.fechaRequerida)
       .eq("estado", "pendiente")
-      .limit(1)
-      .maybeSingle()
+      .in("presupuesto_item_id", ins.items.map((it) => it.presupuestoItemId))
+    if (error) throw new Error(error.message)
 
-    if (errorDuplicado) throw new Error(errorDuplicado.message)
-
-    if (duplicado) {
-      throw new Error(
-        "Ya existe un pedido pendiente idéntico (mismo insumo, ítem, cantidad y fecha requerida). " +
-          "Revisa el registro de pedidos antes de crear uno nuevo."
+    const choca = (data ?? []).some((f: any) =>
+      ins.items.some(
+        (it) => it.presupuestoItemId === f.presupuesto_item_id && it.cantidad === Number(f.cantidad)
       )
-    }
+    )
+    return choca ? ins.insumoId : null
+  })
+  const insumoDuplicado = duplicados.find((d) => d !== null)
+  if (insumoDuplicado) {
+    throw new Error(
+      `Ya existe un pedido pendiente idéntico de "${await nombreInsumo(insumoDuplicado)}" ` +
+        "(mismo ítem, cantidad y fecha requerida). Revisa el registro de pedidos antes de crear uno nuevo."
+    )
   }
 
   const grupoPedidoId = crypto.randomUUID()
 
-  const filas = input.items.map((it) => ({
-    grupo_pedido_id: grupoPedidoId,
-    presupuesto_item_id: it.presupuestoItemId,
-    item_apu_id: it.itemApuId,
-    insumo_id: input.insumoId,
-    cantidad: it.cantidad,
-    fecha_requerida: input.fechaRequerida,
-    urgente: input.urgente,
-    observaciones: input.observaciones,
-    soporte_url: input.soporteUrl,
-    solicitado_por: user.id,
-  }))
+  const filas = input.insumos.flatMap((ins) =>
+    ins.items.map((it) => ({
+      grupo_pedido_id: grupoPedidoId,
+      presupuesto_item_id: it.presupuestoItemId,
+      item_apu_id: it.itemApuId,
+      insumo_id: ins.insumoId,
+      cantidad: it.cantidad,
+      fecha_requerida: input.fechaRequerida,
+      urgente: input.urgente,
+      observaciones: input.observaciones,
+      soporte_url: input.soporteUrl,
+      solicitado_por: user.id,
+    }))
+  )
 
   const { error } = await supabase.from("pedidos_insumos").insert(filas)
   if (error) throw new Error(error.message)
 
-  return { grupoPedidoId, filasCreadas: filas.length }
+  return { grupoPedidoId, filasCreadas: filas.length, insumosCreados: input.insumos.length }
 }
 
 // ---------------------------------------------------------------------------
