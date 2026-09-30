@@ -14,13 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Table,
   TableBody,
   TableCell,
@@ -28,7 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { verProyectos } from "@/app/(app)/almacen/actions"
+import { useProyectoActual } from "@/components/proyecto-actual-provider"
+import { AvisoSinProyecto } from "@/components/selector-proyecto"
 import {
   obtenerInventarioProyecto,
   type InsumoInventario,
@@ -41,8 +35,6 @@ import {
   type SalidaRegistrada,
 } from "@/app/(app)/almacen/salidas/actions"
 
-type ProyectoOpcion = { id: string; codigo: string | null; nombre: string }
-
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -54,8 +46,9 @@ function parsearCantidad(texto: string): number {
 }
 
 export function SalidasView() {
-  const [proyectos, setProyectos] = useState<ProyectoOpcion[]>([])
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
+  // Proyecto escogido en /inicio o en el selector del header (ver
+  // lib/proyecto-actual.ts).
+  const proyectoId = useProyectoActual().proyecto?.id ?? null
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   const [historial, setHistorial] = useState<SalidaRegistrada[] | null>(null)
   const [busqueda, setBusqueda] = useState("")
@@ -75,15 +68,6 @@ export function SalidasView() {
   const [anulando, setAnulando] = useState<SalidaRegistrada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
-
-  useEffect(() => {
-    verProyectos()
-      .then((data: ProyectoOpcion[]) => {
-        setProyectos(data)
-        if (data.length === 1) setProyectoId(data[0].id)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos."))
-  }, [])
 
   function cargar(pid: string) {
     setError(null)
@@ -221,26 +205,6 @@ export function SalidasView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto">
-      <div>
-        <h1 className="text-2xl font-semibold">Salidas</h1>
-        <p className="text-sm text-muted-foreground">
-          Saca insumos de la bodega hacia obra. Solo puedes sacar lo que hay en el inventario.
-        </p>
-      </div>
-
-      <Select value={proyectoId ?? ""} onValueChange={(v) => setProyectoId(v || null)}>
-        <SelectTrigger className="w-80">
-          <SelectValue placeholder="Selecciona un proyecto" />
-        </SelectTrigger>
-        <SelectContent>
-          {proyectos.map((p) => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       {aviso && (
         <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
           <CheckCircle2 className="h-4 w-4" /> {aviso}
@@ -253,9 +217,7 @@ export function SalidasView() {
       )}
 
       {!proyectoId ? (
-        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-muted-foreground">
-          Selecciona un proyecto para registrar salidas.
-        </div>
+        <AvisoSinProyecto />
       ) : inventario === null ? (
         !error && (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">

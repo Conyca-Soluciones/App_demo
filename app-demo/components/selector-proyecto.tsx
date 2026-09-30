@@ -29,7 +29,7 @@ export function SelectorProyecto({ className }: { className?: string }) {
     <div className={`flex items-center gap-1.5 ${className ?? ""}`}>
       <span className="text-xs text-muted-foreground">Proyecto</span>
       <Select value={proyecto?.id ?? ""} onValueChange={alCambiar}>
-        <SelectTrigger className="h-9 w-72 rounded-sm">
+        <SelectTrigger className="h-9 w-[min(18rem,calc(100vw-7rem))] rounded-sm">
           <SelectValue placeholder="Selecciona un proyecto">
             <span className="truncate">{proyecto ? etiquetaProyecto(proyecto) : "Selecciona un proyecto"}</span>
           </SelectValue>
