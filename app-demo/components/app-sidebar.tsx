@@ -70,6 +70,7 @@ const navMain: NavGroup[] = [
       { title: "Proveedores", url: "/presupuestos/admin-insumos" },
       { title: "Entradas", url: "/almacen/entradas" },
       { title: "Inventario", url: "/almacen/inventario" },
+      { title: "Salidas", url: "/almacen/salidas" },
       
     ],
   },
