@@ -28,6 +28,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import { handleLogout } from "./logout-button"
+import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
 
 type NavItem = {
   title: string
@@ -45,19 +46,40 @@ const navMain: NavGroup[] = [
     title: "Presupuestos",
     icon: LayoutDashboard,
     items: [
-      { title: "Elaboracion de presupuestos(edit)", url: "/presupuestos" },
-      { title: "Insumos maestro", url: "/presupuestos/insumos" },
-      { title: "Aprobacion de insumos", url: "/presupuestos/admin-insumos" },
-      { title: "Aprobacion de mano de obra", url: "/presupuestos/admin-mo" },
+      { title: "Elaboracion de presupuestos(edit)", url: "/presupuestos" },  
+       
     ],
   },
+  {
+    title: "Tecnico",
+    icon: LayoutDashboard,
+    items: [
+      { title: "Pedidos", url: "/almacen" },
+      { title: "Aprobacion de Pedidos", url: "/admin-tecnico" },
+      { title: "Aprobacion de mano de obra", url: "/presupuestos/admin-mo" },
+      
+    ],
+  },
+
   {
     title: "Almacen",
     icon: LayoutDashboard,
     items: [
+      { title: "Insumos maestro", url: "/presupuestos/insumos" },
+      { title: "Aprobacion de insumos", url: "/presupuestos/admin-insumos" },
+      { title: "Proveedores", url: "/presupuestos/admin-insumos" },
       
-      { title: "Pedidos", url: "/almacen" },
-      { title: "Aprobacion de Pedidos", url: "/admin-tecnico" },
+    ],
+  },
+
+  {
+    title: "Compras",
+    icon: LayoutDashboard,
+    items: [
+      { title: "Comprar pedidos", url: "/almacen/comprar-pedidos" },
+      { title: "Ordenes de compras", url: "/almacen/ordenes-compra" },
+      { title: "Aprobacion de Ordenes de compra", url: "/almacen/aprobar-oc" },
+        
     ],
   },
 
@@ -108,10 +130,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       {/* ---------------------------------------------------------------
-          Header: logo de CONYCA. group-data-[collapsable=icon] alterna
-          entre el logo completo (expandido) y solo el ícono triangular
-          (colapsado) -- mismo patrón que ya usa el resto del sidebar
-          (group-data-[state=open]/collapsible en el chevron).
+          Header: logo de CONYCA + campanita de notificaciones debajo.
+          group-data-[collapsable=icon] alterna entre el logo completo
+          (expandido) y solo el ícono triangular (colapsado) -- mismo
+          patrón que ya usa el resto del sidebar (group-data-[state=open]
+          /collapsible en el chevron). La campanita no necesita variante
+          para modo colapsado -- es un solo ícono con badge, cabe igual
+          en las dos fila.
           --------------------------------------------------------------- */}
       <SidebarHeader className="border-b px-3 py-4">
         <div className="flex items-center justify-center group-data-[collapsible=icon]:justify-center">
@@ -131,6 +156,9 @@ export function AppSidebar() {
             priority
             className="hidden h-9 w-auto group-data-[collapsible=icon]:block"
           />
+        </div>
+        <div className="mt-2 flex items-center justify-center">
+          <CampanitaNotificaciones />
         </div>
       </SidebarHeader>
 
@@ -181,13 +209,6 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* ---------------------------------------------------------------
-          Footer: usuario + cerrar sesión integrados en un solo bloque,
-          en vez del botón "Cerrar sesión" suelto que antes vivía
-          arriba del todo, sin relación visual con el resto. El ícono
-          de logout queda a la derecha del nombre, con tooltip -- patrón
-          común en apps con sidebar (Linear, Notion, Vercel).
-          --------------------------------------------------------------- */}
       <SidebarFooter className="border-t">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -220,9 +241,6 @@ export function AppSidebar() {
               </Tooltip>
             </div>
 
-            {/* En modo colapsado (solo íconos), el botón de logout se
-                muestra aparte, debajo del avatar, porque no cabe en la
-                misma fila -- mismo ícono, mismo handler. */}
             <button
               type="button"
               onClick={handleLogout}

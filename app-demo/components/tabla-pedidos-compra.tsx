@@ -1,0 +1,236 @@
+"use client"
+
+import { useState } from "react"
+import { FileText, Paperclip } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
+import { rechazarPedidoCompras, type PedidoParaComprar } from "@/app/(app)/almacen/comprar-pedidos/actions"
+
+const formatoMoneda = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+})
+
+const formatoFecha = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+
+type TablaPedidosCompraProps = {
+  pedidos: PedidoParaComprar[]
+  seleccionados: Set<string>
+  onToggleSeleccion: (id: string) => void
+  onPedidoRechazado: (id: string) => void
+}
+
+export function TablaPedidosCompra({
+  pedidos,
+  seleccionados,
+  onToggleSeleccion,
+  onPedidoRechazado,
+}: TablaPedidosCompraProps) {
+  const [pedidoARechazar, setPedidoARechazar] = useState<PedidoParaComprar | null>(null)
+  const [motivo, setMotivo] = useState("")
+  const [rechazando, setRechazando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function confirmarRechazo() {
+    if (!pedidoARechazar || !motivo.trim()) return
+    setRechazando(true)
+    setError(null)
+    try {
+      await rechazarPedidoCompras(pedidoARechazar.id, motivo.trim())
+      onPedidoRechazado(pedidoARechazar.id)
+      setPedidoARechazar(null)
+      setMotivo("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo rechazar el pedido.")
+    } finally {
+      setRechazando(false)
+    }
+  }
+
+  if (pedidos.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+        No hay pedidos aprobados pendientes de comprar con estos filtros.
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex-1 overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Insumo</TableHead>
+              <TableHead>UM</TableHead>
+              <TableHead className="text-right">Cantidad</TableHead>
+              <TableHead className="text-right">Vr. Unit. Proyectado</TableHead>
+              <TableHead>Solicitante</TableHead>
+              <TableHead>Fecha Ped.</TableHead>
+              <TableHead>Fecha Req.</TableHead>
+              <TableHead>Adjuntos</TableHead>
+              <TableHead>Obs</TableHead>
+              <TableHead className="text-center">Urgente</TableHead>
+              <TableHead className="text-center">Rechazar</TableHead>
+              <TableHead className="text-center">Comprar</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pedidos.map((pedido) => {
+              const comprometido = pedido.cantidadPendiente < pedido.cantidad
+
+              return (
+                <TableRow key={pedido.id} className={pedido.urgente ? "bg-amber-50" : undefined}>
+                  <TableCell className="max-w-xs">
+                    <span className="text-muted-foreground">{pedido.insumoCodigo} · </span>
+                    {pedido.insumoDescripcion}
+                  </TableCell>
+                  <TableCell>{pedido.um ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex flex-col items-end">
+                      <span>{pedido.cantidadPendiente.toLocaleString("es-CO")}</span>
+                      {comprometido ? (
+                        <span
+                          className="text-xs text-muted-foreground line-through"
+                          title="Cantidad originalmente pedida — parte ya se compró en otra orden"
+                        >
+                          {pedido.cantidad.toLocaleString("es-CO")}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {pedido.valorUnitarioProyectado != null
+                      ? formatoMoneda.format(pedido.valorUnitarioProyectado)
+                      : "—"}
+                  </TableCell>
+                  <TableCell>{pedido.solicitadoPorNombre ?? "—"}</TableCell>
+                  <TableCell>{formatoFecha(pedido.fechaPedido)}</TableCell>
+                  <TableCell>{formatoFecha(pedido.fechaRequerida)}</TableCell>
+                  <TableCell>
+                    {pedido.soporteUrl ? (
+                      <a
+                        href={pedido.soporteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline"
+                        aria-label="Ver adjunto"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {pedido.observaciones ? (
+                      <span title={pedido.observaciones}>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {pedido.urgente ? (
+                      <Badge variant="destructive">Urgente</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      aria-label={`Rechazar pedido de ${pedido.insumoDescripcion}`}
+                      onCheckedChange={(v) => {
+                        if (v === true) {
+                          setError(null)
+                          setPedidoARechazar(pedido)
+                        }
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Checkbox
+                      aria-label={`Comprar pedido de ${pedido.insumoDescripcion}`}
+                      checked={seleccionados.has(pedido.id)}
+                      onCheckedChange={() => onToggleSeleccion(pedido.id)}
+                    />
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog
+        open={pedidoARechazar !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPedidoARechazar(null)
+            setMotivo("")
+            setError(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rechazar pedido</DialogTitle>
+          </DialogHeader>
+
+          <p className="text-sm text-muted-foreground">
+            {pedidoARechazar?.insumoDescripcion} — {pedidoARechazar?.cantidadPendiente} {pedidoARechazar?.um}
+            {pedidoARechazar && pedidoARechazar.cantidadPendiente < pedidoARechazar.cantidad ? (
+              <span> (de {pedidoARechazar.cantidad} pedidos originalmente)</span>
+            ) : null}
+          </p>
+
+          {error ? (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+
+          <Textarea
+            placeholder="Motivo del rechazo (obligatorio)"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+          />
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPedidoARechazar(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!motivo.trim() || rechazando}
+              onClick={confirmarRechazo}
+            >
+              {rechazando ? "Rechazando..." : "Rechazar pedido"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}

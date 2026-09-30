@@ -110,7 +110,7 @@ export async function requerirAdmin() {
 // perfiles, y las funciones SQL equivalentes admin_insumos(uuid) etc.
 // que ya validan es_admin OR el flag puntual -- esto solo replica esa
 // misma regla del lado de TS, para las Server Actions).
-export type ScopeAdmin = "admin_insumos" | "admin_proyectos" | "admin_usuarios" | "admin_mano_obra"
+export type ScopeAdmin = "admin_insumos" | "admin_proyectos" | "admin_usuarios" | "admin_mano_obra" | "rol_compras"
 
 // Lanza un error si quien está autenticado ahora mismo no tiene el scope
 // pedido (ni tampoco es_admin general) -- para usar al inicio de cada
@@ -144,7 +144,7 @@ export async function requerirScope(scope: ScopeAdmin) {
   // columnas y se elige cuál mirar en JS, no en la query.
   const { data: perfil, error } = await supabase
     .from("perfiles")
-    .select("es_admin, admin_insumos, admin_proyectos, admin_usuarios,admin_mano_obra")
+    .select("es_admin, admin_insumos, admin_proyectos, admin_usuarios,admin_mano_obra,rol_compras")
     .eq("id", user.id)
     .single()
  

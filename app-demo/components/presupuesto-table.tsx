@@ -187,9 +187,14 @@ const FILA_ESTILO_POR_ESTADO: Record<EstadoApuFila, string> = {
 // "precio unitario" propio con el que comparar (decisión del usuario:
 // antes existía un rollup de capítulo para esto, se quitó).
 // ---------------------------------------------------------------------
-const UMBRAL_ALERTA_PRESUPUESTO = 100
+// Exportadas (antes eran privadas de este archivo) para que page.tsx
+// pueda contar, en el banner de "rechazados", cuántos ítems superan
+// presupuesto -- reusando el MISMO umbral y la MISMA función que pinta
+// la alerta acá, en vez de duplicar el criterio y arriesgar que se
+// desincronicen.
+export const UMBRAL_ALERTA_PRESUPUESTO = 100
 
-function excedePresupuestoOriginal(
+export function excedePresupuestoOriginal(
   valorUnitario: number | null | undefined,
   precioOriginal: number | null | undefined
 ): boolean {
