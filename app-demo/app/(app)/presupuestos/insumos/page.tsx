@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import { Search, X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
@@ -34,7 +35,7 @@ const FILAS_POR_PAGINA = 50
 // precios_efectivos_insumos no está pensado para recibir miles de ids de
 // una sola vez -- se pide en lotes, en paralelo (mismo criterio que ya
 // usa matchearYGuardarImportApu en presupuestos/actions.ts).
-const TAMANO_LOTE_PRECIOS_EFECTIVOS = 200
+const TAMANO_LOTE_PRECIOS_EFECTIVOS = 500
 
 export default function MaestroInsumos() {
   const [insumos, setInsumos] = useState<Insumo[]>([])
@@ -55,18 +56,24 @@ export default function MaestroInsumos() {
     async function fetchInsumos() {
       const supabase = createClient()
 
-      const { data, error } = await supabase
-        .from("maestro_insumos")
-        .select("id, codigo, descripcion, tipo, u_m, agrupacion, vr_unitario")
-        .order("codigo")
-
-      if (error) {
+      // Por páginas (traerTodo): una sola consulta se cortaría sin avisar en
+      // el límite de filas de la API si el maestro crece.
+      let data
+      try {
+        data = await traerTodo((desde, hasta) =>
+          supabase
+            .from("maestro_insumos")
+            .select("id, codigo, descripcion, tipo, u_m, agrupacion, vr_unitario")
+            .order("codigo")
+            .range(desde, hasta)
+        )
+      } catch (error) {
         console.error("Error obteniendo insumos:", error)
         setLoading(false)
         return
       }
 
-      setInsumos((data ?? []).map((i) => ({ ...i, precioEfectivo: null })))
+      setInsumos(data.map((i) => ({ ...i, precioEfectivo: null })))
       setLoading(false)
     }
 

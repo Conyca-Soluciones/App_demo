@@ -652,12 +652,18 @@ async function conPreciosEfectivos<T extends { id: string; vr_unitario: number |
   const supabase = await createClient()
   const ids = Array.from(new Set(filas.map((f) => f.id)))
 
-  const { data: precios, error } = await supabase.rpc("precios_efectivos_insumos", {
-    p_insumo_ids: ids,
-  })
-  if (error) throw new Error(error.message)
-
-  const precioPorId = new Map((precios ?? []).map((p: any) => [p.insumo_id, p.precio_efectivo]))
+  // En tandas de 500: el import de APU llega a pedir miles de ids a la vez,
+  // y una sola respuesta podría pasar el límite de filas de la API.
+  const precioPorId = new Map<string, number | null>()
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data: precios, error } = await supabase.rpc("precios_efectivos_insumos", {
+      p_insumo_ids: ids.slice(i, i + 500),
+    })
+    if (error) throw new Error(error.message)
+    for (const p of (precios ?? []) as { insumo_id: string; precio_efectivo: number | null }[]) {
+      precioPorId.set(p.insumo_id, p.precio_efectivo)
+    }
+  }
   return filas.map((f) => ({ ...f, vr_unitario: precioPorId.get(f.id) ?? f.vr_unitario }))
 }
 
@@ -694,13 +700,25 @@ export async function buscarInsumosSimilares(
     throw new Error(error.message)
   }
 
-  const filas: any[] = data ?? []
-  const candidatos = filas.map((f: any) => ({ id: f.id, texto: f.descripcion, unidad: f.u_m }))
+  const conSimilitud = puntuarCandidatosInsumo(termino, data ?? [], umbral)
 
+  // Mismo criterio que buscarInsumos: vr_unitario pasa a ser el precio
+  // EFECTIVO (promedio de compra dinámico, o fallback), no el fijo --
+  // esto es lo que matchearInsumosApuImport usa para decidir si un
+  // insumo "tiene precio real" (ver PRECIOS_PLACEHOLDER más abajo).
+  return await conPreciosEfectivos(conSimilitud)
+}
+
+// Ranking TF-IDF + Jaccard + Levenshtein (lib/similitud-texto) de los
+// candidatos que devolvió la base para UN término: top 5 sobre el umbral,
+// con la similitud y las marcas de medida/unidad distinta. Compartido por
+// buscarInsumosSimilares (un término) y matchearInsumosApuImport (lote).
+function puntuarCandidatosInsumo(termino: string, filas: any[], umbral: number): InsumoSimilar[] {
+  const candidatos = filas.map((f: any) => ({ id: f.id, texto: f.descripcion, unidad: f.u_m }))
   const resultados = buscarSimilares(termino, null, candidatos, { top: 5, umbral })
 
   const porId = new Map(filas.map((f: any) => [f.id, f]))
-  const conSimilitud = resultados
+  return resultados
     .map((r) => {
       const fila = porId.get(r.candidato.id)
       return fila
@@ -713,12 +731,6 @@ export async function buscarInsumosSimilares(
         : null
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
-
-  // Mismo criterio que buscarInsumos: vr_unitario pasa a ser el precio
-  // EFECTIVO (promedio de compra dinámico, o fallback), no el fijo --
-  // esto es lo que matchearInsumosApuImport usa para decidir si un
-  // insumo "tiene precio real" (ver PRECIOS_PLACEHOLDER más abajo).
-  return await conPreciosEfectivos(conSimilitud)
 }
 
 export type SolicitudInsumoInput = {
@@ -1942,10 +1954,19 @@ async function buscarCategoriaExistentePorNombre(
   tabla: "mano_obra_categorias" | "equipo_categorias",
   nombre: string
 ): Promise<{ id: string; categoria: string } | null> {
-  const { data, error } = await supabase.from(tabla).select("id, categoria")
+  const buscado = normalizarNombreCategoria(nombre)
+  if (!buscado) return null
+
+  // Antes se traía el catálogo COMPLETO en cada aprobación. Ahora se
+  // prefiltra en la base: ILIKE '%palabra1%palabra2%' (usa el índice de
+  // trigramas de `categoria`). Todo nombre cuyo normalizado sea igual al
+  // buscado contiene esas palabras en ese orden, así que el prefiltro no
+  // pierde ningún duplicado; la comparación exacta sigue siendo la de abajo.
+  const escaparLike = (t: string) => t.replace(/[\\%_]/g, (c) => `\\${c}`)
+  const patron = `%${buscado.split(" ").map(escaparLike).join("%")}%`
+  const { data, error } = await supabase.from(tabla).select("id, categoria").ilike("categoria", patron)
   if (error) throw new Error(error.message)
 
-  const buscado = normalizarNombreCategoria(nombre)
   return (data ?? []).find((c) => normalizarNombreCategoria(c.categoria) === buscado) ?? null
 }
 
@@ -2392,10 +2413,11 @@ export async function recalcularValorItemDesdeApu(
 // Versión en lote de recalcularValorItemDesdeApu, para cuando se guardan
 // muchos ítems con APU de una vez (handleGuardar en page.tsx). Antes eso
 // era un loop secuencial desde el cliente: 1 server action + 3 round-trips
-// por ítem. Acá: 1 SELECT de apu_id por tanda de ids, 1 RPC por APU
-// ÚNICO (en paralelo, de a 15 -- recalcular_valor_apu ya propaga a todos
-// los ítems que usan ese apu_id), y 1 SELECT final de valores por tanda.
-// Un APU cuyo RPC falla no tumba al resto: sus ítems quedan fuera de
+// por ítem. Acá: 1 SELECT de apu_id por tanda de ids, 1 RPC
+// recalcular_valor_apus por tanda de hasta 200 APUs (una sola consulta
+// agrupada + un solo UPDATE en la base, ver migración
+// 20261005000000_rendimiento_funciones.sql), y 1 SELECT final de valores.
+// Una tanda que falla no tumba al resto: sus ítems quedan fuera de
 // `valores` y se reportan en `fallidos`.
 export async function recalcularValoresItemsDesdeApu(presupuestoItemIds: string[]): Promise<{
   valores: Record<string, ValorRecalculado>
@@ -2418,13 +2440,14 @@ export async function recalcularValoresItemsDesdeApu(presupuestoItemIds: string[
   const apuIdsUnicos = Array.from(new Set(items.map((i) => i.apu_id).filter((id): id is string => !!id)))
 
   const apusFallidos = new Set<string>()
-  await procesarEnLotes(apuIdsUnicos, 15, async (apuId) => {
-    const { error } = await supabase.rpc("recalcular_valor_apu", { p_apu_id: apuId })
+  for (let i = 0; i < apuIdsUnicos.length; i += TAMANO_LOTE) {
+    const lote = apuIdsUnicos.slice(i, i + TAMANO_LOTE)
+    const { error } = await supabase.rpc("recalcular_valor_apus", { p_apu_ids: lote })
     if (error) {
-      console.error(`No se pudo recalcular el APU ${apuId}:`, error.message)
-      apusFallidos.add(apuId)
+      console.error(`No se pudo recalcular una tanda de ${lote.length} APU:`, error.message)
+      for (const apuId of lote) apusFallidos.add(apuId)
     }
-  })
+  }
 
   const fallidos = items.filter((i) => i.apu_id && apusFallidos.has(i.apu_id)).map((i) => i.id)
   const idsALeer = items.filter((i) => !apusFallidos.has(i.apu_id ?? "")).map((i) => i.id)
@@ -2448,6 +2471,18 @@ export async function recalcularValoresItemsDesdeApu(presupuestoItemIds: string[
 
   return { valores, fallidos }
 }
+// Recalcula en lote y NUNCA lanza: para los flujos que antes hacían
+// try/catch por ítem y seguían (import, solicitudes en lote). Los ítems que
+// fallen quedan con su valor anterior y se registran en consola.
+async function recalcularEnLoteSinFallar(presupuestoItemIds: string[]) {
+  try {
+    const { fallidos } = await recalcularValoresItemsDesdeApu(presupuestoItemIds)
+    if (fallidos.length > 0) console.error(`No se pudo recalcular el valor de ${fallidos.length} ítem(s):`, fallidos)
+  } catch (e) {
+    console.error("No se pudo recalcular el valor de los ítems:", e)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Import de APU desde Excel (hoja "APU" de la plantilla) -- agregar esto al
 // final de actions.ts. NO se reimplementa nada que ya exista: reusa
@@ -2608,8 +2643,45 @@ export async function matchearInsumosApuImport(
     }
   }
 
-  return procesarEnLotes(Array.from(unicas.values()), 15, async (original) => {
-    const candidatos = await buscarInsumosSimilares(original, 0.3)
+  // Antes: buscarInsumosSimilares por cada descripción única = 2 viajes a
+  // la base por descripción (candidatos + precios). Ahora: candidatos de 50
+  // descripciones por llamada (buscar_insumos_candidatos_lote) y UNA pasada
+  // de precios para todos los candidatos elegidos. 800 descripciones:
+  // ~1.600 viajes -> ~16 + 2. Mismo ranking y mismo umbral (0.3).
+  const originales = Array.from(unicas.values())
+  const candidatosPorIndice: InsumoSimilar[][] = originales.map(() => [])
+  const TERMINOS_POR_LLAMADA = 50
+  const tandas: { inicio: number; terminos: string[] }[] = []
+  for (let i = 0; i < originales.length; i += TERMINOS_POR_LLAMADA) {
+    tandas.push({ inicio: i, terminos: originales.slice(i, i + TERMINOS_POR_LLAMADA) })
+  }
+  const supabase = await createClient()
+  await procesarEnLotes(tandas, 4, async ({ inicio, terminos }) => {
+    const { data, error } = await supabase.rpc("buscar_insumos_candidatos_lote", {
+      p_terminos: terminos.map((t) => t.trim()),
+      p_limite: 50,
+    })
+    if (error) throw new Error(error.message)
+    for (const fila of (data ?? []) as { idx: number; candidatos: any[] }[]) {
+      const termino = terminos[fila.idx - 1]
+      // mismo corte que buscarInsumosSimilares: términos de menos de 2 letras no buscan
+      if (!termino || termino.trim().length < 2) continue
+      // `distancia` es solo para ordenar en SQL; no debe terminar guardada en
+      // apu_import_revision.candidatos.
+      const filas = fila.candidatos.map((c) => {
+        const copia = { ...c }
+        delete copia.distancia
+        return copia
+      })
+      candidatosPorIndice[inicio + fila.idx - 1] = puntuarCandidatosInsumo(termino, filas, 0.3)
+    }
+  })
+
+  const conPrecio = await conPreciosEfectivos(candidatosPorIndice.flat())
+  const precioPorId = new Map(conPrecio.map((c) => [c.id, c.vr_unitario]))
+
+  return originales.map((original, i) => {
+    const candidatos = candidatosPorIndice[i].map((c) => ({ ...c, vr_unitario: precioPorId.get(c.id) ?? c.vr_unitario }))
 
     const mejor = candidatos[0]
     const tienePlaceholder =
@@ -3200,15 +3272,10 @@ async function guardarImportApuConRevision(
     if (error) throw new Error(`Error guardando revisión: ${error.message}`)
   }
 
-  // ---- 5. Recalcular el valor de cada ítem, EN PARALELO (no uno por uno) ----
+  // ---- 5. Recalcular el valor de todos los ítems EN LOTE ----
+  // (antes: una llamada por ítem, de a 20 en paralelo)
   const itemIdsAfectados = bloquesValidos.map((b) => presupuestoItemIdPorCodigo[b.codigoItem])
-  await procesarEnLotes(itemIdsAfectados, 20, async (itemId) => {
-    try {
-      await recalcularValorItemDesdeApu(itemId)
-    } catch (e) {
-      console.error(`No se pudo recalcular el ítem ${itemId}:`, e)
-    }
-  })
+  await recalcularEnLoteSinFallar(itemIdsAfectados)
 
   return {
     loteImportId,
@@ -3805,13 +3872,7 @@ export async function resolverLineasRevisionEnLote(
     }
   })
 
-  await procesarEnLotes(Array.from(itemsAfectados), 15, async (presupuestoItemId) => {
-    try {
-      await recalcularValorItemDesdeApu(presupuestoItemId)
-    } catch (e) {
-      console.error(`No se pudo recalcular el ítem ${presupuestoItemId}:`, e)
-    }
-  })
+  await recalcularEnLoteSinFallar(Array.from(itemsAfectados))
 
   return { errores }
 }
@@ -4179,7 +4240,10 @@ export async function importarPreciosTransporte(
   // 6. Marcar resueltas las filas de apu_import_revision que eran
   // nuevas -- las que ya estaban resueltas (corrección) no cambian de
   // estado, solo su precio subyacente.
-  for (const revisionId of idsNuevos) {
+  // Cada fila lleva un item_apu_id distinto, así que no cabe en un solo
+  // UPDATE -- pero ya no van en serie: de a 15 en paralelo (antes N viajes
+  // uno detrás de otro).
+  await procesarEnLotes(Array.from(idsNuevos), 15, async (revisionId) => {
     const precioId = idPreciosPorRevisionId.get(revisionId)
     const itemApuId = precioId ? itemApuIdPorPrecioId.get(precioId) : null
     const { error } = await supabase
@@ -4189,15 +4253,16 @@ export async function importarPreciosTransporte(
     if (error) {
       errores.push({ revisionId, mensaje: `Se guardó el precio pero no se pudo marcar como resuelta: ${error.message}` })
     }
-  }
+  })
 
   // 7. Recalcular -- una vez por ÍTEM afectado (no por línea), evita
   // recalcular el mismo APU varias veces si tenía más de una línea de
   // transporte cambiada.
   const itemsAfectados = Array.from(new Set(filasParaUpsert.map((f) => f.presupuesto_item_id)))
-  await procesarEnLotes(itemsAfectados, 15, async (itemId) => {
-    await recalcularValorItemDesdeApu(itemId)
-  })
+  const { fallidos } = await recalcularValoresItemsDesdeApu(itemsAfectados)
+  // Igual que antes: si algún recálculo falla, la acción falla (no se
+  // reporta éxito con valores viejos).
+  if (fallidos.length > 0) throw new Error(`No se pudo recalcular el valor de ${fallidos.length} ítem(s).`)
 
   return { errores, actualizados: filasParaUpsert.length, sinCambios }
 }

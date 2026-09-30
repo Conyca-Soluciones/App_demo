@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { obtenerUsuarioId, requerirAccion } from "@/lib/permisos"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import {
   COLUMNA_DE_CAMPO,
   ETIQUETA_CAMPO,
@@ -53,13 +54,16 @@ export async function listarProveedores(): Promise<Proveedor[]> {
   if (!(await obtenerUsuarioId())) throw new Error("No autenticado.")
 
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("proveedores")
-    .select(SELECT_PROVEEDOR)
-    .order("nombre", { ascending: true })
-
-  if (error) throw new Error(error.message)
-  return (data ?? []).map(mapearProveedor)
+  // Por páginas (ver lib/supabase/traer-todo.ts); unique_id desempata el orden.
+  const filas = await traerTodo<FilaProveedor>((desde, hasta) =>
+    supabase
+      .from("proveedores")
+      .select(SELECT_PROVEEDOR)
+      .order("nombre", { ascending: true })
+      .order("unique_id")
+      .range(desde, hasta)
+  )
+  return filas.map(mapearProveedor)
 }
 
 // Edita UN campo de un proveedor (edición en línea de la tabla). Mismo
@@ -136,9 +140,12 @@ export async function crearProveedor(input: NuevoProveedorInput): Promise<Provee
     }
   }
 
-  const { data: ids, error: errorIds } = await supabase.from("proveedores").select("id_prov")
-  if (errorIds) throw new Error(errorIds.message)
-  const existentes = (ids ?? []).map((r) => r.id_prov as string | null)
+  // Todos los IDs, por páginas: si faltara alguno (límite de filas de la
+  // API) el "siguiente" podría repetirse.
+  const ids = await traerTodo<{ id_prov: string | null }>((desde, hasta) =>
+    supabase.from("proveedores").select("id_prov").order("unique_id").range(desde, hasta)
+  )
+  const existentes = ids.map((r) => r.id_prov)
 
   for (let intento = 0; intento < 3; intento++) {
     const { data, error } = await supabase

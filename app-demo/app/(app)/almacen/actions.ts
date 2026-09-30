@@ -142,16 +142,6 @@ export type NuevoPedidoInput = {
   soporteUrl: string | null
 }
 
-// Ejecuta fn sobre cada elemento en tandas paralelas (un pedido de 50
-// insumos puede implicar cientos de consultas de validación).
-async function enTandas<T, R>(xs: T[], tam: number, fn: (x: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = []
-  for (let i = 0; i < xs.length; i += tam) {
-    out.push(...(await Promise.all(xs.slice(i, i + tam).map(fn))))
-  }
-  return out
-}
-
 // Revalida en el servidor antes de insertar -- tres cosas:
 //
 //  0. Forma: entre 1 y MAX_INSUMOS_POR_PEDIDO insumos distintos, cada uno
@@ -211,18 +201,25 @@ export async function crearPedido(input: NuevoPedidoInput) {
     return data?.descripcion ?? "un insumo"
   }
 
-  // -- 1. Tope de cantidad (consulta puntual por insumo + ítem) --
+  // -- 1. Tope de cantidad: TODOS los pares (ítem, insumo) en un viaje --
+  // (disponible_insumos_items reusa disponible_insumo_item por dentro;
+  // antes era una llamada por par, hasta cientos por pedido).
   const pares = input.insumos.flatMap((ins) =>
     ins.items.map((it) => ({ insumoId: ins.insumoId, item: it }))
   )
-  const topes = await enTandas(pares, 10, async ({ insumoId, item }) => {
-    const { data, error } = await supabase.rpc("disponible_insumo_item", {
-      p_presupuesto_item_id: item.presupuestoItemId,
-      p_insumo_id: insumoId,
-    })
-    if (error) throw new Error(error.message)
-    return { insumoId, cantidad: item.cantidad, disponible: Number(data ?? 0) }
+  const { data: disponibles, error: errorTopes } = await supabase.rpc("disponible_insumos_items", {
+    p_items: pares.map((p) => p.item.presupuestoItemId),
+    p_insumos: pares.map((p) => p.insumoId),
   })
+  if (errorTopes) throw new Error(errorTopes.message)
+  const disponiblePorIdx = new Map(
+    ((disponibles ?? []) as { idx: number; disponible: number | null }[]).map((d) => [d.idx, Number(d.disponible ?? 0)])
+  )
+  const topes = pares.map((p, i) => ({
+    insumoId: p.insumoId,
+    cantidad: p.item.cantidad,
+    disponible: disponiblePorIdx.get(i + 1) ?? 0,
+  }))
   const excedido = topes.find((t) => t.cantidad > t.disponible)
   if (excedido) {
     throw new Error(
@@ -230,25 +227,23 @@ export async function crearPedido(input: NuevoPedidoInput) {
     )
   }
 
-  // -- 2. Duplicado exacto contra pendientes (una consulta por insumo) --
-  const duplicados = await enTandas(input.insumos, 10, async (ins) => {
-    const { data, error } = await supabase
-      .from("pedidos_insumos")
-      .select("presupuesto_item_id, cantidad")
-      .eq("insumo_id", ins.insumoId)
-      .eq("fecha_requerida", input.fechaRequerida)
-      .eq("estado", "pendiente")
-      .in("presupuesto_item_id", ins.items.map((it) => it.presupuestoItemId))
-    if (error) throw new Error(error.message)
-
-    const choca = (data ?? []).some((f: any) =>
-      ins.items.some(
-        (it) => it.presupuestoItemId === f.presupuesto_item_id && it.cantidad === Number(f.cantidad)
-      )
-    )
-    return choca ? ins.insumoId : null
-  })
-  const insumoDuplicado = duplicados.find((d) => d !== null)
+  // -- 2. Duplicado exacto contra pendientes: UNA consulta para todo el
+  // pedido + un Set de claves insumo|ítem|cantidad -> O(n). Antes: una
+  // consulta por insumo y una comparación anidada por cada fila.
+  const clavePedido = (insumoId: string, itemId: string, cantidad: number) => `${insumoId}|${itemId}|${cantidad}`
+  const clavesNuevas = new Set(pares.map((p) => clavePedido(p.insumoId, p.item.presupuestoItemId, p.item.cantidad)))
+  const { data: pendientesMismaFecha, error: errorDuplicados } = await supabase
+    .from("pedidos_insumos")
+    .select("insumo_id, presupuesto_item_id, cantidad")
+    .in("insumo_id", input.insumos.map((ins) => ins.insumoId))
+    .in("presupuesto_item_id", Array.from(new Set(pares.map((p) => p.item.presupuestoItemId))))
+    .eq("fecha_requerida", input.fechaRequerida)
+    .eq("estado", "pendiente")
+  if (errorDuplicados) throw new Error(errorDuplicados.message)
+  const insumoDuplicado =
+    (pendientesMismaFecha ?? []).find((f) =>
+      clavesNuevas.has(clavePedido(f.insumo_id, f.presupuesto_item_id, Number(f.cantidad)))
+    )?.insumo_id ?? null
   if (insumoDuplicado) {
     throw new Error(
       `Ya existe un pedido pendiente idéntico de "${await nombreInsumo(insumoDuplicado)}" ` +

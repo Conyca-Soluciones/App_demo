@@ -12,6 +12,7 @@ import {
   type SolicitudEquipo,
 } from "@/app/(app)/presupuestos/actions"
 import { createClient } from "@/lib/supabase/client"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -619,12 +620,19 @@ function CatalogoRecurso({
     async function fetchCategorias() {
       setLoading(true)
       const supabase = createClient()
-      const { data, error } = await supabase
-        .from(tabla)
-        .select("id, grupo, categoria, unidad, valor_unitario")
-        .order("grupo")
-
-      if (error) {
+      // Por páginas (traerTodo): ver lib/supabase/traer-todo.ts. `id` al
+      // final del orden para que las páginas sean estables (grupo se repite).
+      let data: CategoriaRecursoFila[]
+      try {
+        data = await traerTodo<CategoriaRecursoFila>((desde, hasta) =>
+          supabase
+            .from(tabla)
+            .select("id, grupo, categoria, unidad, valor_unitario")
+            .order("grupo")
+            .order("id")
+            .range(desde, hasta)
+        )
+      } catch (error) {
         console.error(`Error obteniendo categorías de ${tabla}:`, error)
         setLoading(false)
         return
