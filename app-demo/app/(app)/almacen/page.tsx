@@ -5,6 +5,17 @@ import { useEffect, useState } from "react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { HistorialDialog } from "@/components/historial-timeline"
 import {
   Select,
   SelectContent,
@@ -19,6 +30,7 @@ import {
   buscarPresupuestoActivo,
   verPedidosDeProyecto,
   cancelarPedido,
+  modificarPedido,
   type PedidoRegistro,
 } from "./actions"
 import type { PresupuestoActivo } from "./types"
@@ -27,13 +39,14 @@ const headClasses =
   "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
-type FiltroEstado = "todos" | "pendiente" | "aprobado" | "rechazado"
+type FiltroEstado = "todos" | "pendiente" | "aprobado" | "rechazado" | "cancelado"
 
 const FILTROS: { valor: FiltroEstado; etiqueta: string }[] = [
   { valor: "todos", etiqueta: "Todos" },
   { valor: "pendiente", etiqueta: "Pendientes" },
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
+  { valor: "cancelado", etiqueta: "Cancelados" },
 ]
 
 function BadgeEstado({ estado }: { estado: PedidoRegistro["estado"] }) {
@@ -41,8 +54,14 @@ function BadgeEstado({ estado }: { estado: PedidoRegistro["estado"] }) {
     pendiente: "bg-amber-100 text-amber-800",
     aprobado: "bg-emerald-100 text-emerald-800",
     rechazado: "bg-red-100 text-red-800",
+    cancelado: "bg-slate-200 text-slate-700",
   } as const
-  const etiquetas = { pendiente: "Pendiente", aprobado: "Aprobado", rechazado: "Rechazado" } as const
+  const etiquetas = {
+    pendiente: "Pendiente",
+    aprobado: "Aprobado",
+    rechazado: "Rechazado",
+    cancelado: "Cancelado",
+  } as const
 
   return (
     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${estilos[estado]}`}>
@@ -64,7 +83,17 @@ export default function Almacen() {
   const [pedidos, setPedidos] = useState<PedidoRegistro[]>([])
   const [cargandoPedidos, setCargandoPedidos] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos")
-  const [cancelandoId, setCancelandoId] = useState<string | null>(null)
+  // Cancelar / modificar un pedido propio pendiente, y ver su historial.
+  const [cancelando, setCancelando] = useState<PedidoRegistro | null>(null)
+  const [motivoCancelacion, setMotivoCancelacion] = useState("")
+  const [procesandoCancelacion, setProcesandoCancelacion] = useState(false)
+  const [modificando, setModificando] = useState<PedidoRegistro | null>(null)
+  const [edCantidad, setEdCantidad] = useState("")
+  const [edFecha, setEdFecha] = useState("")
+  const [edUrgente, setEdUrgente] = useState(false)
+  const [edObservaciones, setEdObservaciones] = useState("")
+  const [procesandoEdicion, setProcesandoEdicion] = useState(false)
+  const [historialPedido, setHistorialPedido] = useState<PedidoRegistro | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -108,18 +137,56 @@ export default function Almacen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId, filtroEstado])
 
-  async function handleCancelar(pedido: PedidoRegistro) {
-    if (!confirm(`¿Cancelar el pedido de "${pedido.insumoDescripcion}"?`)) return
-
-    setCancelandoId(pedido.id)
+  async function confirmarCancelacion() {
+    if (!cancelando || !motivoCancelacion.trim()) return
+    setProcesandoCancelacion(true)
     setError(null)
     try {
-      await cancelarPedido(pedido.id)
-      setPedidos((prev) => prev.filter((p) => p.id !== pedido.id))
+      await cancelarPedido(cancelando.id, motivoCancelacion.trim())
+      setCancelando(null)
+      setMotivoCancelacion("")
+      cargarPedidos()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cancelar el pedido.")
+      setCancelando(null)
     } finally {
-      setCancelandoId(null)
+      setProcesandoCancelacion(false)
+    }
+  }
+
+  function abrirModificar(p: PedidoRegistro) {
+    setError(null)
+    setModificando(p)
+    setEdCantidad(String(p.cantidad))
+    setEdFecha(p.fechaRequerida.slice(0, 10))
+    setEdUrgente(p.urgente)
+    setEdObservaciones(p.observaciones ?? "")
+  }
+
+  async function confirmarModificacion() {
+    if (!modificando) return
+    const cantidad = Number(edCantidad.replace(",", "."))
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      setError("La cantidad debe ser mayor que cero.")
+      setModificando(null)
+      return
+    }
+    setProcesandoEdicion(true)
+    setError(null)
+    try {
+      await modificarPedido(modificando.id, {
+        cantidad,
+        fechaRequerida: edFecha,
+        urgente: edUrgente,
+        observaciones: edObservaciones.trim() || null,
+      })
+      setModificando(null)
+      cargarPedidos()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo modificar el pedido.")
+      setModificando(null)
+    } finally {
+      setProcesandoEdicion(false)
     }
   }
 
@@ -266,6 +333,11 @@ export default function Almacen() {
                           <p className="truncate" title={p.observaciones ?? ""}>
                             {p.observaciones ?? "—"}
                           </p>
+                          {p.estado === "cancelado" && p.motivoCancelacion && (
+                            <p className="truncate text-muted-foreground" title={p.motivoCancelacion}>
+                              Cancelado: {p.motivoCancelacion}
+                            </p>
+                          )}
                           {p.comentarioResolucion && (
                             <p
                               className="truncate text-muted-foreground"
@@ -277,18 +349,37 @@ export default function Almacen() {
                         </td>
                         <td className={celda}>{p.solicitanteNombre ?? "—"}</td>
                         <td className={`${celda} text-center`}>
-                          {p.solicitanteId === usuarioId && p.estado === "pendiente" ? (
+                          <div className="flex flex-col items-center gap-1">
+                            {p.solicitanteId === usuarioId && p.estado === "pendiente" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => abrirModificar(p)}
+                                  className="text-xs text-primary underline-offset-2 hover:underline"
+                                >
+                                  Modificar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setError(null)
+                                    setCancelando(p)
+                                    setMotivoCancelacion("")
+                                  }}
+                                  className="text-xs text-destructive underline-offset-2 hover:underline"
+                                >
+                                  Cancelar
+                                </button>
+                              </>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleCancelar(p)}
-                              disabled={cancelandoId === p.id}
-                              className="text-xs text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+                              onClick={() => setHistorialPedido(p)}
+                              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
                             >
-                              {cancelandoId === p.id ? "Cancelando…" : "Cancelar"}
+                              Historial
                             </button>
-                          ) : (
-                            "—"
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -298,6 +389,103 @@ export default function Almacen() {
             )}
           </div>
         )}
+
+        <Dialog
+          open={cancelando !== null}
+          onOpenChange={(abierto) => {
+            if (!abierto) {
+              setCancelando(null)
+              setMotivoCancelacion("")
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancelar pedido</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {cancelando?.insumoDescripcion} — {cancelando?.cantidad} {cancelando?.insumoUm ?? ""}. El
+              pedido queda registrado como cancelado y su cantidad vuelve a estar disponible en el
+              presupuesto.
+            </p>
+            <Textarea
+              placeholder="Motivo de la cancelación (obligatorio)"
+              value={motivoCancelacion}
+              onChange={(e) => setMotivoCancelacion(e.target.value)}
+              rows={3}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCancelando(null)}>
+                Volver
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!motivoCancelacion.trim() || procesandoCancelacion}
+                onClick={confirmarCancelacion}
+              >
+                {procesandoCancelacion ? "Cancelando..." : "Cancelar pedido"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={modificando !== null}
+          onOpenChange={(abierto) => {
+            if (!abierto) setModificando(null)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Modificar pedido</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {modificando?.insumoDescripcion} — ítem {modificando?.itemCodigo}. Solo se puede modificar
+              mientras está pendiente de aprobación. Para cambiar de insumo o de ítem, cancélalo y crea
+              otro.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Cantidad</label>
+                <Input
+                  inputMode="decimal"
+                  value={edCantidad}
+                  onChange={(e) => setEdCantidad(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Fecha requerida</label>
+                <Input type="date" value={edFecha} onChange={(e) => setEdFecha(e.target.value)} />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox checked={edUrgente} onCheckedChange={(v) => setEdUrgente(v === true)} />
+              Marcar como urgente
+            </label>
+            <Textarea
+              placeholder="Observaciones"
+              value={edObservaciones}
+              onChange={(e) => setEdObservaciones(e.target.value)}
+              rows={3}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setModificando(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmarModificacion} disabled={procesandoEdicion}>
+                {procesandoEdicion ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <HistorialDialog
+          abierto={historialPedido !== null}
+          tipo="pedido"
+          id={historialPedido?.id ?? null}
+          titulo={`Historial — ${historialPedido?.insumoDescripcion ?? "pedido"}`}
+          onCerrar={() => setHistorialPedido(null)}
+        />
       </main>
     </>
   )

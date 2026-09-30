@@ -829,6 +829,15 @@ export default function AdminPage() {
     <main className="mx-auto max-w-4xl space-y-6 p-6">
       <h1 className="text-xl font-semibold">Administración</h1>
 
+      <div className="rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
+        Los permisos ahora se gestionan por <strong>rol</strong>:{" "}
+        <a href="/admin/roles" className="font-medium underline">Roles y permisos</a> (qué pestañas y
+        acciones tiene cada rol) y{" "}
+        <a href="/admin/accesos" className="font-medium underline">Usuarios y accesos</a> (el rol y los
+        proyectos de cada persona). Las casillas de esta pantalla solo aplican a usuarios que todavía no
+        tienen rol.
+      </div>
+
       <div className="flex gap-1 border-b">
         <button
           type="button"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, ClipboardCheck, Eye, Check, X, RefreshCw } from "lucide-react"
+import { Loader2, ClipboardCheck, Eye, Check, X, RefreshCw, Undo2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,11 +21,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { OrdenCompraDetalleView } from "./orden-compra-detalle-view"
+import { sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import {
   listarTodasLasOrdenesCompra,
   obtenerPermisosOrdenCompra,
   aprobarOrdenCompra,
   rechazarOrdenCompra,
+  desaprobarOrdenCompra,
   type OrdenCompraListado,
   type OrdenCompraEstado,
   type PermisosOrdenCompra,
@@ -47,6 +49,7 @@ const ESTADO_BADGE: Record<
   pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
   aprobada: { label: "Aprobada", variant: "default" },
   rechazada: { label: "Rechazada", variant: "destructive" },
+  cancelada: { label: "Cancelada", variant: "destructive" },
 }
 
 const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[] = [
@@ -54,6 +57,7 @@ const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[]
   { valor: "pendiente_aprobacion", etiqueta: "Pendientes" },
   { valor: "aprobada", etiqueta: "Aprobadas" },
   { valor: "rechazada", etiqueta: "Rechazadas" },
+  { valor: "cancelada", etiqueta: "Canceladas" },
 ]
 
 function Tile({ etiqueta, valor, color }: { etiqueta: string; valor: number; color?: string }) {
@@ -75,6 +79,8 @@ export function AprobarOCView() {
   const [procesandoId, setProcesandoId] = useState<string | null>(null)
   const [rechazandoId, setRechazandoId] = useState<string | null>(null)
   const [motivoRechazo, setMotivoRechazo] = useState("")
+  const [desaprobando, setDesaprobando] = useState<OrdenCompraListado | null>(null)
+  const [motivoDesaprobacion, setMotivoDesaprobacion] = useState("")
 
   function cargar() {
     setCargando(true)
@@ -93,7 +99,7 @@ export function AprobarOCView() {
   }, [])
 
   const conteos = useMemo(() => {
-    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0 }
+    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0, cancelada: 0 }
     if (!ordenes) return base
     base.total = ordenes.length
     for (const o of ordenes) base[o.estado] += 1
@@ -130,6 +136,23 @@ export function AprobarOCView() {
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo rechazar la orden.")
+    } finally {
+      setProcesandoId(null)
+    }
+  }
+
+  async function confirmarDesaprobacion() {
+    if (!desaprobando || !motivoDesaprobacion.trim()) return
+    setProcesandoId(desaprobando.id)
+    setError(null)
+    try {
+      await desaprobarOrdenCompra(desaprobando.id, motivoDesaprobacion.trim())
+      setDesaprobando(null)
+      setMotivoDesaprobacion("")
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo desaprobar la orden.")
+      setDesaprobando(null)
     } finally {
       setProcesandoId(null)
     }
@@ -204,6 +227,7 @@ export function AprobarOCView() {
               {ordenesFiltradas.map((orden) => {
                 const badge = ESTADO_BADGE[orden.estado]
                 const puedeGestionar = permisos?.esAdmin && orden.estado === "pendiente_aprobacion"
+                const puedeDesaprobar = permisos?.puedeDesaprobar && sePuedeDesaprobar(orden)
                 const procesando = procesandoId === orden.id
                 return (
                   <TableRow
@@ -235,6 +259,22 @@ export function AprobarOCView() {
                           <Eye className="mr-1.5 h-4 w-4" />
                           Ver
                         </Button>
+                        {puedeDesaprobar && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                            disabled={procesando}
+                            onClick={() => {
+                              setDesaprobando(orden)
+                              setMotivoDesaprobacion("")
+                            }}
+                            aria-label={`Desaprobar orden ${orden.numero}`}
+                          >
+                            <Undo2 className="mr-1.5 h-4 w-4" />
+                            Desaprobar
+                          </Button>
+                        )}
                         {puedeGestionar && (
                           <>
                             <Button
@@ -305,6 +345,44 @@ export function AprobarOCView() {
               onClick={confirmarRechazo}
             >
               {procesandoId === rechazandoId ? "Rechazando..." : "Rechazar orden"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={desaprobando !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDesaprobando(null)
+            setMotivoDesaprobacion("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desaprobar orden de compra #{desaprobando?.numero}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            La orden vuelve a &ldquo;Pendiente&rdquo; y se podrá aprobar o rechazar de nuevo. Solo se
+            puede desaprobar si no fue enviada al proveedor ni tiene material recibido.
+          </p>
+          <Textarea
+            placeholder="Motivo (obligatorio)"
+            value={motivoDesaprobacion}
+            onChange={(e) => setMotivoDesaprobacion(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDesaprobando(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!motivoDesaprobacion.trim() || procesandoId === desaprobando?.id}
+              onClick={confirmarDesaprobacion}
+            >
+              {procesandoId === desaprobando?.id ? "Desaprobando..." : "Desaprobar orden"}
             </Button>
           </DialogFooter>
         </DialogContent>

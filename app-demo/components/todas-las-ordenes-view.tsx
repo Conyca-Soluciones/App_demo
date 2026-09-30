@@ -2,9 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Download } from "lucide-react"
+import { Loader2, Download, Ban } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -15,45 +23,64 @@ import {
 } from "@/components/ui/table"
 import {
   listarTodasLasOrdenesCompra,
+  obtenerPermisosOrdenCompra,
+  cancelarOrdenCompra,
   type OrdenCompraListado,
-  type OrdenCompraEstado,
+  type PermisosOrdenCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import {
+  ESTADO_VISIBLE_BADGE,
+  FILTROS_ESTADO_VISIBLE,
+  sePuedeCancelar,
+  type EstadoOrdenVisible,
+} from "@/lib/ordenes-compra-estado"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
-
-const ESTADO_BADGE: Record<
-  OrdenCompraEstado,
-  { label: string; variant: "default" | "destructive" | "secondary" }
-> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-}
-
-const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[] = [
-  { valor: "todas", etiqueta: "Todas" },
-  { valor: "pendiente_aprobacion", etiqueta: "Pendientes" },
-  { valor: "aprobada", etiqueta: "Aprobadas" },
-  { valor: "rechazada", etiqueta: "Rechazadas" },
-]
 
 export function TodasLasOrdenesView() {
   const router = useRouter()
   const [ordenes, setOrdenes] = useState<OrdenCompraListado[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [filtroEstado, setFiltroEstado] = useState<OrdenCompraEstado | "todas">("todas")
+  const [filtroEstado, setFiltroEstado] = useState<EstadoOrdenVisible | "todas">("todas")
 
-  useEffect(() => {
-    listarTodasLasOrdenesCompra()
-      .then(setOrdenes)
+  const [permisos, setPermisos] = useState<PermisosOrdenCompra | null>(null)
+  const [cancelando, setCancelando] = useState<OrdenCompraListado | null>(null)
+  const [motivo, setMotivo] = useState("")
+  const [procesando, setProcesando] = useState(false)
+
+  function cargar() {
+    Promise.all([listarTodasLasOrdenesCompra(), obtenerPermisosOrdenCompra()])
+      .then(([o, p]: [OrdenCompraListado[], PermisosOrdenCompra]) => {
+        setOrdenes(o)
+        setPermisos(p)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las órdenes."))
-  }, [])
+  }
+
+  useEffect(cargar, [])
+
+  async function confirmarCancelacion() {
+    if (!cancelando || !motivo.trim()) return
+    setProcesando(true)
+    setError(null)
+    try {
+      await cancelarOrdenCompra(cancelando.id, motivo.trim())
+      setCancelando(null)
+      setMotivo("")
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cancelar la orden.")
+      setCancelando(null)
+    } finally {
+      setProcesando(false)
+    }
+  }
 
   const ordenesFiltradas = useMemo(() => {
     if (!ordenes) return []
     if (filtroEstado === "todas") return ordenes
-    return ordenes.filter((o) => o.estado === filtroEstado)
+    return ordenes.filter((o) => o.estadoVisible === filtroEstado)
   }, [ordenes, filtroEstado])
 
   return (
@@ -61,7 +88,7 @@ export function TodasLasOrdenesView() {
       <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
 
       <div className="flex gap-2">
-        {FILTROS_ESTADO.map((f) => (
+        {FILTROS_ESTADO_VISIBLE.map((f) => (
           <Button
             key={f.valor}
             size="sm"
@@ -99,11 +126,12 @@ export function TodasLasOrdenesView() {
                 <TableHead>Creada por</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="text-center">PDF</TableHead>
+                {permisos?.puedeCancelar && <TableHead className="text-center">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {ordenesFiltradas.map((orden) => {
-                const badge = ESTADO_BADGE[orden.estado]
+                const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
                 return (
                   <TableRow
                     key={orden.id}
@@ -135,6 +163,28 @@ export function TodasLasOrdenesView() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    {permisos?.puedeCancelar && (
+                      <TableCell className="text-center">
+                        {sePuedeCancelar(orden) ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCancelando(orden)
+                              setMotivo("")
+                            }}
+                            aria-label={`Cancelar orden ${orden.numero}`}
+                          >
+                            <Ban className="mr-1.5 h-4 w-4" />
+                            Cancelar
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}
@@ -142,6 +192,49 @@ export function TodasLasOrdenesView() {
           </Table>
         </div>
       )}
+
+      <Dialog
+        open={cancelando !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancelando(null)
+            setMotivo("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar orden de compra #{cancelando?.numero}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            La orden queda cancelada y sus pedidos vuelven a &ldquo;Comprar pedidos&rdquo; para poder
+            comprarse de nuevo. No se puede cancelar una orden con entrega parcial o entregada.
+            {cancelando?.enviada && (
+              <strong className="mt-2 block text-foreground">
+                Esta orden ya fue marcada como enviada: avísale al proveedor de la cancelación.
+              </strong>
+            )}
+          </p>
+          <Textarea
+            placeholder="Motivo de la cancelación (obligatorio)"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelando(null)}>
+              Volver
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!motivo.trim() || procesando}
+              onClick={confirmarCancelacion}
+            >
+              {procesando ? "Cancelando..." : "Cancelar orden"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

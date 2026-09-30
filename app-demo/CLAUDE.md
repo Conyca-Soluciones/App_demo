@@ -958,3 +958,119 @@ propósito en vez de importados).
 - Decidir si vale la pena envolver `handleConfirmarApu` en algo más
   transaccional, o si un reporte claro de "qué se guardó y qué no" al
   final del proceso es suficiente por ahora.
+
+## Roles y permisos (implementado)
+
+Reemplaza el esquema de banderas en `perfiles` + grupos. Un usuario tiene
+**un rol general** (`perfiles.rol_id`) y **una lista de proyectos**
+(`usuario_proyectos`, o `perfiles.todos_los_proyectos`).
+
+- **Tablas**: `roles` (clave, nombre, es_sistema, orden), `rol_permisos`
+  (rol_id, permiso). El permiso es `'tab.<clave>'` (una pestaña del menú) o
+  `'accion.<clave>'` (algo que se puede hacer dentro). El rol
+  `administrador` siempre tiene todo y no se edita. Roles base: Compras,
+  Líder Compras, Área Técnica, Líder Técnico, Gerencia, Administrador,
+  Legal, Líder Legal; se pueden crear más desde la página.
+- **`lib/pestanas.ts`**: única fuente de verdad de pestañas, rutas que cada
+  una habilita y acciones. La matriz, el menú lateral y el middleware leen de
+  ahí. Gana la ruta más específica (`/almacen/entradas` es de Entradas, no de
+  Pedidos aunque `/almacen` sea prefijo). Agregar una pestaña = una entrada.
+- **Páginas (solo Administrador)**: `/admin/roles` (matriz rol × permiso, se
+  guarda al instante) y `/admin/accesos` (rol y proyectos de cada usuario).
+- **Middleware** (`lib/supabase/middleware.ts`): en cada request llama UNA vez
+  a `permisos_rol_usuario`, protege la ruta y deja los permisos en el header
+  `x-permisos`. Las Server Actions (`requerirAdmin`, `requerirAccion`,
+  `requerirPestana`, `requerirScope` en `lib/permisos.ts`) los leen de ahí.
+  **Seguridad**: el middleware borra siempre `x-user-id`, `x-permisos`,
+  `x-es-admin` y `x-scope-*` si vienen del cliente. Antes se copiaban y solo
+  se sobrescribían en algunas rutas, así que un usuario con sesión podía
+  mandar `x-es-admin: true` a una Server Action y pasar `requerirAdmin`
+  (que además usa la llave de servicio).
+- **Base de datos**: `tiene_accion(uid, accion)` decide las acciones. Las
+  funciones de ayuda (`es_admin`, `rol_compras`, `admin_insumos`,
+  `admin_proyectos`, `admin_usuarios`, `usuario_puede_ver_proyecto`,
+  `usuario_puede_editar_proyecto`, `usuario_tiene_acceso_a_item`,
+  `obtener_permisos_usuario`) conservan nombre y firma, así que las ~35
+  políticas RLS que las usan no cambiaron. `rol_compras()` = acción
+  `comprar`, `admin_insumos()` = `aprobar_insumos`, `admin_proyectos()` =
+  `aprobar_pedidos`. Editar presupuesto es la acción `editar_presupuestos` +
+  ver el proyecto (el proyecto asignado solo da acceso).
+- **Compatibilidad**: un usuario con `rol_id` NULL sigue con las banderas
+  anteriores y los grupos, idéntico a antes. `20261001100000_migrar_usuarios_a_roles.sql`
+  (se corre aparte, cuando la matriz esté lista) asigna rol según las
+  banderas: es_admin -> Administrador, rol_compras -> Compras,
+  admin_insumos/admin_proyectos/admin_mano_obra -> Líder Técnico.
+  Si `permisos_rol_usuario` no existe todavía, el middleware y `lib/permisos.ts`
+  caen a las banderas: se puede desplegar el código antes que el SQL.
+- **Acciones**: `editar_presupuestos`, `aprobar_pedidos`, `aprobar_mano_obra`,
+  `aprobar_insumos`, `gestionar_almacen` (entradas/salidas),
+  `comprar`, `aprobar_oc`, `desaprobar_oc`, `cancelar_oc`.
+- **Pendiente**: varias tablas siguen abiertas a cualquier usuario con sesión
+  (`maestro_insumos` UPDATE, `apu`, `item_apu`, `mano_obra_categorias`,
+  `equipo_categorias`, `transporte_precios`, `apu_import_revision`): la
+  restricción por pestaña las oculta de la pantalla pero no de la API.
+
+
+## Desaprobar y cancelar órdenes de compra (implementado)
+
+Migración `20261002000000_desaprobar_cancelar_oc.sql`. Acciones del rol
+`desaprobar_oc` y `cancelar_oc` (se dan en Roles y permisos); la base valida el
+permiso y las reglas, la pantalla solo decide si muestra el botón
+(`sePuedeDesaprobar` / `sePuedeCancelar` en `lib/ordenes-compra-estado.ts`).
+
+- **Desaprobar** (botón en Aprobación de órdenes de compra y en el detalle):
+  aprobada -> pendiente_aprobacion. Solo si `enviada = false` y
+  `estado_entrega = 'sin_entregar'`. Motivo obligatorio
+  (`motivo_desaprobacion`); se limpian `aprobada_por/aprobada_at`.
+- **Cancelar** (botón en Órdenes de compra y en el detalle): aprobada ->
+  cancelada. Solo si `estado_entrega = 'sin_entregar'` y sin entradas vigentes
+  (Entrega parcial y Entregada NO se cancelan). Puede estar enviada: el check
+  `ordenes_compra_enviada_requiere_aprobada` ahora permite
+  `enviada` con estado `aprobada` o `cancelada`, para conservar el dato de que
+  ya se había enviado al proveedor. Motivo obligatorio (`motivo_cancelacion`).
+- **`enviada`** es una casilla manual: Compras pulsa "Marcar como enviada"
+  (`marcar_orden_enviada`). El sistema no envía nada ni guarda quién/cuándo.
+- **Liberar pedidos al cancelar**: las líneas de órdenes canceladas dejan de
+  contar como "ya comprado" en `crear_orden_compra` (SQL) y en
+  `mapPedidoParaComprar` (cola de Comprar pedidos). Las de órdenes
+  *rechazadas* siguen contando (revisión manual, decisión previa).
+
+
+## Historial y pedidos: desaprobar / cancelar / modificar (implementado)
+
+Migración `20261003000000_historial_y_pedidos.sql`.
+
+- **`historial_eventos`** (entidad_tipo `orden_compra`|`pedido`, entidad_id,
+  evento, usuario_id, motivo, datos, created_at): registro **inmutable** de
+  quién hizo qué y cuándo. Lo escriben DISPARADORES sobre `ordenes_compra`
+  (`trg_historial_orden_compra`) y `pedidos_insumos` (`trg_historial_pedido`),
+  así que cubre cualquier camino y no depende de las pantallas. Sin policies
+  (nadie edita ni borra); se lee con `historial_entidad(tipo, id)`, que valida
+  que quien pregunta pueda ver la orden/pedido. Eventos de órdenes: creada,
+  aprobada, rechazada, desaprobada, cancelada, marcada_enviada,
+  entrega_actualizada. De pedidos: creado, modificado (antes/después),
+  aprobado, rechazado, desaprobado, cancelado, rechazado_por_compras. La
+  historia previa a la migración se reconstruyó (creación y aprobación/rechazo,
+  marcada `reconstruido`); lo que no se guardaba (quién marcó "enviada") no se
+  pudo recuperar.
+- **UI**: `components/historial-timeline.tsx` (línea de tiempo + diálogo). Se
+  ve en el detalle de la orden de compra, en Pedidos (botón Historial) y en
+  Aprobación de pedidos.
+- **Pedidos**: nuevo estado `cancelado` (la cantidad vuelve a estar disponible
+  porque `buscar_insumos_presupuesto`/`disponible_insumo_item` solo cuentan
+  pendiente+aprobado). Cancelar ya **no borra** la fila (se quitó la policy
+  `pedidos_insumos_delete_propio_pendiente`).
+  - `modificar_pedido`: solo quien lo hizo, solo pendiente; cambia cantidad,
+    fecha requerida, urgente y observaciones (no insumo ni ítem); el tope es
+    lo disponible + la cantidad actual del mismo pedido.
+  - `cancelar_pedido(id, motivo)`: pendiente -> quien lo hizo o acción
+    `cancelar_pedidos`; aprobado -> solo `cancelar_pedidos` y solo si ninguna
+    orden de compra no cancelada lo usa.
+  - `desaprobar_pedido(id, motivo)`: acción `desaprobar_pedidos`; aprobado ->
+    pendiente, mismas condiciones sobre órdenes de compra. Limpia
+    `resuelto_*`; el rastro queda en el historial.
+  - Aprobar / rechazar sigue siendo la acción `aprobar_pedidos`.
+- **Acciones nuevas en la matriz**: `desaprobar_pedidos`, `cancelar_pedidos`
+  (el Líder Técnico las recibe en la migración).
+- Nota: el parser `pglast` no puede validar funciones de disparador (falla con
+  cualquiera, incluso `return new;`): esas se revisan leyendo el SQL.
