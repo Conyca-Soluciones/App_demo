@@ -94,7 +94,7 @@ export function SolicitudInsumoDialog({
 
   function agregarInsumo(insumo: InsumoAgrupado) {
     if (limiteAlcanzado) {
-      setError(`Un pedido puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
+      setError(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
       return
     }
     setError(null)
@@ -176,7 +176,7 @@ export function SolicitudInsumoDialog({
       onPedidoCreado?.()
       onOpenChange(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear el pedido.")
+      setError(e instanceof Error ? e.message : "No se pudo crear la requisición.")
     } finally {
       setGuardando(false)
     }
@@ -186,14 +186,14 @@ export function SolicitudInsumoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] max-w-3xl p-0">
         <DialogHeader className="border-b px-8 py-5">
-          <DialogTitle className="text-xl">Nuevo pedido</DialogTitle>
+          <DialogTitle className="text-xl">Nueva requisición</DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[75vh] space-y-6 overflow-y-auto px-8 py-6">
           {/* Fechas */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Fecha pedido</label>
+              <label className="text-sm font-medium">Fecha requisición</label>
               <Input type="date" value={fechaPedido} readOnly className="h-10 bg-muted/40" />
             </div>
 
@@ -212,7 +212,7 @@ export function SolicitudInsumoDialog({
           {/* Buscar insumos -- por código o descripción */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Agregar insumos al pedido</label>
+              <label className="text-sm font-medium">Agregar insumos a la requisición</label>
               <span
                 className={`text-xs ${limiteAlcanzado ? "font-medium text-destructive" : "text-muted-foreground"}`}
               >
@@ -226,7 +226,7 @@ export function SolicitudInsumoDialog({
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder={
                   limiteAlcanzado
-                    ? "Llegaste al máximo de insumos por pedido"
+                    ? "Llegaste al máximo de insumos por requisición"
                     : "Buscar por código o descripción..."
                 }
                 disabled={limiteAlcanzado}
@@ -244,7 +244,7 @@ export function SolicitudInsumoDialog({
                   {!buscando && sugerenciasNuevas.length === 0 && busqueda.trim().length >= 2 && (
                     <div className="px-4 py-3 text-sm text-muted-foreground">
                       {sugerencias.length > 0
-                        ? "Todos los insumos que coinciden ya están en el pedido."
+                        ? "Todos los insumos que coinciden ya están en la requisición."
                         : `Ningún insumo de este presupuesto coincide con “${busqueda}”.`}
                     </div>
                   )}
@@ -272,7 +272,7 @@ export function SolicitudInsumoDialog({
           {lineas.length === 0 ? (
             <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
               Busca y agrega los insumos que necesitas. Puedes pedir hasta {MAX_INSUMOS_POR_PEDIDO}{" "}
-              en un mismo pedido.
+              en una misma requisición.
             </p>
           ) : (
             <div className="space-y-3">
@@ -371,7 +371,7 @@ export function SolicitudInsumoDialog({
 
                       {!lista && (
                         <p className="pt-1 text-[11px] text-amber-800">
-                          Marca al menos un ítem y escribe su cantidad para poder crear el pedido.
+                          Marca al menos un ítem y escribe su cantidad para poder crear la requisición.
                         </p>
                       )}
                     </div>
@@ -393,7 +393,7 @@ export function SolicitudInsumoDialog({
               <Textarea
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
-                placeholder="Detalles adicionales para este pedido…"
+                placeholder="Detalles adicionales para esta requisición…"
                 className="min-h-[80px] resize-none"
               />
             </div>
@@ -410,8 +410,8 @@ export function SolicitudInsumoDialog({
               {guardando
                 ? "Creando…"
                 : lineas.length > 1
-                  ? `Crear pedido (${lineas.length} insumos)`
-                  : "Crear pedido"}
+                  ? `Crear requisición (${lineas.length} insumos)`
+                  : "Crear requisición"}
             </Button>
           </div>
         </div>

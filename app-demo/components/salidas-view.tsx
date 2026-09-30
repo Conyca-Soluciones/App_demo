@@ -21,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useProyectoActual } from "@/components/proyecto-actual-provider"
-import { AvisoSinProyecto } from "@/components/selector-proyecto"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { SinProyecto } from "@/components/sin-proyecto"
 import {
   obtenerInventarioProyecto,
   type InsumoInventario,
@@ -217,7 +217,7 @@ export function SalidasView() {
       )}
 
       {!proyectoId ? (
-        <AvisoSinProyecto />
+        <SinProyecto />
       ) : inventario === null ? (
         !error && (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">

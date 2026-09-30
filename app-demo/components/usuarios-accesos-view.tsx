@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, Search } from "lucide-react"
+import { KeyRound, Loader2, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -20,7 +20,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { listarProyectosAdmin, type Proyecto } from "@/app/(app)/admin/actions"
+import {
+  listarProyectosAdmin,
+  crearUsuario,
+  cambiarPasswordUsuario,
+  type Proyecto,
+} from "@/app/(app)/admin/actions"
 import { listarRolesConPermisos, type RolConPermisos } from "@/app/(app)/admin/roles/actions"
 import {
   asignarRolUsuario,
@@ -43,6 +48,19 @@ export function UsuariosAccesosView() {
   const [edTodos, setEdTodos] = useState(false)
   const [edProyectos, setEdProyectos] = useState<Set<string>>(new Set())
   const [guardandoProyectos, setGuardandoProyectos] = useState(false)
+
+  // Crear una cuenta nueva y cambiar la contraseña de una existente (antes se
+  // hacía en Control administrativo > Usuarios).
+  const [creandoUsuario, setCreandoUsuario] = useState(false)
+  const [nuNombre, setNuNombre] = useState("")
+  const [nuEmail, setNuEmail] = useState("")
+  const [nuPassword, setNuPassword] = useState("")
+  const [nuRol, setNuRol] = useState(SIN_ROL)
+  const [guardandoNuevo, setGuardandoNuevo] = useState(false)
+  const [cambiandoPassword, setCambiandoPassword] = useState<UsuarioAcceso | null>(null)
+  const [passwordNueva, setPasswordNueva] = useState("")
+  const [guardandoPassword, setGuardandoPassword] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
 
   function cargar() {
     Promise.all([listarUsuariosAcceso(), listarRolesConPermisos(), listarProyectosAdmin()])
@@ -80,6 +98,55 @@ export function UsuariosAccesosView() {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el rol.")
     } finally {
       setGuardandoRol(null)
+    }
+  }
+
+  function abrirNuevoUsuario() {
+    setError(null)
+    setAviso(null)
+    setNuNombre("")
+    setNuEmail("")
+    setNuPassword("")
+    setNuRol(SIN_ROL)
+    setCreandoUsuario(true)
+  }
+
+  async function guardarNuevoUsuario() {
+    setGuardandoNuevo(true)
+    setError(null)
+    try {
+      await crearUsuario({
+        nombre: nuNombre,
+        email: nuEmail,
+        password: nuPassword,
+        rolId: nuRol === SIN_ROL ? null : nuRol,
+      })
+      setCreandoUsuario(false)
+      setAviso(`Cuenta creada para ${nuNombre.trim()}. Asígnale sus proyectos desde la lista.`)
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear el usuario.")
+      setCreandoUsuario(false)
+      cargar() // por si la cuenta sí se creó y solo falló el rol
+    } finally {
+      setGuardandoNuevo(false)
+    }
+  }
+
+  async function guardarPassword() {
+    if (!cambiandoPassword) return
+    setGuardandoPassword(true)
+    setError(null)
+    try {
+      await cambiarPasswordUsuario(cambiandoPassword.id, passwordNueva)
+      setAviso(`Contraseña de ${cambiandoPassword.nombre} actualizada.`)
+      setCambiandoPassword(null)
+      setPasswordNueva("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar la contraseña.")
+      setCambiandoPassword(null)
+    } finally {
+      setGuardandoPassword(false)
     }
   }
 
@@ -137,15 +204,26 @@ export function UsuariosAccesosView() {
         </p>
       </div>
 
-      <div className="relative w-80">
-        <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          className="pl-8"
-          placeholder="Buscar por nombre o correo"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-80">
+          <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Buscar por nombre o correo"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+        <Button onClick={abrirNuevoUsuario}>
+          <Plus className="mr-1 h-4 w-4" /> Nuevo usuario
+        </Button>
       </div>
+
+      {aviso && (
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          {aviso}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
@@ -167,6 +245,7 @@ export function UsuariosAccesosView() {
                 <TableHead>Usuario</TableHead>
                 <TableHead className="w-60">Rol general</TableHead>
                 <TableHead className="w-56">Proyectos</TableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -202,11 +281,27 @@ export function UsuariosAccesosView() {
                       {resumenProyectos(u)}
                     </Button>
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Cambiar contraseña"
+                      aria-label={`Cambiar contraseña de ${u.nombre}`}
+                      onClick={() => {
+                        setError(null)
+                        setAviso(null)
+                        setPasswordNueva("")
+                        setCambiandoPassword(u)
+                      }}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {filtrados.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
                     Ningún usuario coincide con la búsqueda.
                   </TableCell>
                 </TableRow>
@@ -263,6 +358,86 @@ export function UsuariosAccesosView() {
             </Button>
             <Button onClick={guardarProyectos} disabled={guardandoProyectos}>
               {guardandoProyectos ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={creandoUsuario} onOpenChange={(abierto) => !abierto && setCreandoUsuario(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuevo usuario</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se crea la cuenta y tú le entregas el correo y la contraseña a la persona. Después asígnale
+            sus proyectos desde la lista.
+          </p>
+          <Input placeholder="Nombre" value={nuNombre} onChange={(e) => setNuNombre(e.target.value)} />
+          <Input
+            type="email"
+            placeholder="Correo"
+            value={nuEmail}
+            onChange={(e) => setNuEmail(e.target.value)}
+          />
+          <Input
+            type="password"
+            placeholder="Contraseña (mínimo 6 caracteres)"
+            value={nuPassword}
+            onChange={(e) => setNuPassword(e.target.value)}
+          />
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Rol general</label>
+            <select
+              className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              value={nuRol}
+              onChange={(e) => setNuRol(e.target.value)}
+            >
+              <option value={SIN_ROL}>Sin rol (se lo asigno después)</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreandoUsuario(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={guardarNuevoUsuario}
+              disabled={guardandoNuevo || !nuNombre.trim() || !nuEmail.trim() || nuPassword.length < 6}
+            >
+              {guardandoNuevo ? "Creando..." : "Crear usuario"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={cambiandoPassword !== null}
+        onOpenChange={(abierto) => !abierto && setCambiandoPassword(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cambiar contraseña de {cambiandoPassword?.nombre}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Útil si la cuenta la va a usar otra persona o si alguien perdió su contraseña. Entrégasela
+            por un canal seguro.
+          </p>
+          <Input
+            type="password"
+            placeholder="Contraseña nueva (mínimo 6 caracteres)"
+            value={passwordNueva}
+            onChange={(e) => setPasswordNueva(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCambiandoPassword(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={guardarPassword} disabled={guardandoPassword || passwordNueva.length < 6}>
+              {guardandoPassword ? "Guardando..." : "Cambiar contraseña"}
             </Button>
           </DialogFooter>
         </DialogContent>

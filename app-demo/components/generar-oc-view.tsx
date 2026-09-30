@@ -110,7 +110,7 @@ export function GenerarOCView() {
           )
         )
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los pedidos."))
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargandoPedidos(false))
   }, [seleccion])
 
@@ -199,7 +199,7 @@ export function GenerarOCView() {
   if (seleccion === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-        <p>No hay pedidos seleccionados para generar una orden de compra.</p>
+        <p>No hay requisiciones seleccionadas para generar una orden de compra.</p>
         <Button variant="outline" onClick={() => router.push("/almacen/comprar-pedidos")}>
           Volver a Comprar pedidos
         </Button>
@@ -216,7 +216,7 @@ export function GenerarOCView() {
           Se creó correctamente para el proveedor {detalleProveedor?.nombre}. Queda pendiente de
           aprobación.
         </p>
-        <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Comprar pedidos</Button>
+        <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Comprar requisiciones</Button>
       </div>
     )
   }
@@ -236,7 +236,7 @@ export function GenerarOCView() {
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
             {cargandoPedidos ? (
               <div className="flex h-full items-center justify-center text-muted-foreground">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando pedidos...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando requisiciones...
               </div>
             ) : (
               <Table>

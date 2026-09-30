@@ -60,7 +60,7 @@ export function TablaPedidosCompra({
       setPedidoARechazar(null)
       setMotivo("")
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo rechazar el pedido.")
+      setError(e instanceof Error ? e.message : "No se pudo rechazar la requisición.")
     } finally {
       setRechazando(false)
     }
@@ -69,7 +69,7 @@ export function TablaPedidosCompra({
   if (pedidos.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-        No hay pedidos aprobados pendientes de comprar con estos filtros.
+        No hay requisiciones aprobadas pendientes de comprar con estos filtros.
       </div>
     )
   }
@@ -159,7 +159,7 @@ export function TablaPedidosCompra({
                   </TableCell>
                   <TableCell className="text-center">
                     <Checkbox
-                      aria-label={`Rechazar pedido de ${pedido.insumoDescripcion}`}
+                      aria-label={`Rechazar requisición de ${pedido.insumoDescripcion}`}
                       onCheckedChange={(v) => {
                         if (v === true) {
                           setError(null)
@@ -170,7 +170,7 @@ export function TablaPedidosCompra({
                   </TableCell>
                   <TableCell className="text-center">
                     <Checkbox
-                      aria-label={`Comprar pedido de ${pedido.insumoDescripcion}`}
+                      aria-label={`Comprar requisición de ${pedido.insumoDescripcion}`}
                       checked={seleccionados.has(pedido.id)}
                       onCheckedChange={() => onToggleSeleccion(pedido.id)}
                     />
@@ -194,13 +194,13 @@ export function TablaPedidosCompra({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar pedido</DialogTitle>
+            <DialogTitle>Rechazar requisición</DialogTitle>
           </DialogHeader>
 
           <p className="text-sm text-muted-foreground">
             {pedidoARechazar?.insumoDescripcion} — {pedidoARechazar?.cantidadPendiente} {pedidoARechazar?.um}
             {pedidoARechazar && pedidoARechazar.cantidadPendiente < pedidoARechazar.cantidad ? (
-              <span> (de {pedidoARechazar.cantidad} pedidos originalmente)</span>
+              <span> (de {pedidoARechazar.cantidad} solicitadas originalmente)</span>
             ) : null}
           </p>
 
@@ -226,7 +226,7 @@ export function TablaPedidosCompra({
               disabled={!motivo.trim() || rechazando}
               onClick={confirmarRechazo}
             >
-              {rechazando ? "Rechazando..." : "Rechazar pedido"}
+              {rechazando ? "Rechazando..." : "Rechazar requisición"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -27,13 +27,13 @@ const EVENTOS: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" 
   cancelada: { etiqueta: "Orden cancelada", tono: "malo" },
   marcada_enviada: { etiqueta: "Marcada como enviada al proveedor", tono: "neutro" },
   entrega_actualizada: { etiqueta: "Estado de entrega", tono: "neutro" },
-  // pedidos
-  creado: { etiqueta: "Pedido solicitado", tono: "neutro" },
-  modificado: { etiqueta: "Pedido modificado", tono: "aviso" },
-  aprobado: { etiqueta: "Pedido aprobado", tono: "ok" },
-  rechazado: { etiqueta: "Pedido rechazado", tono: "malo" },
-  desaprobado: { etiqueta: "Pedido desaprobado", tono: "aviso" },
-  cancelado: { etiqueta: "Pedido cancelado", tono: "malo" },
+  // requisiciones
+  creado: { etiqueta: "Requisición solicitada", tono: "neutro" },
+  modificado: { etiqueta: "Requisición modificada", tono: "aviso" },
+  aprobado: { etiqueta: "Requisición aprobada", tono: "ok" },
+  rechazado: { etiqueta: "Requisición rechazada", tono: "malo" },
+  desaprobado: { etiqueta: "Requisición desaprobada", tono: "aviso" },
+  cancelado: { etiqueta: "Requisición cancelada", tono: "malo" },
   rechazado_por_compras: { etiqueta: "Rechazado por Compras", tono: "malo" },
   estado_cambiado: { etiqueta: "Cambio de estado", tono: "neutro" },
 }

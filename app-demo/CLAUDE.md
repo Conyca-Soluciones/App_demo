@@ -754,26 +754,16 @@ Rediseño con tono azul de marca (extraído del logo real de CONYCA,
   ambigüedad de "cuál") -- se eliminó el popup/tarjeta que antes pedía
   clic en "Continuar".
 
-## Proyecto actual y landing `/inicio` (implementado)
+## Selector de proyecto en el encabezado
 
-Al iniciar sesión se llega a `/inicio` (landing con tarjetas de proyectos,
-búsqueda, y el último usado primero). El proyecto escogido queda para
-Presupuestos y Pedidos: ya no tienen su propio `<Select>` de proyecto.
-
-- Se guarda en la cookie `proyecto_actual` (JSON con id, código y nombre,
-  30 días, httpOnly) -- `lib/proyecto-actual.ts`. Cookie y no
-  localStorage para que el layout del servidor la lea en el primer render.
-  **No es un permiso**: las Server Actions siguen validando el acceso.
-- `ProyectoActualProvider` (en `app/(app)/layout.tsx`) la expone con
-  `useProyectoActual()`, trae la lista de proyectos UNA vez, y corrige la
-  cookie si el proyecto ya no está en la lista (acceso quitado/renombrado).
-- `SelectorProyecto` va en el header de cada página que trabaja sobre un
-  proyecto (hoy Presupuestos y Pedidos). `AvisoSinProyecto` si no hay uno.
-- `/inicio?next=/ruta` vuelve a esa ruta tras escoger (solo rutas internas).
-  Sin `next`, va a `rutaInicio(permisos)`. `/login` con sesión y `/`
-  redirigen a `/inicio`.
-- Pendiente: `inventario-view.tsx` y `salidas-view.tsx` todavía tienen su
-  propio selector de proyecto -- no se migraron (no se pidió).
+La landing, la cookie y el provider son los de "Landing de proyecto y menú
+reorganizado" (más abajo). Además del botón del sidebar, las páginas que
+trabajan sobre un proyecto (Presupuestos, Requisiciones, Inventario, Salidas)
+tienen `SelectorProyecto` en su encabezado (`components/selector-proyecto.tsx`,
+también dentro de `components/encabezado-pagina.tsx`): usa el mismo
+mecanismo (`seleccionarProyecto` + `router.refresh()`), es solo un atajo.
+Al hacer el merge con `lcpr` se descartó la landing propia de `spr`
+(`proyecto-actual-provider.tsx`, `inicio-view.tsx`).
 
 ## Proveedores `/almacen/proveedores` (implementado)
 
@@ -1080,15 +1070,16 @@ Reemplaza el esquema de banderas en `perfiles` + grupos. Un usuario tiene
   (se corre aparte, cuando la matriz esté lista) asigna rol según las
   banderas: es_admin -> Administrador, rol_compras -> Compras,
   admin_insumos/admin_proyectos/admin_mano_obra -> Líder Técnico.
-  Si `permisos_rol_usuario` no existe todavía, el middleware y `lib/permisos.ts`
-  caen a las banderas: se puede desplegar el código antes que el SQL.
+  Si `permisos_rol_usuario` falla, el middleware y `lib/permisos.ts` niegan el
+  acceso (fallan cerrado); ya no caen a las banderas.
 - **Acciones**: `editar_presupuestos`, `aprobar_pedidos`, `aprobar_mano_obra`,
   `aprobar_insumos`, `gestionar_almacen` (entradas/salidas),
   `comprar`, `aprobar_oc`, `desaprobar_oc`, `cancelar_oc`.
-- **Pendiente**: varias tablas siguen abiertas a cualquier usuario con sesión
-  (`maestro_insumos` UPDATE, `apu`, `item_apu`, `mano_obra_categorias`,
-  `equipo_categorias`, `transporte_precios`, `apu_import_revision`): la
-  restricción por pestaña las oculta de la pantalla pero no de la API.
+- **Pendiente**: siguen abiertas a cualquier usuario con sesión `apu`,
+  `item_apu`, `transporte_precios` y `apu_import_revision` (la restricción por
+  pestaña las oculta de la pantalla pero no de la API). `maestro_insumos` y
+  los catálogos de MO/equipo ya se cerraron (ver "Rendimiento: índices y
+  hallazgos").
 
 
 ## Desaprobar y cancelar órdenes de compra (implementado)
@@ -1154,3 +1145,67 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   (el Líder Técnico las recibe en la migración).
 - Nota: el parser `pglast` no puede validar funciones de disparador (falla con
   cualquiera, incluso `return new;`): esas se revisan leyendo el SQL.
+
+
+## Landing de proyecto y menú reorganizado (implementado)
+
+- **El proyecto se elige UNA sola vez**, en `/inicio` (landing): a donde se llega
+  al iniciar sesión (login, `/` y `/login` ya autenticado redirigen ahí) y a
+  donde se manda a quien no puede ver la ruta que pidió
+  (`?error=no-autorizado`). Es una ruta libre: no pertenece a ninguna pestaña.
+  Al elegir un proyecto se va a la primera pestaña del rol
+  (`rutaPrimeraPestana`).
+- **Dónde vive**: cookie `proyecto_actual` (httpOnly, 30 días) que fija la
+  acción `seleccionarProyecto` (`app/(app)/inicio/actions.ts`). No da acceso a
+  nada: `layout.tsx` la valida contra `listarMisProyectos()` (RLS de
+  `proyectos`) y la ignora si el proyecto ya no es accesible. El layout la
+  entrega a las pantallas con `ProyectoProvider` /
+  `useProyectoActual()` (`components/proyecto-provider.tsx`). Cambiar de
+  proyecto = `seleccionarProyecto` + `router.refresh()`: las pantallas que
+  dependen de `proyecto.id` se recargan solas. Sin proyecto elegido, las
+  pantallas muestran `components/sin-proyecto.tsx` (enlace al landing).
+- **Ya no hay selector de proyecto** en: Elaboración de requisiciones
+  (`almacen/page.tsx`), Inventario, Salidas, Compras > Requisiciones (panel de
+  filtros), Elaboración de presupuestos y Visualización. El cambio se hace
+  desde el botón "Cambiar proyecto" del menú lateral o, como atajo, desde el
+  `SelectorProyecto` del encabezado de esas páginas.
+- **No filtran por proyecto actual** (siguen viendo todos los proyectos que el
+  usuario tiene): Aprobación de requisiciones, Órdenes de compra, Aprobación
+  de órdenes de compra, Entradas (van por orden de compra).
+- **Menú** (`lib/pestanas.ts`): Presupuestos / Requisiciones / Almacén /
+  Compras / Contratos / Control / Administrador. "Pedidos" pasó a llamarse
+  **Requisiciones** en pantalla; las rutas (`/almacen`, `/admin-tecnico`,
+  `/almacen/comprar-pedidos`...), las tablas (`pedidos_insumos`), las
+  funciones SQL y las CLAVES de permisos (`tecnico.pedidos`,
+  `compras.comprar_pedidos`, acciones `aprobar_pedidos`...) NO cambiaron, para
+  no romper nada ni perder los permisos guardados. Solo cambian títulos y
+  secciones. "Elaboración de actas" es la pestaña `contratos.cortes` (antes
+  "Cortes de proyectos"); "Informes" se quitó del menú.
+- Los mensajes de error que lanza la base (`raise exception '... pedido ...'`)
+  todavía dicen "pedido": cambiarlos requiere recrear las funciones SQL.
+
+
+## Control administrativo (simplificado)
+
+`/admin` ahora solo tiene dos pestañas:
+- **Proyectos**: crear y editar proyectos (código, nombre, empresa, ciudad),
+  sin cambios respecto a antes.
+- **Empresas**: crear, editar y eliminar (`crearEmpresa`, `editarEmpresa`,
+  `eliminarEmpresa` en `admin/actions.ts`). Solo NIT y razón social. No se
+  puede eliminar una empresa que tenga proyectos (se cuenta antes y se avisa)
+  ni una con datos asociados (error 23503 -> mensaje legible); NIT repetido
+  (23505) también tiene mensaje propio. La lista de empresas se comparte con
+  la pestaña Proyectos: lo que se cambie se ve al instante en su dropdown.
+
+Se quitaron las pestañas **Usuarios** y **Grupos** (las reemplazan Roles y
+permisos y Usuarios y accesos) y las acciones que solo ellas usaban (banderas
+de `perfiles`, grupos, asignación de proyectos por grupo). Las tablas
+`grupos`, `grupo_proyectos`, `usuario_grupos` siguen en la base (las leen las
+funciones de compatibilidad para usuarios sin rol) pero ya no hay pantalla
+para editarlas.
+
+**Crear usuarios y cambiar contraseñas** eran exclusivos de la pestaña
+Usuarios: se pasaron a **Usuarios y accesos** (botón "Nuevo usuario" con rol
+opcional, y el ícono de llave en cada fila). `crearUsuario` ahora recibe
+`{ nombre, email, password, rolId? }`; usa la llave de servicio y sigue sin
+haber auto-registro.

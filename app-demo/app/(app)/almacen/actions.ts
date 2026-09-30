@@ -166,24 +166,24 @@ export async function crearPedido(input: NuevoPedidoInput) {
 
   // -- 0. Forma del pedido --
   if (input.insumos.length === 0) {
-    throw new Error("Agrega al menos un insumo al pedido.")
+    throw new Error("Agrega al menos un insumo a la requisición.")
   }
   if (input.insumos.length > MAX_INSUMOS_POR_PEDIDO) {
-    throw new Error(`Un pedido puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
+    throw new Error(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
   }
   if (new Set(input.insumos.map((i) => i.insumoId)).size !== input.insumos.length) {
-    throw new Error("Hay un insumo repetido en el pedido.")
+    throw new Error("Hay un insumo repetido en la requisición.")
   }
   for (const ins of input.insumos) {
     if (ins.items.length === 0) {
-      throw new Error("Cada insumo del pedido necesita al menos un ítem del presupuesto.")
+      throw new Error("Cada insumo de la requisición necesita al menos un ítem del presupuesto.")
     }
     if (new Set(ins.items.map((it) => it.presupuestoItemId)).size !== ins.items.length) {
       throw new Error("Un insumo tiene el mismo ítem del presupuesto repetido.")
     }
     for (const it of ins.items) {
       if (!Number.isFinite(it.cantidad) || it.cantidad <= 0) {
-        throw new Error("Todas las cantidades del pedido deben ser mayores que cero.")
+        throw new Error("Todas las cantidades de la requisición deben ser mayores que cero.")
       }
     }
   }

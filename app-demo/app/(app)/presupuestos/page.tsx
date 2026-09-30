@@ -7,10 +7,10 @@ import { AgregarItemManualDialog } from "@/components/agregar-item-manual-dialog
 import * as XLSX from "xlsx"
 import ExcelJS from "exceljs"
 import { useEffect, useState } from "react"
+import { useProyectoActual } from "@/components/proyecto-provider"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SelectorProyecto, AvisoSinProyecto } from "@/components/selector-proyecto"
-import { useProyectoActual } from "@/components/proyecto-actual-provider"
+import { SelectorProyecto } from "@/components/selector-proyecto"
 import { ExportTemplateButton } from "@/components/export-template-button"
 
 import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError } from "@/lib/calcular-nivel"
@@ -446,8 +446,7 @@ function formatoCantidadExcel(valor: unknown): string {
 // ---------------------------------------------------------------------------
 
 export default function Presupuestos() {
-  // Proyecto escogido en /inicio (o en el selector del header) -- ya no se
-  // elige acá. Ver lib/proyecto-actual.ts.
+  // El proyecto se elige en /inicio (landing); acá solo se lee.
   const { proyecto: proyectoActual } = useProyectoActual()
   const proyectoId = proyectoActual?.id ?? null
   const [presupuestoDbId, setPresupuestoDbId] = useState<string | null>(null)
@@ -1408,9 +1407,9 @@ export default function Presupuestos() {
       <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b bg-background px-6">
         <SidebarTrigger />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Nuevo presupuesto</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Elaboración de presupuestos</h1>
           <p className="text-sm text-muted-foreground">
-            Importe el presupuesto del proyecto.
+            Importa o continúa el presupuesto del proyecto en el que estás trabajando.
           </p>
         </div>
         <SelectorProyecto className="ml-auto" />
@@ -1473,7 +1472,12 @@ export default function Presupuestos() {
             />
           </div>
 
-          {!proyectoId && <AvisoSinProyecto />}
+          {!proyectoId && (
+            <p className="text-xs text-muted-foreground">
+              Elige un proyecto en <a href="/inicio" className="underline">el inicio</a> para habilitar la
+              importación.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Use puntos (1, 1.1, 4.1.1.1) o dígitos
             seguidos (1, 101, 10101) para numerar los items del presupuesto. Si el archivo trae una

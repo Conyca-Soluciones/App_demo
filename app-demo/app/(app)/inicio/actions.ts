@@ -1,28 +1,39 @@
 "use server"
 
 import { cookies } from "next/headers"
-import { verProyectos } from "@/app/(app)/almacen/actions"
-import { COOKIE_PROYECTO_ACTUAL, type ProyectoActual } from "@/lib/proyecto-actual"
+import { createClient } from "@/lib/supabase/server"
+import {
+  COOKIE_PROYECTO,
+  DIAS_COOKIE_PROYECTO,
+  type ProyectoLanding,
+} from "@/lib/proyecto-actual"
 
-// Proyectos a los que el usuario tiene acceso (misma regla que el resto de
-// la app: directo, por grupo, o todos si es admin / ve_todos_proyectos).
-export async function listarMisProyectos(): Promise<ProyectoActual[]> {
-  return (await verProyectos()) ?? []
+// Proyectos que el usuario puede ver. Sin filtro propio: la política RLS de
+// `proyectos` ya devuelve solo los accesibles (asignados, "todos" o, para
+// Administrador, todos).
+export async function listarMisProyectos(): Promise<ProyectoLanding[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("proyectos")
+    .select("id, codigo, nombre, cliente, ciudad")
+    .order("codigo", { ascending: false, nullsFirst: false })
+
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
-// Guarda (o borra, con null) el proyecto actual en la cookie. 30 días: al
-// volver a iniciar sesión la landing lo muestra marcado como el último usado.
-export async function elegirProyecto(proyecto: ProyectoActual | null) {
-  const almacen = await cookies()
-  if (!proyecto) {
-    almacen.delete(COOKIE_PROYECTO_ACTUAL)
-    return
+export async function seleccionarProyecto(proyectoId: string): Promise<void> {
+  const proyectos = await listarMisProyectos()
+  if (!proyectos.some((p) => p.id === proyectoId)) {
+    throw new Error("No tienes acceso a ese proyecto.")
   }
-  almacen.set(
-    COOKIE_PROYECTO_ACTUAL,
-    encodeURIComponent(
-      JSON.stringify({ id: proyecto.id, codigo: proyecto.codigo, nombre: proyecto.nombre })
-    ),
-    { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30 }
-  )
+
+  const jar = await cookies()
+  jar.set(COOKIE_PROYECTO, proyectoId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * DIAS_COOKIE_PROYECTO,
+  })
 }

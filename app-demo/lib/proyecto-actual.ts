@@ -1,37 +1,22 @@
-// ---------------------------------------------------------------------------
-// Proyecto actual: el que el usuario escoge en la landing (/inicio) al
-// iniciar sesión, y que después usan Presupuestos y Pedidos sin volver a
-// preguntarlo. Se guarda en una cookie (no en localStorage) para que el
-// layout del servidor lo lea en el primer render -- sin parpadeo de "sin
-// proyecto" mientras hidrata el cliente.
+// Proyecto en el que se está trabajando. Se elige UNA sola vez, en la página
+// de inicio (/inicio), y se guarda en esta cookie; el resto de pantallas lo
+// leen (layout -> ProyectoProvider) en vez de tener su propio selector.
 //
-// La cookie guarda id + código + nombre para poder pintar el header sin
-// consultar la base en cada navegación. No es un permiso: cada Server Action
-// sigue validando el acceso al proyecto por su cuenta, igual que cuando el
-// proyecto venía de un <Select> del cliente.
-//
-// Sin dependencias de servidor: se importa desde componentes de cliente.
-// ---------------------------------------------------------------------------
+// La cookie solo dice CUÁL de los proyectos accesibles se está usando: no da
+// acceso a nada (las políticas RLS de la base siguen decidiendo qué se ve), y
+// el layout la ignora si el proyecto ya no es accesible para el usuario.
 
-export type ProyectoActual = {
+export const COOKIE_PROYECTO = "proyecto_actual"
+export const DIAS_COOKIE_PROYECTO = 30
+
+export type ProyectoLanding = {
   id: string
   codigo: string | null
   nombre: string
+  cliente: string | null
+  ciudad: string | null
 }
 
-export const COOKIE_PROYECTO_ACTUAL = "proyecto_actual"
-
-export function parsearCookieProyecto(valor: string | undefined): ProyectoActual | null {
-  if (!valor) return null
-  try {
-    const p = JSON.parse(decodeURIComponent(valor))
-    if (typeof p?.id !== "string" || typeof p?.nombre !== "string") return null
-    return { id: p.id, codigo: typeof p.codigo === "string" ? p.codigo : null, nombre: p.nombre }
-  } catch {
-    return null
-  }
-}
-
-export function etiquetaProyecto(p: ProyectoActual): string {
-  return p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre
-}
+// Cómo se nombra un proyecto en pantalla: "CÓDIGO — Nombre" o solo el nombre.
+export const etiquetaProyecto = (p: Pick<ProyectoLanding, "codigo" | "nombre">) =>
+  p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre

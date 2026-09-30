@@ -327,7 +327,7 @@ export function AprobarOCView() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Las líneas de esta orden se mantienen para revisión manual — los pedidos no vuelven
-            automáticamente a la cola de "Comprar pedidos".
+            automáticamente a la cola de "Comprar requisiciones".
           </p>
           <Textarea
             placeholder="Motivo del rechazo (obligatorio)"

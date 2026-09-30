@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SelectorProyecto, AvisoSinProyecto } from "@/components/selector-proyecto"
-import { useProyectoActual } from "@/components/proyecto-actual-provider"
+import { SelectorProyecto } from "@/components/selector-proyecto"
 import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +17,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { HistorialDialog } from "@/components/historial-timeline"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { SinProyecto } from "@/components/sin-proyecto"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 
 import {
@@ -65,10 +73,9 @@ function BadgeEstado({ estado }: { estado: PedidoRegistro["estado"] }) {
 }
 
 export default function Almacen() {
-  // Proyecto escogido en /inicio (o en el selector del header). Ver
-  // lib/proyecto-actual.ts.
-  const { proyecto: proyectoSeleccionado } = useProyectoActual()
-  const proyectoId = proyectoSeleccionado?.id ?? null
+  // El proyecto se elige en /inicio (landing); acá solo se lee.
+  const { proyecto: proyectoActual } = useProyectoActual()
+  const proyectoId = proyectoActual?.id ?? null
   const [error, setError] = useState<string | null>(null)
   const [dialogoPedido, setDialogoPedido] = useState(false)
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
@@ -79,7 +86,7 @@ export default function Almacen() {
   const [pedidos, setPedidos] = useState<PedidoRegistro[]>([])
   const [cargandoPedidos, setCargandoPedidos] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos")
-  // Cancelar / modificar un pedido propio pendiente, y ver su historial.
+  // Cancelar / modificar una requisición propia pendiente, y ver su historial.
   const [cancelando, setCancelando] = useState<PedidoRegistro | null>(null)
   const [motivoCancelacion, setMotivoCancelacion] = useState("")
   const [procesandoCancelacion, setProcesandoCancelacion] = useState(false)
@@ -115,7 +122,7 @@ export default function Almacen() {
     setCargandoPedidos(true)
     verPedidosDeProyecto(proyectoId, filtroEstado === "todos" ? undefined : filtroEstado)
       .then(setPedidos)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el registro de pedidos."))
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el registro de requisiciones."))
       .finally(() => setCargandoPedidos(false))
   }
 
@@ -138,7 +145,7 @@ export default function Almacen() {
       setMotivoCancelacion("")
       cargarPedidos()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cancelar el pedido.")
+      setError(e instanceof Error ? e.message : "No se pudo cancelar la requisición.")
       setCancelando(null)
     } finally {
       setProcesandoCancelacion(false)
@@ -174,26 +181,31 @@ export default function Almacen() {
       setModificando(null)
       cargarPedidos()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo modificar el pedido.")
+      setError(e instanceof Error ? e.message : "No se pudo modificar la requisición.")
       setModificando(null)
     } finally {
       setProcesandoEdicion(false)
     }
   }
 
+  const proyectoSeleccionado = proyectoActual
+
   return (
     <>
       <header className="flex h-16 items-center gap-4 border-b px-6">
         <SidebarTrigger />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pedidos de insumos</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Elaboración de requisiciones</h1>
           <p className="text-sm text-muted-foreground">
-            Pedidos de insumos de almacén del proyecto.
+            Haz requisiciones de insumos de almacén para el proyecto en el que estás trabajando.
           </p>
         </div>
         <SelectorProyecto className="ml-auto" />
       </header>
 
+      {!proyectoActual && <SinProyecto />}
+
+      {proyectoActual && (
       <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -204,18 +216,17 @@ export default function Almacen() {
               onClick={() => setDialogoPedido(true)}
               disabled={!presupuestoActivo || cargandoPresupuesto}
             >
-              + Crear pedido
+              + Crear requisición
             </Button>
           </div>
 
-          {!proyectoId && <AvisoSinProyecto />}
           {proyectoId && cargandoPresupuesto && (
             <p className="text-xs text-muted-foreground">Cargando presupuesto del proyecto…</p>
           )}
           {proyectoId && !cargandoPresupuesto && !presupuestoActivo && (
             <p className="text-xs text-amber-700">
               {proyectoSeleccionado?.nombre ?? "Este proyecto"} todavía no tiene un presupuesto
-              cargado — sube uno desde el módulo de Presupuestos antes de crear pedidos.
+              cargado — sube uno desde el módulo de Presupuestos antes de crear requisiciones.
             </p>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -233,7 +244,7 @@ export default function Almacen() {
         {proyectoId && (
           <div className="space-y-3 border-t pt-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-foreground">Registro de pedidos</h2>
+              <h2 className="text-sm font-semibold text-foreground">Registro de requisiciones</h2>
               <div className="flex gap-1.5">
                 {FILTROS.map((f) => (
                   <button
@@ -253,10 +264,10 @@ export default function Almacen() {
             </div>
 
             {cargandoPedidos ? (
-              <p className="text-sm text-muted-foreground">Cargando pedidos…</p>
+              <p className="text-sm text-muted-foreground">Cargando requisiciones…</p>
             ) : pedidos.length === 0 ? (
               <p className="rounded-lg border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-                No hay pedidos {filtroEstado !== "todos" ? FILTROS.find((f) => f.valor === filtroEstado)?.etiqueta.toLowerCase() : ""} para este proyecto.
+                No hay requisiciones {filtroEstado !== "todos" ? FILTROS.find((f) => f.valor === filtroEstado)?.etiqueta.toLowerCase() : ""} para este proyecto.
               </p>
             ) : (
               <div className="overflow-x-auto rounded-md border">
@@ -266,7 +277,7 @@ export default function Almacen() {
                       <th className={`${headClasses} w-64`}>Insumo</th>
                       <th className={`${headClasses} w-40`}>Ítem del presupuesto</th>
                       <th className={`${headClasses} w-20 text-right`}>Cantidad</th>
-                      <th className={`${headClasses} w-28 text-center`}>Fecha pedido</th>
+                      <th className={`${headClasses} w-28 text-center`}>Fecha requisición</th>
                       <th className={`${headClasses} w-28 text-center`}>Fecha requerida</th>
                       <th className={`${headClasses} w-20 text-center`}>Estado</th>
                       <th className={`${headClasses} w-44`}>Observaciones</th>
@@ -374,11 +385,11 @@ export default function Almacen() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Cancelar pedido</DialogTitle>
+              <DialogTitle>Cancelar requisición</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              {cancelando?.insumoDescripcion} — {cancelando?.cantidad} {cancelando?.insumoUm ?? ""}. El
-              pedido queda registrado como cancelado y su cantidad vuelve a estar disponible en el
+              {cancelando?.insumoDescripcion} — {cancelando?.cantidad} {cancelando?.insumoUm ?? ""}. La
+              requisición queda registrada como cancelada y su cantidad vuelve a estar disponible en el
               presupuesto.
             </p>
             <Textarea
@@ -396,7 +407,7 @@ export default function Almacen() {
                 disabled={!motivoCancelacion.trim() || procesandoCancelacion}
                 onClick={confirmarCancelacion}
               >
-                {procesandoCancelacion ? "Cancelando..." : "Cancelar pedido"}
+                {procesandoCancelacion ? "Cancelando..." : "Cancelar requisición"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -410,7 +421,7 @@ export default function Almacen() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Modificar pedido</DialogTitle>
+              <DialogTitle>Modificar requisición</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
               {modificando?.insumoDescripcion} — ítem {modificando?.itemCodigo}. Solo se puede modificar
@@ -456,10 +467,11 @@ export default function Almacen() {
           abierto={historialPedido !== null}
           tipo="pedido"
           id={historialPedido?.id ?? null}
-          titulo={`Historial — ${historialPedido?.insumoDescripcion ?? "pedido"}`}
+          titulo={`Historial — ${historialPedido?.insumoDescripcion ?? "requisición"}`}
           onCerrar={() => setHistorialPedido(null)}
         />
       </main>
+      )}
     </>
   )
 }

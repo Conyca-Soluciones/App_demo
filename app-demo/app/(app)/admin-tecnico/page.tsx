@@ -41,7 +41,7 @@ export default function AdminTecnico() {
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
   const [vista, setVista] = useState<"pendiente" | "aprobado">("pendiente")
   const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
-  // Desaprobar / cancelar piden motivo; el historial se abre por pedido.
+  // Desaprobar / cancelar piden motivo; el historial se abre por requisición.
   const [accion, setAccion] = useState<{ tipo: "desaprobar" | "cancelar"; pedido: PedidoPendiente } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
@@ -55,7 +55,7 @@ export default function AdminTecnico() {
         setPedidos(lista)
         setPermisos(p)
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los pedidos."))
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargando(false))
   }
 
@@ -90,7 +90,7 @@ export default function AdminTecnico() {
       // no aplica a esta vista sin importar el resultado.
       setPedidos((prev) => prev.filter((p) => p.id !== id))
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el pedido.")
+      setError(e instanceof Error ? e.message : "No se pudo actualizar la requisición.")
     } finally {
       setIdsEnProceso((prev) => {
         const next = new Set(prev)
@@ -115,9 +115,9 @@ export default function AdminTecnico() {
       <header className="flex h-16 items-center gap-4 border-b px-6">
         <SidebarTrigger />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Aprobación de pedidos</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Aprobación de requisiciones</h1>
           <p className="text-sm text-muted-foreground">
-            Pedidos de insumos de todos los proyectos.
+            Requisiciones de insumos de todos los proyectos.
           </p>
         </div>
       </header>
@@ -140,12 +140,12 @@ export default function AdminTecnico() {
           </Button>
         </div>
 
-        {cargando && <p className="text-sm text-muted-foreground">Cargando pedidos…</p>}
+        {cargando && <p className="text-sm text-muted-foreground">Cargando requisiciones…</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {!cargando && pedidos.length === 0 && !error && (
           <p className="text-sm text-muted-foreground">
-            {vista === "pendiente" ? "No hay pedidos pendientes por revisar." : "No hay pedidos aprobados."}
+            {vista === "pendiente" ? "No hay requisiciones pendientes por revisar." : "No hay requisiciones aprobadas."}
           </p>
         )}
 
@@ -154,7 +154,7 @@ export default function AdminTecnico() {
             <h2 className="text-sm font-semibold text-foreground">
               {grupo.nombre}{" "}
               <span className="font-normal text-muted-foreground">
-                ({grupo.pedidos.length} {grupo.pedidos.length === 1 ? "pedido" : "pedidos"}{" "}
+                ({grupo.pedidos.length} {grupo.pedidos.length === 1 ? "requisición" : "requisiciones"}{" "}
                 {vista === "pendiente" ? "pendientes" : "aprobados"})
               </span>
             </h2>
@@ -167,7 +167,7 @@ export default function AdminTecnico() {
                     <th className={headClasses}>Insumo</th>
                     <th className={`${headClasses} w-16 text-center`}>UM</th>
                     <th className={`${headClasses} w-20 text-right`}>Cantidad</th>
-                    <th className={`${headClasses} w-28 text-center`}>Fecha pedido</th>
+                    <th className={`${headClasses} w-28 text-center`}>Fecha requisición</th>
                     <th className={`${headClasses} w-28 text-center`}>Fecha requerida</th>
                     <th className={`${headClasses} w-52`}>Observaciones</th>
                     <th className={`${headClasses} w-16 text-center`}>Soporte</th>
@@ -317,7 +317,7 @@ export default function AdminTecnico() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {accion?.tipo === "desaprobar" ? "Desaprobar pedido" : "Cancelar pedido"}
+                {accion?.tipo === "desaprobar" ? "Desaprobar requisición" : "Cancelar requisición"}
               </DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
@@ -345,8 +345,8 @@ export default function AdminTecnico() {
                 {procesandoAccion
                   ? "Procesando..."
                   : accion?.tipo === "desaprobar"
-                    ? "Desaprobar pedido"
-                    : "Cancelar pedido"}
+                    ? "Desaprobar requisición"
+                    : "Cancelar requisición"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -356,7 +356,7 @@ export default function AdminTecnico() {
           abierto={historial !== null}
           tipo="pedido"
           id={historial?.id ?? null}
-          titulo={`Historial — ${historial?.insumoDescripcion ?? "pedido"}`}
+          titulo={`Historial — ${historial?.insumoDescripcion ?? "requisición"}`}
           onCerrar={() => setHistorial(null)}
         />
       </main>

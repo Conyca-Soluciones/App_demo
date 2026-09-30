@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 
-// Con sesión, la entrada a la app es la landing de proyectos. Sin sesión, el
-// middleware ya redirige a /login antes de llegar acá.
+// La raíz lleva al landing de selección de proyecto (si no hay sesión, el
+// middleware manda a /login antes de llegar acá).
 export default function Home() {
   redirect("/inicio")
 }
