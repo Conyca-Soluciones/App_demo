@@ -35,6 +35,78 @@ export async function listarEmpresas(): Promise<Empresa[]> {
   return (data ?? []).map((e) => ({ id: e.id, nit: e.nit, razonSocial: e.razon_social }))
 }
 
+// Mensaje legible para los errores típicos de la base (NIT repetido, filas
+// que dependen de la empresa...).
+function mensajeErrorEmpresa(error: { code?: string; message: string }, accion: string): string {
+  if (error.code === "23505") return "Ya existe una empresa con ese NIT."
+  if (error.code === "23503") {
+    return `No se puede ${accion}: la empresa tiene datos asociados (proyectos o cuentas bancarias).`
+  }
+  return error.message
+}
+
+export async function crearEmpresa(input: { nit: string; razonSocial: string }): Promise<Empresa> {
+  await requerirAdmin()
+  const nit = input.nit.trim()
+  const razonSocial = input.razonSocial.trim()
+  if (!nit) throw new Error("El NIT es obligatorio.")
+  if (!razonSocial) throw new Error("La razón social es obligatoria.")
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("empresas")
+    .insert({ nit, razon_social: razonSocial })
+    .select("id, nit, razon_social")
+    .single()
+
+  if (error) throw new Error(mensajeErrorEmpresa(error, "crear la empresa"))
+  return { id: data.id, nit: data.nit, razonSocial: data.razon_social }
+}
+
+export async function editarEmpresa(
+  empresaId: string,
+  cambios: { nit: string; razonSocial: string }
+) {
+  await requerirAdmin()
+  const nit = cambios.nit.trim()
+  const razonSocial = cambios.razonSocial.trim()
+  if (!nit) throw new Error("El NIT es obligatorio.")
+  if (!razonSocial) throw new Error("La razón social es obligatoria.")
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from("empresas")
+    .update({ nit, razon_social: razonSocial })
+    .eq("id", empresaId)
+
+  if (error) throw new Error(mensajeErrorEmpresa(error, "editar la empresa"))
+}
+
+// No se elimina una empresa que todavía tiene proyectos: primero hay que
+// cambiarles la empresa (un proyecto sin empresa deja vacío el encabezado de
+// sus órdenes de compra).
+export async function eliminarEmpresa(empresaId: string) {
+  await requerirAdmin()
+  const supabase = await createClient()
+
+  const { count, error: errorConteo } = await supabase
+    .from("proyectos")
+    .select("id", { count: "exact", head: true })
+    .eq("empresa_id", empresaId)
+  if (errorConteo) throw new Error(errorConteo.message)
+
+  if ((count ?? 0) > 0) {
+    throw new Error(
+      `No se puede eliminar: ${count} ${count === 1 ? "proyecto usa" : "proyectos usan"} esta empresa. ` +
+        "Cámbiales la empresa primero."
+    )
+  }
+
+  const { error } = await supabase.from("empresas").delete().eq("id", empresaId)
+  if (error) throw new Error(mensajeErrorEmpresa(error, "eliminar la empresa"))
+}
+
+
 // ---------------------------------------------------------------------------
 // Proyectos
 // ---------------------------------------------------------------------------
@@ -136,278 +208,33 @@ export async function editarProyecto(proyectoId: string, cambios: EditarProyecto
 }
 
 // ---------------------------------------------------------------------------
-// Grupos
+// Usuarios -- crear la cuenta y cambiar contraseñas. El rol y los proyectos se
+// asignan en "Usuarios y accesos" (accesos/actions.ts). Sigue sin haber
+// auto-registro: el Administrador crea la cuenta y le entrega las credenciales.
 // ---------------------------------------------------------------------------
-
-export type Grupo = {
-  id: string
-  nombre: string
-  veTodosProyectos: boolean
-  puedeEditarTodos: boolean
-}
-
-export async function listarGrupos(): Promise<Grupo[]> {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("grupos")
-    .select("id, nombre, ve_todos_proyectos, puede_editar_todos")
-    .order("nombre")
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return (data ?? []).map((g) => ({
-    id: g.id,
-    nombre: g.nombre,
-    veTodosProyectos: g.ve_todos_proyectos,
-    puedeEditarTodos: g.puede_editar_todos,
-  }))
-}
-
-export async function crearGrupo(nombre: string): Promise<Grupo> {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("grupos")
-    .insert({ nombre })
-    .select("id, nombre, ve_todos_proyectos, puede_editar_todos")
-    .single()
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return {
-    id: data.id,
-    nombre: data.nombre,
-    veTodosProyectos: data.ve_todos_proyectos,
-    puedeEditarTodos: data.puede_editar_todos,
-  }
-}
-
-export async function actualizarGrupo(
-  grupoId: string,
-  cambios: { veTodosProyectos?: boolean; puedeEditarTodos?: boolean }
-) {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const patch: Record<string, boolean> = {}
-  if (cambios.veTodosProyectos !== undefined) patch.ve_todos_proyectos = cambios.veTodosProyectos
-  if (cambios.puedeEditarTodos !== undefined) patch.puede_editar_todos = cambios.puedeEditarTodos
-
-  const { error } = await supabase.from("grupos").update(patch).eq("id", grupoId)
-
-  if (error) {
-    throw new Error(error.message)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Asignaciones de proyecto -- grupo o usuario.
-//
-// ANTES: listarProyectosParaGrupo/Usuario traían la lista COMPLETA de
-// proyectos (con nombre) cada vez, mezclada con las asignaciones -- cada
-// clic para abrir un grupo o una persona distinta repetía esa traída
-// completa, aunque la lista de proyectos en sí casi nunca cambia entre
-// un clic y el siguiente.
-//
-// AHORA: estas funciones solo devuelven la asignación (proyecto_id +
-// puede_editar), sin el nombre -- mucho más liviano. El nombre se saca
-// del lado del cliente, cruzando con la lista de proyectos que
-// AdminPage ya cargó una sola vez al entrar al panel (mismo patrón que
-// ya usamos con listarGrupos). El "merge" (combinarConProyectos) vive en
-// page.tsx.
-// ---------------------------------------------------------------------------
-
-export type AsignacionProyecto = {
-  proyectoId: string
-  puedeEditar: boolean
-}
-
-export async function listarAsignacionesDeGrupo(grupoId: string): Promise<AsignacionProyecto[]> {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("grupo_proyectos")
-    .select("proyecto_id, puede_editar")
-    .eq("grupo_id", grupoId)
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return (data ?? []).map((a) => ({ proyectoId: a.proyecto_id, puedeEditar: a.puede_editar }))
-}
-
-export async function actualizarProyectoDeGrupo(
-  grupoId: string,
-  proyectoId: string,
-  asignado: boolean,
-  puedeEditar: boolean
-) {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  if (!asignado) {
-    const { error } = await supabase
-      .from("grupo_proyectos")
-      .delete()
-      .eq("grupo_id", grupoId)
-      .eq("proyecto_id", proyectoId)
-    if (error) throw new Error(error.message)
-    return
-  }
-
-  const { error } = await supabase
-    .from("grupo_proyectos")
-    .upsert({ grupo_id: grupoId, proyecto_id: proyectoId, puede_editar: puedeEditar })
-
-  if (error) {
-    throw new Error(error.message)
-  }
-}
-
-export async function listarAsignacionesDeUsuario(usuarioId: string): Promise<AsignacionProyecto[]> {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("usuario_proyectos")
-    .select("proyecto_id, puede_editar")
-    .eq("usuario_id", usuarioId)
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return (data ?? []).map((a) => ({ proyectoId: a.proyecto_id, puedeEditar: a.puede_editar }))
-}
-
-export async function actualizarProyectoDeUsuario(
-  usuarioId: string,
-  proyectoId: string,
-  asignado: boolean,
-  puedeEditar: boolean
-) {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  if (!asignado) {
-    const { error } = await supabase
-      .from("usuario_proyectos")
-      .delete()
-      .eq("usuario_id", usuarioId)
-      .eq("proyecto_id", proyectoId)
-    if (error) throw new Error(error.message)
-    return
-  }
-
-  const { error } = await supabase
-    .from("usuario_proyectos")
-    .upsert({ usuario_id: usuarioId, proyecto_id: proyectoId, puede_editar: puedeEditar })
-
-  if (error) {
-    throw new Error(error.message)
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Usuarios
-// ---------------------------------------------------------------------------
-
-export type UsuarioConGrupos = {
-  id: string
-  nombre: string
-  email: string
-  esAdmin: boolean
-  adminInsumos: boolean
-  adminManoObra: boolean
-  grupoIds: string[]
-}
-
-// admin.auth.admin.listUsers() SIN parámetros trae solo 50 usuarios
-// (página 1) -- con 50 o menos cuentas no se nota nada, pero en cuanto
-// la organización pase de 50, los usuarios de ahí en adelante quedaban
-// con el email en blanco en el panel (el perfil sí aparecía, el cruce
-// con su email no). Esto recorre todas las páginas hasta agotarlas.
-async function listarTodosLosAuthUsers(admin: ReturnType<typeof createAdminClient>) {
-  const todos: { id: string; email?: string | null }[] = []
-  let page = 1
-  const perPage = 200
-
-  while (true) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
-    if (error) {
-      throw new Error(error.message)
-    }
-    todos.push(...data.users)
-    if (data.users.length < perPage) break
-    page += 1
-  }
-
-  return todos
-}
-
-export async function listarUsuarios(): Promise<UsuarioConGrupos[]> {
-  await requerirAdmin()
-  const supabase = await createClient()
-  const admin = createAdminClient()
-
-  const [
-    { data: perfiles, error: errorPerfiles },
-    { data: gruposDe, error: errorGrupos },
-    authUsers,
-  ] = await Promise.all([
-    supabase.from("perfiles").select("id, nombre, es_admin, admin_insumos, admin_mano_obra"),
-    supabase.from("usuario_grupos").select("usuario_id, grupo_id"),
-    listarTodosLosAuthUsers(admin),
-  ])
-
-  if (errorPerfiles) throw new Error(errorPerfiles.message)
-  if (errorGrupos) throw new Error(errorGrupos.message)
-
-  const emailPorId = new Map(authUsers.map((u) => [u.id, u.email ?? ""]))
-  const gruposPorUsuario = new Map<string, string[]>()
-  for (const g of gruposDe ?? []) {
-    const lista = gruposPorUsuario.get(g.usuario_id) ?? []
-    lista.push(g.grupo_id)
-    gruposPorUsuario.set(g.usuario_id, lista)
-  }
-
-  return (perfiles ?? []).map((p) => ({
-    id: p.id,
-    nombre: p.nombre,
-    email: emailPorId.get(p.id) ?? "",
-    esAdmin: p.es_admin,
-    adminInsumos: p.admin_insumos,
-    adminManoObra: p.admin_mano_obra,
-    grupoIds: gruposPorUsuario.get(p.id) ?? [],
-  }))
-}
 
 export type CrearUsuarioInput = {
   nombre: string
   email: string
   password: string
-  esAdmin: boolean
-  adminInsumos: boolean
-  adminManoObra: boolean
-  grupoIds: string[]
+  // Rol general con el que queda el usuario (null = sin rol: mientras tanto
+  // no ve nada de lo que requiere rol; ver Roles y permisos).
+  rolId?: string | null
 }
 
 export async function crearUsuario(input: CrearUsuarioInput): Promise<{ id: string }> {
   await requerirAdmin()
+
+  const nombre = input.nombre.trim()
+  const email = input.email.trim()
+  if (!nombre || !email) throw new Error("Nombre y correo son obligatorios.")
+  if (input.password.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres.")
+
   const admin = createAdminClient()
   const supabase = await createClient()
 
   const { data: creado, error: errorCreacion } = await admin.auth.admin.createUser({
-    email: input.email,
+    email,
     password: input.password,
     email_confirm: true, // el admin ya "verificó" a la persona en persona
   })
@@ -418,13 +245,9 @@ export async function crearUsuario(input: CrearUsuarioInput): Promise<{ id: stri
 
   const usuarioId = creado.user.id
 
-  const { error: errorPerfil } = await supabase.from("perfiles").insert({
-    id: usuarioId,
-    nombre: input.nombre,
-    es_admin: input.esAdmin,
-    admin_insumos: input.adminInsumos,
-    admin_mano_obra: input.adminManoObra,
-  })
+  const { error: errorPerfil } = await supabase
+    .from("perfiles")
+    .insert({ id: usuarioId, nombre, email })
 
   if (errorPerfil) {
     // no dejar un usuario de auth huérfano sin perfil si esto falla
@@ -432,65 +255,19 @@ export async function crearUsuario(input: CrearUsuarioInput): Promise<{ id: stri
     throw new Error(errorPerfil.message)
   }
 
-  if (input.grupoIds.length > 0) {
-    const { error: errorGrupos } = await supabase
-      .from("usuario_grupos")
-      .insert(input.grupoIds.map((grupoId) => ({ usuario_id: usuarioId, grupo_id: grupoId })))
-
-    if (errorGrupos) {
-      throw new Error(errorGrupos.message)
+  if (input.rolId) {
+    const { error: errorRol } = await supabase.rpc("asignar_rol_usuario", {
+      p_usuario_id: usuarioId,
+      p_rol_id: input.rolId,
+    })
+    if (errorRol) {
+      throw new Error(
+        `La cuenta se creó, pero no se pudo asignar el rol: ${errorRol.message}. Asígnalo desde la lista.`
+      )
     }
   }
 
   return { id: usuarioId }
-}
-
-// Análoga a actualizarGrupo -- pero para los scopes granulares del
-// propio usuario (admin_insumos/admin_mano_obra viven en perfiles, no
-// en una tabla de asignación aparte como los grupos). Antes esto solo
-// se podía fijar al CREAR el usuario (y con el bug del checkbox, ni
-// eso) -- no había forma de dárselo o quitárselo a alguien que ya
-// existía.
-export async function actualizarScopesDeUsuario(
-  usuarioId: string,
-  cambios: { adminInsumos?: boolean; adminManoObra?: boolean }
-) {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const patch: Record<string, boolean> = {}
-  if (cambios.adminInsumos !== undefined) patch.admin_insumos = cambios.adminInsumos
-  if (cambios.adminManoObra !== undefined) patch.admin_mano_obra = cambios.adminManoObra
-
-  const { error } = await supabase.from("perfiles").update(patch).eq("id", usuarioId)
-
-  if (error) {
-    throw new Error(error.message)
-  }
-}
-
-export async function actualizarGruposDeUsuario(usuarioId: string, grupoIds: string[]) {
-  await requerirAdmin()
-  const supabase = await createClient()
-
-  const { error: errorBorrar } = await supabase
-    .from("usuario_grupos")
-    .delete()
-    .eq("usuario_id", usuarioId)
-
-  if (errorBorrar) {
-    throw new Error(errorBorrar.message)
-  }
-
-  if (grupoIds.length > 0) {
-    const { error: errorInsertar } = await supabase
-      .from("usuario_grupos")
-      .insert(grupoIds.map((grupoId) => ({ usuario_id: usuarioId, grupo_id: grupoId })))
-
-    if (errorInsertar) {
-      throw new Error(errorInsertar.message)
-    }
-  }
 }
 
 // Cambia la contraseña de un usuario ya existente -- para el caso de

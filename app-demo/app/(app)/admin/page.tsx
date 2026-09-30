@@ -2,25 +2,13 @@
 
 import { useEffect, useState } from "react"
 import {
-  listarUsuarios,
-  crearUsuario,
-  actualizarGruposDeUsuario,
-  actualizarScopesDeUsuario,
-  cambiarPasswordUsuario,
-  listarGrupos,
-  crearGrupo,
-  actualizarGrupo,
-  listarAsignacionesDeGrupo,
-  actualizarProyectoDeGrupo,
-  listarAsignacionesDeUsuario,
-  actualizarProyectoDeUsuario,
   listarProyectosAdmin,
   crearProyecto,
   editarProyecto,
   listarEmpresas,
-  type UsuarioConGrupos,
-  type Grupo,
-  type AsignacionProyecto,
+  crearEmpresa,
+  editarEmpresa,
+  eliminarEmpresa,
   type Proyecto,
   type Empresa,
 } from "./actions"
@@ -33,555 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-// ---------------------------------------------------------------------------
-// Forma que ya esperaba ListaProyectosConPermiso -- antes la devolvía el
-// servidor ya combinada (proyecto + asignación en un solo objeto); ahora
-// se combina acá mismo, del lado del cliente, cruzando la lista de
-// proyectos (cargada una sola vez en AdminPage) con la lista liviana de
-// asignaciones (proyecto_id + puede_editar, sin nombre) que sí se pide
-// cada vez que se abre un grupo/usuario distinto.
-// ---------------------------------------------------------------------------
-type ProyectoConPermiso = {
-  proyectoId: string
-  nombre: string
-  asignado: boolean
-  puedeEditar: boolean
-}
-
-function combinarConProyectos(
-  proyectos: Proyecto[],
-  asignaciones: AsignacionProyecto[]
-): ProyectoConPermiso[] {
-  const mapa = new Map(asignaciones.map((a) => [a.proyectoId, a.puedeEditar]))
-  return proyectos.map((p) => ({
-    proyectoId: p.id,
-    nombre: p.nombre,
-    asignado: mapa.has(p.id),
-    puedeEditar: mapa.get(p.id) ?? false,
-  }))
-}
-
-// ---------------------------------------------------------------------------
-// Lista de proyectos con checkbox de "asignado" + toggle de "puede
-// editar" -- se reutiliza igual para un grupo que para una persona, la
-// única diferencia es qué función de actualizar le pasa el padre.
-// ---------------------------------------------------------------------------
-function ListaProyectosConPermiso({
-  proyectos,
-  onCambiar,
-}: {
-  proyectos: ProyectoConPermiso[]
-  onCambiar: (proyectoId: string, asignado: boolean, puedeEditar: boolean) => void
-}) {
-  return (
-    <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2">
-      {proyectos.map((p) => (
-        <div key={p.proyectoId} className="flex items-center justify-between gap-3 rounded px-2 py-1 hover:bg-muted">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={p.asignado}
-              onChange={(e) => onCambiar(p.proyectoId, e.target.checked, p.puedeEditar)}
-            />
-            {p.nombre}
-          </label>
-          {p.asignado && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={p.puedeEditar}
-                onChange={(e) => onCambiar(p.proyectoId, true, e.target.checked)}
-              />
-              puede editar
-            </label>
-          )}
-        </div>
-      ))}
-      {proyectos.length === 0 && (
-        <p className="p-2 text-xs text-muted-foreground">No hay proyectos todavía.</p>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tab de Grupos
-// ---------------------------------------------------------------------------
-function TabGrupos({
-  grupos,
-  setGrupos,
-  proyectos,
-}: {
-  grupos: Grupo[]
-  setGrupos: React.Dispatch<React.SetStateAction<Grupo[]>>
-  proyectos: Proyecto[]
-}) {
-  const [grupoAbiertoId, setGrupoAbiertoId] = useState<string | null>(null)
-  const [asignacionesDelGrupo, setAsignacionesDelGrupo] = useState<AsignacionProyecto[]>([])
-  const [nombreNuevoGrupo, setNombreNuevoGrupo] = useState("")
-  const [error, setError] = useState<string | null>(null)
-
-  async function abrirGrupo(id: string) {
-    if (grupoAbiertoId === id) {
-      setGrupoAbiertoId(null)
-      return
-    }
-    setGrupoAbiertoId(id)
-    try {
-      setAsignacionesDelGrupo(await listarAsignacionesDeGrupo(id))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos del grupo.")
-    }
-  }
-
-  async function handleCambiarFlag(
-    grupo: Grupo,
-    campo: "veTodosProyectos" | "puedeEditarTodos",
-    valor: boolean
-  ) {
-    setError(null)
-    try {
-      await actualizarGrupo(grupo.id, { [campo]: valor })
-      setGrupos((prev) => prev.map((g) => (g.id === grupo.id ? { ...g, [campo]: valor } : g)))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el grupo.")
-    }
-  }
-
-  async function handleCambiarProyecto(
-    grupoId: string,
-    proyectoId: string,
-    asignado: boolean,
-    puedeEditar: boolean
-  ) {
-    setAsignacionesDelGrupo((prev) => {
-      const sinEste = prev.filter((a) => a.proyectoId !== proyectoId)
-      return asignado ? [...sinEste, { proyectoId, puedeEditar }] : sinEste
-    })
-    try {
-      await actualizarProyectoDeGrupo(grupoId, proyectoId, asignado, puedeEditar)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el permiso.")
-    }
-  }
-
-  async function handleCrearGrupo() {
-    if (!nombreNuevoGrupo.trim()) return
-    try {
-      const nuevo = await crearGrupo(nombreNuevoGrupo.trim())
-      setGrupos((prev) => [...prev, nuevo].sort((a, b) => a.nombre.localeCompare(b.nombre)))
-      setNombreNuevoGrupo("")
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear el grupo.")
-    }
-  }
-
-  const proyectosConPermiso = combinarConProyectos(proyectos, asignacionesDelGrupo)
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Input
-          placeholder="Nombre del grupo nuevo..."
-          value={nombreNuevoGrupo}
-          onChange={(e) => setNombreNuevoGrupo(e.target.value)}
-          className="w-64"
-        />
-        <Button size="sm" onClick={handleCrearGrupo} disabled={!nombreNuevoGrupo.trim()}>
-          + Crear grupo
-        </Button>
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <div className="space-y-2">
-        {grupos.map((g) => (
-          <div key={g.id} className="rounded-lg border">
-            <button
-              type="button"
-              onClick={() => abrirGrupo(g.id)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/40"
-            >
-              <span className="font-medium">{g.nombre}</span>
-              <span className="text-xs text-muted-foreground">
-                {g.veTodosProyectos ? "ve todos los proyectos" : "proyectos asignados a mano"}
-              </span>
-            </button>
-
-            {grupoAbiertoId === g.id && (
-              <div className="space-y-3 border-t p-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={g.veTodosProyectos}
-                    onChange={(e) => handleCambiarFlag(g, "veTodosProyectos", e.target.checked)}
-                  />
-                  Ve todos los proyectos (viejos y nuevos, sin asignar uno por uno)
-                </label>
-
-                {g.veTodosProyectos ? (
-                  <label className="ml-6 flex items-center gap-2 text-sm text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={g.puedeEditarTodos}
-                      onChange={(e) => handleCambiarFlag(g, "puedeEditarTodos", e.target.checked)}
-                    />
-                    Puede editar todos los presupuestos
-                  </label>
-                ) : (
-                  <ListaProyectosConPermiso
-                    proyectos={proyectosConPermiso}
-                    onCambiar={(proyectoId, asignado, puedeEditar) =>
-                      handleCambiarProyecto(g.id, proyectoId, asignado, puedeEditar)
-                    }
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tab de Usuarios
-// ---------------------------------------------------------------------------
-function TabUsuarios({ grupos, proyectos }: { grupos: Grupo[]; proyectos: Proyecto[] }) {
-  const [usuarios, setUsuarios] = useState<UsuarioConGrupos[]>([])
-  const [usuarioAbiertoId, setUsuarioAbiertoId] = useState<string | null>(null)
-  const [asignacionesDelUsuario, setAsignacionesDelUsuario] = useState<AsignacionProyecto[]>([])
-  const [error, setError] = useState<string | null>(null)
-
-  const [mostrandoForm, setMostrandoForm] = useState(false)
-  const [nombre, setNombre] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [esAdmin, setEsAdmin] = useState(false)
-  const [gruposElegidos, setGruposElegidos] = useState<Set<string>>(new Set())
-  const [creando, setCreando] = useState(false)
-  const [adminInsumos, setAdminInsumos] = useState(false)
-  const [adminManoObra, setAdminManoObra] = useState(false)
-  // Cambiar contraseña de una cuenta ya existente -- ej. "esta cuenta
-  // ahora la va a usar otra persona".
-  const [passwordNuevaPorUsuario, setPasswordNuevaPorUsuario] = useState<Record<string, string>>({})
-  const [cambiandoPasswordId, setCambiandoPasswordId] = useState<string | null>(null)
-  const [mensajePasswordId, setMensajePasswordId] = useState<string | null>(null)
-
-  useEffect(() => {
-    listarUsuarios()
-      .then(setUsuarios)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los usuarios."))
-  }, [])
-
-  async function abrirUsuario(id: string) {
-    if (usuarioAbiertoId === id) {
-      setUsuarioAbiertoId(null)
-      return
-    }
-    setUsuarioAbiertoId(id)
-    try {
-      setAsignacionesDelUsuario(await listarAsignacionesDeUsuario(id))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos del usuario.")
-    }
-  }
-
-  async function handleCambiarProyecto(
-    usuarioId: string,
-    proyectoId: string,
-    asignado: boolean,
-    puedeEditar: boolean
-  ) {
-    setAsignacionesDelUsuario((prev) => {
-      const sinEste = prev.filter((a) => a.proyectoId !== proyectoId)
-      return asignado ? [...sinEste, { proyectoId, puedeEditar }] : sinEste
-    })
-    try {
-      await actualizarProyectoDeUsuario(usuarioId, proyectoId, asignado, puedeEditar)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el permiso.")
-    }
-  }
-
-  async function handleCambiarScope(
-    usuario: UsuarioConGrupos,
-    campo: "adminInsumos" | "adminManoObra",
-    valor: boolean
-  ) {
-    setUsuarios((prev) => prev.map((u) => (u.id === usuario.id ? { ...u, [campo]: valor } : u)))
-    try {
-      await actualizarScopesDeUsuario(usuario.id, { [campo]: valor })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el permiso.")
-    }
-  }
-
-  async function handleCambiarGrupoDeUsuario(usuario: UsuarioConGrupos, grupoId: string, marcado: boolean) {
-    const nuevosGrupoIds = marcado
-      ? [...usuario.grupoIds, grupoId]
-      : usuario.grupoIds.filter((id) => id !== grupoId)
-
-    setUsuarios((prev) =>
-      prev.map((u) => (u.id === usuario.id ? { ...u, grupoIds: nuevosGrupoIds } : u))
-    )
-    try {
-      await actualizarGruposDeUsuario(usuario.id, nuevosGrupoIds)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el grupo del usuario.")
-    }
-  }
-
-  async function handleCambiarPassword(usuarioId: string) {
-    const nuevaPassword = passwordNuevaPorUsuario[usuarioId] ?? ""
-    if (nuevaPassword.length < 6) {
-      setMensajePasswordId(null)
-      setError("La contraseña nueva debe tener al menos 6 caracteres.")
-      return
-    }
-    setCambiandoPasswordId(usuarioId)
-    setError(null)
-    try {
-      await cambiarPasswordUsuario(usuarioId, nuevaPassword)
-      setPasswordNuevaPorUsuario((prev) => ({ ...prev, [usuarioId]: "" }))
-      setMensajePasswordId(usuarioId)
-      setTimeout(() => setMensajePasswordId((actual) => (actual === usuarioId ? null : actual)), 2500)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar la contraseña.")
-    } finally {
-      setCambiandoPasswordId(null)
-    }
-  }
-
-  async function handleCrearUsuario() {
-    if (!nombre.trim() || !email.trim() || password.length < 6) {
-      setError("Nombre, email, y contraseña de al menos 6 caracteres son obligatorios.")
-      return
-    }
-    setCreando(true)
-    setError(null)
-    try {
-      await crearUsuario({
-        nombre: nombre.trim(),
-        email: email.trim(),
-        password,
-        esAdmin,
-        adminInsumos,
-        adminManoObra,
-        grupoIds: Array.from(gruposElegidos),
-      })
-      setUsuarios(await listarUsuarios())
-      setMostrandoForm(false)
-      setNombre("")
-      setEmail("")
-      setPassword("")
-      setEsAdmin(false)
-      setAdminInsumos(false)
-      setAdminManoObra(false)
-      setGruposElegidos(new Set())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear el usuario.")
-    } finally {
-      setCreando(false)
-    }
-  }
-
-  const proyectosConPermiso = combinarConProyectos(proyectos, asignacionesDelUsuario)
-
-  return (
-    <div className="space-y-4">
-      {!mostrandoForm ? (
-        <Button size="sm" onClick={() => setMostrandoForm(true)}>
-          + Crear usuario
-        </Button>
-      ) : (
-        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-          <div className="flex flex-wrap gap-3">
-            <Input placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-56" />
-            <Input placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-56" />
-            <Input
-              placeholder="Contraseña (mínimo 6 caracteres)"
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-56"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={esAdmin} onChange={(e) => setEsAdmin(e.target.checked)} />
-              Puede entrar al panel de admin
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={adminInsumos}
-                onChange={(e) => setAdminInsumos(e.target.checked)}
-              />
-              Puede modificar maestro de insumos
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={adminManoObra}
-                onChange={(e) => setAdminManoObra(e.target.checked)}
-              />
-              Puede aceptar solicitudes de mano de obra/equipo
-            </label>
-          </div>
-
-          <div className="space-y-1.5">
-            <p className="text-xs text-muted-foreground">Grupos</p>
-            <div className="flex flex-wrap gap-3">
-              {grupos.map((g) => (
-                <label key={g.id} className="flex items-center gap-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={gruposElegidos.has(g.id)}
-                    onChange={(e) =>
-                      setGruposElegidos((prev) => {
-                        const next = new Set(prev)
-                        if (e.target.checked) next.add(g.id)
-                        else next.delete(g.id)
-                        return next
-                      })
-                    }
-                  />
-                  {g.nombre}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleCrearUsuario} disabled={creando}>
-              {creando ? "Creando..." : "Crear"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setMostrandoForm(false)}>
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <div className="space-y-2">
-        {usuarios.map((u) => (
-          <div key={u.id} className="rounded-lg border">
-            <button
-              type="button"
-              onClick={() => abrirUsuario(u.id)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/40"
-            >
-              <div>
-                <span className="font-medium">{u.nombre}</span>{" "}
-                <span className="text-xs text-muted-foreground">{u.email}</span>
-                {u.esAdmin && (
-                  <span className="ml-2 rounded bg-teal-100 px-1.5 py-0.5 text-[10px] font-medium text-teal-800">
-                    admin
-                  </span>
-                )}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {u.grupoIds
-                  .map((id) => grupos.find((g) => g.id === id)?.nombre)
-                  .filter(Boolean)
-                  .join(", ") || "sin grupo"}
-              </span>
-            </button>
-
-            {usuarioAbiertoId === u.id && (
-              <div className="space-y-3 border-t p-4">
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">Permisos</p>
-                  <div className="flex flex-wrap gap-4">
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={u.adminInsumos}
-                        onChange={(e) => handleCambiarScope(u, "adminInsumos", e.target.checked)}
-                      />
-                      Modificar maestro de insumos
-                    </label>
-                    <label className="flex items-center gap-1.5 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={u.adminManoObra}
-                        onChange={(e) => handleCambiarScope(u, "adminManoObra", e.target.checked)}
-                      />
-                      Aceptar solicitudes de mano de obra/equipo
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">Grupos</p>
-                  <div className="flex flex-wrap gap-3">
-                    {grupos.map((g) => (
-                      <label key={g.id} className="flex items-center gap-1.5 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={u.grupoIds.includes(g.id)}
-                          onChange={(e) => handleCambiarGrupoDeUsuario(u, g.id, e.target.checked)}
-                        />
-                        {g.nombre}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">
-                    Proyectos individuales (además de lo que le dan sus grupos)
-                  </p>
-                  <ListaProyectosConPermiso
-                    proyectos={proyectosConPermiso}
-                    onCambiar={(proyectoId, asignado, puedeEditar) =>
-                      handleCambiarProyecto(u.id, proyectoId, asignado, puedeEditar)
-                    }
-                  />
-                </div>
-
-                <div className="space-y-1.5 border-t pt-3">
-                  <p className="text-xs text-muted-foreground">
-                    Cambiar contraseña -- por ejemplo, si esta cuenta ahora la va a
-                    usar otra persona
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="text"
-                      placeholder="Contraseña nueva (mínimo 6 caracteres)"
-                      value={passwordNuevaPorUsuario[u.id] ?? ""}
-                      onChange={(e) =>
-                        setPasswordNuevaPorUsuario((prev) => ({ ...prev, [u.id]: e.target.value }))
-                      }
-                      className="h-8 w-64 text-xs"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleCambiarPassword(u.id)}
-                      disabled={cambiandoPasswordId === u.id}
-                    >
-                      {cambiandoPasswordId === u.id ? "Cambiando..." : "Cambiar contraseña"}
-                    </Button>
-                    {mensajePasswordId === u.id && (
-                      <span className="text-xs text-emerald-600">✓ Cambiada</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // Tab de Proyectos
@@ -800,23 +239,198 @@ function TabProyectos({
 }
 
 // ---------------------------------------------------------------------------
+// Tab de Empresas -- razones sociales bajo las que CONYCA ejecuta proyectos.
+// Cada proyecto se enlaza a una (dropdown "Empresa" de Proyectos) y de ahí
+// salen el nombre y el NIT del encabezado de las órdenes de compra. La lista
+// vive en AdminPage: lo que se cambie acá se refleja al instante en el
+// dropdown de la pestaña Proyectos.
+// ---------------------------------------------------------------------------
+function TabEmpresas({
+  empresas,
+  setEmpresas,
+  proyectos,
+  setProyectos,
+}: {
+  empresas: Empresa[]
+  setEmpresas: React.Dispatch<React.SetStateAction<Empresa[]>>
+  proyectos: Proyecto[]
+  setProyectos: React.Dispatch<React.SetStateAction<Proyecto[]>>
+}) {
+  const [nitNuevo, setNitNuevo] = useState("")
+  const [razonNueva, setRazonNueva] = useState("")
+  const [creando, setCreando] = useState(false)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [nitEditando, setNitEditando] = useState("")
+  const [razonEditando, setRazonEditando] = useState("")
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const proyectosDe = (empresaId: string) => proyectos.filter((p) => p.empresaId === empresaId).length
+
+  async function handleCrear() {
+    if (!nitNuevo.trim() || !razonNueva.trim()) return
+    setCreando(true)
+    setError(null)
+    try {
+      const nueva = await crearEmpresa({ nit: nitNuevo, razonSocial: razonNueva })
+      setEmpresas((prev) =>
+        [...prev, nueva].sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es"))
+      )
+      setNitNuevo("")
+      setRazonNueva("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear la empresa.")
+    } finally {
+      setCreando(false)
+    }
+  }
+
+  function empezarAEditar(e: Empresa) {
+    setError(null)
+    setEditandoId(e.id)
+    setNitEditando(e.nit)
+    setRazonEditando(e.razonSocial)
+  }
+
+  async function handleGuardarEdicion(empresaId: string) {
+    if (!nitEditando.trim() || !razonEditando.trim()) return
+    setError(null)
+    try {
+      await editarEmpresa(empresaId, { nit: nitEditando, razonSocial: razonEditando })
+      const nit = nitEditando.trim()
+      const razonSocial = razonEditando.trim()
+      setEmpresas((prev) =>
+        prev
+          .map((e) => (e.id === empresaId ? { ...e, nit, razonSocial } : e))
+          .sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es"))
+      )
+      // Los proyectos de esta empresa muestran su nombre y NIT: se actualizan.
+      setProyectos((prev) =>
+        prev.map((p) =>
+          p.empresaId === empresaId ? { ...p, empresaNombre: razonSocial, empresaNit: nit } : p
+        )
+      )
+      setEditandoId(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo editar la empresa.")
+    }
+  }
+
+  async function handleEliminar(e: Empresa) {
+    if (!confirm(`¿Eliminar la empresa "${e.razonSocial}"?`)) return
+    setEliminandoId(e.id)
+    setError(null)
+    try {
+      await eliminarEmpresa(e.id)
+      setEmpresas((prev) => prev.filter((x) => x.id !== e.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar la empresa.")
+    } finally {
+      setEliminandoId(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">NIT</label>
+          <Input
+            value={nitNuevo}
+            onChange={(e) => setNitNuevo(e.target.value)}
+            className="h-9 w-40"
+            placeholder="Ej. 900123456-7"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Razón social</label>
+          <Input
+            value={razonNueva}
+            onChange={(e) => setRazonNueva(e.target.value)}
+            className="h-9 w-80"
+          />
+        </div>
+        <Button
+          size="sm"
+          onClick={handleCrear}
+          disabled={creando || !nitNuevo.trim() || !razonNueva.trim()}
+        >
+          {creando ? "Creando..." : "+ Crear empresa"}
+        </Button>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="divide-y rounded-lg border">
+        {empresas.map((e) => (
+          <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+            {editandoId === e.id ? (
+              <>
+                <Input
+                  value={nitEditando}
+                  onChange={(ev) => setNitEditando(ev.target.value)}
+                  className="h-8 w-40"
+                  placeholder="NIT"
+                  autoFocus
+                />
+                <Input
+                  value={razonEditando}
+                  onChange={(ev) => setRazonEditando(ev.target.value)}
+                  className="h-8 flex-1"
+                  placeholder="Razón social"
+                />
+                <Button size="sm" onClick={() => handleGuardarEdicion(e.id)}>
+                  Guardar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditandoId(null)}>
+                  Cancelar
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="w-40 shrink-0 font-mono text-xs text-muted-foreground">{e.nit}</span>
+                <span className="flex-1 text-sm">{e.razonSocial}</span>
+                <span className="w-28 shrink-0 text-xs text-muted-foreground">
+                  {proyectosDe(e.id)} {proyectosDe(e.id) === 1 ? "proyecto" : "proyectos"}
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => empezarAEditar(e)}>
+                  Editar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  disabled={eliminandoId === e.id}
+                  onClick={() => handleEliminar(e)}
+                >
+                  {eliminandoId === e.id ? "Eliminando..." : "Eliminar"}
+                </Button>
+              </>
+            )}
+          </div>
+        ))}
+        {empresas.length === 0 && (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            No hay empresas todavía. Crea una para poder asignarla a los proyectos.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Página
 // ---------------------------------------------------------------------------
 export default function AdminPage() {
-  const [tab, setTab] = useState<"usuarios" | "grupos" | "proyectos">("usuarios")
-  const [grupos, setGrupos] = useState<Grupo[]>([])
+  const [tab, setTab] = useState<"proyectos" | "empresas">("proyectos")
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [empresas, setEmpresas] = useState<Empresa[]>([])
 
-  // Grupos, proyectos y empresas se cargan UNA VEZ al entrar al panel, no en
-  // cada cambio de pestaña -- mismo patrón que ya había para grupos/proyectos,
-  // ahora también aplica a empresas (que solo usa la pestaña Proyectos, pero
-  // cargarla acá evita el parpadeo de "cargando" cada vez que se abre esa
-  // pestaña).
+  // Proyectos y empresas se cargan UNA VEZ al entrar al panel, no en cada
+  // cambio de pestaña: así el dropdown de empresa de Proyectos y la pestaña
+  // Empresas comparten la misma lista.
   useEffect(() => {
-    listarGrupos()
-      .then(setGrupos)
-      .catch(() => {})
     listarProyectosAdmin()
       .then(setProyectos)
       .catch(() => {})
@@ -827,36 +441,9 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Administración</h1>
-
-      <div className="rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
-        Los permisos ahora se gestionan por <strong>rol</strong>:{" "}
-        <a href="/admin/roles" className="font-medium underline">Roles y permisos</a> (qué pestañas y
-        acciones tiene cada rol) y{" "}
-        <a href="/admin/accesos" className="font-medium underline">Usuarios y accesos</a> (el rol y los
-        proyectos de cada persona). Las casillas de esta pantalla solo aplican a usuarios que todavía no
-        tienen rol.
-      </div>
+      <h1 className="text-xl font-semibold">Control administrativo</h1>
 
       <div className="flex gap-1 border-b">
-        <button
-          type="button"
-          onClick={() => setTab("usuarios")}
-          className={`px-3 py-2 text-sm ${
-            tab === "usuarios" ? "border-b-2 border-teal-600 font-medium" : "text-muted-foreground"
-          }`}
-        >
-          Usuarios
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("grupos")}
-          className={`px-3 py-2 text-sm ${
-            tab === "grupos" ? "border-b-2 border-teal-600 font-medium" : "text-muted-foreground"
-          }`}
-        >
-          Grupos
-        </button>
         <button
           type="button"
           onClick={() => setTab("proyectos")}
@@ -866,12 +453,27 @@ export default function AdminPage() {
         >
           Proyectos
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("empresas")}
+          className={`px-3 py-2 text-sm ${
+            tab === "empresas" ? "border-b-2 border-teal-600 font-medium" : "text-muted-foreground"
+          }`}
+        >
+          Empresas
+        </button>
       </div>
 
-      {tab === "usuarios" && <TabUsuarios grupos={grupos} proyectos={proyectos} />}
-      {tab === "grupos" && <TabGrupos grupos={grupos} setGrupos={setGrupos} proyectos={proyectos} />}
       {tab === "proyectos" && (
         <TabProyectos proyectos={proyectos} setProyectos={setProyectos} empresas={empresas} />
+      )}
+      {tab === "empresas" && (
+        <TabEmpresas
+          empresas={empresas}
+          setEmpresas={setEmpresas}
+          proyectos={proyectos}
+          setProyectos={setProyectos}
+        />
       )}
     </main>
   )

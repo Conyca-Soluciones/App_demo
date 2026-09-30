@@ -1106,3 +1106,29 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   "Cortes de proyectos"); "Informes" se quitó del menú.
 - Los mensajes de error que lanza la base (`raise exception '... pedido ...'`)
   todavía dicen "pedido": cambiarlos requiere recrear las funciones SQL.
+
+
+## Control administrativo (simplificado)
+
+`/admin` ahora solo tiene dos pestañas:
+- **Proyectos**: crear y editar proyectos (código, nombre, empresa, ciudad),
+  sin cambios respecto a antes.
+- **Empresas**: crear, editar y eliminar (`crearEmpresa`, `editarEmpresa`,
+  `eliminarEmpresa` en `admin/actions.ts`). Solo NIT y razón social. No se
+  puede eliminar una empresa que tenga proyectos (se cuenta antes y se avisa)
+  ni una con datos asociados (error 23503 -> mensaje legible); NIT repetido
+  (23505) también tiene mensaje propio. La lista de empresas se comparte con
+  la pestaña Proyectos: lo que se cambie se ve al instante en su dropdown.
+
+Se quitaron las pestañas **Usuarios** y **Grupos** (las reemplazan Roles y
+permisos y Usuarios y accesos) y las acciones que solo ellas usaban (banderas
+de `perfiles`, grupos, asignación de proyectos por grupo). Las tablas
+`grupos`, `grupo_proyectos`, `usuario_grupos` siguen en la base (las leen las
+funciones de compatibilidad para usuarios sin rol) pero ya no hay pantalla
+para editarlas.
+
+**Crear usuarios y cambiar contraseñas** eran exclusivos de la pestaña
+Usuarios: se pasaron a **Usuarios y accesos** (botón "Nuevo usuario" con rol
+opcional, y el ícono de llave en cada fila). `crearUsuario` ahora recibe
+`{ nombre, email, password, rolId? }`; usa la llave de servicio y sigue sin
+haber auto-registro.
