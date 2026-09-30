@@ -12,7 +12,24 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { verPedidosPendientes, resolverPedido, type PedidoPendiente } from "./actions"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { HistorialDialog } from "@/components/historial-timeline"
+import {
+  verPedidosPorEstado,
+  resolverPedido,
+  desaprobarPedido,
+  cancelarPedidoComoAprobador,
+  obtenerPermisosPedidos,
+  type PedidoPendiente,
+  type PermisosPedidos,
+} from "./actions"
 
 const headClasses = "border-r bg-muted/50 px-3 py-2 text-left text-xs font-medium last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
@@ -22,19 +39,48 @@ export default function AdminTecnico() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
+  const [vista, setVista] = useState<"pendiente" | "aprobado">("pendiente")
+  const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
+  // Desaprobar / cancelar piden motivo; el historial se abre por pedido.
+  const [accion, setAccion] = useState<{ tipo: "desaprobar" | "cancelar"; pedido: PedidoPendiente } | null>(null)
+  const [motivo, setMotivo] = useState("")
+  const [procesandoAccion, setProcesandoAccion] = useState(false)
+  const [historial, setHistorial] = useState<PedidoPendiente | null>(null)
 
   function cargar() {
     setCargando(true)
     setError(null)
-    verPedidosPendientes()
-      .then(setPedidos)
+    Promise.all([verPedidosPorEstado(vista), obtenerPermisosPedidos()])
+      .then(([lista, p]: [PedidoPendiente[], PermisosPedidos]) => {
+        setPedidos(lista)
+        setPermisos(p)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los pedidos."))
       .finally(() => setCargando(false))
   }
 
   useEffect(() => {
     cargar()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista])
+
+  async function confirmarAccion() {
+    if (!accion || !motivo.trim()) return
+    setProcesandoAccion(true)
+    setError(null)
+    try {
+      if (accion.tipo === "desaprobar") await desaprobarPedido(accion.pedido.id, motivo.trim())
+      else await cancelarPedidoComoAprobador(accion.pedido.id, motivo.trim())
+      setAccion(null)
+      setMotivo("")
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo completar la acción.")
+      setAccion(null)
+    } finally {
+      setProcesandoAccion(false)
+    }
+  }
 
   async function resolver(id: string, estado: "aprobado" | "rechazado") {
     setIdsEnProceso((prev) => new Set(prev).add(id))
@@ -71,17 +117,36 @@ export default function AdminTecnico() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Aprobación de pedidos</h1>
           <p className="text-sm text-muted-foreground">
-            Pedidos de insumos pendientes de todos los proyectos.
+            Pedidos de insumos de todos los proyectos.
           </p>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 space-y-8 p-6">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={vista === "pendiente" ? "default" : "outline"}
+            onClick={() => setVista("pendiente")}
+          >
+            Pendientes
+          </Button>
+          <Button
+            size="sm"
+            variant={vista === "aprobado" ? "default" : "outline"}
+            onClick={() => setVista("aprobado")}
+          >
+            Aprobados
+          </Button>
+        </div>
+
         {cargando && <p className="text-sm text-muted-foreground">Cargando pedidos…</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         {!cargando && pedidos.length === 0 && !error && (
-          <p className="text-sm text-muted-foreground">No hay pedidos pendientes por revisar.</p>
+          <p className="text-sm text-muted-foreground">
+            {vista === "pendiente" ? "No hay pedidos pendientes por revisar." : "No hay pedidos aprobados."}
+          </p>
         )}
 
         {[...porProyecto.entries()].map(([proyectoId, grupo]) => (
@@ -89,7 +154,8 @@ export default function AdminTecnico() {
             <h2 className="text-sm font-semibold text-foreground">
               {grupo.nombre}{" "}
               <span className="font-normal text-muted-foreground">
-                ({grupo.pedidos.length} {grupo.pedidos.length === 1 ? "pedido" : "pedidos"} pendientes)
+                ({grupo.pedidos.length} {grupo.pedidos.length === 1 ? "pedido" : "pedidos"}{" "}
+                {vista === "pendiente" ? "pendientes" : "aprobados"})
               </span>
             </h2>
 
@@ -108,7 +174,7 @@ export default function AdminTecnico() {
                     <th className={`${headClasses} w-20 text-center`}>Urgente</th>
                     <th className={`${headClasses} w-24 text-center`}>Ítem</th>
                     <th className={`${headClasses} w-28`}>Solicitado por</th>
-                    <th className={`${headClasses} w-36 text-center`}>Acciones</th>
+                    <th className={`${headClasses} w-56 text-center`}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -168,24 +234,65 @@ export default function AdminTecnico() {
                         </td>
                         <td className={`${celda} truncate`}>{pedido.solicitanteNombre ?? "—"}</td>
                         <td className={`${celda} text-center`}>
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5">
+                            {vista === "pendiente" ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50"
+                                  onClick={() => resolver(pedido.id, "aprobado")}
+                                  disabled={procesando}
+                                >
+                                  Aprobar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                                  onClick={() => resolver(pedido.id, "rechazado")}
+                                  disabled={procesando}
+                                >
+                                  Rechazar
+                                </Button>
+                              </>
+                            ) : (
+                              permisos?.desaprobar && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px] text-amber-700 hover:bg-amber-50"
+                                  onClick={() => {
+                                    setAccion({ tipo: "desaprobar", pedido })
+                                    setMotivo("")
+                                  }}
+                                  disabled={procesando}
+                                >
+                                  Desaprobar
+                                </Button>
+                              )
+                            )}
+                            {permisos?.cancelar && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  setAccion({ tipo: "cancelar", pedido })
+                                  setMotivo("")
+                                }}
+                                disabled={procesando}
+                              >
+                                Cancelar
+                              </Button>
+                            )}
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="h-7 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50"
-                              onClick={() => resolver(pedido.id, "aprobado")}
-                              disabled={procesando}
+                              variant="ghost"
+                              className="h-7 px-2 text-[11px] text-muted-foreground"
+                              onClick={() => setHistorial(pedido)}
                             >
-                              Aprobar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10"
-                              onClick={() => resolver(pedido.id, "rechazado")}
-                              disabled={procesando}
-                            >
-                              Rechazar
+                              Historial
                             </Button>
                           </div>
                         </td>
@@ -197,6 +304,61 @@ export default function AdminTecnico() {
             </div>
           </div>
         ))}
+
+        <Dialog
+          open={accion !== null}
+          onOpenChange={(abierto) => {
+            if (!abierto) {
+              setAccion(null)
+              setMotivo("")
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {accion?.tipo === "desaprobar" ? "Desaprobar pedido" : "Cancelar pedido"}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {accion?.pedido.insumoDescripcion} — {accion?.pedido.cantidad} {accion?.pedido.insumoUm ?? ""} (
+              {accion?.pedido.solicitanteNombre ?? "sin solicitante"}).{" "}
+              {accion?.tipo === "desaprobar"
+                ? "Vuelve a pendiente y se podrá aprobar o rechazar de nuevo. No se puede si ya está en una orden de compra."
+                : "Queda registrado como cancelado y su cantidad vuelve a estar disponible. No se puede si ya está en una orden de compra."}
+            </p>
+            <Textarea
+              placeholder="Motivo (obligatorio)"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              rows={3}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAccion(null)}>
+                Volver
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!motivo.trim() || procesandoAccion}
+                onClick={confirmarAccion}
+              >
+                {procesandoAccion
+                  ? "Procesando..."
+                  : accion?.tipo === "desaprobar"
+                    ? "Desaprobar pedido"
+                    : "Cancelar pedido"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <HistorialDialog
+          abierto={historial !== null}
+          tipo="pedido"
+          id={historial?.id ?? null}
+          titulo={`Historial — ${historial?.insumoDescripcion ?? "pedido"}`}
+          onCerrar={() => setHistorial(null)}
+        />
       </main>
     </>
   )

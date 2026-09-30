@@ -388,6 +388,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import { ESTADO_VISIBLE_BADGE, sePuedeCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
+import { HistorialTimeline } from "@/components/historial-timeline"
 import {
   obtenerOrdenCompraDetalle,
   obtenerPermisosOrdenCompra,
@@ -721,6 +722,16 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               </p>
             </div>
           )}
+
+          <div className="space-y-2 border-t pt-3">
+            <p className="font-medium">Historial</p>
+            {/* key: se recarga cuando cambia el estado de la orden */}
+            <HistorialTimeline
+              key={`${orden.estado}-${orden.estadoEntrega}-${orden.enviada}`}
+              tipo="orden_compra"
+              id={orden.id}
+            />
+          </div>
 
           {(puedeAprobarORechazar || puedeMarcarEnviada) && (
             <div className="space-y-2 border-t pt-3">

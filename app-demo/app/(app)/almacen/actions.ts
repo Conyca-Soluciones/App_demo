@@ -287,34 +287,39 @@ export async function crearPedido(input: NuevoPedidoInput) {
 // datos, no solo acá.
 // ---------------------------------------------------------------------------
 
-export async function cancelarPedido(id: string) {
+export async function cancelarPedido(id: string, motivo: string) {
+  if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
+
   const supabase = await createClient()
+  const { error } = await supabase.rpc("cancelar_pedido", {
+    p_pedido_id: id,
+    p_motivo: motivo.trim(),
+  })
+  if (error) throw new Error(error.message)
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+// Modificar un pedido: solo quien lo hizo y solo mientras está pendiente de
+// aprobación (lo valida la base). No cambia el insumo ni el ítem: para eso se
+// cancela y se crea otro.
+export type CambiosPedido = {
+  cantidad: number
+  fechaRequerida: string
+  urgente: boolean
+  observaciones: string | null
+}
 
-  if (!user) {
-    throw new Error("No autenticado.")
-  }
+export async function modificarPedido(id: string, cambios: CambiosPedido) {
+  if (!(cambios.cantidad > 0)) throw new Error("La cantidad debe ser mayor que cero.")
+  if (!cambios.fechaRequerida) throw new Error("La fecha requerida es obligatoria.")
 
-  const { data: pedido, error: errorLectura } = await supabase
-    .from("pedidos_insumos")
-    .select("id, estado, solicitado_por")
-    .eq("id", id)
-    .single()
-
-  if (errorLectura) throw new Error(errorLectura.message)
-
-  if (pedido.solicitado_por !== user.id) {
-    throw new Error("Solo puedes cancelar pedidos que tú mismo hayas creado.")
-  }
-
-  if (pedido.estado !== "pendiente") {
-    throw new Error("Este pedido ya fue resuelto y no se puede cancelar.")
-  }
-
-  const { error } = await supabase.from("pedidos_insumos").delete().eq("id", id)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("modificar_pedido", {
+    p_pedido_id: id,
+    p_cantidad: cambios.cantidad,
+    p_fecha_requerida: cambios.fechaRequerida,
+    p_urgente: cambios.urgente,
+    p_observaciones: cambios.observaciones,
+  })
   if (error) throw new Error(error.message)
 }
 
@@ -338,16 +343,19 @@ export type PedidoRegistro = {
   fechaRequerida: string
   urgente: boolean
   observaciones: string | null
-  estado: "pendiente" | "aprobado" | "rechazado"
+  estado: "pendiente" | "aprobado" | "rechazado" | "cancelado"
   solicitanteId: string | null
   solicitanteNombre: string | null
   comentarioResolucion: string | null
   resueltoAt: string | null
+  motivoCancelacion: string | null
+  // Para el diálogo de modificar: cuánto se puede pedir como máximo no se
+  // conoce acá; lo valida la base al guardar.
 }
 
 export async function verPedidosDeProyecto(
   proyectoId: string,
-  estado?: "pendiente" | "aprobado" | "rechazado"
+  estado?: "pendiente" | "aprobado" | "rechazado" | "cancelado"
 ): Promise<PedidoRegistro[]> {
   const supabase = await createClient()
 
@@ -355,7 +363,7 @@ export async function verPedidosDeProyecto(
     .from("pedidos_insumos")
     .select(`
       id, grupo_pedido_id, cantidad, created_at, fecha_requerida,
-      urgente, observaciones, estado, comentario_resolucion, resuelto_at,
+      urgente, observaciones, estado, comentario_resolucion, resuelto_at, motivo_cancelacion,
       solicitado_por,
       insumo:maestro_insumos(codigo, descripcion, u_m),
       presupuesto_item:presupuesto_items!inner(
@@ -396,5 +404,6 @@ export async function verPedidosDeProyecto(
     solicitanteNombre: p.solicitante?.nombre ?? null,
     comentarioResolucion: p.comentario_resolucion,
     resueltoAt: p.resuelto_at,
+    motivoCancelacion: p.motivo_cancelacion,
   }))
 }

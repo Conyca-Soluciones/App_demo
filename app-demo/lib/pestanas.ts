@@ -82,6 +82,8 @@ export type Accion = {
 export const ACCIONES: Accion[] = [
   { clave: "editar_presupuestos", titulo: "Editar presupuestos", descripcion: "Crear y modificar presupuestos, APU y versiones de los proyectos a los que tiene acceso.", seccion: "Presupuestos" },
   { clave: "aprobar_pedidos", titulo: "Aprobar pedidos de insumos", descripcion: "Aprobar o rechazar los pedidos de insumos de los ingenieros (y ver los de todos los proyectos).", seccion: "Técnico" },
+  { clave: "desaprobar_pedidos", titulo: "Desaprobar pedidos de insumos", descripcion: "Devolver un pedido aprobado a pendiente, si todavía no está en una orden de compra.", seccion: "Técnico" },
+  { clave: "cancelar_pedidos", titulo: "Cancelar pedidos de insumos", descripcion: "Cancelar pedidos de otras personas y pedidos ya aprobados que no estén en una orden de compra. Quien hizo un pedido siempre puede cancelar el suyo mientras esté pendiente.", seccion: "Técnico" },
   { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Técnico" },
   { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar el maestro de insumos.", seccion: "Almacén" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
@@ -201,7 +203,9 @@ export function permisosDesdeBanderas(b: BanderasPerfil | null | undefined): Per
   const acciones: string[] = []
   if (admin || b?.rol_compras) acciones.push("comprar")
   if (admin || b?.admin_insumos) acciones.push("aprobar_insumos", "gestionar_almacen")
-  if (admin || b?.admin_proyectos || b?.admin_insumos) acciones.push("aprobar_pedidos")
+  if (admin || b?.admin_proyectos || b?.admin_insumos) {
+    acciones.push("aprobar_pedidos", "desaprobar_pedidos", "cancelar_pedidos")
+  }
   if (admin || b?.admin_mano_obra) acciones.push("aprobar_mano_obra")
   if (admin) acciones.push("aprobar_oc", "desaprobar_oc", "cancelar_oc", "editar_presupuestos")
 

@@ -1028,3 +1028,43 @@ permiso y las reglas, la pantalla solo decide si muestra el botón
   contar como "ya comprado" en `crear_orden_compra` (SQL) y en
   `mapPedidoParaComprar` (cola de Comprar pedidos). Las de órdenes
   *rechazadas* siguen contando (revisión manual, decisión previa).
+
+
+## Historial y pedidos: desaprobar / cancelar / modificar (implementado)
+
+Migración `20261003000000_historial_y_pedidos.sql`.
+
+- **`historial_eventos`** (entidad_tipo `orden_compra`|`pedido`, entidad_id,
+  evento, usuario_id, motivo, datos, created_at): registro **inmutable** de
+  quién hizo qué y cuándo. Lo escriben DISPARADORES sobre `ordenes_compra`
+  (`trg_historial_orden_compra`) y `pedidos_insumos` (`trg_historial_pedido`),
+  así que cubre cualquier camino y no depende de las pantallas. Sin policies
+  (nadie edita ni borra); se lee con `historial_entidad(tipo, id)`, que valida
+  que quien pregunta pueda ver la orden/pedido. Eventos de órdenes: creada,
+  aprobada, rechazada, desaprobada, cancelada, marcada_enviada,
+  entrega_actualizada. De pedidos: creado, modificado (antes/después),
+  aprobado, rechazado, desaprobado, cancelado, rechazado_por_compras. La
+  historia previa a la migración se reconstruyó (creación y aprobación/rechazo,
+  marcada `reconstruido`); lo que no se guardaba (quién marcó "enviada") no se
+  pudo recuperar.
+- **UI**: `components/historial-timeline.tsx` (línea de tiempo + diálogo). Se
+  ve en el detalle de la orden de compra, en Pedidos (botón Historial) y en
+  Aprobación de pedidos.
+- **Pedidos**: nuevo estado `cancelado` (la cantidad vuelve a estar disponible
+  porque `buscar_insumos_presupuesto`/`disponible_insumo_item` solo cuentan
+  pendiente+aprobado). Cancelar ya **no borra** la fila (se quitó la policy
+  `pedidos_insumos_delete_propio_pendiente`).
+  - `modificar_pedido`: solo quien lo hizo, solo pendiente; cambia cantidad,
+    fecha requerida, urgente y observaciones (no insumo ni ítem); el tope es
+    lo disponible + la cantidad actual del mismo pedido.
+  - `cancelar_pedido(id, motivo)`: pendiente -> quien lo hizo o acción
+    `cancelar_pedidos`; aprobado -> solo `cancelar_pedidos` y solo si ninguna
+    orden de compra no cancelada lo usa.
+  - `desaprobar_pedido(id, motivo)`: acción `desaprobar_pedidos`; aprobado ->
+    pendiente, mismas condiciones sobre órdenes de compra. Limpia
+    `resuelto_*`; el rastro queda en el historial.
+  - Aprobar / rechazar sigue siendo la acción `aprobar_pedidos`.
+- **Acciones nuevas en la matriz**: `desaprobar_pedidos`, `cancelar_pedidos`
+  (el Líder Técnico las recibe en la migración).
+- Nota: el parser `pglast` no puede validar funciones de disparador (falla con
+  cualquiera, incluso `return new;`): esas se revisan leyendo el SQL.
