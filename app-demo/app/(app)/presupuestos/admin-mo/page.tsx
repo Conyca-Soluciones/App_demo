@@ -855,6 +855,17 @@ function CatalogoRecurso({
   )
 }
 
+// Escribir en los catálogos exige la acción aprobar_mano_obra (política RLS,
+// migración 20261005100000_seguridad_catalogos.sql). Cuando RLS bloquea, la
+// base no da un error claro: un UPDATE con .single() devuelve PGRST116 (0
+// filas) y un INSERT devuelve 42501. Se traducen a un mensaje entendible.
+function mensajeErrorCatalogo(error: { code?: string; message: string }): string {
+  if (error.code === "PGRST116" || error.code === "42501") {
+    return "No tienes permiso para modificar este catálogo. Se necesita la acción \"Aprobar mano de obra y equipos\"."
+  }
+  return error.message
+}
+
 // ---------------------------------------------------------------------------
 // Diálogo de edición del catálogo -- mismo patrón que
 // EditarInsumoDialog en /maestro-insumos: escribe directo a Supabase
@@ -916,7 +927,7 @@ function EditarCategoriaRecursoDialog({
         .select("id, grupo, categoria, unidad, valor_unitario")
         .single()
 
-      if (errorUpdate) throw new Error(errorUpdate.message)
+      if (errorUpdate) throw new Error(mensajeErrorCatalogo(errorUpdate))
 
       onGuardado(data as CategoriaRecursoFila)
     } catch (e) {
@@ -1071,7 +1082,7 @@ function AgregarCategoriaRecursoDialog({
         .select("id, grupo, categoria, unidad, valor_unitario")
         .single()
 
-      if (errorInsert) throw new Error(errorInsert.message)
+      if (errorInsert) throw new Error(mensajeErrorCatalogo(errorInsert))
 
       onCreada(data as CategoriaRecursoFila)
     } catch (e) {

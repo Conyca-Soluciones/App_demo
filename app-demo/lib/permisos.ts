@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
-import { permisosDesdeBanderas, type PermisosRol } from "@/lib/pestanas"
+import type { PermisosRol } from "@/lib/pestanas"
 
 // ---------------------------------------------------------------------------
 // Permisos efectivos de un usuario sobre los proyectos = unión de todo lo
@@ -63,21 +63,10 @@ export async function obtenerPermisosUsuario(
 // pasar requerirAdmin (que además usa la llave de servicio).
 //
 // Si el header no está (llamada que no pasó por el middleware) se consulta la
-// base. Si la migración de roles todavía no se corrió (la función no existe),
-// se cae a las banderas anteriores de perfiles: nada se rompe al desplegar el
-// código antes que el SQL.
+// base. Si esa consulta falla se devuelve null (falla CERRADO: requerirAdmin /
+// requerirAccion / requerirPestana lanzan). Antes se caía a las banderas de
+// perfiles; ya no hace falta porque la migración de roles está aplicada.
 // ---------------------------------------------------------------------------
-
-async function permisosDesdePerfil(userId: string): Promise<PermisosRol> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from("perfiles")
-    .select("es_admin, admin_insumos, admin_proyectos, admin_mano_obra, rol_compras")
-    .eq("id", userId)
-    .single()
-
-  return permisosDesdeBanderas(data)
-}
 
 export async function obtenerUsuarioId(): Promise<string | null> {
   const desdeMiddleware = (await headers()).get("x-user-id")
@@ -107,7 +96,8 @@ export async function obtenerPermisosRol(): Promise<PermisosRol | null> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("permisos_rol_usuario", { p_usuario_id: userId })
   if (error || !data) {
-    return await permisosDesdePerfil(userId)
+    console.error("No se pudieron cargar los permisos del usuario:", error?.message)
+    return null
   }
   return data as PermisosRol
 }

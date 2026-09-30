@@ -1,7 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import {
-  permisosDesdeBanderas,
   puedeAccederRuta,
   puedeAccederRutaSinRol,
   rutaInicio,
@@ -125,9 +124,22 @@ const PERMISOS_TTL_MS = 30_000
 const MAX_USUARIOS_EN_CACHE = 1000
 const cachePermisos = new Map<string, { permisos: PermisosRol; expira: number }>()
 
-// Permisos del usuario. Si la función SQL no existe todavía (migración de
-// roles sin correr) o falla, se cae a las banderas de perfiles: el código se
-// puede desplegar antes que el SQL sin romper nada.
+// Sin permisos: lo que se usa si la consulta de permisos FALLA. Solo deja
+// entrar a rutas libres (/inicio, /sin-acceso); todo lo demás redirige a
+// /sin-acceso. Antes, un fallo caía a las banderas de perfiles y, si esa
+// consulta también fallaba, el usuario quedaba "sin rol" -> con acceso a
+// TODAS las rutas menos /admin (fallaba abierto).
+const PERMISOS_DENEGADOS: PermisosRol = {
+  sinRol: false,
+  rolId: null,
+  rolClave: null,
+  rolNombre: null,
+  esAdministrador: false,
+  pestanas: [],
+  acciones: [],
+  todosProyectos: false,
+}
+
 async function cargarPermisos(
   supabase: ReturnType<typeof createServerClient>,
   userId: string
@@ -136,28 +148,19 @@ async function cargarPermisos(
   const enCache = cachePermisos.get(userId)
   if (enCache && enCache.expira > ahora) return enCache.permisos
 
-  const permisos = await consultarPermisos(supabase, userId)
+  const { data, error } = await supabase.rpc("permisos_rol_usuario", { p_usuario_id: userId })
+  if (error || !data) {
+    // Falla CERRADO y no se guarda en caché: el próximo request reintenta.
+    console.error("No se pudieron cargar los permisos del usuario:", error?.message)
+    return PERMISOS_DENEGADOS
+  }
+
   // Tope de tamaño: si crece de más se vacía entero (O(1) amortizado, y la
   // próxima consulta de cada usuario simplemente vuelve a la base).
   if (cachePermisos.size >= MAX_USUARIOS_EN_CACHE) cachePermisos.clear()
+  const permisos = data as PermisosRol
   cachePermisos.set(userId, { permisos, expira: ahora + PERMISOS_TTL_MS })
   return permisos
-}
-
-async function consultarPermisos(
-  supabase: ReturnType<typeof createServerClient>,
-  userId: string
-): Promise<PermisosRol> {
-  const { data, error } = await supabase.rpc("permisos_rol_usuario", { p_usuario_id: userId })
-  if (!error && data) return data as PermisosRol
-
-  const { data: perfil } = await supabase
-    .from("perfiles")
-    .select("es_admin, admin_insumos, admin_proyectos, admin_mano_obra, rol_compras")
-    .eq("id", userId)
-    .single()
-
-  return permisosDesdeBanderas(perfil)
 }
 
 function conCookies(supabaseResponse: NextResponse, requestHeaders: Headers) {
