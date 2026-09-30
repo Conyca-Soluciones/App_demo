@@ -10,6 +10,40 @@ Al final hay una lista priorizada de lo que falta y que toca backend
 
 ---
 
+## 0. Estado actualizado (segunda ronda: optimizaciones aplicadas)
+
+| Punto | Estado | Qué se hizo | Verificación |
+|---|---|---|---|
+| 5.1 Seguridad de catálogos | ⏳ Siguiente | — | — |
+| 5.2 Middleware: 2 viajes por request | ✅ | `getClaims()` valida el JWT (ES256) localmente; caché de permisos de 30 s; 18 server actions leen el usuario del header del middleware en vez de llamar `getUser()` | Sesión, Pedidos, Órdenes de compra y notificaciones funcionando |
+| 5.3 `recalcular_valor_apu` 5 consultas + 1 llamada por ítem | ✅ | `recalcular_valor_apus(uuid[])`: 1 consulta agrupada + 1 UPDATE para N APUs; el código recalcula en tandas de 200 | Lógica vieja vs nueva sobre todos los APU: **22/22 idénticos** |
+| 5.4 Import: 2 viajes por descripción | ✅ | `buscar_insumos_candidatos_lote`: 50 descripciones por viaje + una pasada de precios (800 descripciones: ~1.600 → ~18 viajes) | 40 términos reales: **mismos candidatos en el mismo orden** |
+| 5.5 Precio efectivo del maestro | ✅ | `precios_efectivos_insumos` como consulta agrupada (antes una función por insumo) | **1.794/1.794 precios idénticos**; 147 → 26 ms |
+| 5.6 Transporte: UPDATE en serie | ✅ | De a 15 en paralelo; recálculo final en lote | — |
+| 5.7 `crearPedido` una consulta por insumo | ✅ | Tope: `disponible_insumos_items` (todos los pares en 1 viaje, reusa la función original); duplicados: 1 consulta + `Set` O(n) | — |
+| 5.8 Categoría duplicada lee toda la tabla | ✅ | Prefiltro `ILIKE` con índice de trigramas; misma comparación exacta | — |
+| 5.9 Import sin transacción | ⏳ Pendiente | — | — |
+| 5.10 Límite de filas de la API | ✅ | `lib/supabase/traer-todo.ts`: maestro, proveedores, catálogos y IDs de proveedores se traen por páginas | Maestro 1.794, proveedores 394, catálogo 264: completos |
+| 5.11 `crearProveedor` lee todos los IDs | ✅ | Por páginas (sigue O(n), correcto a cualquier tamaño) | — |
+
+Migraciones de esta ronda (aplicadas): `20261005000000_rendimiento_funciones.sql`
+(incluye `disponible_insumos_items`).
+
+**Cambios de comportamiento a tener en cuenta** (decididos a propósito):
+- Un usuario borrado o bloqueado en Supabase Auth conserva acceso a las
+  pantallas hasta que venza su token (1 h por defecto). La base sigue
+  validando el mismo token en cada consulta.
+- Un cambio de rol o de pestañas tarda hasta 30 s en reflejarse en el menú y
+  en la protección de rutas (caché del middleware). Las acciones sensibles
+  siguen validándose en la base con `tiene_accion`.
+
+**Sin probar con datos reales** (escriben en la base): subir un Excel con
+hoja APU, crear un pedido, guardar precios de transporte, aprobar una
+solicitud de mano de obra. La lógica se verificó en SQL contra todos los
+datos existentes; conviene hacer una prueba de cada flujo.
+
+---
+
 ## 1. Resumen
 
 | | |
