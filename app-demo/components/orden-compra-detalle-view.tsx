@@ -387,13 +387,15 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
-import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
+import { ESTADO_VISIBLE_BADGE, sePuedeCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import {
   obtenerOrdenCompraDetalle,
   obtenerPermisosOrdenCompra,
   aprobarOrdenCompra,
   rechazarOrdenCompra,
   marcarOrdenEnviada,
+  desaprobarOrdenCompra,
+  cancelarOrdenCompra,
   type OrdenCompraDetalle,
   type PermisosOrdenCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
@@ -418,6 +420,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [permisos, setPermisos] = useState<PermisosOrdenCompra | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [procesando, setProcesando] = useState(false)
+  // "desaprobar" | "cancelar": abre el diálogo de motivo de esa acción.
+  const [accionAbierta, setAccionAbierta] = useState<"desaprobar" | "cancelar" | null>(null)
+  const [motivoAccion, setMotivoAccion] = useState("")
   const [rechazando, setRechazando] = useState(false)
   const [motivoRechazo, setMotivoRechazo] = useState("")
 
@@ -465,6 +470,24 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     }
   }
 
+  async function confirmarAccion() {
+    if (!accionAbierta || !motivoAccion.trim()) return
+    setProcesando(true)
+    setError(null)
+    try {
+      if (accionAbierta === "desaprobar") await desaprobarOrdenCompra(ordenId, motivoAccion.trim())
+      else await cancelarOrdenCompra(ordenId, motivoAccion.trim())
+      setAccionAbierta(null)
+      setMotivoAccion("")
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo completar la acción.")
+      setAccionAbierta(null)
+    } finally {
+      setProcesando(false)
+    }
+  }
+
   async function handleMarcarEnviada() {
     setProcesando(true)
     setError(null)
@@ -497,6 +520,8 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
   const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
   const puedeMarcarEnviada = permisos.rolCompras && orden.estado === "aprobada" && !orden.enviada
+  const puedeDesaprobar = permisos.puedeDesaprobar && sePuedeDesaprobar(orden)
+  const puedeCancelar = permisos.puedeCancelar && sePuedeCancelar(orden)
   // Misma fórmula que usan orden-compra-pdf.tsx y generar-oc-view.tsx, para
   // que el total mostrado acá, en el PDF y en la pantalla de creación sean
   // siempre el mismo número.
@@ -516,6 +541,32 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <Button variant="outline">Descargar PDF</Button>
           </a>
         )}
+          {puedeDesaprobar && (
+            <Button
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+              disabled={procesando}
+              onClick={() => {
+                setAccionAbierta("desaprobar")
+                setMotivoAccion("")
+              }}
+            >
+              Desaprobar
+            </Button>
+          )}
+          {puedeCancelar && (
+            <Button
+              variant="outline"
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              disabled={procesando}
+              onClick={() => {
+                setAccionAbierta("cancelar")
+                setMotivoAccion("")
+              }}
+            >
+              Cancelar orden
+            </Button>
+          )}
         </div>
         <Button variant="outline" onClick={onCerrar ?? (() => router.push("/almacen/comprar-pedidos"))}>
           {onCerrar ? "Cerrar" : "Volver"}
@@ -525,6 +576,24 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
+        </div>
+      )}
+
+      {orden.estado === "cancelada" && orden.motivoCancelacion && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          <strong>Motivo de la cancelación:</strong> {orden.motivoCancelacion}
+          {orden.canceladaAt ? ` — ${formatoFecha(orden.canceladaAt)}` : ""}
+          {orden.enviada && (
+            <span className="mt-1 block">
+              Esta orden ya había sido enviada al proveedor: recuerda avisarle de la cancelación.
+            </span>
+          )}
+        </div>
+      )}
+
+      {orden.estado === "pendiente_aprobacion" && orden.motivoDesaprobacion && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <strong>Desaprobada:</strong> {orden.motivoDesaprobacion}
         </div>
       )}
 
@@ -713,6 +782,52 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               onClick={confirmarRechazo}
             >
               {procesando ? "Rechazando..." : "Rechazar orden"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={accionAbierta !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) {
+            setAccionAbierta(null)
+            setMotivoAccion("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {accionAbierta === "desaprobar" ? "Desaprobar" : "Cancelar"} orden de compra #{orden.numero}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {accionAbierta === "desaprobar"
+              ? "La orden vuelve a “Pendiente” y se podrá aprobar o rechazar de nuevo."
+              : "La orden queda cancelada y sus pedidos vuelven a “Comprar pedidos” para poder comprarse de nuevo."}
+          </p>
+          {accionAbierta === "cancelar" && orden.enviada && (
+            <p className="text-sm font-medium">
+              Esta orden ya fue marcada como enviada: avísale al proveedor de la cancelación.
+            </p>
+          )}
+          <Textarea
+            placeholder="Motivo (obligatorio)"
+            value={motivoAccion}
+            onChange={(e) => setMotivoAccion(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccionAbierta(null)}>
+              Volver
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!motivoAccion.trim() || procesando}
+              onClick={confirmarAccion}
+            >
+              {procesando ? "Procesando..." : accionAbierta === "desaprobar" ? "Desaprobar orden" : "Cancelar orden"}
             </Button>
           </DialogFooter>
         </DialogContent>

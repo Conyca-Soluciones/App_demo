@@ -1003,3 +1003,28 @@ Reemplaza el esquema de banderas en `perfiles` + grupos. Un usuario tiene
   (`maestro_insumos` UPDATE, `apu`, `item_apu`, `mano_obra_categorias`,
   `equipo_categorias`, `transporte_precios`, `apu_import_revision`): la
   restricción por pestaña las oculta de la pantalla pero no de la API.
+
+
+## Desaprobar y cancelar órdenes de compra (implementado)
+
+Migración `20261002000000_desaprobar_cancelar_oc.sql`. Acciones del rol
+`desaprobar_oc` y `cancelar_oc` (se dan en Roles y permisos); la base valida el
+permiso y las reglas, la pantalla solo decide si muestra el botón
+(`sePuedeDesaprobar` / `sePuedeCancelar` en `lib/ordenes-compra-estado.ts`).
+
+- **Desaprobar** (botón en Aprobación de órdenes de compra y en el detalle):
+  aprobada -> pendiente_aprobacion. Solo si `enviada = false` y
+  `estado_entrega = 'sin_entregar'`. Motivo obligatorio
+  (`motivo_desaprobacion`); se limpian `aprobada_por/aprobada_at`.
+- **Cancelar** (botón en Órdenes de compra y en el detalle): aprobada ->
+  cancelada. Solo si `estado_entrega = 'sin_entregar'` y sin entradas vigentes
+  (Entrega parcial y Entregada NO se cancelan). Puede estar enviada: el check
+  `ordenes_compra_enviada_requiere_aprobada` ahora permite
+  `enviada` con estado `aprobada` o `cancelada`, para conservar el dato de que
+  ya se había enviado al proveedor. Motivo obligatorio (`motivo_cancelacion`).
+- **`enviada`** es una casilla manual: Compras pulsa "Marcar como enviada"
+  (`marcar_orden_enviada`). El sistema no envía nada ni guarda quién/cuándo.
+- **Liberar pedidos al cancelar**: las líneas de órdenes canceladas dejan de
+  contar como "ya comprado" en `crear_orden_compra` (SQL) y en
+  `mapPedidoParaComprar` (cola de Comprar pedidos). Las de órdenes
+  *rechazadas* siguen contando (revisión manual, decisión previa).

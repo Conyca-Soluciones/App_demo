@@ -44,3 +44,19 @@ export const FILTROS_ESTADO_VISIBLE: { valor: EstadoOrdenVisible | "todas"; etiq
   { valor: "entregada", etiqueta: "Entregadas" },
   { valor: "cancelada", etiqueta: "Canceladas" },
 ]
+
+// Reglas de desaprobar / cancelar (la base las vuelve a validar; esto solo
+// decide si se muestra el botón).
+type OrdenParaReglas = {
+  estado: EstadoOrdenBase
+  estadoEntrega: EstadoEntregaOrden
+  enviada: boolean
+}
+
+// Aprobada, sin enviar al proveedor y sin material recibido.
+export const sePuedeDesaprobar = (o: OrdenParaReglas) =>
+  o.estado === "aprobada" && !o.enviada && o.estadoEntrega === "sin_entregar"
+
+// Aprobada y sin material recibido (Entrega parcial y Entregada NO se cancelan).
+export const sePuedeCancelar = (o: OrdenParaReglas) =>
+  o.estado === "aprobada" && o.estadoEntrega === "sin_entregar"

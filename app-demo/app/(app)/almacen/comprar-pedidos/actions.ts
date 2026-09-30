@@ -3414,11 +3414,18 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
-  compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(cantidad)
+  compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
+    cantidad,
+    orden:ordenes_compra!ordenes_compra_items_orden_compra_id_fkey(estado)
+  )
 `
 
 function mapPedidoParaComprar(f: any): PedidoParaComprar {
-  const yaComprado = (f.compras ?? []).reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
+  // Las líneas de órdenes CANCELADAS ya no cuentan como comprado: esos pedidos
+  // vuelven a la cola (igual que valida crear_orden_compra en la base).
+  const yaComprado = (f.compras ?? [])
+    .filter((c: any) => c.orden?.estado !== "cancelada")
+    .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
   return {
     id: f.id,
     insumoId: f.insumo?.id,
@@ -3771,6 +3778,9 @@ export type OrdenCompraDetalle = {
   aprobadaPorNombre: string | null
   aprobadaAt: string | null
   motivoRechazo: string | null
+  motivoDesaprobacion: string | null
+  motivoCancelacion: string | null
+  canceladaAt: string | null
   lineas: LineaOrdenCompraDetalle[]
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
@@ -3786,6 +3796,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       `
       id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, observaciones, enviada, created_at, aprobada_at, motivo_rechazo,
+      motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
@@ -3842,6 +3853,9 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     aprobadaPorNombre: d.aprobada_por_perfil?.nombre ?? null,
     aprobadaAt: d.aprobada_at,
     motivoRechazo: d.motivo_rechazo,
+    motivoDesaprobacion: d.motivo_desaprobacion,
+    motivoCancelacion: d.motivo_cancelacion,
+    canceladaAt: d.cancelada_at,
     lineas: (d.lineas ?? []).map((l: any) => ({
       id: l.id,
       insumoCodigo: l.pedido?.insumo?.codigo,
@@ -3867,6 +3881,32 @@ export async function rechazarOrdenCompra(ordenId: string, motivo: string): Prom
   if (!motivo.trim()) throw new Error("El motivo de rechazo es obligatorio.")
   const supabase = await createClient()
   const { error } = await supabase.rpc("rechazar_orden_compra", {
+    p_orden_id: ordenId,
+    p_motivo: motivo.trim(),
+  })
+  if (error) throw new Error(error.message)
+}
+
+// Devuelve una orden aprobada a "pendiente de aprobación". Solo si no fue
+// enviada al proveedor ni tiene material recibido (lo valida la base).
+export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
+  await requerirAccion("desaprobar_oc")
+  if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("desaprobar_orden_compra", {
+    p_orden_id: ordenId,
+    p_motivo: motivo.trim(),
+  })
+  if (error) throw new Error(error.message)
+}
+
+// Cancela una orden aprobada. No se puede si tiene material recibido (entrega
+// parcial o entregada). Sus pedidos vuelven a la cola de "Comprar pedidos".
+export async function cancelarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
+  await requerirAccion("cancelar_oc")
+  if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("cancelar_orden_compra", {
     p_orden_id: ordenId,
     p_motivo: motivo.trim(),
   })
