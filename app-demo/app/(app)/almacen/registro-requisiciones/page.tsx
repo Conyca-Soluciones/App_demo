@@ -23,10 +23,9 @@ import { buscarUsuarios, buscarInsumosCompras } from "../comprar-pedidos/actions
 import {
   verProyectos,
   listarRequisiciones,
-  type EstadoRequisicion,
   type FiltrosRequisiciones,
-  type RequisicionResumen,
 } from "../actions"
+import type { EstadoRequisicion, RequisicionResumen } from "@/lib/requisiciones-lineas"
 
 const headClasses =
   "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"

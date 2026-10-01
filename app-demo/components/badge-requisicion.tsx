@@ -1,4 +1,4 @@
-import type { EstadoCompra, EstadoRequisicion } from "@/app/(app)/almacen/actions"
+import type { EstadoCompra, EstadoRequisicion } from "@/lib/requisiciones-lineas"
 
 const ESTADO: Record<EstadoRequisicion, { etiqueta: string; clase: string }> = {
   pendiente: { etiqueta: "Pendiente", clase: "bg-amber-100 text-amber-800" },

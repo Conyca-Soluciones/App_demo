@@ -291,8 +291,6 @@ export async function crearPedido(input: NuevoPedidoInput) {
 // presupuesto sigue saliendo de las líneas (pendiente o aprobada = comprometida).
 // ---------------------------------------------------------------------------
 
-export type { EstadoCompra, EstadoRequisicion, LineaRequisicion, RequisicionResumen }
-
 export type RequisicionDetalle = RequisicionResumen & {
   lineas: LineaRequisicion[]
   motivoRechazo: string | null
