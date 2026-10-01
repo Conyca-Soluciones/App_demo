@@ -37,7 +37,15 @@ import {
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
-export function RequisicionDetalleView({ requisicionId }: { requisicionId: string }) {
+// onCerrar: si se pasa, la vista va dentro de un diálogo (se cierra con su X) y no
+// muestra el botón Volver; sin él es la página completa.
+export function RequisicionDetalleView({
+  requisicionId,
+  onCerrar,
+}: {
+  requisicionId: string
+  onCerrar?: () => void
+}) {
   const router = useRouter()
   const [req, setReq] = useState<RequisicionDetalle | null>(null)
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
@@ -155,9 +163,11 @@ export function RequisicionDetalleView({ requisicionId }: { requisicionId: strin
             </>
           )}
         </div>
-        <Button variant="outline" onClick={() => router.push("/almacen/registro-requisiciones")}>
-          Volver
-        </Button>
+        {!onCerrar && (
+          <Button variant="outline" onClick={() => router.push("/almacen/registro-requisiciones")}>
+            Volver
+          </Button>
+        )}
       </div>
 
       {error && (

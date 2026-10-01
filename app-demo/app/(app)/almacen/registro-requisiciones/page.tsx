@@ -1,9 +1,10 @@
 "use client"
 // app/(app)/almacen/registro-requisiciones/page.tsx
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -16,15 +17,19 @@ const headClasses =
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
 export default function RegistroRequisiciones() {
-  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [requisiciones, setRequisiciones] = useState<RequisicionResumen[] | null>(null)
   const [truncado, setTruncado] = useState(false)
   const [cargando, setCargando] = useState(false)
+  // Última consulta (para refrescar la lista al cerrar el detalle) y la
+  // requisición abierta en el diálogo de detalle.
+  const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosRequisiciones>({})
+  const [abiertaId, setAbiertaId] = useState<string | null>(null)
 
   function consultar(filtros: FiltrosRequisiciones) {
+    setUltimosFiltros(filtros)
     setCargando(true)
     setError(null)
     listarRequisiciones(filtros)
@@ -93,7 +98,7 @@ export default function RegistroRequisiciones() {
                     {requisiciones.map((r) => (
                       <tr
                         key={r.id}
-                        onClick={() => router.push(`/almacen/registro-requisiciones/${r.id}`)}
+                        onClick={() => setAbiertaId(r.id)}
                         className={`cursor-pointer border-b hover:bg-accent/40 ${
                           r.urgente && r.estado === "pendiente" ? "bg-amber-50/60" : ""
                         }`}
@@ -133,6 +138,31 @@ export default function RegistroRequisiciones() {
           )}
         </div>
       </main>
+
+      {/* Detalle encima de la lista, sin salir de la página. */}
+      <Dialog
+        open={abiertaId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAbiertaId(null)
+            // Pudo modificarse o cancelarse: se refresca la lista.
+            if (requisiciones !== null) consultar(ultimosFiltros)
+          }
+        }}
+      >
+        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de la requisición</DialogTitle>
+          {abiertaId && (
+            <RequisicionDetalleView
+              requisicionId={abiertaId}
+              onCerrar={() => {
+                setAbiertaId(null)
+                if (requisiciones !== null) consultar(ultimosFiltros)
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
