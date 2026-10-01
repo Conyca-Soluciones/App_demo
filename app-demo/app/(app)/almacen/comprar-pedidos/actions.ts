@@ -732,22 +732,9 @@ export async function listarTodasLasOrdenesCompra(
     if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
     if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
 
-    // Estado VISIBLE = estado de aprobación + estado de entrega (ver
-    // lib/ordenes-compra-estado.ts): "Aprobada" es aprobada sin entregas.
-    switch (filtros.estado) {
-      case "pendiente_aprobacion":
-      case "rechazada":
-      case "cancelada":
-        query = query.eq("estado", filtros.estado)
-        break
-      case "aprobada":
-        query = query.eq("estado", "aprobada").not("estado_entrega", "in", "(entrega_parcial,entregada)")
-        break
-      case "entrega_parcial":
-      case "entregada":
-        query = query.eq("estado", "aprobada").eq("estado_entrega", filtros.estado)
-        break
-    }
+    // El estado visible de una orden es solo el de aprobación (ver
+    // lib/ordenes-compra-estado.ts).
+    if (filtros.estado) query = query.eq("estado", filtros.estado)
     return query.range(desde, hasta)
   })
 

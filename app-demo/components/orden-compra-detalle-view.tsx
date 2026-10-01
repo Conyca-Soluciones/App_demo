@@ -159,7 +159,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Orden de Compra #{orden.numero}</h1>
-          <Badge variant={badge.variant}>{badge.label}</Badge>
+          <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
 
           {orden.estado === "aprobada" && (
           <a href={`/almacen/ordenes-compra/${orden.id}/pdf`} target="_blank" rel="noreferrer">

@@ -6,33 +6,24 @@
 export type EstadoOrdenBase = "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
 export type EstadoEntregaOrden = "sin_entregar" | "entrega_parcial" | "entregada"
 
-export type EstadoOrdenVisible =
-  | "pendiente_aprobacion"
-  | "aprobada"
-  | "rechazada"
-  | "entrega_parcial"
-  | "entregada"
-  | "cancelada"
+// El estado que ve el usuario de una orden de compra es solo el de aprobación:
+// Pendiente, Aprobada, Rechazada o Cancelada. La recepción en bodega
+// (estado_entrega) se ve en Entradas, no acá.
+export type EstadoOrdenVisible = EstadoOrdenBase
 
 export function calcularEstadoVisible(
   estado: EstadoOrdenBase,
-  estadoEntrega: EstadoEntregaOrden | null | undefined
+  _estadoEntrega?: EstadoEntregaOrden | null
 ): EstadoOrdenVisible {
-  if (estado === "aprobada" && estadoEntrega === "entrega_parcial") return "entrega_parcial"
-  if (estado === "aprobada" && estadoEntrega === "entregada") return "entregada"
   return estado
 }
 
-export const ESTADO_VISIBLE_BADGE: Record<
-  EstadoOrdenVisible,
-  { label: string; variant: "default" | "destructive" | "secondary" | "outline" }
-> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-  entrega_parcial: { label: "Entrega parcial", variant: "secondary" },
-  entregada: { label: "Entregada", variant: "outline" },
-  cancelada: { label: "Cancelada", variant: "destructive" },
+// Colores: Pendiente amarillo, Aprobada verde, Rechazada rojo, Cancelada negro.
+export const ESTADO_VISIBLE_BADGE: Record<EstadoOrdenVisible, { label: string; clase: string }> = {
+  pendiente_aprobacion: { label: "Pendiente", clase: "border-transparent bg-amber-100 text-amber-800" },
+  aprobada: { label: "Aprobada", clase: "border-transparent bg-emerald-100 text-emerald-800" },
+  rechazada: { label: "Rechazada", clase: "border-transparent bg-red-100 text-red-800" },
+  cancelada: { label: "Cancelada", clase: "border-transparent bg-black text-white" },
 }
 
 export const FILTROS_ESTADO_VISIBLE: { valor: EstadoOrdenVisible | "todas"; etiqueta: string }[] = [
@@ -40,8 +31,6 @@ export const FILTROS_ESTADO_VISIBLE: { valor: EstadoOrdenVisible | "todas"; etiq
   { valor: "pendiente_aprobacion", etiqueta: "Pendientes" },
   { valor: "aprobada", etiqueta: "Aprobadas" },
   { valor: "rechazada", etiqueta: "Rechazadas" },
-  { valor: "entrega_parcial", etiqueta: "Entrega parcial" },
-  { valor: "entregada", etiqueta: "Entregadas" },
   { valor: "cancelada", etiqueta: "Canceladas" },
 ]
 

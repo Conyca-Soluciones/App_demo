@@ -300,7 +300,7 @@ export function TodasLasOrdenesView() {
                       {/* El flex va en un div: una celda con display:flex deja de ser
                           celda de tabla y se descuadra respecto al resto de la fila. */}
                       <div className="flex items-center gap-2">
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
                       </div>
                     </TableCell>
                     <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>

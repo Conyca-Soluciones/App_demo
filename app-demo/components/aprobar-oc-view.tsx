@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { OrdenCompraDetalleView } from "./orden-compra-detalle-view"
-import { sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
+import { ESTADO_VISIBLE_BADGE, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import {
   listarTodasLasOrdenesCompra,
   obtenerPermisosOrdenCompra,
@@ -42,16 +42,6 @@ const formatoFecha = (iso: string) =>
     hour: "numeric",
     minute: "2-digit",
   })
-
-const ESTADO_BADGE: Record<
-  OrdenCompraEstado,
-  { label: string; variant: "default" | "destructive" | "secondary" }
-> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-  cancelada: { label: "Cancelada", variant: "destructive" },
-}
 
 const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[] = [
   { valor: "todas", etiqueta: "Todas" },
@@ -328,7 +318,7 @@ export function AprobarOCView() {
             </TableHeader>
             <TableBody>
               {ordenesFiltradas.map((orden) => {
-                const badge = ESTADO_BADGE[orden.estado]
+                const badge = ESTADO_VISIBLE_BADGE[orden.estado]
                 const puedeGestionar = permisos?.esAdmin && orden.estado === "pendiente_aprobacion"
                 const puedeDesaprobar = permisos?.puedeDesaprobar && sePuedeDesaprobar(orden)
                 const procesando = procesandoId === orden.id
@@ -344,7 +334,7 @@ export function AprobarOCView() {
                     <TableCell className="whitespace-nowrap">{formatoFecha(orden.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
                         {orden.tieneSobrecostoPrecio && (
                           <Badge
                             variant="destructive"

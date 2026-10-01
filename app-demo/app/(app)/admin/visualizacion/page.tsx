@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Loader2, Search } from "lucide-react"
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
+import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -47,13 +48,6 @@ const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
-
-const ESTADO_BADGE: Record<OrdenCompraEstado, { label: string; variant: "default" | "destructive" | "secondary" }> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-  cancelada: { label: "Cancelada", variant: "destructive" },
-}
 
 function Tile({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle?: string }) {
   return (
@@ -420,13 +414,13 @@ export default function VisualizacionPage() {
                   </TableHeader>
                   <TableBody>
                     {resumen.ordenes.map((o) => {
-                      const badge = ESTADO_BADGE[o.estado]
+                      const badge = ESTADO_VISIBLE_BADGE[o.estado]
                       return (
                         <TableRow key={o.id}>
                           <TableCell>{o.numero}</TableCell>
                           <TableCell>{o.proveedorNombre}</TableCell>
                           <TableCell>
-                            <Badge variant={badge.variant}>{badge.label}</Badge>
+                            <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
                           </TableCell>
                           <TableCell>{formatoFecha(o.createdAt)}</TableCell>
                         </TableRow>
