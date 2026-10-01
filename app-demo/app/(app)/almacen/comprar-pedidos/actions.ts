@@ -103,11 +103,17 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   )
 `
 
+// Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
+const ESTADOS_OC_SIN_COMPROMISO = new Set(["cancelada", "rechazada"])
+
 function mapPedidoParaComprar(f: any): PedidoParaComprar {
-  // Las líneas de órdenes CANCELADAS ya no cuentan como comprado: esos pedidos
-  // vuelven a la cola (igual que valida crear_orden_compra en la base).
+  // Las líneas de órdenes CANCELADAS o RECHAZADAS no cuentan como comprado:
+  // esa cantidad vuelve a la cola (mismo criterio que crear_orden_compra,
+  // desaprobar_pedido y cancelar_pedido en la base, migración
+  // 20261006100000_liberar_ordenes_rechazadas.sql). Antes las rechazadas
+  // seguían contando y la cantidad quedaba bloqueada para siempre.
   const yaComprado = (f.compras ?? [])
-    .filter((c: any) => c.orden?.estado !== "cancelada")
+    .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado))
     .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
   return {
     id: f.id,

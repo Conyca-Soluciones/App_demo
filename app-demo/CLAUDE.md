@@ -1108,10 +1108,20 @@ permiso y las reglas, la pantalla solo decide si muestra el botón
   ya se había enviado al proveedor. Motivo obligatorio (`motivo_cancelacion`).
 - **`enviada`** es una casilla manual: Compras pulsa "Marcar como enviada"
   (`marcar_orden_enviada`). El sistema no envía nada ni guarda quién/cuándo.
-- **Liberar pedidos al cancelar**: las líneas de órdenes canceladas dejan de
-  contar como "ya comprado" en `crear_orden_compra` (SQL) y en
-  `mapPedidoParaComprar` (cola de Comprar pedidos). Las de órdenes
-  *rechazadas* siguen contando (revisión manual, decisión previa).
+- **Liberar requisiciones al cancelar o rechazar**: las líneas de órdenes
+  **canceladas o rechazadas** no cuentan como "ya comprado" en
+  `crear_orden_compra`, `desaprobar_pedido`, `cancelar_pedido` (SQL) ni en
+  `mapPedidoParaComprar` (cola de Compras y Generar OC). Antes las rechazadas
+  seguían contando y la cantidad quedaba bloqueada para siempre
+  (`20261006100000_liberar_ordenes_rechazadas.sql`). Es seguro porque una
+  orden rechazada no puede volver a activarse. Si se agrega un estado de
+  orden nuevo, revisar estos 4 lugares.
+- `cancelar_pedido` en la base no coincidía con su migración (una versión
+  aplicada a mano solo dejaba cancelar al solicitante con la requisición
+  pendiente; el botón de los aprobadores fallaba siempre). La misma migración
+  la restauró. Las migraciones de lcpr se aplicaron desde el editor SQL y no
+  aparecen en el registro de Supabase: verificar contra la base, no solo
+  contra los archivos.
 
 
 ## Historial y pedidos: desaprobar / cancelar / modificar (implementado)
