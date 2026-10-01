@@ -151,29 +151,14 @@ export async function desaprobarPedido(id: string, motivo: string) {
   if (error) throw new Error(error.message)
 }
 
-// Cancelar el pedido de otra persona, o uno ya aprobado. Quien hizo un pedido
-// pendiente lo cancela desde su propia pantalla (almacen/actions.cancelarPedido).
-export async function cancelarPedidoComoAprobador(id: string, motivo: string) {
-  await requerirAccion("cancelar_pedidos")
-  if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("cancelar_pedido", {
-    p_pedido_id: id,
-    p_motivo: motivo.trim(),
-  })
-  if (error) throw new Error(error.message)
-}
-
-export type PermisosPedidos = { aprobar: boolean; desaprobar: boolean; cancelar: boolean }
+export type PermisosPedidos = { aprobar: boolean; desaprobar: boolean }
 
 export async function obtenerPermisosPedidos(): Promise<PermisosPedidos> {
   const permisos = await obtenerPermisosRol()
-  if (!permisos) return { aprobar: false, desaprobar: false, cancelar: false }
+  if (!permisos) return { aprobar: false, desaprobar: false }
   const puede = (a: string) => permisos.esAdministrador || permisos.acciones.includes(a)
   return {
     aprobar: puede("aprobar_pedidos"),
     desaprobar: puede("desaprobar_pedidos"),
-    cancelar: puede("cancelar_pedidos"),
   }
 }

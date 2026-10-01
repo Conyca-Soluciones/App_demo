@@ -34,17 +34,31 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 
 // El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
-// Placeholder de usuario -- reemplazar por el usuario real (perfiles.nombre
-// + iniciales) cuando esté disponible en este componente; se dejó igual
-// a como estaba en el código original (no se cambia lógica de datos acá,
-// solo la disposición visual).
-const usuarioActual = { nombre: "Sofia", rol: "Usuario", iniciales: "SP" }
+const ROL_POR_DEFECTO = "Usuario"
 
-export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
+// Hasta dos iniciales del nombre real ("Luis Pérez" -> "LP").
+function iniciales(nombre: string) {
+  const letras = nombre
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+  return letras.toUpperCase() || "?"
+}
+
+export function AppSidebar({
+  permisos,
+  nombreUsuario,
+}: {
+  permisos: PermisosRol | null
+  nombreUsuario: string | null
+}) {
+  const nombre = nombreUsuario ?? "Usuario"
   const navMain = permisos ? construirMenu(permisos) : []
   const { proyecto } = useProyectoActual()
   const rolVisible =
-    permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : usuarioActual.rol)
+    permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : ROL_POR_DEFECTO)
 
   const router = useRouter()
   const pathname = usePathname()
@@ -176,11 +190,11 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-                {usuarioActual.iniciales}
+                {iniciales(nombre)}
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col text-left group-data-[collapsible=icon]:hidden">
-                <span className="truncate text-sm font-medium">{usuarioActual.nombre}</span>
+                <span className="truncate text-sm font-medium">{nombre}</span>
                 <span className="truncate text-xs text-muted-foreground">
                   {rolVisible}
                 </span>

@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import { etiquetaProyecto } from "@/lib/proyecto-actual"
@@ -182,7 +183,7 @@ export default function VisualizacionPage() {
 
   const insumosFiltrados = useMemo(() => {
     const q = busquedaInsumo.trim().toLowerCase()
-    if (!q) return insumosOrdenados
+    if (!q || q === COMODIN_LISTAR) return insumosOrdenados
     return insumosOrdenados.filter((i) => i.insumoDescripcion.toLowerCase().includes(q))
   }, [insumosOrdenados, busquedaInsumo])
 

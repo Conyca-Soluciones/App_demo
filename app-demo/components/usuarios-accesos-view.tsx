@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useState } from "react"
 import { KeyRound, Loader2, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -79,6 +80,7 @@ export function UsuariosAccesosView() {
     return (usuarios ?? []).filter(
       (u) =>
         !q ||
+        q === COMODIN_LISTAR ||
         u.nombre.toLowerCase().includes(q) ||
         (u.email ?? "").toLowerCase().includes(q) ||
         (u.username ?? "").toLowerCase().includes(q)

@@ -12,25 +12,15 @@ import {
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
-// A dónde navega cada tipo de notificación al hacer click.
-//
-// OJO: una requisición rechazada en Compras (rechazado_compras_at) NO tiene hoy
-// una vista de detalle propia. El filtro "Rechazados" que existe en
-// /almacen es del rechazo de subgerencia técnica (columna `estado`), un
-// flujo distinto -- una requisición rechazada por Compras sigue con
-// estado='aprobado' y no aparece resaltado ahí. Por ahora lo mandamos al
-// registro general de requisiciones del proyecto; si quieres que se vea marcado
-// específicamente, hace falta una vista nueva (pendiente, fuera del
-// alcance de hoy).
+// A dónde navega cada tipo de notificación al hacer click: las órdenes de
+// compra a su detalle, y las requisiciones al registro de requisiciones.
 function rutaDestino(n: Notificacion): string {
   if (n.entidadTipo === "orden_compra") return `/almacen/ordenes-compra/${n.entidadId}`
-  return "/almacen"
+  return "/almacen/registro-requisiciones"
 }
 
-// Sin realtime ni polling -- decisión de hoy: se actualiza al recargar la
-// página o al volver a montar el sidebar (navegación entre secciones de
-// Next.js no lo remonta, así que dentro de una sesión larga sin recargar
-// no vas a ver notificaciones nuevas hasta el próximo refresh completo).
+// Sin realtime: se recarga la lista cada minuto y cada vez que se abre la
+// campanita, así una notificación nueva aparece sin recargar la página.
 export function CampanitaNotificaciones() {
   const router = useRouter()
   const [abierto, setAbierto] = useState(false)
@@ -38,12 +28,21 @@ export function CampanitaNotificaciones() {
   const [error, setError] = useState<string | null>(null)
   const contenedorRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  function cargar() {
     listarNotificaciones()
-      .then(setNotificaciones)
+      .then((lista) => {
+        setNotificaciones(lista)
+        setError(null)
+      })
       .catch((e) =>
         setError(e instanceof Error ? e.message : "No se pudieron cargar las notificaciones.")
       )
+  }
+
+  useEffect(() => {
+    cargar()
+    const t = setInterval(cargar, 60_000)
+    return () => clearInterval(t)
   }, [])
 
   useEffect(() => {
@@ -74,7 +73,10 @@ export function CampanitaNotificaciones() {
     <div ref={contenedorRef} className="relative">
       <button
         type="button"
-        onClick={() => setAbierto((v) => !v)}
+        onClick={() => {
+          if (!abierto) cargar()
+          setAbierto((v) => !v)
+        }}
         aria-label={noLeidas > 0 ? `Notificaciones, ${noLeidas} sin leer` : "Notificaciones"}
         className="relative flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
       >

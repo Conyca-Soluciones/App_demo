@@ -1162,6 +1162,12 @@ permiso y las reglas, la pantalla solo decide si muestra el botón
   cambia entre versiones, sus requisiciones viejas dejan de contar.
 - `verificar_salida_no_supera_disponible` (trigger de salidas) ignora las
   salidas anuladas; antes las contaba y lo anulado no se podía volver a sacar.
+- **Notificaciones de aprobación/rechazo** (campanita): las generan
+  `trg_notificar_resolucion_pedido` y `trg_notificar_resolucion_oc`
+  (`20261007000000`), con el motivo. Los triggers viejos que hacían lo mismo
+  se quitaron (`20261007100000_quitar_notificaciones_duplicadas.sql`): cada
+  rechazo llegaba dos veces. No agregar otro trigger de notificación sobre
+  esas tablas sin revisar estos.
 - `cancelar_pedido` en la base no coincidía con su migración (una versión
   aplicada a mano solo dejaba cancelar al solicitante con la requisición
   pendiente; el botón de los aprobadores fallaba siempre). La misma migración
@@ -1197,9 +1203,10 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   - `modificar_pedido`: solo quien lo hizo, solo pendiente; cambia cantidad,
     fecha requerida, urgente y observaciones (no insumo ni ítem); el tope es
     lo disponible + la cantidad actual del mismo pedido.
-  - `cancelar_pedido(id, motivo)`: pendiente -> quien lo hizo o acción
-    `cancelar_pedidos`; aprobado -> solo `cancelar_pedidos` y solo si ninguna
-    orden de compra no cancelada lo usa.
+  - `cancelar_pedido(id, motivo)`: solo quien lo hizo y solo pendiente
+    (`20261006150000_cancelar_pedido_solo_propio.sql`, decisión de lcpr). La
+    acción `cancelar_pedidos` ya no da nada en la base; el botón de
+    aprobadores se quitó.
   - `desaprobar_pedido(id, motivo)`: acción `desaprobar_pedidos`; aprobado ->
     pendiente, mismas condiciones sobre órdenes de compra. Limpia
     `resuelto_*`; el rastro queda en el historial.

@@ -348,6 +348,9 @@ export type PedidoRegistro = {
   comentarioResolucion: string | null
   resueltoAt: string | null
   motivoCancelacion: string | null
+  // Solo los llena verRegistroRequisiciones (registro de varios proyectos).
+  proyectoCodigo?: string | null
+  proyectoNombre?: string | null
   // Para el diálogo de modificar: cuánto se puede pedir como máximo no se
   // conoce acá; lo valida la base al guardar.
 }
@@ -405,4 +408,95 @@ export async function verPedidosDeProyecto(
     resueltoAt: p.resuelto_at,
     motivoCancelacion: p.motivo_cancelacion,
   }))
+}
+// ---------------------------------------------------------------------------
+// Registro de requisiciones: todas las de los proyectos a los que el usuario
+// tiene acceso (no solo el proyecto actual), con filtros. El filtro de acceso
+// se aplica acá en el servidor, nunca depende de lo que mande el cliente.
+// ---------------------------------------------------------------------------
+
+export type FiltrosRegistro = {
+  desde?: string // YYYY-MM-DD, por fecha de la requisición
+  hasta?: string // YYYY-MM-DD, inclusive
+  proyectoId?: string
+  insumoId?: string
+  estado?: "pendiente" | "aprobado" | "rechazado" | "cancelado"
+  solicitadoPorId?: string
+}
+
+const LIMITE_REGISTRO = 500
+
+export async function verRegistroRequisiciones(
+  filtros: FiltrosRegistro
+): Promise<{ filas: PedidoRegistro[]; truncado: boolean }> {
+  const supabase = await createClient()
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
+
+  const permisos = await obtenerPermisosUsuario(userId)
+  const idsPermitidos = Array.from(permisos.proyectos.keys())
+  if (!permisos.veTodosProyectos && idsPermitidos.length === 0) {
+    return { filas: [], truncado: false }
+  }
+
+  let query = supabase
+    .from("pedidos_insumos")
+    .select(`
+      id, grupo_pedido_id, cantidad, created_at, fecha_requerida,
+      urgente, observaciones, estado, comentario_resolucion, resuelto_at, motivo_cancelacion,
+      solicitado_por,
+      insumo:maestro_insumos!inner(codigo, descripcion, u_m),
+      presupuesto_item:presupuesto_items!inner(
+        codigo, descripcion,
+        presupuesto:presupuestos!inner(proyecto_id, proyecto:proyectos(codigo, nombre))
+      ),
+      solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(LIMITE_REGISTRO + 1)
+
+  if (filtros.proyectoId) {
+    // Un proyecto pedido a mano solo vale si el usuario tiene acceso a él.
+    if (!permisos.veTodosProyectos && !idsPermitidos.includes(filtros.proyectoId)) {
+      return { filas: [], truncado: false }
+    }
+    query = query.eq("presupuesto_item.presupuesto.proyecto_id", filtros.proyectoId)
+  } else if (!permisos.veTodosProyectos) {
+    query = query.in("presupuesto_item.presupuesto.proyecto_id", idsPermitidos)
+  }
+  if (filtros.estado) query = query.eq("estado", filtros.estado)
+  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+  if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+  if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+
+  if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
+  if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
+
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+
+  const truncado = (data?.length ?? 0) > LIMITE_REGISTRO
+  const filas = (data ?? []).slice(0, LIMITE_REGISTRO).map((p: any) => ({
+    id: p.id,
+    grupoPedidoId: p.grupo_pedido_id,
+    insumoCodigo: p.insumo?.codigo,
+    insumoDescripcion: p.insumo?.descripcion,
+    insumoUm: p.insumo?.u_m,
+    itemCodigo: p.presupuesto_item?.codigo,
+    itemDescripcion: p.presupuesto_item?.descripcion,
+    cantidad: p.cantidad,
+    fechaPedido: p.created_at,
+    fechaRequerida: p.fecha_requerida,
+    urgente: p.urgente,
+    observaciones: p.observaciones,
+    estado: p.estado,
+    solicitanteId: p.solicitado_por,
+    solicitanteNombre: p.solicitante?.nombre ?? null,
+    comentarioResolucion: p.comentario_resolucion,
+    resueltoAt: p.resuelto_at,
+    motivoCancelacion: p.motivo_cancelacion,
+    proyectoCodigo: p.presupuesto_item?.presupuesto?.proyecto?.codigo ?? null,
+    proyectoNombre: p.presupuesto_item?.presupuesto?.proyecto?.nombre ?? null,
+  }))
+  return { filas, truncado }
 }

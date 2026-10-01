@@ -3,6 +3,7 @@
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
+import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
@@ -32,7 +33,7 @@ export async function listarProyectosCompras(): Promise<ProyectoSugerido[]> {
 export type InsumoSugerido = { id: string; codigo: number; descripcion: string; u_m: string | null }
 
 export async function buscarInsumosCompras(termino: string): Promise<InsumoSugerido[]> {
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -40,7 +41,7 @@ export async function buscarInsumosCompras(termino: string): Promise<InsumoSuger
     .select("id, codigo, descripcion, u_m")
     .ilike("descripcion", `%${termino.trim()}%`)
     .order("descripcion")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (error) throw new Error(error.message)
   return data ?? []
@@ -49,7 +50,7 @@ export async function buscarInsumosCompras(termino: string): Promise<InsumoSuger
 export type UsuarioSugerido = { id: string; nombre: string }
 
 export async function buscarUsuarios(termino: string): Promise<UsuarioSugerido[]> {
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -57,7 +58,7 @@ export async function buscarUsuarios(termino: string): Promise<UsuarioSugerido[]
     .select("id, nombre")
     .ilike("nombre", `%${termino.trim()}%`)
     .order("nombre")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (error) throw new Error(error.message)
   return data ?? []
@@ -226,7 +227,7 @@ export type ProveedorSugerido = {
 
 export async function buscarProveedores(termino: string): Promise<ProveedorSugerido[]> {
   await requerirScope("rol_compras")
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -235,7 +236,7 @@ export async function buscarProveedores(termino: string): Promise<ProveedorSuger
     .eq("estado", "ACTIVO")
     .ilike("nombre", `%${termino.trim()}%`)
     .order("nombre")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (error) throw new Error(error.message)
   return (data ?? []).map((p) => ({
@@ -726,7 +727,9 @@ async function conSobrecostoPrecio<T extends { id: string }>(
 
 export type NotificacionTipo =
   | "pedido_rechazado"
+  | "pedido_aprobado"
   | "orden_compra_rechazada"
+  | "orden_compra_aprobada"
   | "insumo_sobre_presupuesto"
   | "orden_compra_precio_sobre_efectivo"
 export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra"

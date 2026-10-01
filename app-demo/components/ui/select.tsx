@@ -7,7 +7,34 @@ import { cn } from "@/lib/utils"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { UnfoldMoreIcon, Tick02Icon, ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons"
 
-const Select = SelectPrimitive.Root
+// Base UI muestra en el botón el VALOR del ítem elegido (ej. "todos",
+// "__ninguna__") salvo que el Root reciba `items` con su etiqueta. Se arma
+// solo recorriendo los <SelectItem> hijos, así todo Select de la app muestra
+// el texto que ve el usuario en la lista (ej. "Todos") sin repetirlo a mano.
+function recolectarItems(
+  nodo: React.ReactNode,
+  acc: { value: string; label: React.ReactNode }[] = []
+) {
+  React.Children.forEach(nodo, (hijo) => {
+    if (!React.isValidElement(hijo)) return
+    const props = hijo.props as { value?: unknown; children?: React.ReactNode }
+    if (hijo.type === SelectItem && typeof props.value === "string") {
+      acc.push({ value: props.value, label: props.children })
+    } else if (props.children) {
+      recolectarItems(props.children, acc)
+    }
+  })
+  return acc
+}
+
+function Select(props: SelectPrimitive.Root.Props<any>) {
+  const { items, children, ...resto } = props
+  return (
+    <SelectPrimitive.Root items={items ?? recolectarItems(children)} {...resto}>
+      {children}
+    </SelectPrimitive.Root>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

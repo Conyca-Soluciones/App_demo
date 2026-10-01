@@ -1,7 +1,7 @@
 "use client"
 
 import { leerCantidadEntera } from "@/lib/numeros"
-
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -91,7 +91,7 @@ export function SalidasView() {
     return (inventario ?? [])
       .filter((i) => i.cantidadDisponible > 0)
       .filter(
-        (i) => !q || i.insumoDescripcion.toLowerCase().includes(q) || String(i.insumoCodigo).includes(q)
+        (i) => !q || q === COMODIN_LISTAR || i.insumoDescripcion.toLowerCase().includes(q) || String(i.insumoCodigo).includes(q)
       )
   }, [inventario, busqueda])
 

@@ -10,6 +10,7 @@ import { hoyColombia } from "@/lib/fechas"
 // cantidadDisponible de cada uno), y los campos comunes del pedido (fecha,
 // urgente, observaciones).
 
+import { puedeBuscar } from "@/lib/busqueda"
 import { useEffect, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -84,7 +85,7 @@ export function SolicitudInsumoDialog({
   // Buscar insumos mientras escribe (código o descripción del insumo,
   // o código del ítem del presupuesto -- ver buscar_insumos_presupuesto)
   useEffect(() => {
-    if (busqueda.trim().length < 2) {
+    if (!puedeBuscar(busqueda)) {
       setSugerencias([])
       return
     }
@@ -249,7 +250,7 @@ export function SolicitudInsumoDialog({
                   {buscando && (
                     <div className="px-4 py-3 text-sm text-muted-foreground">Buscando…</div>
                   )}
-                  {!buscando && sugerenciasNuevas.length === 0 && busqueda.trim().length >= 2 && (
+                  {!buscando && sugerenciasNuevas.length === 0 && puedeBuscar(busqueda) && (
                     <div className="px-4 py-3 text-sm text-muted-foreground">
                       {sugerencias.length > 0
                         ? "Todos los insumos que coinciden ya están en la requisición."

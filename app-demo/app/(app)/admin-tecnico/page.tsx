@@ -27,7 +27,6 @@ import {
   verPedidosPorEstado,
   resolverPedido,
   desaprobarPedido,
-  cancelarPedidoComoAprobador,
   obtenerPermisosPedidos,
   type EstadoAprobacion,
   type PedidoPendiente,
@@ -40,7 +39,7 @@ const VISTAS: { valor: EstadoAprobacion; etiqueta: string }[] = [
   { valor: "rechazado", etiqueta: "Rechazadas" },
 ]
 
-type TipoAccion = "rechazar" | "desaprobar" | "cancelar"
+type TipoAccion = "rechazar" | "desaprobar"
 const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; boton: string }> = {
   rechazar: {
     titulo: "Rechazar requisición",
@@ -51,11 +50,6 @@ const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; bo
     titulo: "Desaprobar requisición",
     explicacion: "Vuelve a pendiente y se podrá aprobar o rechazar de nuevo. No se puede si ya está en una orden de compra.",
     boton: "Desaprobar requisición",
-  },
-  cancelar: {
-    titulo: "Cancelar requisición",
-    explicacion: "Queda registrado como cancelado y su cantidad vuelve a estar disponible. No se puede si ya está en una orden de compra.",
-    boton: "Cancelar requisición",
   },
 }
 
@@ -69,7 +63,7 @@ export default function AdminTecnico() {
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
   const [vista, setVista] = useState<EstadoAprobacion>("pendiente")
   const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
-  // Rechazar / desaprobar / cancelar piden motivo; el historial se abre por requisición.
+  // Rechazar / desaprobar piden motivo; el historial se abre por requisición.
   const [accion, setAccion] = useState<{ tipo: TipoAccion; pedido: PedidoPendiente } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
@@ -103,8 +97,7 @@ export default function AdminTecnico() {
         const id = accion.pedido.id
         setPedidos((prev) => prev.filter((p) => p.id !== id))
       } else {
-        if (accion.tipo === "desaprobar") await desaprobarPedido(accion.pedido.id, motivo.trim())
-        else await cancelarPedidoComoAprobador(accion.pedido.id, motivo.trim())
+        await desaprobarPedido(accion.pedido.id, motivo.trim())
         cargar()
       }
       setAccion(null)
@@ -328,20 +321,6 @@ export default function AdminTecnico() {
                                   Desaprobar
                                 </Button>
                               )
-                            )}
-                            {vista !== "rechazado" && permisos?.cancelar && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  setAccion({ tipo: "cancelar", pedido })
-                                  setMotivo("")
-                                }}
-                                disabled={procesando}
-                              >
-                                Cancelar
-                              </Button>
                             )}
                             <Button
                               size="sm"

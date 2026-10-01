@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { buscarSimilares } from "@/lib/similitud-texto"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { requerirScope } from "@/lib/permisos"
@@ -632,7 +633,7 @@ export async function buscarInsumos(
   termino: string,
   tipos?: string[]
 ): Promise<InsumoSugerido[]> {
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
 
   const supabase = await createClient()
 
@@ -641,7 +642,7 @@ export async function buscarInsumos(
     .select("id, codigo, descripcion, u_m, tipo, vr_unitario")
     .ilike("descripcion", `%${termino.trim()}%`)
     .order("descripcion")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (tipos && tipos.length > 0) {
     query = query.in("tipo", tipos)
