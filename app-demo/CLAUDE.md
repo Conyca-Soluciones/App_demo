@@ -836,7 +836,7 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `.in("col", ids)` va en la URL: con cientos de ids falla; partir en tandas
   de ~100, o mejor filtrar en la misma consulta (embed `!inner`, como el
   filtro por insumo de requisiciones, `SELECT_REQUISICIONES_CON_INSUMO`).
-  Revisión de requisiciones agrupadas: `20261010000000_rendimiento_requisiciones.sql`.
+  Revisión de requisiciones agrupadas: `20261010100000_rendimiento_requisiciones.sql`.
 
 ## Reglas transversales (auditoría de casos borde, 2026-10-01)
 

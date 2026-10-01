@@ -446,7 +446,7 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   const insumosUnicos = Array.from(marcadosPorInsumo.values()).map((g) => g.linea)
 
   // UNA llamada para todos los insumos, por id exacto (ver
-  // 20261010000000_rendimiento_requisiciones.sql). Antes era una llamada por
+  // 20261010100000_rendimiento_requisiciones.sql). Antes era una llamada por
   // insumo buscando su código como texto con límite de 200 filas, que podía
   // dejar por fuera los ítems del insumo en un presupuesto grande.
   const { data, error } = await supabase.rpc("insumos_presupuesto_por_ids", {
