@@ -106,7 +106,7 @@ export default function RegistroRequisiciones() {
                         <td className={`${celda} font-medium text-primary`}>
                           Requisición {r.numero}
                           {r.urgente && (
-                            <span className="ml-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800">
+                            <span className="ml-1.5 rounded-full bg-red-100 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-red-800">
                               Urgente
                             </span>
                           )}

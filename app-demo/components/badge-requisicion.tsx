@@ -13,7 +13,7 @@ const COMPRA: Record<NonNullable<EstadoCompra>, { etiqueta: string; clase: strin
   rechazada_compras: { etiqueta: "Rechazada por Compras", clase: "bg-red-100 text-red-800" },
 }
 
-const base = "inline-block whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium"
+const base = "inline-flex h-6 items-center whitespace-nowrap rounded-full px-3 align-middle text-xs font-medium"
 
 // Estado de APROBACIÓN de la requisición.
 export function BadgeEstadoRequisicion({ estado }: { estado: EstadoRequisicion }) {
