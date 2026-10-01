@@ -209,9 +209,12 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             </Button>
           )}
         </div>
-        <Button variant="outline" onClick={onCerrar ?? (() => router.push("/almacen/comprar-pedidos"))}>
-          {onCerrar ? "Cerrar" : "Volver"}
-        </Button>
+        {/* Dentro de un diálogo (onCerrar) se cierra con la X del propio diálogo. */}
+        {!onCerrar && (
+          <Button variant="outline" onClick={() => router.push("/almacen/comprar-pedidos")}>
+            Volver
+          </Button>
+        )}
       </div>
 
       {error && (
