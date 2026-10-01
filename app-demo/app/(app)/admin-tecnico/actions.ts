@@ -16,8 +16,6 @@ import {
   type RequisicionResumen,
 } from "@/lib/requisiciones-lineas"
 
-export type EstadoAprobacion = "pendiente" | "aprobada" | "rechazada"
-
 export type RequisicionParaAprobar = RequisicionResumen & {
   lineas: LineaRequisicion[]
   // Solo rechazadas: el motivo y quién rechazó.
@@ -26,20 +24,22 @@ export type RequisicionParaAprobar = RequisicionResumen & {
   resueltoAt: string | null
 }
 
-// "pendiente" = cola de aprobación; "aprobada" = ya aprobadas (para poder
-// desaprobarlas mientras ningún insumo esté en una orden de compra);
-// "rechazada" = historial de rechazos, con motivo y quién rechazó. Ve todos
-// los proyectos (quien aprueba no está limitado a los suyos).
-export async function verRequisicionesPorEstado(
-  estado: EstadoAprobacion,
-  filtros: Omit<FiltrosRequisiciones, "estado"> = {}
+// Consulta de requisiciones para aprobar. Sin filtro de estado trae las
+// pendientes, aprobadas y rechazadas (no las canceladas); cada una se muestra
+// con las acciones de su propio estado (pendiente: aprobar o rechazar;
+// aprobada: desaprobar mientras ningún insumo esté en una orden de compra).
+// Ve todos los proyectos (quien aprueba no está limitado a los suyos).
+export async function verRequisicionesAprobacion(
+  filtros: FiltrosRequisiciones = {}
 ): Promise<RequisicionParaAprobar[]> {
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
-  let query = supabase.from("requisiciones_vista").select("*").eq("estado", estado)
+  let query = supabase.from("requisiciones_vista").select("*")
+  query = filtros.estado
+    ? query.eq("estado", filtros.estado)
+    : query.in("estado", ["pendiente", "aprobada", "rechazada"])
 
-  // Filtros opcionales (mismo panel que el Registro de requisiciones).
   if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
   if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
   if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
@@ -57,29 +57,35 @@ export async function verRequisicionesPorEstado(
     if (ids.length === 0) return []
     query = query.in("id", ids)
   }
-  query =
-    estado === "pendiente"
-      ? query.order("urgente", { ascending: false }).order("created_at", { ascending: true }).limit(500)
-      : query.order("created_at", { ascending: false }).limit(300)
 
-  const { data, error } = await query
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(500)
   if (error) throw new Error(error.message)
   const filas = (data ?? []) as any[]
   if (filas.length === 0) return []
 
   const lineas = await cargarLineas(supabase, filas.map((f) => f.id))
 
-  return filas.map((f) => {
+  const lista = filas.map((f) => {
     const ls = lineas.get(f.id) ?? []
     const resuelta = ls.find((l) => l._resueltoAt)
+    const resumen = mapResumen(f)
     return {
-      ...mapResumen(f),
+      ...resumen,
       lineas: ls.map(({ _resolutor, _resueltoAt, _comentario, _motivoCancelacion, ...l }) => l),
-      motivoRechazo: estado === "rechazada" ? ls.find((l) => l._comentario)?._comentario ?? null : null,
+      motivoRechazo:
+        resumen.estado === "rechazada" ? ls.find((l) => l._comentario)?._comentario ?? null : null,
       resueltoPorNombre: resuelta?._resolutor ?? null,
       resueltoAt: resuelta?._resueltoAt ?? null,
     }
   })
+
+  // Primero lo que falta por aprobar (urgentes y más antiguas arriba); después
+  // el resto, de la más reciente a la más antigua.
+  const pendientes = lista
+    .filter((r) => r.estado === "pendiente")
+    .sort((x, y) => Number(y.urgente) - Number(x.urgente) || x.createdAt.localeCompare(y.createdAt))
+  const resto = lista.filter((r) => r.estado !== "pendiente")
+  return [...pendientes, ...resto]
 }
 
 // Aprueba o rechaza la requisición completa (todas sus líneas pendientes).

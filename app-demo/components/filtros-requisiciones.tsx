@@ -5,6 +5,7 @@ import { ChevronLeft, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -70,6 +71,8 @@ export function FiltrosRequisicionesPanel({
   const [proyectoId, setProyectoId] = useState<string>("todos")
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [estado, setEstado] = useState<EstadoRequisicion | "todos">("todos")
+  // "Solo por Aprobar" = estado pendiente de aprobación (pisa el filtro Estado).
+  const [soloPorAprobar, setSoloPorAprobar] = useState(false)
   const [solicitante, setSolicitante] = useState<OpcionBuscador | null>(null)
   const [desde, setDesde] = useState("")
   const [hasta, setHasta] = useState("")
@@ -91,7 +94,7 @@ export function FiltrosRequisicionesPanel({
       numero: n,
       proyectoId: proyectoId === "todos" ? undefined : proyectoId,
       insumoId: insumo?.id,
-      estado: conEstado && estado !== "todos" ? estado : undefined,
+      estado: soloPorAprobar ? "pendiente" : conEstado && estado !== "todos" ? estado : undefined,
       solicitadoPorId: solicitante?.id,
       desde: desde || undefined,
       hasta: hasta || undefined,
@@ -100,7 +103,10 @@ export function FiltrosRequisicionesPanel({
 
   function consultar() {
     const f = construirFiltros()
-    if (f) onConsultar(f)
+    if (!f) return
+    onConsultar(f)
+    // Al consultar, el panel se minimiza para dejar todo el ancho a los resultados.
+    setAbierto(false)
   }
 
   function limpiar() {
@@ -108,6 +114,7 @@ export function FiltrosRequisicionesPanel({
     setProyectoId("todos")
     setInsumo(null)
     setEstado("todos")
+    setSoloPorAprobar(false)
     setSolicitante(null)
     setDesde("")
     setHasta("")
@@ -187,7 +194,8 @@ export function FiltrosRequisicionesPanel({
           <div className="space-y-1.5">
             <Label>Estado</Label>
             <Select
-              value={estado}
+              disabled={soloPorAprobar}
+              value={soloPorAprobar ? "pendiente" : estado}
               onValueChange={(v) => setEstado((v ?? "todos") as EstadoRequisicion | "todos")}
             >
               <SelectTrigger className="w-full">
@@ -203,6 +211,14 @@ export function FiltrosRequisicionesPanel({
             </Select>
           </div>
         )}
+
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            checked={soloPorAprobar}
+            onCheckedChange={(v) => setSoloPorAprobar(v === true)}
+          />
+          Solo por Aprobar
+        </label>
 
         <div className="space-y-1.5">
           <Label>Solicitado por</Label>

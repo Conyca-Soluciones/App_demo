@@ -20,25 +20,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { BadgeCompraRequisicion } from "@/components/badge-requisicion"
+import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
-  verRequisicionesPorEstado,
+  verRequisicionesAprobacion,
   resolverRequisicion,
   desaprobarRequisicion,
   obtenerPermisosPedidos,
-  type EstadoAprobacion,
   type RequisicionParaAprobar,
   type PermisosPedidos,
 } from "./actions"
-
-const VISTAS: { valor: EstadoAprobacion; etiqueta: string }[] = [
-  { valor: "pendiente", etiqueta: "Pendientes" },
-  { valor: "aprobada", etiqueta: "Aprobadas" },
-  { valor: "rechazada", etiqueta: "Rechazadas" },
-]
 
 type TipoAccion = "rechazar" | "desaprobar"
 const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; boton: string }> = {
@@ -60,37 +53,34 @@ const headClasses = "border-r bg-muted/50 px-3 py-2 text-left text-xs font-mediu
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
 export default function AdminTecnico() {
-  const [requisiciones, setRequisiciones] = useState<RequisicionParaAprobar[]>([])
-  const [cargando, setCargando] = useState(true)
+  // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
+  const [requisiciones, setRequisiciones] = useState<RequisicionParaAprobar[] | null>(null)
+  const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
-  const [vista, setVista] = useState<EstadoAprobacion>("pendiente")
   const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
   // Rechazar / desaprobar piden motivo; el historial se abre por requisición.
   const [accion, setAccion] = useState<{ tipo: TipoAccion; req: RequisicionParaAprobar } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
   const [historial, setHistorial] = useState<RequisicionParaAprobar | null>(null)
-  // Filtros aplicados (panel de la izquierda); se conservan al cambiar de pestaña.
+  // Últimos filtros consultados (para repetir la consulta tras desaprobar).
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
 
   function cargar(f: FiltrosRequisiciones = filtros) {
     setCargando(true)
     setError(null)
-    const { estado: _estado, ...sinEstado } = f
-    Promise.all([verRequisicionesPorEstado(vista, sinEstado), obtenerPermisosPedidos()])
-      .then(([lista, p]: [RequisicionParaAprobar[], PermisosPedidos]) => {
-        setRequisiciones(lista)
-        setPermisos(p)
-      })
+    verRequisicionesAprobacion(f)
+      .then((lista: RequisicionParaAprobar[]) => setRequisiciones(lista))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargando(false))
   }
 
   useEffect(() => {
-    cargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista])
+    obtenerPermisosPedidos()
+      .then(setPermisos)
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los permisos."))
+  }, [])
 
   async function confirmarAccion() {
     if (!accion || !motivo.trim()) return
@@ -101,7 +91,7 @@ export default function AdminTecnico() {
         await resolverRequisicion(accion.req.id, "rechazado", motivo.trim())
         // Optimista, igual que aprobar: sale de la cola de pendientes.
         const id = accion.req.id
-        setRequisiciones((prev) => prev.filter((r) => r.id !== id))
+        setRequisiciones((prev) => (prev ?? []).filter((r) => r.id !== id))
       } else {
         await desaprobarRequisicion(accion.req.id, motivo.trim())
         cargar()
@@ -122,7 +112,8 @@ export default function AdminTecnico() {
     try {
       await resolverRequisicion(id, "aprobado")
       // Optimista: se saca de la lista de pendientes al instante.
-      setRequisiciones((prev) => prev.filter((r) => r.id !== id))
+      // Se vuelve a consultar para que aparezca como aprobada.
+      cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo actualizar la requisición.")
     } finally {
@@ -137,16 +128,13 @@ export default function AdminTecnico() {
   // Agrupar por proyecto -- barato porque ya es solo la cola de
   // pendientes (nunca todo el histórico).
   const porProyecto = new Map<string, { nombre: string; reqs: RequisicionParaAprobar[] }>()
-  for (const r of requisiciones) {
+  for (const r of requisiciones ?? []) {
     const clave = r.proyectoId ?? "sin-proyecto"
     if (!porProyecto.has(clave)) {
       porProyecto.set(clave, { nombre: r.proyectoNombre ?? "Sin proyecto", reqs: [] })
     }
     porProyecto.get(clave)!.reqs.push(r)
   }
-
-  const etiquetaVista =
-    vista === "pendiente" ? "pendientes" : vista === "aprobada" ? "aprobadas" : "rechazadas"
 
   return (
     <>
@@ -162,8 +150,6 @@ export default function AdminTecnico() {
 
       <main className="flex w-full flex-1 gap-4 p-6">
         <FiltrosRequisicionesPanel
-          conEstado={false}
-          consultarAlLimpiar
           cargando={cargando}
           onError={setError}
           onConsultar={(f) => {
@@ -173,24 +159,20 @@ export default function AdminTecnico() {
         />
 
         <div className="min-w-0 flex-1 space-y-8">
-        <div className="flex gap-2">
-          {VISTAS.map((v) => (
-            <Button
-              key={v.valor}
-              size="sm"
-              variant={vista === v.valor ? "default" : "outline"}
-              onClick={() => setVista(v.valor)}
-            >
-              {v.etiqueta}
-            </Button>
-          ))}
-        </div>
-
         {cargando && <p className="text-sm text-muted-foreground">Cargando requisiciones…</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {!cargando && requisiciones.length === 0 && !error && (
-          <p className="text-sm text-muted-foreground">No hay requisiciones {etiquetaVista}.</p>
+        {requisiciones === null && !cargando && (
+          <div className="flex items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+            Elige los filtros que quieras y presiona Consultar. Con &quot;Solo por Aprobar&quot; ves únicamente las
+            que están esperando aprobación.
+          </div>
+        )}
+
+        {requisiciones !== null && requisiciones.length === 0 && !cargando && !error && (
+          <p className="rounded-lg border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+            Ninguna requisición coincide con los filtros.
+          </p>
         )}
 
         {[...porProyecto.entries()].map(([proyectoId, grupo]) => (
@@ -198,7 +180,7 @@ export default function AdminTecnico() {
             <h2 className="text-sm font-semibold text-foreground">
               {grupo.nombre}{" "}
               <span className="font-normal text-muted-foreground">
-                ({grupo.reqs.length} {grupo.reqs.length === 1 ? "requisición" : "requisiciones"} {etiquetaVista})
+                ({grupo.reqs.length} {grupo.reqs.length === 1 ? "requisición" : "requisiciones"})
               </span>
             </h2>
 
@@ -224,8 +206,9 @@ export default function AdminTecnico() {
                           </span>
                         )}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                         {req.nLineas} {req.nLineas === 1 ? "insumo" : "insumos"}
+                        <BadgeEstadoRequisicion estado={req.estado} />
                       </p>
                     </div>
                     <div className="text-xs">
@@ -240,13 +223,13 @@ export default function AdminTecnico() {
                       <p className="text-muted-foreground">Fecha requerida</p>
                       <p>{req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}</p>
                     </div>
-                    {vista === "aprobada" && (
+                    {req.estado === "aprobada" && (
                       <div className="text-xs">
                         <p className="text-muted-foreground">Compra</p>
                         <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
                       </div>
                     )}
-                    {vista === "rechazada" && (
+                    {req.estado === "rechazada" && (
                       <div className="text-xs">
                         <p className="text-muted-foreground">Rechazada por</p>
                         <p>
@@ -267,7 +250,7 @@ export default function AdminTecnico() {
                     )}
 
                     <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                      {vista === "pendiente" && permisos?.aprobar && (
+                      {req.estado === "pendiente" && permisos?.aprobar && (
                         <>
                           <Button
                             size="sm"
@@ -292,7 +275,7 @@ export default function AdminTecnico() {
                           </Button>
                         </>
                       )}
-                      {vista === "aprobada" && permisos?.desaprobar && (
+                      {req.estado === "aprobada" && permisos?.desaprobar && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -323,7 +306,7 @@ export default function AdminTecnico() {
                       {req.observaciones}
                     </p>
                   )}
-                  {vista === "rechazada" && (
+                  {req.estado === "rechazada" && (
                     <p className="border-b bg-red-50/60 px-4 py-2 text-xs text-red-900">
                       <span className="font-medium">Motivo del rechazo: </span>
                       {req.motivoRechazo ?? "(sin motivo)"}
