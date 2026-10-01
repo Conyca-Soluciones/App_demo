@@ -462,23 +462,35 @@ export async function crearNuevaVersion(
   }
 }
 //Funcion para borrar presupuesto en descartar
-export async function EliminarPresupuesto(presupuestoId: string){
+// Borra el presupuesto COMPLETO (todas sus versiones e ítems). Se niega si
+// ya hay requisiciones sobre él: la base no lo permitiría igual (FK), pero
+// devolvía un error técnico; además borrar un presupuesto en uso perdería
+// la trazabilidad de lo pedido y comprado.
+export async function EliminarPresupuesto(presupuestoId: string) {
   const supabase = await createClient()
 
-  //const versionActualId = await obtenerOCrearVersionActual(supabase, presupuestoId)
-
-  const {error: errorBorrar}=await supabase
-    .from("presupuestos")
-    .delete()
-    .eq("id",presupuestoId)
-
-  if (errorBorrar) {
-    throw new Error(errorBorrar.message)
+  const { count, error: errorConteo } = await supabase
+    .from("pedidos_insumos")
+    .select("id, presupuesto_item:presupuesto_items!inner(presupuesto_id)", { count: "exact", head: true })
+    .eq("presupuesto_item.presupuesto_id", presupuestoId)
+  if (errorConteo) throw new Error(errorConteo.message)
+  if ((count ?? 0) > 0) {
+    throw new Error(
+      `No se puede borrar: este presupuesto ya tiene ${count} requisición(es). Si necesitas cambiarlo, crea una versión nueva.`
+    )
   }
 
+  const { data, error: errorBorrar } = await supabase
+    .from("presupuestos")
+    .delete()
+    .eq("id", presupuestoId)
+    .select("id")
 
-
-
+  if (errorBorrar) throw new Error(errorBorrar.message)
+  // RLS no da error al bloquear un DELETE: simplemente no borra filas.
+  if (!data || data.length === 0) {
+    throw new Error("No se borró el presupuesto: no tienes permiso para editar este proyecto.")
+  }
 }
 export async function actualizarEstadoPresupuesto(
   presupuestoId: string,
@@ -567,16 +579,29 @@ export async function actualizarCantidadPresupuestoItem(
   id: string,
   nuevaCantidad: number
 ): Promise<{ cantidad: number; valorTotal: number | null }> {
+  if (!Number.isFinite(nuevaCantidad) || nuevaCantidad < 0) {
+    throw new Error("La cantidad no puede ser negativa.")
+  }
   const supabase = await createClient()
 
   const { data: actual, error: errorLectura } = await supabase
     .from("presupuesto_items")
-    .select("valor_unitario")
+    .select("valor_unitario, version_id, presupuesto:presupuestos(version_actual_id)")
     .eq("id", id)
     .single()
 
   if (errorLectura) {
     throw new Error(errorLectura.message)
+  }
+  // Las versiones anteriores son de solo lectura (la pantalla lo bloquea,
+  // pero la acción no lo validaba: una pestaña vieja podía cambiarlas).
+  // El embed puede venir como objeto o como arreglo según cómo lo infiera
+  // PostgREST; se normaliza.
+  const embed = actual.presupuesto as unknown
+  const presupuestoPadre = (Array.isArray(embed) ? embed[0] : embed) as { version_actual_id: string | null } | null
+  const versionActual = presupuestoPadre?.version_actual_id
+  if (versionActual && actual.version_id !== versionActual) {
+    throw new Error("Este ítem es de una versión anterior del presupuesto (solo lectura). Actualiza la página.")
   }
 
   const valorTotal =
@@ -1115,7 +1140,7 @@ export async function rechazarSolicitudInsumo(solicitudId: string, motivo?: stri
   // presupuesto lo muestra para los ítems en rojo (rechazado), para que
   // el ingeniero sepa qué corregir sin tener que ir a /admin-insumos a
   // buscarlo.
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("solicitudes_insumos")
     .update({
       estado: "rechazado",
@@ -1124,9 +1149,17 @@ export async function rechazarSolicitudInsumo(solicitudId: string, motivo?: stri
       resuelto_por: userId ?? null,
     })
     .eq("id", solicitudId)
+    // Solo si sigue pendiente: si otra persona ya la APROBÓ (y el insumo o
+    // la categoría ya entró al catálogo y al APU), rechazarla con la
+    // pantalla vieja la dejaba marcada como rechazada aunque ya está en uso.
+    .eq("estado", "pendiente")
+    .select("id")
 
   if (error) {
     throw new Error(error.message)
+  }
+  if (!data || data.length === 0) {
+    throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
 }
 
@@ -2054,7 +2087,7 @@ export async function rechazarSolicitudManoObra(solicitudId: string, motivo?: st
 
   const userId = await obtenerUsuarioId()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("solicitudes_mano_obra")
     .update({
       estado: "rechazado",
@@ -2063,9 +2096,17 @@ export async function rechazarSolicitudManoObra(solicitudId: string, motivo?: st
       resuelto_por: userId ?? null,
     })
     .eq("id", solicitudId)
+    // Solo si sigue pendiente: si otra persona ya la APROBÓ (y el insumo o
+    // la categoría ya entró al catálogo y al APU), rechazarla con la
+    // pantalla vieja la dejaba marcada como rechazada aunque ya está en uso.
+    .eq("estado", "pendiente")
+    .select("id")
 
   if (error) {
     throw new Error(error.message)
+  }
+  if (!data || data.length === 0) {
+    throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
 }
 
@@ -2294,7 +2335,7 @@ export async function rechazarSolicitudEquipo(solicitudId: string, motivo?: stri
 
   const userId = await obtenerUsuarioId()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("solicitudes_equipo")
     .update({
       estado: "rechazado",
@@ -2303,9 +2344,17 @@ export async function rechazarSolicitudEquipo(solicitudId: string, motivo?: stri
       resuelto_por: userId ?? null,
     })
     .eq("id", solicitudId)
+    // Solo si sigue pendiente: si otra persona ya la APROBÓ (y el insumo o
+    // la categoría ya entró al catálogo y al APU), rechazarla con la
+    // pantalla vieja la dejaba marcada como rechazada aunque ya está en uso.
+    .eq("estado", "pendiente")
+    .select("id")
 
   if (error) {
     throw new Error(error.message)
+  }
+  if (!data || data.length === 0) {
+    throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
 }
 
@@ -2314,6 +2363,13 @@ export async function eliminarInsumoApu(itemApuId: string) {
   const { error } = await supabase.from("item_apu").delete().eq("id", itemApuId)
 
   if (error) {
+    // 23503 = hay requisiciones apuntando a esta línea del APU (FK). Antes se
+    // mostraba el error crudo de Postgres.
+    if (error.code === "23503") {
+      throw new Error(
+        "No se puede quitar este insumo del APU: ya tiene requisiciones. Si ya no se necesita, ajusta su cantidad o cancela las requisiciones primero."
+      )
+    }
     throw new Error(error.message)
   }
 }

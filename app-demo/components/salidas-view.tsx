@@ -1,5 +1,7 @@
 "use client"
 
+import { leerCantidad } from "@/lib/numeros"
+
 import { useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -39,11 +41,9 @@ const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
-// "1.5" y "1,5" son la misma cantidad -- se acepta coma decimal (Colombia).
-function parsearCantidad(texto: string): number {
-  const n = Number(texto.trim().replace(",", "."))
-  return Number.isFinite(n) ? n : NaN
-}
+// Lectura de cantidades en formato colombiano: ver lib/numeros.ts. Antes
+// "1.500" (mil quinientos) se leía como 1,5 sin avisar; ahora un número
+// ambiguo o inválido devuelve el motivo para mostrárselo al usuario.
 
 export function SalidasView() {
   // Proyecto escogido en /inicio o en el selector del header (ver
@@ -105,11 +105,12 @@ export function SalidasView() {
     for (const i of inventario) {
       const texto = cantidades[i.insumoId]
       if (!texto || !texto.trim()) continue
-      const cantidad = parsearCantidad(texto)
-      if (Number.isNaN(cantidad) || cantidad < 0) {
-        setError(`Cantidad inválida en "${i.insumoDescripcion}".`)
+      const leida = leerCantidad(texto)
+      if (!leida.ok || leida.valor < 0) {
+        setError(`"${i.insumoDescripcion}": ${leida.ok ? "la cantidad no puede ser negativa." : leida.error}`)
         return
       }
+      const cantidad = leida.valor
       if (cantidad > i.cantidadDisponible) {
         setError(
           `"${i.insumoDescripcion}": solo hay ${formatoNumero.format(i.cantidadDisponible)} disponibles.`
@@ -156,9 +157,10 @@ export function SalidasView() {
 
   async function confirmarEdicion() {
     if (!editando || !proyectoId) return
-    const cantidad = parsearCantidad(edCantidad)
-    if (Number.isNaN(cantidad) || cantidad <= 0) {
-      setError("La cantidad debe ser mayor que cero.")
+    const leida = leerCantidad(edCantidad)
+    const cantidad = leida.ok ? leida.valor : NaN
+    if (!leida.ok || cantidad <= 0) {
+      setError(leida.ok ? "La cantidad debe ser mayor que cero." : leida.error)
       setEditando(null)
       return
     }

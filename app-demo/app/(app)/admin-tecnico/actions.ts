@@ -117,7 +117,7 @@ export async function resolverPedido(
 
   if (!userId) throw new Error("No autenticado.")
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("pedidos_insumos")
     .update({
       estado,
@@ -126,8 +126,16 @@ export async function resolverPedido(
       comentario_resolucion: motivo,
     })
     .eq("id", id)
+    // Solo si SIGUE pendiente: con la pantalla abierta un rato, alguien pudo
+    // cancelarla, o otro aprobador ya la resolvió (y quizá ya está en una
+    // orden de compra). Sin esto se "re-aprobaba" una requisición cancelada.
+    .eq("estado", "pendiente")
+    .select("id")
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error("Esta requisición ya no está pendiente (la cancelaron o ya fue resuelta). Actualiza la página.")
+  }
 }
 // Devuelve un pedido aprobado a pendiente. Solo si ninguna orden de compra
 // activa lo usa (lo valida la base). Motivo obligatorio.

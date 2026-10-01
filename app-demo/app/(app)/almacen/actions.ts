@@ -4,6 +4,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
+import { hoyColombia } from "@/lib/fechas"
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -165,6 +166,11 @@ export async function crearPedido(input: NuevoPedidoInput) {
   }
 
   // -- 0. Forma del pedido --
+  // La pantalla ya pone min=hoy, pero se valida acá también (y en hora de
+  // Colombia, no UTC).
+  if (!input.fechaRequerida || input.fechaRequerida < hoyColombia()) {
+    throw new Error("La fecha requerida no puede ser anterior a hoy.")
+  }
   if (input.insumos.length === 0) {
     throw new Error("Agrega al menos un insumo a la requisición.")
   }

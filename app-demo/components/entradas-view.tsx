@@ -1,5 +1,9 @@
 "use client"
 
+import { leerCantidad } from "@/lib/numeros"
+
+import { formatearFechaSinHora } from "@/lib/fechas"
+
 import { useEffect, useState } from "react"
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -47,11 +51,9 @@ const ESTADO_BADGE: Record<
   entregada: { label: "Entregada", variant: "default" },
 }
 
-// "1.5" y "1,5" son la misma cantidad -- se acepta coma decimal (Colombia).
-function parsearCantidad(texto: string): number {
-  const n = Number(texto.trim().replace(",", "."))
-  return Number.isFinite(n) ? n : NaN
-}
+// Lectura de cantidades en formato colombiano: ver lib/numeros.ts. Antes
+// "1.500" (mil quinientos) se leía como 1,5 sin avisar; ahora un número
+// ambiguo o inválido devuelve el motivo para mostrárselo al usuario.
 
 export function EntradasView() {
   const [ordenes, setOrdenes] = useState<OrdenParaEntrada[] | null>(null)
@@ -157,7 +159,7 @@ export function EntradasView() {
                     <TableCell>{o.numero}</TableCell>
                     <TableCell>{o.proyectoCodigo ?? o.proyectoNombre ?? "—"}</TableCell>
                     <TableCell>{o.proveedorNombre}</TableCell>
-                    <TableCell>{o.fechaEntrega ? formatoFecha(o.fechaEntrega) : "—"}</TableCell>
+                    <TableCell>{formatearFechaSinHora(o.fechaEntrega)}</TableCell>
                     <TableCell>
                       <Badge variant={badge.variant}>{badge.label}</Badge>
                     </TableCell>
@@ -218,11 +220,12 @@ function DetalleEntrada({
     const lineaPorId = new Map(detalle.lineas.map((x) => [x.id, x]))
     const lineas: { id: string; cantidad: number }[] = []
     for (const l of editando.lineas) {
-      const cantidad = parsearCantidad(edCantidades[l.id] ?? "")
-      if (Number.isNaN(cantidad) || cantidad <= 0) {
-        setError(`"${l.insumoDescripcion}": la cantidad debe ser mayor que cero.`)
+      const leida = leerCantidad(edCantidades[l.id] ?? "")
+      if (!leida.ok || leida.valor <= 0) {
+        setError(`"${l.insumoDescripcion}": ${leida.ok ? "la cantidad debe ser mayor que cero." : leida.error}`)
         return
       }
+      const cantidad = leida.valor
       // Máximo = ordenado - lo recibido en OTRAS entradas vigentes.
       const linea = lineaPorId.get(l.ordenCompraItemId)
       if (linea) {
@@ -304,11 +307,12 @@ function DetalleEntrada({
     for (const l of detalle.lineas) {
       const texto = cantidades[l.id]
       if (!texto || !texto.trim()) continue
-      const cantidad = parsearCantidad(texto)
-      if (Number.isNaN(cantidad) || cantidad < 0) {
-        setError(`Cantidad inválida en "${l.insumoDescripcion}".`)
+      const leida = leerCantidad(texto)
+      if (!leida.ok || leida.valor < 0) {
+        setError(`"${l.insumoDescripcion}": ${leida.ok ? "la cantidad no puede ser negativa." : leida.error}`)
         return
       }
+      const cantidad = leida.valor
       if (cantidad > l.cantidadPendiente) {
         setError(
           `"${l.insumoDescripcion}": no puedes recibir más de lo pendiente (${formatoNumero.format(l.cantidadPendiente)}).`

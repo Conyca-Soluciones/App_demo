@@ -190,7 +190,7 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
 
   const userId = await obtenerUsuarioId()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("pedidos_insumos")
     .update({
       rechazado_compras_at: new Date().toISOString(),
@@ -198,8 +198,17 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
       observaciones_compras: motivo,
     })
     .eq("id", pedidoId)
+    // Solo una vez y solo sobre requisiciones aprobadas: con la pantalla
+    // desactualizada se podía volver a rechazar (sobrescribiendo el motivo)
+    // o rechazar una que ya habían cancelado/desaprobado.
+    .eq("estado", "aprobado")
+    .is("rechazado_compras_at", null)
+    .select("id")
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error("Esta requisición ya no está disponible para Compras (ya fue rechazada o cambió de estado). Actualiza la página.")
+  }
 }
 
 // ---------------------------------------------------------------------------

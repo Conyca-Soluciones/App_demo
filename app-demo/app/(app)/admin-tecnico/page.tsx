@@ -1,5 +1,7 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
+
 // app/(app)/admin-tecnico/page.tsx
 //
 // Panel de aprobación de pedidos de insumos. Tabla tipo Excel,
@@ -235,7 +237,7 @@ export default function AdminTecnico() {
                           {new Date(pedido.fechaPedido).toLocaleDateString("es-CO")}
                         </td>
                         <td className={`${celda} text-center`}>
-                          {new Date(pedido.fechaRequerida).toLocaleDateString("es-CO")}
+                          {formatearFechaSinHora(pedido.fechaRequerida)}
                         </td>
                         <td
                           className={`${celda} max-w-[220px] truncate`}

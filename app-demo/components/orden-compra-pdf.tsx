@@ -1,3 +1,4 @@
+import { formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
 import path from "path"
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { numeroALetrasCOP } from "@/lib/numero-a-letras"
@@ -9,9 +10,16 @@ const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 const formatoMoneda = (n: number) =>
   n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+// El PDF se genera en el servidor (UTC): sin timeZone, una orden creada a
+// las 8 p. m. en Colombia salía con la fecha del día siguiente.
 const formatoFecha = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+    ? new Date(iso).toLocaleDateString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: ZONA_HORARIA,
+      })
     : "—"
 
 const AZUL = "#3B6EA5"
@@ -175,7 +183,7 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
             <View style={styles.cardBody}>
               <Dato label="Proyecto" value={orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"} />
               <Dato label="Sitio de entrega" value={orden.sitioEntrega ?? "—"} />
-              <Dato label="Fecha de entrega" value={formatoFecha(orden.fechaEntrega)} />
+              <Dato label="Fecha de entrega" value={formatearFechaSinHora(orden.fechaEntrega)} />
               <Dato label="Ciudad" value={orden.ciudad ?? "—"} />
               <Dato label="Contacto" value={orden.contactoNombre ?? "—"} />
               <Dato label="Teléfono" value={orden.telefono ?? "—"} />

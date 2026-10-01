@@ -1,5 +1,7 @@
 "use client"
 
+import { hoyColombia } from "@/lib/fechas"
+
 // components/dialogue-nuevo-pedido.tsx
 //
 // Todo el flujo de crear un pedido en un solo componente: buscar insumos y
@@ -62,7 +64,9 @@ export function SolicitudInsumoDialog({
   // Reset al abrir
   useEffect(() => {
     if (!open) return
-    const fecha = new Date().toISOString().split("T")[0]
+    // Hoy en Colombia (toISOString daba el día en UTC: después de las 7 p. m.
+    // ya era "mañana" y no dejaba escoger hoy como fecha requerida).
+    const fecha = hoyColombia()
     setFechaPedido(fecha)
     setFechaRequerida("")
     setBusqueda("")

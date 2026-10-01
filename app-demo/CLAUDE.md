@@ -831,6 +831,28 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
   `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
 
+## Reglas transversales (auditoría de casos borde, 2026-10-01)
+
+- **Fechas sin hora** (`date`: fecha_requerida, fecha_entrega...): mostrarlas
+  con `formatearFechaSinHora` (`lib/fechas.ts`), nunca con
+  `new Date("AAAA-MM-DD").toLocaleDateString()` (en Colombia, UTC-5, salía
+  un día antes). "Hoy" = `hoyColombia()`, no `toISOString()`. En SQL la base
+  corre en UTC: usar `(now() at time zone 'America/Bogota')::date`, no
+  `current_date` (`20261006300000_fechas_colombia.sql`). Lo que se renderiza
+  en el servidor (PDF de OC) necesita `timeZone: ZONA_HORARIA`.
+- **Cantidades escritas en texto**: `leerCantidad` (`lib/numeros.ts`).
+  "1.500" es ambiguo y se pide aclararlo (antes Entradas/Salidas/Modificar
+  lo guardaban como 1,5). Los inputs `type="number"` no tienen el problema.
+- **Cambios de estado**: toda acción que resuelve algo (aprobar/rechazar
+  requisiciones, rechazo de Compras, rechazar solicitudes de insumo/MO/
+  equipo) filtra por el estado esperado en el mismo UPDATE
+  (`.eq("estado", "pendiente")`) y revisa que vuelva la fila. Si no, una
+  pantalla abierta un rato podía aprobar algo ya cancelado o rechazar algo ya
+  aprobado y en uso.
+- **"Descartar y cargar otro"** en Presupuestos borra el presupuesto completo:
+  pide confirmación, espera el resultado, y `EliminarPresupuesto` se niega si
+  hay requisiciones.
+
 ## Pendientes generales
 
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de

@@ -1,5 +1,7 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
@@ -322,7 +324,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Fecha de entrega</p>
-            <p>{orden.fechaEntrega ? formatoFecha(orden.fechaEntrega) : "—"}</p>
+            <p>{formatearFechaSinHora(orden.fechaEntrega)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Contacto</p>

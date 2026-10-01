@@ -1,4 +1,8 @@
 "use client"
+
+import { leerCantidad } from "@/lib/numeros"
+
+import { formatearFechaSinHora } from "@/lib/fechas"
 // app/(app)/almacen/page.tsx
 import { useEffect, useState } from "react"
 
@@ -163,9 +167,11 @@ export default function Almacen() {
 
   async function confirmarModificacion() {
     if (!modificando) return
-    const cantidad = Number(edCantidad.replace(",", "."))
-    if (!Number.isFinite(cantidad) || cantidad <= 0) {
-      setError("La cantidad debe ser mayor que cero.")
+    // Formato colombiano (ver lib/numeros.ts): "1.500" ya no se lee como 1,5.
+    const leida = leerCantidad(edCantidad)
+    const cantidad = leida.ok ? leida.valor : NaN
+    if (!leida.ok || cantidad <= 0) {
+      setError(leida.ok ? "La cantidad debe ser mayor que cero." : leida.error)
       setModificando(null)
       return
     }
@@ -303,7 +309,7 @@ export default function Almacen() {
                           {new Date(p.fechaPedido).toLocaleDateString("es-CO")}
                         </td>
                         <td className={`${celda} text-center`}>
-                          {new Date(p.fechaRequerida).toLocaleDateString("es-CO")}
+                          {formatearFechaSinHora(p.fechaRequerida)}
                         </td>
                         <td className={`${celda} text-center`}>
                           <BadgeEstado estado={p.estado} />

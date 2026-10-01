@@ -1,5 +1,7 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
+
 import { useState } from "react"
 import { FileText, Paperclip } from "lucide-react"
 import {
@@ -128,7 +130,7 @@ export function TablaPedidosCompra({
                   </TableCell>
                   <TableCell>{pedido.solicitadoPorNombre ?? "—"}</TableCell>
                   <TableCell>{formatoFecha(pedido.fechaPedido)}</TableCell>
-                  <TableCell>{formatoFecha(pedido.fechaRequerida)}</TableCell>
+                  <TableCell>{formatearFechaSinHora(pedido.fechaRequerida)}</TableCell>
                   <TableCell>
                     {pedido.soporteUrl ? (
                       <a
