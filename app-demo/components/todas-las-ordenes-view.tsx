@@ -145,9 +145,13 @@ export function TodasLasOrdenesView() {
                     <TableCell>{orden.numero}</TableCell>
                     <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
                     <TableCell>{orden.proveedorNombre}</TableCell>
-                    <TableCell className="flex items-center gap-2">
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                      {orden.enviada && <Badge variant="outline">Enviada</Badge>}
+                    <TableCell>
+                      {/* El flex va en un div: una celda con display:flex deja de ser
+                          celda de tabla y se descuadra respecto al resto de la fila. */}
+                      <div className="flex items-center gap-2">
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        {orden.enviada && <Badge variant="outline">Enviada</Badge>}
+                      </div>
                     </TableCell>
                     <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
                     <TableCell>{formatoFecha(orden.createdAt)}</TableCell>
