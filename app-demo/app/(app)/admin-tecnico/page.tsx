@@ -25,7 +25,6 @@ import {
   verPedidosPorEstado,
   resolverPedido,
   desaprobarPedido,
-  cancelarPedidoComoAprobador,
   obtenerPermisosPedidos,
   type PedidoPendiente,
   type PermisosPedidos,
@@ -41,8 +40,8 @@ export default function AdminTecnico() {
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
   const [vista, setVista] = useState<"pendiente" | "aprobado">("pendiente")
   const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
-  // Desaprobar / cancelar piden motivo; el historial se abre por requisición.
-  const [accion, setAccion] = useState<{ tipo: "desaprobar" | "cancelar"; pedido: PedidoPendiente } | null>(null)
+  // Desaprobar pide motivo; el historial se abre por requisición.
+  const [accion, setAccion] = useState<{ tipo: "desaprobar"; pedido: PedidoPendiente } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
   const [historial, setHistorial] = useState<PedidoPendiente | null>(null)
@@ -69,8 +68,7 @@ export default function AdminTecnico() {
     setProcesandoAccion(true)
     setError(null)
     try {
-      if (accion.tipo === "desaprobar") await desaprobarPedido(accion.pedido.id, motivo.trim())
-      else await cancelarPedidoComoAprobador(accion.pedido.id, motivo.trim())
+      await desaprobarPedido(accion.pedido.id, motivo.trim())
       setAccion(null)
       setMotivo("")
       cargar()
@@ -272,20 +270,6 @@ export default function AdminTecnico() {
                                 </Button>
                               )
                             )}
-                            {permisos?.cancelar && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10"
-                                onClick={() => {
-                                  setAccion({ tipo: "cancelar", pedido })
-                                  setMotivo("")
-                                }}
-                                disabled={procesando}
-                              >
-                                Cancelar
-                              </Button>
-                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -316,16 +300,13 @@ export default function AdminTecnico() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>
-                {accion?.tipo === "desaprobar" ? "Desaprobar requisición" : "Cancelar requisición"}
-              </DialogTitle>
+              <DialogTitle>Desaprobar requisición</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
               {accion?.pedido.insumoDescripcion} — {accion?.pedido.cantidad} {accion?.pedido.insumoUm ?? ""} (
               {accion?.pedido.solicitanteNombre ?? "sin solicitante"}).{" "}
-              {accion?.tipo === "desaprobar"
-                ? "Vuelve a pendiente y se podrá aprobar o rechazar de nuevo. No se puede si ya está en una orden de compra."
-                : "Queda registrado como cancelado y su cantidad vuelve a estar disponible. No se puede si ya está en una orden de compra."}
+              Vuelve a pendiente y se podrá aprobar o rechazar de nuevo. No se puede si ya está en una
+              orden de compra.
             </p>
             <Textarea
               placeholder="Motivo (obligatorio)"
@@ -342,11 +323,7 @@ export default function AdminTecnico() {
                 disabled={!motivo.trim() || procesandoAccion}
                 onClick={confirmarAccion}
               >
-                {procesandoAccion
-                  ? "Procesando..."
-                  : accion?.tipo === "desaprobar"
-                    ? "Desaprobar requisición"
-                    : "Cancelar requisición"}
+                {procesandoAccion ? "Procesando..." : "Desaprobar requisición"}
               </Button>
             </DialogFooter>
           </DialogContent>
