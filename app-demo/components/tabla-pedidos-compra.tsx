@@ -73,15 +73,17 @@ export function TablaPedidosCompra({
   // Agrupadas por requisición (Requisición 1: insumo A, B, C...), en el orden
   // en que llegan (urgentes y más próximas primero). Compras elige los insumos
   // que quiere, de una o de varias requisiciones, para cada orden de compra.
-  const grupos: { id: string; numero: number | null; lineas: PedidoParaComprar[] }[] = []
+  // Un Map por id: cada línea se ubica en O(1), el total es lineal.
+  const grupoPorId = new Map<string, { id: string; numero: number | null; lineas: PedidoParaComprar[] }>()
   for (const p of pedidos) {
-    let g = grupos.find((x) => x.id === p.requisicionId)
+    let g = grupoPorId.get(p.requisicionId)
     if (!g) {
       g = { id: p.requisicionId, numero: p.requisicionNumero, lineas: [] }
-      grupos.push(g)
+      grupoPorId.set(p.requisicionId, g)
     }
     g.lineas.push(p)
   }
+  const grupos = [...grupoPorId.values()]
 
   if (pedidos.length === 0) {
     return (
