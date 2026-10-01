@@ -57,11 +57,12 @@ const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 
 
 const ESTADO_BADGE: Record<
   EstadoEntrega,
-  { label: string; variant: "default" | "secondary" | "outline" }
+  { label: string; clase: string }
 > = {
-  sin_entregar: { label: "Entrega Pendiente", variant: "default" },
-  entrega_parcial: { label: "Entrega Parcial", variant: "secondary" },
-  entregada: { label: "Entrega Completa", variant: "default" },
+  // Rojo = falta recibir todo; amarillo = recibido en parte; verde = completa.
+  sin_entregar: { label: "Entrega Pendiente", clase: "border-transparent bg-red-100 text-red-800" },
+  entrega_parcial: { label: "Entrega Parcial", clase: "border-transparent bg-amber-100 text-amber-800" },
+  entregada: { label: "Entrega Completa", clase: "border-transparent bg-emerald-100 text-emerald-800" },
 }
 
 const formatoFechaHora = (iso: string) =>
@@ -312,7 +313,7 @@ export function EntradasView() {
                         <TableCell>{o.proyectoCodigo ?? o.proyectoNombre ?? "—"}</TableCell>
                         <TableCell>{o.proveedorNombre}</TableCell>
                         <TableCell>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
                         </TableCell>
                         <TableCell>{o.entradaPersona ?? "—"}</TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -513,7 +514,7 @@ function DetalleEntrada({
           <ArrowLeft className="mr-1 h-4 w-4" /> Volver
         </Button>
         <h1 className="text-2xl font-semibold">Entrada — OC {detalle.numero}</h1>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
+        <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
       </div>
 
       <div className="text-sm text-muted-foreground">
