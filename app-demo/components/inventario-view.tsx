@@ -1,9 +1,11 @@
 "use client"
 
 import { COMODIN_LISTAR } from "@/lib/busqueda"
-import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Loader2, Search } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { AlertTriangle, Loader2 } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
+import { PanelFiltros } from "@/components/panel-filtros"
 import {
   Table,
   TableBody,
@@ -31,7 +33,9 @@ export function InventarioView() {
   // lib/proyecto-actual.ts).
   const proyectoId = useProyectoActual().proyecto?.id ?? null
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
-  const [busqueda, setBusqueda] = useState("")
+  // Filtro por insumo: el elegido en el panel y el ya aplicado (al Consultar).
+  const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
+  const [insumoAplicado, setInsumoAplicado] = useState<OpcionBuscador | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,21 +44,41 @@ export function InventarioView() {
       return
     }
     setInventario(null)
+    setInsumo(null)
+    setInsumoAplicado(null)
     setError(null)
     obtenerInventarioProyecto(proyectoId)
       .then((filas: InsumoInventario[]) => setInventario(filas))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el inventario."))
   }, [proyectoId])
 
+  // Las opciones del filtro son los insumos que hay en el inventario del
+  // proyecto (escribe 2 letras, o _ para verlos todos).
+  const buscarInsumo = useCallback(
+    async (termino: string): Promise<OpcionBuscador[]> => {
+      const q = termino.trim().toLowerCase()
+      return (inventario ?? [])
+        .filter(
+          (i) =>
+            q === COMODIN_LISTAR ||
+            i.insumoDescripcion.toLowerCase().includes(q) ||
+            String(i.insumoCodigo).includes(q)
+        )
+        .slice(0, q === COMODIN_LISTAR ? 50 : 15)
+        .map((i) => ({
+          id: i.insumoId,
+          etiqueta: i.insumoDescripcion,
+          subetiqueta: `${i.insumoCodigo} · ${i.insumoUm ?? ""}`,
+        }))
+    },
+    [inventario]
+  )
+
   const filtrado = useMemo(() => {
     if (!inventario) return []
-    const q = busqueda.trim().toLowerCase()
-    if (!q || q === COMODIN_LISTAR) return inventario
-    return inventario.filter(
-      (i) =>
-        i.insumoDescripcion.toLowerCase().includes(q) || String(i.insumoCodigo).includes(q)
-    )
-  }, [inventario, busqueda])
+    if (!insumoAplicado) return inventario
+    return inventario.filter((i) => i.insumoId === insumoAplicado.id)
+  }, [inventario, insumoAplicado])
 
   const valorTotal = useMemo(
     () => filtrado.reduce((acc, i) => acc + i.valorInventario, 0),
@@ -63,21 +87,29 @@ export function InventarioView() {
   const hayNegativos = (inventario ?? []).some((i) => i.cantidadDisponible < 0)
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        {inventario && (
-          <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-8"
-              placeholder="Buscar insumo o código"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
+    <div className="flex h-full min-h-0 gap-4">
+      {proyectoId && inventario && (
+        <PanelFiltros
+          onConsultar={() => setInsumoAplicado(insumo)}
+          onLimpiar={() => {
+            setInsumo(null)
+            setInsumoAplicado(null)
+          }}
+          ayuda="Sin filtro se muestra todo el inventario del proyecto."
+        >
+          <div className="space-y-1.5">
+            <Label>Insumo</Label>
+            <BuscadorAsync
+              placeholder="Buscar insumo"
+              valorSeleccionado={insumo}
+              onSeleccionar={setInsumo}
+              buscar={buscarInsumo}
             />
           </div>
-        )}
-      </div>
+        </PanelFiltros>
+      )}
 
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
@@ -101,7 +133,7 @@ export function InventarioView() {
       ) : filtrado.length === 0 ? (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
           {inventario && inventario.length > 0
-            ? "Ningún insumo coincide con la búsqueda."
+            ? "Ningún insumo coincide con el filtro."
             : "Este proyecto todavía no tiene movimientos de bodega."}
         </div>
       ) : (
@@ -146,6 +178,7 @@ export function InventarioView() {
           </Table>
         </div>
       )}
+      </div>
     </div>
   )
 }
