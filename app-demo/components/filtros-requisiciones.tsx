@@ -51,6 +51,8 @@ type Props = {
   onConsultar: (filtros: FiltrosRequisiciones) => void
   cargando: boolean
   conEstado?: boolean
+  // Casilla "Solo por Aprobar": solo en Aprobación de requisiciones.
+  conSoloPorAprobar?: boolean
   // Al limpiar, además de vaciar los campos vuelve a consultar sin filtros
   // (Aprobación, que siempre muestra su cola). El Registro solo vacía los campos.
   consultarAlLimpiar?: boolean
@@ -62,6 +64,7 @@ export function FiltrosRequisicionesPanel({
   onConsultar,
   cargando,
   conEstado = true,
+  conSoloPorAprobar = false,
   consultarAlLimpiar = false,
   onError,
 }: Props) {
@@ -94,7 +97,7 @@ export function FiltrosRequisicionesPanel({
       numero: n,
       proyectoId: proyectoId === "todos" ? undefined : proyectoId,
       insumoId: insumo?.id,
-      estado: soloPorAprobar ? "pendiente" : conEstado && estado !== "todos" ? estado : undefined,
+      estado: conSoloPorAprobar && soloPorAprobar ? "pendiente" : conEstado && estado !== "todos" ? estado : undefined,
       solicitadoPorId: solicitante?.id,
       desde: desde || undefined,
       hasta: hasta || undefined,
@@ -212,13 +215,15 @@ export function FiltrosRequisicionesPanel({
           </div>
         )}
 
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox
-            checked={soloPorAprobar}
-            onCheckedChange={(v) => setSoloPorAprobar(v === true)}
-          />
-          Solo por Aprobar
-        </label>
+        {conSoloPorAprobar && (
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={soloPorAprobar}
+              onCheckedChange={(v) => setSoloPorAprobar(v === true)}
+            />
+            Solo por Aprobar
+          </label>
+        )}
 
         <div className="space-y-1.5">
           <Label>Solicitado por</Label>

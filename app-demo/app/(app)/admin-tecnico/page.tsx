@@ -150,6 +150,7 @@ export default function AdminTecnico() {
 
       <main className="flex w-full flex-1 gap-4 p-6">
         <FiltrosRequisicionesPanel
+          conSoloPorAprobar
           cargando={cargando}
           onError={setError}
           onConsultar={(f) => {
