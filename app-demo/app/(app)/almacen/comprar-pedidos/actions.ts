@@ -438,6 +438,7 @@ export type OrdenCompraDetalle = {
   proyectoCiudad: string | null
   empresaNombre: string | null
   empresaNit: string | null
+  empresaLogoUrl: string | null
   proveedorNombre: string
   proveedorNit: string | null
   proveedorDireccion: string | null
@@ -476,7 +477,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, observaciones, enviada, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
-      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social)),
+      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
       ),
@@ -511,6 +512,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     proyectoCiudad: d.proyecto?.ciudad ?? null,
     empresaNombre: d.proyecto?.empresa?.razon_social ?? null,
     empresaNit: d.proyecto?.empresa?.nit ?? null,
+    empresaLogoUrl: d.proyecto?.empresa?.logo_url ?? null,
     proveedorNombre: d.proveedor?.nombre ?? "(proveedor eliminado)",
     proveedorNit: nitProveedor,
     proveedorDireccion: d.proveedor?.direccion ?? null,
