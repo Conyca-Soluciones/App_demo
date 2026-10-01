@@ -676,25 +676,80 @@ export type OrdenCompraListado = {
 // Sin requerirScope a propósito -- la RLS (ordenes_compra_select_proyecto +
 // ordenes_compra_select para rol_compras/admin) ya decide qué filas ve cada
 // quien. Un ingeniero ve las OC de sus proyectos, Compras/admin las ve todas.
-export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[]> {
+// Filtros del listado de órdenes de compra (todos opcionales). Se aplican en el
+// servidor, así que con mucho volumen no se trae todo para filtrar en el cliente.
+export type FiltrosOrdenesCompra = {
+  numero?: number
+  proyectoId?: string
+  proveedor?: string // parte del nombre
+  estado?: EstadoOrdenVisible
+  creadaPorId?: string
+  desde?: string // YYYY-MM-DD, fecha de creación
+  hasta?: string // YYYY-MM-DD, inclusive
+}
+
+export async function listarTodasLasOrdenesCompra(
+  filtros: FiltrosOrdenesCompra = {}
+): Promise<OrdenCompraListado[]> {
   const supabase = await createClient()
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
 
-  const { data, error } = await supabase
-    .from("ordenes_compra")
-    .select(
-      `
-      id, numero, estado, estado_entrega, created_at, proyecto_id,
-      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
-      proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
-      created_by,
-      creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
-    `
-    )
-    .order("created_at", { ascending: false })
+  // Proveedor por nombre: se resuelven sus ids una vez y se filtra con IN.
+  let idsProveedor: string[] | null = null
+  const proveedor = filtros.proveedor?.trim()
+  if (proveedor) {
+    const { data: provs, error: errorProv } = await supabase
+      .from("proveedores")
+      .select("unique_id")
+      .ilike("nombre", `%${proveedor}%`)
+      .limit(500)
+    if (errorProv) throw new Error(errorProv.message)
+    idsProveedor = (provs ?? []).map((p: any) => p.unique_id as string)
+    if (idsProveedor.length === 0) return []
+  }
 
-  if (error) throw new Error(error.message)
+  const data = await traerTodo<any>((desde, hasta) => {
+    let query = supabase
+      .from("ordenes_compra")
+      .select(
+        `
+        id, numero, estado, estado_entrega, created_at, proyecto_id,
+        proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
+        proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+        created_by,
+        creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
+      `
+      )
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+
+    if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
+    if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
+    if (idsProveedor) query = query.in("proveedor_id", idsProveedor)
+    if (filtros.creadaPorId) query = query.eq("created_by", filtros.creadaPorId)
+    // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+    if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+    if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+
+    // Estado VISIBLE = estado de aprobación + estado de entrega (ver
+    // lib/ordenes-compra-estado.ts): "Aprobada" es aprobada sin entregas.
+    switch (filtros.estado) {
+      case "pendiente_aprobacion":
+      case "rechazada":
+      case "cancelada":
+        query = query.eq("estado", filtros.estado)
+        break
+      case "aprobada":
+        query = query.eq("estado", "aprobada").not("estado_entrega", "in", "(entrega_parcial,entregada)")
+        break
+      case "entrega_parcial":
+      case "entregada":
+        query = query.eq("estado", "aprobada").eq("estado_entrega", filtros.estado)
+        break
+    }
+    return query.range(desde, hasta)
+  })
 
   const ordenes = (data ?? []).map((o: any) => ({
     id: o.id,
