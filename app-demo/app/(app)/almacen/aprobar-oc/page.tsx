@@ -1,13 +1,13 @@
 import { AprobarOCView } from "@/components/aprobar-oc-view"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { MarcoPagina } from "@/components/encabezado-pagina"
 
 export default function AprobarOCPage() {
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      <SidebarTrigger />
-      <div className="min-h-0 flex-1">
-        <AprobarOCView />
-      </div>
-    </div>
+    <MarcoPagina
+      titulo="Aprobación de órdenes de compra"
+      subtitulo="Órdenes de compra de todos los proyectos. Con “Solo por Aprobar” ves únicamente las que esperan aprobación."
+    >
+      <AprobarOCView />
+    </MarcoPagina>
   )
 }

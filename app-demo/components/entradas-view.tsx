@@ -167,14 +167,6 @@ export function EntradasView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Entradas</h1>
-        <p className="text-sm text-muted-foreground">
-          Consulta las órdenes de compra aprobadas y selecciona una para registrar el material recibido en
-          bodega.
-        </p>
-      </div>
-
       <div className="flex min-h-0 flex-1 gap-4">
         <PanelFiltros
           cargando={cargando}

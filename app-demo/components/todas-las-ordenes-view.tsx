@@ -160,8 +160,6 @@ export function TodasLasOrdenesView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
-
       <div className="flex min-h-0 flex-1 gap-4">
         <PanelFiltros
           cargando={cargando}

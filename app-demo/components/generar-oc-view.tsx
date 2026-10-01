@@ -260,8 +260,6 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Generar orden de compra</h1>
-
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}

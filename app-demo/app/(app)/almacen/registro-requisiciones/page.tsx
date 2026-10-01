@@ -1,8 +1,8 @@
 "use client"
 // app/(app)/almacen/registro-requisiciones/page.tsx
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { useState } from "react"
 
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
@@ -45,15 +45,10 @@ export default function RegistroRequisiciones() {
 
   return (
     <>
-      <header className="flex h-16 items-center gap-4 border-b px-6">
-        <SidebarTrigger />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Registro de requisiciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Requisiciones de todos los proyectos a los que tienes acceso.
-          </p>
-        </div>
-      </header>
+      <EncabezadoPagina
+        titulo="Registro de requisiciones"
+        subtitulo="Requisiciones de todos los proyectos a los que tienes acceso."
+      />
 
       <main className="flex w-full flex-1 gap-4 p-6">
         <FiltrosRequisicionesPanel onConsultar={consultar} cargando={cargando} onError={setError} />

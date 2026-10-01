@@ -188,14 +188,6 @@ export function AprobarOCView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Aprobación de órdenes de compra</h1>
-        <p className="text-sm text-muted-foreground">
-          Órdenes de compra de todos los proyectos. Con &quot;Solo por Aprobar&quot; ves únicamente las que
-          esperan aprobación.
-        </p>
-      </div>
-
       <div className="flex min-h-0 flex-1 gap-4">
         <PanelFiltros
           cargando={cargando}

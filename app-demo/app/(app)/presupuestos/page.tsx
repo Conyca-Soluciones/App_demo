@@ -1,4 +1,5 @@
 "use client"
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { FileUpload } from "@/components/file-upload"
 import { PresupuestoTable,excedePresupuestoOriginal } from "@/components/presupuesto-table"
 import { PresupuestoTree} from "@/components/presupuesto-tree"
@@ -9,8 +10,6 @@ import ExcelJS from "exceljs"
 import { useEffect, useState } from "react"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { Button } from "@/components/ui/button"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SelectorProyecto } from "@/components/selector-proyecto"
 import { ExportTemplateButton } from "@/components/export-template-button"
 
 import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError } from "@/lib/calcular-nivel"
@@ -1404,21 +1403,17 @@ export default function Presupuestos() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b bg-background px-6">
-        <SidebarTrigger />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Elaboración de presupuestos</h1>
-          <p className="text-sm text-muted-foreground">
-            Importa o continúa el presupuesto del proyecto en el que estás trabajando.
-          </p>
-        </div>
-        <SelectorProyecto className="ml-auto" />
-      </header>
+      <EncabezadoPagina
+        className="sticky top-0 z-20 bg-background"
+        titulo="Elaboración de presupuestos"
+        subtitulo="Importa o continúa el presupuesto del proyecto en el que estás trabajando."
+        conProyecto
+      />
 
       <div className="flex w-full min-w-0 items-start">
       {presupuesto.length > 0 && (
         <aside
-          className={`sticky top-16 h-[calc(100vh-4rem)] shrink-0 overflow-y-auto p-4 transition-[width] ${
+          className={`sticky top-[4.8rem] h-[calc(100vh-4.8rem)] shrink-0 overflow-y-auto p-4 transition-[width] ${
             arbolPlegado ? "w-[3.75rem]" : "w-72 border-r"
           }`}
         >

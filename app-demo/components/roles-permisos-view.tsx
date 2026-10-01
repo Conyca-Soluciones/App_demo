@@ -121,14 +121,6 @@ export function RolesPermisosView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Roles y permisos</h1>
-        <p className="text-sm text-muted-foreground">
-          Marca qué pestañas y qué acciones tiene cada rol. Los cambios se guardan al instante y se
-          aplican la próxima vez que la persona cargue una página. El Administrador siempre tiene todo.
-        </p>
-      </div>
-
       <div className="flex max-w-md gap-2">
         <Input
           placeholder="Nombre de un rol nuevo (ej. Contabilidad)"

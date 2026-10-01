@@ -1,5 +1,5 @@
 import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { MarcoPagina } from "@/components/encabezado-pagina"
 
 export default async function OrdenCompraDetallePage({
   params,
@@ -8,11 +8,8 @@ export default async function OrdenCompraDetallePage({
 }) {
   const { id } = await params
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      <SidebarTrigger />
-      <div className="min-h-0 flex-1">
-        <OrdenCompraDetalleView ordenId={id} />
-      </div>
-    </div>
+    <MarcoPagina titulo="Detalle de orden de compra">
+      <OrdenCompraDetalleView ordenId={id} />
+    </MarcoPagina>
   )
 }

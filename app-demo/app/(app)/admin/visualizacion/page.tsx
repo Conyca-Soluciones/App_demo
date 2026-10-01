@@ -1,9 +1,9 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
-import { etiquetaProyecto } from "@/lib/proyecto-actual"
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, Search } from "lucide-react"
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts"
@@ -182,23 +182,13 @@ export default function VisualizacionPage() {
   }, [insumosOrdenados, busquedaInsumo])
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Estado de obra</h1>
-          <p className="text-sm text-muted-foreground">
-            Presupuestado vs. comprado por proyecto, a partir de las órdenes de compra aprobadas.
-          </p>
-        </div>
-
-        {proyectoActual && (
-          <p className="text-sm text-muted-foreground">
-            Proyecto:{" "}
-            <span className="font-medium text-foreground">{etiquetaProyecto(proyectoActual)}</span>
-          </p>
-        )}
-      </div>
-
+    <>
+    <EncabezadoPagina
+      titulo="Estado de obra"
+      subtitulo="Presupuestado vs. comprado por proyecto, a partir de las órdenes de compra aprobadas."
+      conProyecto
+    />
+    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
@@ -434,5 +424,6 @@ export default function VisualizacionPage() {
         </>
       )}
     </main>
+    </>
   )
 }

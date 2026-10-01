@@ -1,5 +1,6 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { formatearFechaSinHora } from "@/lib/fechas"
 
 // app/(app)/admin-tecnico/page.tsx
@@ -11,7 +12,6 @@ import { formatearFechaSinHora } from "@/lib/fechas"
 
 import { useEffect, useState } from "react"
 import { Check, ClipboardCheck, Eye, Loader2, Undo2, X } from "lucide-react"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -129,15 +129,10 @@ export default function AdminTecnico() {
 
   return (
     <>
-      <header className="flex h-16 items-center gap-4 border-b px-6">
-        <SidebarTrigger />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Aprobación de requisiciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Requisiciones de insumos de todos los proyectos. Se aprueba o rechaza la requisición completa.
-          </p>
-        </div>
-      </header>
+      <EncabezadoPagina
+        titulo="Aprobación de requisiciones"
+        subtitulo="Requisiciones de insumos de todos los proyectos. Se aprueba o rechaza la requisición completa."
+      />
 
       <main className="flex w-full flex-1 gap-4 p-6">
         <FiltrosRequisicionesPanel

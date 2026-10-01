@@ -77,8 +77,6 @@ export function PedidosCompraView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Comprar requisiciones</h1>
-
       <div className="flex min-h-0 flex-1 gap-4">
         <FiltrosPedidosCompraPanel onConsultar={handleConsultar} cargando={cargando} />
 
