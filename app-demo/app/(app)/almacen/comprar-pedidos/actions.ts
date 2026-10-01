@@ -615,6 +615,7 @@ export type OrdenCompraListado = {
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
   enviada: boolean
+  proyectoId: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
   proveedorNombre: string
@@ -635,7 +636,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, estado_entrega, enviada, created_at,
+      id, numero, estado, estado_entrega, enviada, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
@@ -652,6 +653,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     estadoEntrega: o.estado_entrega,
     estadoVisible: calcularEstadoVisible(o.estado, o.estado_entrega),
     enviada: o.enviada,
+    proyectoId: o.proyecto_id ?? null,
     proyectoCodigo: o.proyecto?.codigo ?? null,
     proyectoNombre: o.proyecto?.nombre ?? null,
     proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",

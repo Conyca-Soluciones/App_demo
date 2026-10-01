@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, ClipboardCheck, Eye, Check, X, RefreshCw, Undo2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -60,6 +61,10 @@ const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[]
   { valor: "cancelada", etiqueta: "Canceladas" },
 ]
 
+// Fecha local (YYYY-MM-DD) de una marca de tiempo, para compararla con los
+// <input type="date"> del filtro (que también son fecha local).
+const fechaLocal = (iso: string) => new Date(iso).toLocaleDateString("en-CA")
+
 function Tile({ etiqueta, valor, color }: { etiqueta: string; valor: number; color?: string }) {
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -76,6 +81,10 @@ export function AprobarOCView() {
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState<OrdenCompraEstado | "todas">("todas")
+  // Filtro por proyecto y rango de fechas de creación (ambas inclusivas).
+  const [filtroProyecto, setFiltroProyecto] = useState("todos")
+  const [fechaDesde, setFechaDesde] = useState("")
+  const [fechaHasta, setFechaHasta] = useState("")
   const [procesandoId, setProcesandoId] = useState<string | null>(null)
   const [rechazandoId, setRechazandoId] = useState<string | null>(null)
   const [motivoRechazo, setMotivoRechazo] = useState("")
@@ -98,19 +107,49 @@ export function AprobarOCView() {
     cargar()
   }, [])
 
-  const conteos = useMemo(() => {
-    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0, cancelada: 0 }
-    if (!ordenes) return base
-    base.total = ordenes.length
-    for (const o of ordenes) base[o.estado] += 1
-    return base
+  // Proyectos que aparecen en las órdenes (no todos los del sistema): solo
+  // tiene sentido filtrar por los que tienen alguna orden.
+  const proyectosConOrdenes = useMemo(() => {
+    const porId = new Map<string, string>()
+    for (const o of ordenes ?? []) {
+      if (o.proyectoId && !porId.has(o.proyectoId)) {
+        porId.set(
+          o.proyectoId,
+          o.proyectoCodigo ? `${o.proyectoCodigo} — ${o.proyectoNombre ?? ""}` : o.proyectoNombre ?? "(sin nombre)"
+        )
+      }
+    }
+    return [...porId.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"))
   }, [ordenes])
 
-  const ordenesFiltradas = useMemo(() => {
+  const rangoInvalido = fechaDesde !== "" && fechaHasta !== "" && fechaDesde > fechaHasta
+
+  // Órdenes que pasan proyecto + fechas. Los contadores y las pestañas de
+  // estado se calculan sobre esto, así reflejan el filtro.
+  const ordenesBase = useMemo(() => {
     if (!ordenes) return []
-    if (filtroEstado === "todas") return ordenes
-    return ordenes.filter((o) => o.estado === filtroEstado)
-  }, [ordenes, filtroEstado])
+    return ordenes.filter((o) => {
+      if (filtroProyecto !== "todos" && o.proyectoId !== filtroProyecto) return false
+      const dia = fechaLocal(o.createdAt)
+      if (fechaDesde && dia < fechaDesde) return false
+      if (fechaHasta && dia > fechaHasta) return false
+      return true
+    })
+  }, [ordenes, filtroProyecto, fechaDesde, fechaHasta])
+
+  const conteos = useMemo(() => {
+    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0, cancelada: 0 }
+    base.total = ordenesBase.length
+    for (const o of ordenesBase) base[o.estado] += 1
+    return base
+  }, [ordenesBase])
+
+  const ordenesFiltradas = useMemo(() => {
+    if (filtroEstado === "todas") return ordenesBase
+    return ordenesBase.filter((o) => o.estado === filtroEstado)
+  }, [ordenesBase, filtroEstado])
+
+  const hayFiltros = filtroProyecto !== "todos" || fechaDesde !== "" || fechaHasta !== ""
 
   async function handleAprobar(id: string) {
     setProcesandoId(id)
@@ -180,7 +219,71 @@ export function AprobarOCView() {
         <Tile etiqueta="Rechazadas" valor={conteos.rechazada} color="text-red-600" />
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <label htmlFor="filtro-proyecto-oc" className="text-xs font-medium text-muted-foreground">
+            Proyecto
+          </label>
+          <select
+            id="filtro-proyecto-oc"
+            value={filtroProyecto}
+            onChange={(e) => setFiltroProyecto(e.target.value)}
+            className="h-9 w-64 max-w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="todos">Todos los proyectos</option>
+            {proyectosConOrdenes.map(([id, etiqueta]) => (
+              <option key={id} value={id}>
+                {etiqueta}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="filtro-desde-oc" className="text-xs font-medium text-muted-foreground">
+            Desde
+          </label>
+          <Input
+            id="filtro-desde-oc"
+            type="date"
+            value={fechaDesde}
+            max={fechaHasta || undefined}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            className="h-9 w-40"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="filtro-hasta-oc" className="text-xs font-medium text-muted-foreground">
+            Hasta
+          </label>
+          <Input
+            id="filtro-hasta-oc"
+            type="date"
+            value={fechaHasta}
+            min={fechaDesde || undefined}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            className="h-9 w-40"
+          />
+        </div>
+        {hayFiltros && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9"
+            onClick={() => {
+              setFiltroProyecto("todos")
+              setFechaDesde("")
+              setFechaHasta("")
+            }}
+          >
+            Quitar filtros
+          </Button>
+        )}
+        {rangoInvalido && (
+          <p className="pb-2 text-xs text-destructive">La fecha &ldquo;desde&rdquo; es posterior a &ldquo;hasta&rdquo;.</p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         {FILTROS_ESTADO.map((f) => (
           <Button
             key={f.valor}
