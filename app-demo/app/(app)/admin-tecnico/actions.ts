@@ -8,6 +8,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
+import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
   cargarLineas,
   mapResumen,
@@ -30,12 +31,32 @@ export type RequisicionParaAprobar = RequisicionResumen & {
 // "rechazada" = historial de rechazos, con motivo y quién rechazó. Ve todos
 // los proyectos (quien aprueba no está limitado a los suyos).
 export async function verRequisicionesPorEstado(
-  estado: EstadoAprobacion
+  estado: EstadoAprobacion,
+  filtros: Omit<FiltrosRequisiciones, "estado"> = {}
 ): Promise<RequisicionParaAprobar[]> {
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
   let query = supabase.from("requisiciones_vista").select("*").eq("estado", estado)
+
+  // Filtros opcionales (mismo panel que el Registro de requisiciones).
+  if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
+  if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
+  if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
+  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+  if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+  if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+  if (filtros.insumoId) {
+    const { data: lineas, error: errorLineas } = await supabase
+      .from("pedidos_insumos")
+      .select("grupo_pedido_id")
+      .eq("insumo_id", filtros.insumoId)
+      .limit(5000)
+    if (errorLineas) throw new Error(errorLineas.message)
+    const ids = Array.from(new Set((lineas ?? []).map((l: any) => l.grupo_pedido_id as string)))
+    if (ids.length === 0) return []
+    query = query.in("id", ids)
+  }
   query =
     estado === "pendiente"
       ? query.order("urgente", { ascending: false }).order("created_at", { ascending: true }).limit(500)

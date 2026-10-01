@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog"
 import { BadgeCompraRequisicion } from "@/components/badge-requisicion"
 import { HistorialDialog } from "@/components/historial-timeline"
+import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
+import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
   verRequisicionesPorEstado,
   resolverRequisicion,
@@ -69,11 +71,14 @@ export default function AdminTecnico() {
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
   const [historial, setHistorial] = useState<RequisicionParaAprobar | null>(null)
+  // Filtros aplicados (panel de la izquierda); se conservan al cambiar de pestaña.
+  const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
 
-  function cargar() {
+  function cargar(f: FiltrosRequisiciones = filtros) {
     setCargando(true)
     setError(null)
-    Promise.all([verRequisicionesPorEstado(vista), obtenerPermisosPedidos()])
+    const { estado: _estado, ...sinEstado } = f
+    Promise.all([verRequisicionesPorEstado(vista, sinEstado), obtenerPermisosPedidos()])
       .then(([lista, p]: [RequisicionParaAprobar[], PermisosPedidos]) => {
         setRequisiciones(lista)
         setPermisos(p)
@@ -155,7 +160,19 @@ export default function AdminTecnico() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1600px] flex-1 space-y-8 p-6">
+      <main className="flex w-full flex-1 gap-4 p-6">
+        <FiltrosRequisicionesPanel
+          conEstado={false}
+          consultarAlLimpiar
+          cargando={cargando}
+          onError={setError}
+          onConsultar={(f) => {
+            setFiltros(f)
+            cargar(f)
+          }}
+        />
+
+        <div className="min-w-0 flex-1 space-y-8">
         <div className="flex gap-2">
           {VISTAS.map((v) => (
             <Button
@@ -404,6 +421,7 @@ export default function AdminTecnico() {
           titulo={`Historial — Requisición ${historial?.numero ?? ""}`}
           onCerrar={() => setHistorial(null)}
         />
+        </div>
       </main>
     </>
   )
