@@ -80,7 +80,7 @@ export function TablaPedidosCompra({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Insumo</TableHead>
+              <TableHead className="min-w-64">Insumo</TableHead>
               <TableHead>UM</TableHead>
               <TableHead className="text-right">Cantidad</TableHead>
               <TableHead className="text-right">Vr. Unit. Proyectado</TableHead>
@@ -100,7 +100,10 @@ export function TablaPedidosCompra({
 
               return (
                 <TableRow key={pedido.id} className={pedido.urgente ? "bg-amber-50" : undefined}>
-                  <TableCell className="max-w-xs">
+                  {/* whitespace-normal: TableCell trae nowrap por defecto y los
+                      nombres largos se salían de la columna encima de las
+                      demás. Ahora bajan de línea dentro de su ancho. */}
+                  <TableCell className="min-w-64 max-w-md whitespace-normal break-words">
                     <span className="text-muted-foreground">{pedido.insumoCodigo} · </span>
                     {pedido.insumoDescripcion}
                   </TableCell>

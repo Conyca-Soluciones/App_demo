@@ -27,9 +27,35 @@ import {
   desaprobarPedido,
   cancelarPedidoComoAprobador,
   obtenerPermisosPedidos,
+  type EstadoAprobacion,
   type PedidoPendiente,
   type PermisosPedidos,
 } from "./actions"
+
+const VISTAS: { valor: EstadoAprobacion; etiqueta: string }[] = [
+  { valor: "pendiente", etiqueta: "Pendientes" },
+  { valor: "aprobado", etiqueta: "Aprobadas" },
+  { valor: "rechazado", etiqueta: "Rechazadas" },
+]
+
+type TipoAccion = "rechazar" | "desaprobar" | "cancelar"
+const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; boton: string }> = {
+  rechazar: {
+    titulo: "Rechazar requisición",
+    explicacion: "Quien la pidió recibe una notificación con este motivo.",
+    boton: "Rechazar requisición",
+  },
+  desaprobar: {
+    titulo: "Desaprobar requisición",
+    explicacion: "Vuelve a pendiente y se podrá aprobar o rechazar de nuevo. No se puede si ya está en una orden de compra.",
+    boton: "Desaprobar requisición",
+  },
+  cancelar: {
+    titulo: "Cancelar requisición",
+    explicacion: "Queda registrado como cancelado y su cantidad vuelve a estar disponible. No se puede si ya está en una orden de compra.",
+    boton: "Cancelar requisición",
+  },
+}
 
 const headClasses = "border-r bg-muted/50 px-3 py-2 text-left text-xs font-medium last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
@@ -39,10 +65,10 @@ export default function AdminTecnico() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
-  const [vista, setVista] = useState<"pendiente" | "aprobado">("pendiente")
+  const [vista, setVista] = useState<EstadoAprobacion>("pendiente")
   const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
-  // Desaprobar / cancelar piden motivo; el historial se abre por requisición.
-  const [accion, setAccion] = useState<{ tipo: "desaprobar" | "cancelar"; pedido: PedidoPendiente } | null>(null)
+  // Rechazar / desaprobar / cancelar piden motivo; el historial se abre por requisición.
+  const [accion, setAccion] = useState<{ tipo: TipoAccion; pedido: PedidoPendiente } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
   const [historial, setHistorial] = useState<PedidoPendiente | null>(null)
@@ -69,11 +95,18 @@ export default function AdminTecnico() {
     setProcesandoAccion(true)
     setError(null)
     try {
-      if (accion.tipo === "desaprobar") await desaprobarPedido(accion.pedido.id, motivo.trim())
-      else await cancelarPedidoComoAprobador(accion.pedido.id, motivo.trim())
+      if (accion.tipo === "rechazar") {
+        await resolverPedido(accion.pedido.id, "rechazado", motivo.trim())
+        // Optimista, igual que aprobar: sale de la cola de pendientes.
+        const id = accion.pedido.id
+        setPedidos((prev) => prev.filter((p) => p.id !== id))
+      } else {
+        if (accion.tipo === "desaprobar") await desaprobarPedido(accion.pedido.id, motivo.trim())
+        else await cancelarPedidoComoAprobador(accion.pedido.id, motivo.trim())
+        cargar()
+      }
       setAccion(null)
       setMotivo("")
-      cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo completar la acción.")
       setAccion(null)
@@ -82,10 +115,10 @@ export default function AdminTecnico() {
     }
   }
 
-  async function resolver(id: string, estado: "aprobado" | "rechazado") {
+  async function aprobar(id: string) {
     setIdsEnProceso((prev) => new Set(prev).add(id))
     try {
-      await resolverPedido(id, estado)
+      await resolverPedido(id, "aprobado")
       // Optimista: se saca de la lista de pendientes al instante -- ya
       // no aplica a esta vista sin importar el resultado.
       setPedidos((prev) => prev.filter((p) => p.id !== id))
@@ -124,20 +157,16 @@ export default function AdminTecnico() {
 
       <main className="mx-auto w-full max-w-[1600px] flex-1 space-y-8 p-6">
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant={vista === "pendiente" ? "default" : "outline"}
-            onClick={() => setVista("pendiente")}
-          >
-            Pendientes
-          </Button>
-          <Button
-            size="sm"
-            variant={vista === "aprobado" ? "default" : "outline"}
-            onClick={() => setVista("aprobado")}
-          >
-            Aprobados
-          </Button>
+          {VISTAS.map((v) => (
+            <Button
+              key={v.valor}
+              size="sm"
+              variant={vista === v.valor ? "default" : "outline"}
+              onClick={() => setVista(v.valor)}
+            >
+              {v.etiqueta}
+            </Button>
+          ))}
         </div>
 
         {cargando && <p className="text-sm text-muted-foreground">Cargando requisiciones…</p>}
@@ -145,7 +174,11 @@ export default function AdminTecnico() {
 
         {!cargando && pedidos.length === 0 && !error && (
           <p className="text-sm text-muted-foreground">
-            {vista === "pendiente" ? "No hay requisiciones pendientes por revisar." : "No hay requisiciones aprobadas."}
+            {vista === "pendiente"
+              ? "No hay requisiciones pendientes por revisar."
+              : vista === "aprobado"
+                ? "No hay requisiciones aprobadas."
+                : "No hay requisiciones rechazadas."}
           </p>
         )}
 
@@ -155,7 +188,7 @@ export default function AdminTecnico() {
               {grupo.nombre}{" "}
               <span className="font-normal text-muted-foreground">
                 ({grupo.pedidos.length} {grupo.pedidos.length === 1 ? "requisición" : "requisiciones"}{" "}
-                {vista === "pendiente" ? "pendientes" : "aprobados"})
+                {vista === "pendiente" ? "pendientes" : vista === "aprobado" ? "aprobadas" : "rechazadas"})
               </span>
             </h2>
 
@@ -174,7 +207,14 @@ export default function AdminTecnico() {
                     <th className={`${headClasses} w-20 text-center`}>Urgente</th>
                     <th className={`${headClasses} w-24 text-center`}>Ítem</th>
                     <th className={`${headClasses} w-28`}>Solicitado por</th>
-                    <th className={`${headClasses} w-56 text-center`}>Acciones</th>
+                    {vista === "rechazado" && (
+                      <>
+                        <th className={`${headClasses} w-64`}>Motivo del rechazo</th>
+                        <th className={`${headClasses} w-28`}>Rechazada por</th>
+                        <th className={`${headClasses} w-28 text-center`}>Fecha rechazo</th>
+                      </>
+                    )}
+                    <th className={`${headClasses} ${vista === "rechazado" ? "w-24" : "w-56"} text-center`}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,6 +273,17 @@ export default function AdminTecnico() {
                           </Link>
                         </td>
                         <td className={`${celda} truncate`}>{pedido.solicitanteNombre ?? "—"}</td>
+                        {vista === "rechazado" && (
+                          <>
+                            <td className={`${celda} whitespace-pre-wrap break-words`}>
+                              {pedido.motivoRechazo ?? <span className="text-muted-foreground">(sin motivo)</span>}
+                            </td>
+                            <td className={`${celda} truncate`}>{pedido.resueltoPorNombre ?? "—"}</td>
+                            <td className={`${celda} text-center`}>
+                              {pedido.resueltoAt ? new Date(pedido.resueltoAt).toLocaleDateString("es-CO") : "—"}
+                            </td>
+                          </>
+                        )}
                         <td className={`${celda} text-center`}>
                           <div className="flex flex-wrap items-center justify-center gap-1.5">
                             {vista === "pendiente" ? (
@@ -241,7 +292,7 @@ export default function AdminTecnico() {
                                   size="sm"
                                   variant="outline"
                                   className="h-7 px-2 text-[11px] text-emerald-700 hover:bg-emerald-50"
-                                  onClick={() => resolver(pedido.id, "aprobado")}
+                                  onClick={() => aprobar(pedido.id)}
                                   disabled={procesando}
                                 >
                                   Aprobar
@@ -250,13 +301,17 @@ export default function AdminTecnico() {
                                   size="sm"
                                   variant="outline"
                                   className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10"
-                                  onClick={() => resolver(pedido.id, "rechazado")}
+                                  onClick={() => {
+                                    setAccion({ tipo: "rechazar", pedido })
+                                    setMotivo("")
+                                  }}
                                   disabled={procesando}
                                 >
                                   Rechazar
                                 </Button>
                               </>
                             ) : (
+                              vista === "aprobado" &&
                               permisos?.desaprobar && (
                                 <Button
                                   size="sm"
@@ -272,7 +327,7 @@ export default function AdminTecnico() {
                                 </Button>
                               )
                             )}
-                            {permisos?.cancelar && (
+                            {vista !== "rechazado" && permisos?.cancelar && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -316,16 +371,12 @@ export default function AdminTecnico() {
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>
-                {accion?.tipo === "desaprobar" ? "Desaprobar requisición" : "Cancelar requisición"}
-              </DialogTitle>
+              <DialogTitle>{accion ? TEXTO_ACCION[accion.tipo].titulo : ""}</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
               {accion?.pedido.insumoDescripcion} — {accion?.pedido.cantidad} {accion?.pedido.insumoUm ?? ""} (
               {accion?.pedido.solicitanteNombre ?? "sin solicitante"}).{" "}
-              {accion?.tipo === "desaprobar"
-                ? "Vuelve a pendiente y se podrá aprobar o rechazar de nuevo. No se puede si ya está en una orden de compra."
-                : "Queda registrado como cancelado y su cantidad vuelve a estar disponible. No se puede si ya está en una orden de compra."}
+              {accion ? TEXTO_ACCION[accion.tipo].explicacion : ""}
             </p>
             <Textarea
               placeholder="Motivo (obligatorio)"
@@ -342,11 +393,7 @@ export default function AdminTecnico() {
                 disabled={!motivo.trim() || procesandoAccion}
                 onClick={confirmarAccion}
               >
-                {procesandoAccion
-                  ? "Procesando..."
-                  : accion?.tipo === "desaprobar"
-                    ? "Desaprobar requisición"
-                    : "Cancelar requisición"}
+                {procesandoAccion ? "Procesando..." : accion ? TEXTO_ACCION[accion.tipo].boton : ""}
               </Button>
             </DialogFooter>
           </DialogContent>
