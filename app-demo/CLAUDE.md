@@ -840,9 +840,10 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   corre en UTC: usar `(now() at time zone 'America/Bogota')::date`, no
   `current_date` (`20261006300000_fechas_colombia.sql`). Lo que se renderiza
   en el servidor (PDF de OC) necesita `timeZone: ZONA_HORARIA`.
-- **Cantidades escritas en texto**: `leerCantidad` (`lib/numeros.ts`).
-  "1.500" es ambiguo y se pide aclararlo (antes Entradas/Salidas/Modificar
-  lo guardaban como 1,5). Los inputs `type="number"` no tienen el problema.
+- **Cantidades en Entradas, Salidas y Modificar requisición: solo enteros**
+  (decisión del usuario). `leerCantidadEntera` (`lib/numeros.ts`): "1.500" y
+  "1,500" = 1500, "1,5" se rechaza. Las server actions lo revalidan con
+  `esCantidadEnteraPositiva`. (Antes "1.500" se guardaba como 1,5.)
 - **Cambios de estado**: toda acción que resuelve algo (aprobar/rechazar
   requisiciones, rechazo de Compras, rechazar solicitudes de insumo/MO/
   equipo) filtra por el estado esperado en el mismo UPDATE

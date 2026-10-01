@@ -1,6 +1,6 @@
 "use client"
 
-import { leerCantidad } from "@/lib/numeros"
+import { leerCantidadEntera } from "@/lib/numeros"
 
 import { formatearFechaSinHora } from "@/lib/fechas"
 // app/(app)/almacen/page.tsx
@@ -167,8 +167,8 @@ export default function Almacen() {
 
   async function confirmarModificacion() {
     if (!modificando) return
-    // Formato colombiano (ver lib/numeros.ts): "1.500" ya no se lee como 1,5.
-    const leida = leerCantidad(edCantidad)
+    // Solo enteros (ver lib/numeros.ts): "1.500" es 1500, "1,5" se rechaza.
+    const leida = leerCantidadEntera(edCantidad)
     const cantidad = leida.ok ? leida.valor : NaN
     if (!leida.ok || cantidad <= 0) {
       setError(leida.ok ? "La cantidad debe ser mayor que cero." : leida.error)
@@ -438,7 +438,7 @@ export default function Almacen() {
               <div className="space-y-1">
                 <label className="text-sm font-medium">Cantidad</label>
                 <Input
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={edCantidad}
                   onChange={(e) => setEdCantidad(e.target.value)}
                 />

@@ -1,5 +1,7 @@
 "use server"
 
+import { esCantidadEnteraPositiva } from "@/lib/numeros"
+
 // app/(app)/almacen/actions.ts
 
 import { createClient } from "@/lib/supabase/server"
@@ -306,7 +308,7 @@ export type CambiosPedido = {
 }
 
 export async function modificarPedido(id: string, cambios: CambiosPedido) {
-  if (!(cambios.cantidad > 0)) throw new Error("La cantidad debe ser mayor que cero.")
+  if (!esCantidadEnteraPositiva(cambios.cantidad)) throw new Error("La cantidad debe ser un número entero mayor que cero.")
   if (!cambios.fechaRequerida) throw new Error("La fecha requerida es obligatoria.")
 
   const supabase = await createClient()

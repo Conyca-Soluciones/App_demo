@@ -1,6 +1,6 @@
 "use client"
 
-import { leerCantidad } from "@/lib/numeros"
+import { leerCantidadEntera } from "@/lib/numeros"
 
 import { formatearFechaSinHora } from "@/lib/fechas"
 
@@ -51,9 +51,8 @@ const ESTADO_BADGE: Record<
   entregada: { label: "Entregada", variant: "default" },
 }
 
-// Lectura de cantidades en formato colombiano: ver lib/numeros.ts. Antes
-// "1.500" (mil quinientos) se leía como 1,5 sin avisar; ahora un número
-// ambiguo o inválido devuelve el motivo para mostrárselo al usuario.
+// Cantidades: solo números enteros (ver lib/numeros.ts). "1.500" es 1500;
+// "1,5" se rechaza con el motivo para mostrárselo al usuario.
 
 export function EntradasView() {
   const [ordenes, setOrdenes] = useState<OrdenParaEntrada[] | null>(null)
@@ -220,7 +219,7 @@ function DetalleEntrada({
     const lineaPorId = new Map(detalle.lineas.map((x) => [x.id, x]))
     const lineas: { id: string; cantidad: number }[] = []
     for (const l of editando.lineas) {
-      const leida = leerCantidad(edCantidades[l.id] ?? "")
+      const leida = leerCantidadEntera(edCantidades[l.id] ?? "")
       if (!leida.ok || leida.valor <= 0) {
         setError(`"${l.insumoDescripcion}": ${leida.ok ? "la cantidad debe ser mayor que cero." : leida.error}`)
         return
@@ -307,7 +306,7 @@ function DetalleEntrada({
     for (const l of detalle.lineas) {
       const texto = cantidades[l.id]
       if (!texto || !texto.trim()) continue
-      const leida = leerCantidad(texto)
+      const leida = leerCantidadEntera(texto)
       if (!leida.ok || leida.valor < 0) {
         setError(`"${l.insumoDescripcion}": ${leida.ok ? "la cantidad no puede ser negativa." : leida.error}`)
         return
@@ -401,7 +400,7 @@ function DetalleEntrada({
                   {l.cantidadPendiente > 0 ? (
                     <div className="flex items-center justify-end gap-1">
                       <Input
-                        inputMode="decimal"
+                        inputMode="numeric"
                         className="h-8 w-24 text-right"
                         placeholder="0"
                         value={cantidades[l.id] ?? ""}
@@ -532,7 +531,7 @@ function DetalleEntrada({
                   {l.insumoDescripcion} {l.um ? `(${l.um})` : ""}
                 </span>
                 <Input
-                  inputMode="decimal"
+                  inputMode="numeric"
                   className="h-8 w-28 text-right"
                   value={edCantidades[l.id] ?? ""}
                   onChange={(ev) => setEdCantidades((prev) => ({ ...prev, [l.id]: ev.target.value }))}

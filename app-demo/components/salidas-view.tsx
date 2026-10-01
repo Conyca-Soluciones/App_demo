@@ -1,6 +1,6 @@
 "use client"
 
-import { leerCantidad } from "@/lib/numeros"
+import { leerCantidadEntera } from "@/lib/numeros"
 
 import { useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Loader2, Search } from "lucide-react"
@@ -41,9 +41,8 @@ const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
-// Lectura de cantidades en formato colombiano: ver lib/numeros.ts. Antes
-// "1.500" (mil quinientos) se leía como 1,5 sin avisar; ahora un número
-// ambiguo o inválido devuelve el motivo para mostrárselo al usuario.
+// Cantidades: solo números enteros (ver lib/numeros.ts). "1.500" es 1500;
+// "1,5" se rechaza con el motivo para mostrárselo al usuario.
 
 export function SalidasView() {
   // Proyecto escogido en /inicio o en el selector del header (ver
@@ -105,7 +104,7 @@ export function SalidasView() {
     for (const i of inventario) {
       const texto = cantidades[i.insumoId]
       if (!texto || !texto.trim()) continue
-      const leida = leerCantidad(texto)
+      const leida = leerCantidadEntera(texto)
       if (!leida.ok || leida.valor < 0) {
         setError(`"${i.insumoDescripcion}": ${leida.ok ? "la cantidad no puede ser negativa." : leida.error}`)
         return
@@ -157,7 +156,7 @@ export function SalidasView() {
 
   async function confirmarEdicion() {
     if (!editando || !proyectoId) return
-    const leida = leerCantidad(edCantidad)
+    const leida = leerCantidadEntera(edCantidad)
     const cantidad = leida.ok ? leida.valor : NaN
     if (!leida.ok || cantidad <= 0) {
       setError(leida.ok ? "La cantidad debe ser mayor que cero." : leida.error)
@@ -272,7 +271,7 @@ export function SalidasView() {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Input
-                              inputMode="decimal"
+                              inputMode="numeric"
                               className="h-8 w-24 text-right"
                               placeholder="0"
                               value={cantidades[i.insumoId] ?? ""}
@@ -409,7 +408,7 @@ export function SalidasView() {
             </p>
           )}
           <Input
-            inputMode="decimal"
+            inputMode="numeric"
             placeholder="Cantidad"
             value={edCantidad}
             onChange={(e) => setEdCantidad(e.target.value)}

@@ -1,5 +1,7 @@
 "use server"
 
+import { esCantidadEnteraPositiva } from "@/lib/numeros"
+
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion } from "@/lib/permisos"
 
@@ -160,6 +162,8 @@ export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntre
   if (lineas.length === 0) {
     throw new Error("Ingresa la cantidad recibida de al menos un insumo.")
   }
+  // Solo enteros (decisión del usuario; la pantalla ya lo valida).
+  if (!lineas.every((l) => esCantidadEnteraPositiva(l.cantidad))) throw new Error("Las cantidades deben ser números enteros mayores que cero.")
 
   const supabase = await createClient()
   const { error } = await supabase.rpc("registrar_entrada_almacen", {
@@ -188,6 +192,7 @@ export type DatosEdicionEntrada = {
 // estado_entrega en que queda la OC (puede volver de entregada a parcial).
 export async function editarEntrada(datos: DatosEdicionEntrada): Promise<EstadoEntrega> {
   await requerirAccion("gestionar_almacen")
+  if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidad))) throw new Error("Las cantidades deben ser números enteros mayores que cero.")
 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("editar_entrada_almacen", {
