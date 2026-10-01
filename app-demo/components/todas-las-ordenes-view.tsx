@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2, Download, Ban } from "lucide-react"
+import { Loader2, Download, Ban, Eye } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
+import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
 import {
   Dialog,
   DialogContent,
@@ -63,7 +63,6 @@ async function buscarUsuariosAdaptado(termino: string): Promise<OpcionBuscador[]
 }
 
 export function TodasLasOrdenesView() {
-  const router = useRouter()
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [ordenes, setOrdenes] = useState<OrdenCompraListado[] | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -84,6 +83,8 @@ export function TodasLasOrdenesView() {
   const [hasta, setHasta] = useState("")
 
   const [permisos, setPermisos] = useState<PermisosOrdenCompra | null>(null)
+  // Orden abierta con el botón Ver (detalle encima de la lista).
+  const [abiertaId, setAbiertaId] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState<OrdenCompraListado | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
@@ -153,10 +154,6 @@ export function TodasLasOrdenesView() {
       setProcesando(false)
     }
   }
-
-  // La columna de acciones aparece si el usuario puede cancelar órdenes, o si
-  // tiene alguna orden propia pendiente que puede retirar.
-  const hayAcciones = !!permisos && (permisos.puedeCancelar || (ordenes ?? []).some((o) => muestraCancelar(o, permisos)))
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -292,18 +289,14 @@ export function TodasLasOrdenesView() {
                 <TableHead>Creada por</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="text-center">PDF</TableHead>
-                {hayAcciones && <TableHead className="text-center">Acciones</TableHead>}
+                <TableHead className="w-[290px]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {ordenes.map((orden) => {
                 const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
                 return (
-                  <TableRow
-                    key={orden.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/almacen/ordenes-compra/${orden.id}`)}
-                  >
+                  <TableRow key={orden.id}>
                     <TableCell>{orden.numero}</TableCell>
                     <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
                     <TableCell>{orden.proveedorNombre}</TableCell>
@@ -322,7 +315,6 @@ export function TodasLasOrdenesView() {
                           href={`/almacen/ordenes-compra/${orden.id}/pdf`}
                           target="_blank"
                           rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
                           className="inline-flex text-primary hover:underline"
                           aria-label={`Descargar PDF de la orden ${orden.numero}`}
                         >
@@ -332,28 +324,39 @@ export function TodasLasOrdenesView() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    {hayAcciones && (
-                      <TableCell className="text-center">
-                        {permisos && muestraCancelar(orden, permisos) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setCancelando(orden)
-                              setMotivo("")
-                            }}
-                            aria-label={`Cancelar orden ${orden.numero}`}
-                          >
-                            <Ban className="mr-1.5 h-4 w-4" />
-                            {orden.estado === "pendiente_aprobacion" ? "Retirar" : "Cancelar"}
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
+                          lado, Cancelar / Retirar cuando aplica. */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-20 shrink-0"
+                          onClick={() => setAbiertaId(orden.id)}
+                          aria-label={`Ver orden ${orden.numero}`}
+                        >
+                          <Eye className="mr-1.5 h-4 w-4" />
+                          Ver
+                        </Button>
+                        <div className="flex h-8 w-44 shrink-0 items-center">
+                          {permisos && muestraCancelar(orden, permisos) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => {
+                                setCancelando(orden)
+                                setMotivo("")
+                              }}
+                              aria-label={`Cancelar orden ${orden.numero}`}
+                            >
+                              <Ban className="mr-1.5 h-4 w-4" />
+                              {orden.estado === "pendiente_aprobacion" ? "Retirar" : "Cancelar"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )
               })}
@@ -402,6 +405,30 @@ export function TodasLasOrdenesView() {
               {procesando ? "Cancelando..." : "Cancelar orden"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalle encima de la lista (igual que en Aprobación de órdenes de compra). */}
+      <Dialog
+        open={abiertaId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAbiertaId(null)
+            if (ordenes !== null) cargar()
+          }
+        }}
+      >
+        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de orden de compra</DialogTitle>
+          {abiertaId && (
+            <OrdenCompraDetalleView
+              ordenId={abiertaId}
+              onCerrar={() => {
+                setAbiertaId(null)
+                if (ordenes !== null) cargar()
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
