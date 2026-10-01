@@ -5,8 +5,7 @@ import { useEffect, useState } from "react"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SelectorProyecto } from "@/components/selector-proyecto"
-import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
-import { Button } from "@/components/ui/button"
+import { FormularioRequisicion } from "@/components/dialogue-nuevo-pedido"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 
@@ -18,7 +17,6 @@ export default function Almacen() {
   const { proyecto: proyectoActual } = useProyectoActual()
   const proyectoId = proyectoActual?.id ?? null
   const [error, setError] = useState<string | null>(null)
-  const [dialogoPedido, setDialogoPedido] = useState(false)
   // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
   const [creada, setCreada] = useState<{ requisicionId: string; numero: number } | null>(null)
 
@@ -59,18 +57,6 @@ export default function Almacen() {
       {proyectoActual && (
       <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-10 gap-1.5 rounded-sm px-3 text-xs"
-              onClick={() => setDialogoPedido(true)}
-              disabled={!presupuestoActivo || cargandoPresupuesto}
-            >
-              + Crear requisición
-            </Button>
-          </div>
-
           {proyectoId && cargandoPresupuesto && (
             <p className="text-xs text-muted-foreground">Cargando presupuesto del proyecto…</p>
           )}
@@ -94,13 +80,15 @@ export default function Almacen() {
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
+        {/* El formulario va directo en la página (sin botón para abrirlo). */}
         {presupuestoActivo && (
-          <SolicitudInsumoDialog
-            open={dialogoPedido}
-            onOpenChange={setDialogoPedido}
-            versionId={presupuestoActivo.versionActualId}
-            onPedidoCreado={(c) => setCreada(c ?? null)}
-          />
+          <section className="rounded-lg border bg-card">
+            <h2 className="border-b px-6 py-4 text-xl font-semibold">Nueva requisición</h2>
+            <FormularioRequisicion
+              versionId={presupuestoActivo.versionActualId}
+              onPedidoCreado={(c) => setCreada(c ?? null)}
+            />
+          </section>
         )}
       </main>
       )}

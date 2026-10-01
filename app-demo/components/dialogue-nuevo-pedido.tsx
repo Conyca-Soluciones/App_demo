@@ -30,14 +30,26 @@ import {
   type LineaPedido,
 } from "@/app/(app)/almacen/types"
 
+interface FormularioRequisicionProps {
+  // Solo importa dentro de un diálogo: el formulario se reinicia al abrirlo.
+  open?: boolean
+  versionId: string
+  // Al crear, recibe el número de la requisición nueva (al modificar, nada).
+  onPedidoCreado?: (creada?: { requisicionId: string; numero: number }) => void
+  // Si se pasa, el formulario MODIFICA esa requisición pendiente (precargada con
+  // sus insumos) en vez de crear una nueva.
+  edicion?: EdicionRequisicion | null
+  // Dentro de un diálogo: cierra el diálogo (al guardar o al cancelar). Sin
+  // esto el formulario va directo en la página: al guardar se vacía para
+  // poder hacer otra requisición, y el botón secundario es "Limpiar".
+  onTerminar?: () => void
+}
+
 interface SolicitudInsumoDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   versionId: string
-  // Al crear, recibe el número de la requisición nueva (al modificar, nada).
   onPedidoCreado?: (creada?: { requisicionId: string; numero: number }) => void
-  // Si se pasa, el diálogo MODIFICA esa requisición pendiente (precargada con
-  // sus insumos) en vez de crear una nueva.
   edicion?: EdicionRequisicion | null
 }
 
@@ -54,13 +66,15 @@ function estadoLinea(linea: LineaPedido) {
   return { marcados, hayExceso, lista: completa && !hayExceso }
 }
 
-export function SolicitudInsumoDialog({
-  open,
-  onOpenChange,
+export function FormularioRequisicion({
+  open = true,
   versionId,
   onPedidoCreado,
   edicion = null,
-}: SolicitudInsumoDialogProps) {
+  onTerminar,
+}: FormularioRequisicionProps) {
+  // Sube cada vez que hay que vaciar el formulario (Limpiar, o tras crear).
+  const [reinicio, setReinicio] = useState(0)
   const [fechaPedido, setFechaPedido] = useState("")
   const [fechaRequerida, setFechaRequerida] = useState("")
   const [busqueda, setBusqueda] = useState("")
@@ -108,7 +122,7 @@ export function SolicitudInsumoDialog({
       setLineas([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, edicion])
+  }, [open, edicion, reinicio])
 
   // Buscar insumos mientras escribe (código o descripción del insumo,
   // o código del ítem del presupuesto -- ver buscar_insumos_presupuesto)
@@ -219,12 +233,13 @@ export function SolicitudInsumoDialog({
           soporteUrl: null, // subida de archivo a Storage: pendiente de implementar
         })
         onPedidoCreado?.({ requisicionId: creada.requisicionId, numero: creada.numero })
-        onOpenChange(false)
+        setReinicio((r) => r + 1)
+        onTerminar?.()
         return
       }
 
       onPedidoCreado?.()
-      onOpenChange(false)
+      onTerminar?.()
     } catch (e) {
       setError(
         e instanceof Error
@@ -239,15 +254,13 @@ export function SolicitudInsumoDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-3xl p-0">
-        <DialogHeader className="border-b px-8 py-5">
-          <DialogTitle className="text-xl">
-            {edicion ? `Modificar requisición #${edicion.numero}` : "Nueva requisición"}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="max-h-[75vh] space-y-6 overflow-y-auto px-8 py-6">
+    <div
+      className={
+        onTerminar
+          ? "max-h-[75vh] space-y-6 overflow-y-auto px-8 py-6"
+          : "space-y-6 px-6 py-6"
+      }
+    >
           {/* Fechas */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-2">
@@ -465,8 +478,12 @@ export function SolicitudInsumoDialog({
 
           {/* Acciones */}
           <div className="flex justify-end gap-3 border-t pt-5">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={guardando}>
-              Cancelar
+            <Button
+              variant="outline"
+              onClick={() => (onTerminar ? onTerminar() : setReinicio((r) => r + 1))}
+              disabled={guardando}
+            >
+              {onTerminar ? "Cancelar" : "Limpiar"}
             </Button>
             <Button onClick={handleGuardar} disabled={!puedeGuardar}>
               {guardando
@@ -480,7 +497,33 @@ export function SolicitudInsumoDialog({
                     : "Crear requisición"}
             </Button>
           </div>
-        </div>
+    </div>
+  )
+}
+
+// El mismo formulario dentro de un diálogo (se usa para MODIFICAR una requisición).
+export function SolicitudInsumoDialog({
+  open,
+  onOpenChange,
+  versionId,
+  onPedidoCreado,
+  edicion = null,
+}: SolicitudInsumoDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[95vw] max-w-3xl p-0">
+        <DialogHeader className="border-b px-8 py-5">
+          <DialogTitle className="text-xl">
+            {edicion ? `Modificar requisición #${edicion.numero}` : "Nueva requisición"}
+          </DialogTitle>
+        </DialogHeader>
+        <FormularioRequisicion
+          open={open}
+          versionId={versionId}
+          edicion={edicion}
+          onPedidoCreado={onPedidoCreado}
+          onTerminar={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   )
