@@ -272,7 +272,7 @@ function EtiquetaEstadoApu({
             e.stopPropagation()
             onRevisar?.()
           }}
-          className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-800 hover:bg-red-200"
+          className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-200"
         >
           RECHAZADO
         </button>
@@ -294,7 +294,7 @@ function EtiquetaEstadoApu({
           onRevisar?.()
         }}
         title="Hay insumos de este ítem esperando aprobación -- click para revisar"
-        className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-200"
+        className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-200"
       >
         PENDIENTE DE APROBACIÓN
       </button>
@@ -304,7 +304,7 @@ function EtiquetaEstadoApu({
   return (
     <span
       title="Todos los insumos de este APU ya están en la base"
-      className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800"
+      className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
     >
       LISTO PARA SUBIR
     </span>
@@ -560,7 +560,7 @@ export function PresupuestoTable({
                   {excedePresupuesto && (
                     <span
                       title="El valor unitario calculado supera el precio unitario oficial del Excel en más de $1.000"
-                      className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                      className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white"
                     >
                       ⚠ SUPERA PRESUPUESTO
                     </span>
@@ -578,7 +578,7 @@ export function PresupuestoTable({
                   {item.pendienteAprobacion && (
                     <span
                       title="Insumo nuevo pendiente de aprobación"
-                      className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800"
+                      className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800"
                     >
                       Pend.
                     </span>

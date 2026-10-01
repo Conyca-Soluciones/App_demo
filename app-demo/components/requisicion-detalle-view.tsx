@@ -208,7 +208,7 @@ export function RequisicionDetalleView({
                     {l.insumoDescripcion}
                     {l.rechazadaPorCompras && (
                       <span
-                        className="ml-2 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-medium text-red-800"
+                        className="ml-2 rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800"
                         title={l.motivoRechazoCompras ?? undefined}
                       >
                         Rechazado por Compras
