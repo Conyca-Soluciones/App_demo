@@ -16,6 +16,7 @@ const formatoFecha = (iso: string) =>
 // compra a su detalle, y las requisiciones al registro de requisiciones.
 function rutaDestino(n: Notificacion): string {
   if (n.entidadTipo === "orden_compra") return `/almacen/ordenes-compra/${n.entidadId}`
+  if (n.entidadTipo === "requisicion") return `/almacen/registro-requisiciones/${n.entidadId}`
   return "/almacen/registro-requisiciones"
 }
 

@@ -50,12 +50,11 @@ export const FILTROS_ESTADO_VISIBLE: { valor: EstadoOrdenVisible | "todas"; etiq
 type OrdenParaReglas = {
   estado: EstadoOrdenBase
   estadoEntrega: EstadoEntregaOrden
-  enviada: boolean
 }
 
-// Aprobada, sin enviar al proveedor y sin material recibido.
+// Aprobada y sin material recibido (sin entradas de almacén).
 export const sePuedeDesaprobar = (o: OrdenParaReglas) =>
-  o.estado === "aprobada" && !o.enviada && o.estadoEntrega === "sin_entregar"
+  o.estado === "aprobada" && o.estadoEntrega === "sin_entregar"
 
 // Aprobada y sin material recibido (Entrega parcial y Entregada NO se cancelan).
 export const sePuedeCancelar = (o: OrdenParaReglas) =>

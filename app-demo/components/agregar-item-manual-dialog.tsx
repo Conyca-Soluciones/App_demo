@@ -43,12 +43,12 @@ function BadgesDiferencia({
   return (
     <span className="inline-flex gap-1">
       {medidaDistinta && (
-        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800">
+        <span className="rounded-full bg-orange-100 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-orange-800">
           medida distinta
         </span>
       )}
       {unidadDistinta && (
-        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800">
+        <span className="rounded-full bg-orange-100 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-orange-800">
           unidad distinta
         </span>
       )}

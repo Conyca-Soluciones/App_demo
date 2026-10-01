@@ -1,151 +1,123 @@
 "use server"
 
 // app/(app)/admin-tecnico/actions.ts
+//
+// Aprobación de REQUISICIONES (agrupadas: cabecera con número + insumos).
+// Aprobar, rechazar y desaprobar actúan sobre la requisición ENTERA; las
+// funciones de la base están en supabase/migrations/20261008000000_requisiciones.sql.
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
+import { requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
+import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
+import {
+  cargarLineas,
+  mapResumen,
+  type LineaRequisicion,
+  type RequisicionResumen,
+} from "@/lib/requisiciones-lineas"
 
-export type EstadoAprobacion = "pendiente" | "aprobado" | "rechazado"
-
-export type PedidoPendiente = {
-  id: string
-  estado: EstadoAprobacion
-  resueltoAt: string | null
-  // Solo rechazadas: el motivo (comentario_resolucion) y quién rechazó.
+export type RequisicionParaAprobar = RequisicionResumen & {
+  lineas: LineaRequisicion[]
+  // Solo rechazadas: el motivo y quién rechazó.
   motivoRechazo: string | null
   resueltoPorNombre: string | null
-  grupoPedidoId: string
-  cantidad: number
-  fechaPedido: string
-  fechaRequerida: string
-  observaciones: string | null
-  soporteUrl: string | null
-  urgente: boolean
-  insumoCodigo: number
-  insumoDescripcion: string
-  insumoUm: string | null
-  itemCodigo: string
-  itemDescripcion: string
-  presupuestoId: string
-  presupuestoNombre: string
-  proyectoId: string
-  proyectoNombre: string
-  solicitanteNombre: string | null
+  resueltoAt: string | null
 }
 
-// Un solo viaje a la base de datos -- ahora que
-// pedidos_insumos.solicitado_por apunta a perfiles(id) en vez de
-// auth.users(id), PostgREST puede resolver ese embed directamente
-// (ver migracion_fk_perfiles.sql), igual que ya hace con
-// presupuesto_item -> presupuesto -> proyecto.
-// "pendiente" = cola de aprobación; "aprobado" = ya aprobados (para poder
-// desaprobarlos o cancelarlos, mientras no estén en una orden de compra);
-// "rechazado" = historial de rechazos, con motivo y quién rechazó.
-export async function verPedidosPorEstado(estado: EstadoAprobacion): Promise<PedidoPendiente[]> {
+// Consulta de requisiciones para aprobar. Sin filtro de estado trae las
+// pendientes, aprobadas y rechazadas (no las canceladas); cada una se muestra
+// con las acciones de su propio estado (pendiente: aprobar o rechazar;
+// aprobada: desaprobar mientras ningún insumo esté en una orden de compra).
+// Ve todos los proyectos (quien aprueba no está limitado a los suyos).
+export async function verRequisicionesAprobacion(
+  filtros: FiltrosRequisiciones = {}
+): Promise<RequisicionParaAprobar[]> {
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("pedidos_insumos")
-    .select(`
-      id, grupo_pedido_id, cantidad, created_at, fecha_requerida, resuelto_at,
-      observaciones, soporte_url, urgente, comentario_resolucion,
-      insumo:maestro_insumos(codigo, descripcion, u_m),
-      presupuesto_item:presupuesto_items(
-        codigo, descripcion,
-        presupuesto:presupuestos(
-          id, nombre,
-          proyecto:proyectos(id, nombre)
-        )
-      ),
-      solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
-      resolutor:perfiles!pedidos_insumos_resuelto_por_fkey(nombre)
-    `)
-    .eq("estado", estado)
-    .order(estado === "pendiente" ? "urgente" : "resuelto_at", { ascending: false })
-    .order("created_at", { ascending: estado === "pendiente" })
-    .limit(estado === "pendiente" ? 1000 : 300)
+  let query = supabase.from("requisiciones_vista").select("*")
+  query = filtros.estado
+    ? query.eq("estado", filtros.estado)
+    : query.in("estado", ["pendiente", "aprobada", "rechazada"])
 
+  if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
+  if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
+  if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
+  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+  if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+  if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+  if (filtros.insumoId) {
+    const { data: lineas, error: errorLineas } = await supabase
+      .from("pedidos_insumos")
+      .select("grupo_pedido_id")
+      .eq("insumo_id", filtros.insumoId)
+      .limit(5000)
+    if (errorLineas) throw new Error(errorLineas.message)
+    const ids = Array.from(new Set((lineas ?? []).map((l: any) => l.grupo_pedido_id as string)))
+    if (ids.length === 0) return []
+    query = query.in("id", ids)
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(500)
   if (error) throw new Error(error.message)
-  if (!data) return []
+  const filas = (data ?? []) as any[]
+  if (filas.length === 0) return []
 
-  return data.map((p: any) => ({
-    id: p.id,
-    estado,
-    resueltoAt: p.resuelto_at,
-    motivoRechazo: estado === "rechazado" ? p.comentario_resolucion ?? null : null,
-    resueltoPorNombre: p.resolutor?.nombre ?? null,
-    grupoPedidoId: p.grupo_pedido_id,
-    cantidad: p.cantidad,
-    fechaPedido: p.created_at,
-    fechaRequerida: p.fecha_requerida,
-    observaciones: p.observaciones,
-    soporteUrl: p.soporte_url,
-    urgente: p.urgente,
-    insumoCodigo: p.insumo?.codigo,
-    insumoDescripcion: p.insumo?.descripcion,
-    insumoUm: p.insumo?.u_m,
-    itemCodigo: p.presupuesto_item?.codigo,
-    itemDescripcion: p.presupuesto_item?.descripcion,
-    presupuestoId: p.presupuesto_item?.presupuesto?.id,
-    presupuestoNombre: p.presupuesto_item?.presupuesto?.nombre,
-    proyectoId: p.presupuesto_item?.presupuesto?.proyecto?.id,
-    proyectoNombre: p.presupuesto_item?.presupuesto?.proyecto?.nombre,
-    solicitanteNombre: p.solicitante?.nombre ?? null,
-  }))
+  const lineas = await cargarLineas(supabase, filas.map((f) => f.id))
+
+  const lista = filas.map((f) => {
+    const ls = lineas.get(f.id) ?? []
+    const resuelta = ls.find((l) => l._resueltoAt)
+    const resumen = mapResumen(f)
+    return {
+      ...resumen,
+      lineas: ls.map(({ _resolutor, _resueltoAt, _comentario, _motivoCancelacion, ...l }) => l),
+      motivoRechazo:
+        resumen.estado === "rechazada" ? ls.find((l) => l._comentario)?._comentario ?? null : null,
+      resueltoPorNombre: resuelta?._resolutor ?? null,
+      resueltoAt: resuelta?._resueltoAt ?? null,
+    }
+  })
+
+  // Primero lo que falta por aprobar (urgentes y más antiguas arriba); después
+  // el resto, de la más reciente a la más antigua.
+  const pendientes = lista
+    .filter((r) => r.estado === "pendiente")
+    .sort((x, y) => Number(y.urgente) - Number(x.urgente) || x.createdAt.localeCompare(y.createdAt))
+  const resto = lista.filter((r) => r.estado !== "pendiente")
+  return [...pendientes, ...resto]
 }
 
-// Aprobar/rechazar actúa sobre UNA fila (un id), no sobre todo el
-// grupo_pedido_id -- el admin puede resolver cada línea de un pedido
-// repartido por separado.
-export async function resolverPedido(
+// Aprueba o rechaza la requisición completa (todas sus líneas pendientes).
+// El motivo del rechazo es obligatorio: es lo que le llega al solicitante en
+// la notificación.
+export async function resolverRequisicion(
   id: string,
   estado: "aprobado" | "rechazado",
   comentario?: string
 ) {
   await requerirAccion("aprobar_pedidos")
-  // El motivo del rechazo es obligatorio: es lo que le llega al ingeniero en
-  // la notificación (trigger notificar_pedido_rechazado_tecnico usa
-  // comentario_resolucion). Antes la pantalla rechazaba sin pedirlo y la
-  // notificación decía "Motivo: (sin motivo)".
   const motivo = comentario?.trim() || null
   if (estado === "rechazado" && !motivo) throw new Error("Escribe el motivo del rechazo.")
 
   const supabase = await createClient()
-
-  const userId = await obtenerUsuarioId()
-
-  if (!userId) throw new Error("No autenticado.")
-
-  const { data, error } = await supabase
-    .from("pedidos_insumos")
-    .update({
-      estado,
-      resuelto_por: userId,
-      resuelto_at: new Date().toISOString(),
-      comentario_resolucion: motivo,
-    })
-    .eq("id", id)
-    // Solo si SIGUE pendiente: con la pantalla abierta un rato, alguien pudo
-    // cancelarla, o otro aprobador ya la resolvió (y quizá ya está en una
-    // orden de compra). Sin esto se "re-aprobaba" una requisición cancelada.
-    .eq("estado", "pendiente")
-    .select("id")
-
+  const { error } = await supabase.rpc("resolver_requisicion", {
+    p_id: id,
+    p_estado: estado,
+    p_comentario: motivo,
+  })
   if (error) throw new Error(error.message)
-  if (!data || data.length === 0) {
-    throw new Error("Esta requisición ya no está pendiente (la cancelaron o ya fue resuelta). Actualiza la página.")
-  }
 }
-// Devuelve un pedido aprobado a pendiente. Solo si ninguna orden de compra
-// activa lo usa (lo valida la base). Motivo obligatorio.
-export async function desaprobarPedido(id: string, motivo: string) {
+
+// Devuelve una requisición aprobada a pendiente. Solo si ningún insumo suyo
+// está en una orden de compra vigente (lo valida la base). Motivo obligatorio.
+export async function desaprobarRequisicion(id: string, motivo: string) {
   await requerirAccion("desaprobar_pedidos")
   if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc("desaprobar_pedido", {
-    p_pedido_id: id,
+  const { error } = await supabase.rpc("desaprobar_requisicion", {
+    p_id: id,
     p_motivo: motivo.trim(),
   })
   if (error) throw new Error(error.message)
