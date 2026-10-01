@@ -80,6 +80,9 @@ export type FiltrosPedidosCompra = {
 
 export type PedidoParaComprar = {
   id: string
+  // Requisición (agrupada) a la que pertenece esta línea.
+  requisicionId: string
+  requisicionNumero: number | null
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
@@ -97,7 +100,8 @@ export type PedidoParaComprar = {
 }
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
-  id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  id, grupo_pedido_id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
@@ -120,6 +124,8 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
   return {
     id: f.id,
+    requisicionId: f.grupo_pedido_id,
+    requisicionNumero: f.requisicion?.numero ?? null,
     insumoId: f.insumo?.id,
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
@@ -732,7 +738,7 @@ export type NotificacionTipo =
   | "orden_compra_aprobada"
   | "insumo_sobre_presupuesto"
   | "orden_compra_precio_sobre_efectivo"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra"
+export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion"
 
 export type Notificacion = {
   id: string

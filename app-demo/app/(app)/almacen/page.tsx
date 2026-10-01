@@ -1,5 +1,6 @@
 "use client"
 // app/(app)/almacen/page.tsx
+import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -18,12 +19,15 @@ export default function Almacen() {
   const proyectoId = proyectoActual?.id ?? null
   const [error, setError] = useState<string | null>(null)
   const [dialogoPedido, setDialogoPedido] = useState(false)
+  // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
+  const [creada, setCreada] = useState<{ requisicionId: string; numero: number } | null>(null)
 
   const [presupuestoActivo, setPresupuestoActivo] = useState<PresupuestoActivo | null>(null)
   const [cargandoPresupuesto, setCargandoPresupuesto] = useState(false)
 
   useEffect(() => {
     setPresupuestoActivo(null)
+    setCreada(null)
     setError(null)
 
     if (!proyectoId) return
@@ -76,6 +80,17 @@ export default function Almacen() {
               cargado — sube uno desde el módulo de Presupuestos antes de crear requisiciones.
             </p>
           )}
+          {creada && (
+            <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              Requisición {creada.numero} creada.{" "}
+              <Link
+                href={`/almacen/registro-requisiciones/${creada.requisicionId}`}
+                className="font-medium underline underline-offset-2"
+              >
+                Ver detalle
+              </Link>
+            </p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
@@ -84,6 +99,7 @@ export default function Almacen() {
             open={dialogoPedido}
             onOpenChange={setDialogoPedido}
             versionId={presupuestoActivo.versionActualId}
+            onPedidoCreado={(c) => setCreada(c ?? null)}
           />
         )}
       </main>

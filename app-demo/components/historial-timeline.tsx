@@ -38,6 +38,18 @@ const EVENTOS: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" 
   estado_cambiado: { etiqueta: "Cambio de estado", tono: "neutro" },
 }
 
+// Eventos de una REQUISICIÓN (agrupada). Mismas claves que las órdenes de compra
+// (creada, aprobada...) pero con su propio texto.
+const EVENTOS_REQUISICION: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creada: { etiqueta: "Requisición solicitada", tono: "neutro" },
+  modificada: { etiqueta: "Requisición modificada", tono: "aviso" },
+  aprobada: { etiqueta: "Requisición aprobada", tono: "ok" },
+  rechazada: { etiqueta: "Requisición rechazada", tono: "malo" },
+  desaprobada: { etiqueta: "Requisición desaprobada", tono: "aviso" },
+  cancelada: { etiqueta: "Requisición cancelada", tono: "malo" },
+  rechazado_por_compras: { etiqueta: "Insumo rechazado por Compras", tono: "malo" },
+}
+
 const COLOR_PUNTO = {
   ok: "bg-emerald-500",
   malo: "bg-red-500",
@@ -74,8 +86,27 @@ function formatoValor(v: unknown): string {
 }
 
 // Detalle extra de algunos eventos (qué cambió en una modificación, etc.).
-function detalleEvento(e: EventoHistorial): string[] {
+function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
   const d = e.datos ?? {}
+  if (tipo === "requisicion") {
+    if (e.evento === "creada" && d.insumos) return [`${d.insumos} ${d.insumos === 1 ? "insumo" : "insumos"}`]
+    if (e.evento === "rechazado_por_compras" && d.insumo) return [String(d.insumo)]
+    if (e.evento === "modificada") {
+      const lineas: string[] = []
+      for (const x of d.agregados ?? []) lineas.push(`Agregó: ${x.insumo} (${x.cantidad}) · ítem ${x.item}`)
+      for (const x of d.quitados ?? []) lineas.push(`Quitó: ${x.insumo} (${x.cantidad}) · ítem ${x.item}`)
+      for (const x of d.cambios ?? []) lineas.push(`${x.insumo} · ítem ${x.item}: cantidad ${x.de} → ${x.a}`)
+      if (d.antes && d.despues) {
+        for (const c of CAMPOS_PEDIDO.filter((c) => c.clave !== "cantidad")) {
+          if (d.antes[c.clave] !== d.despues[c.clave]) {
+            lineas.push(`${c.etiqueta}: ${formatoValor(d.antes[c.clave])} → ${formatoValor(d.despues[c.clave])}`)
+          }
+        }
+      }
+      return lineas
+    }
+    return []
+  }
   if (e.evento === "modificado" && d.antes && d.despues) {
     return CAMPOS_PEDIDO.filter((c) => d.antes[c.clave] !== d.despues[c.clave]).map(
       (c) => `${c.etiqueta}: ${formatoValor(d.antes[c.clave])} → ${formatoValor(d.despues[c.clave])}`
@@ -114,8 +145,10 @@ export function HistorialTimeline({ tipo, id }: { tipo: TipoHistorial; id: strin
   return (
     <ol className="space-y-3">
       {eventos.map((e) => {
-        const def = EVENTOS[e.evento] ?? { etiqueta: e.evento, tono: "neutro" as const }
-        const detalle = detalleEvento(e)
+        const def =
+          (tipo === "requisicion" ? EVENTOS_REQUISICION[e.evento] : undefined) ??
+          EVENTOS[e.evento] ?? { etiqueta: e.evento, tono: "neutro" as const }
+        const detalle = detalleEvento(e, tipo)
         return (
           <li key={e.id} className="flex gap-3 text-sm">
             <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${COLOR_PUNTO[def.tono]}`} />

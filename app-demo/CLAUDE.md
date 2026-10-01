@@ -1279,3 +1279,39 @@ Usuarios: se pasaron a **Usuarios y accesos** (botón "Nuevo usuario" con rol
 opcional, y el ícono de llave en cada fila). `crearUsuario` ahora recibe
 `{ nombre, email, password, rolId? }`; usa la llave de servicio y sigue sin
 haber auto-registro.
+
+## Requisiciones agrupadas (implementado)
+
+Una **requisición** es una cabecera con **número** (Requisición 1, 2...) que agrupa
+cualquier cantidad de insumos, como las órdenes de compra. Migración
+`20261008000000_requisiciones.sql`.
+
+- Tabla `requisiciones` (id = `pedidos_insumos.grupo_pedido_id`, así lo que ya
+  existía quedó agrupado sin tocar sus líneas). Las **líneas** siguen siendo las
+  filas de `pedidos_insumos` (una por insumo + ítem): de ahí salen el cupo del
+  presupuesto, las órdenes de compra, el inventario y la visualización.
+- El **estado no se guarda**: la vista `requisiciones_vista` lo deriva de las
+  líneas. `estado` = pendiente | aprobada | rechazada | cancelada;
+  `estado_compra` (solo aprobadas) = completa (todas sus líneas ya en órdenes de
+  compra vigentes) | pendiente | rechazada_compras.
+- **Cupo**: sin cambios. Cada línea cuenta como comprometida mientras esté
+  pendiente o aprobada (`_comprometido_insumo_item`); cancelar o rechazar la
+  requisición pasa todas sus líneas a cancelado/rechazado y el cupo vuelve solo.
+  `modificar_requisicion` revalida cada línea contra el cupo (disponible + lo que
+  esa misma línea ya tenía reservado).
+- **Funciones** (todas sobre la requisición entera): `crear_requisicion`,
+  `resolver_requisicion` (aprobar/rechazar), `desaprobar_requisicion`,
+  `cancelar_requisicion` y `modificar_requisicion` (solo quien la hizo, solo
+  pendiente; agregar/quitar/cambiar insumos, cantidades, fecha, urgencia y
+  observaciones). Registran eventos en `historial_eventos` con
+  `entidad_tipo = 'requisicion'` y notifican una sola vez por requisición.
+- **Compras** sigue comprando y rechazando **por línea**: la pantalla las agrupa
+  por requisición (puede elegir solo algunos insumos de una requisición para una
+  orden de compra y el resto para otra). Una requisición queda "Completa" cuando
+  todas sus líneas están en órdenes de compra.
+- Pantallas: Aprobación de requisiciones (por requisición), Registro de
+  requisiciones (lista con filtros, incluido Número de requisición) y su detalle
+  `/almacen/registro-requisiciones/[id]` (insumos, solicitante, fechas, proyecto,
+  historial; Modificar y Cancelar si es el dueño y está pendiente).
+- Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
+  `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
