@@ -1367,6 +1367,11 @@ seguridad social, SOAT, cotización...) van con el contrato, después.
 - **Permisos**: pestaña `contratos.contratistas` (ver) y acción
   `gestionar_contratistas` (crear). `tiene_pestana(uid, clave)` es nueva (la
   usan las políticas, igual que `tiene_accion`). Por defecto ven Gerencia,
-  Legal y Líder Legal; crean Legal y Líder Legal.
+  Legal, Líder Legal y Director de obra; crean Legal, Líder Legal y Director
+  de obra.
+- **Rol "Director de obra"** (`director_obra`, de sistema,
+  `20261011100000_rol_director_obra.sql`): arranca solo con ver y crear
+  contratistas; el resto se asigna en la matriz. El aviso de contrato vencido
+  sin acta de liquidación lo va a buscar por esta clave.
 - **Pendiente**: editar datos, reemplazar o agregar documentos, y vencimientos
   (p. ej. certificación bancaria o cámara de comercio con más de 30 días).
