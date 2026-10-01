@@ -38,6 +38,7 @@ type TablaPedidosCompraProps = {
   pedidos: PedidoParaComprar[]
   seleccionados: Set<string>
   onToggleSeleccion: (id: string) => void
+  onSeleccionarVarios: (ids: string[], seleccionar: boolean) => void
   onPedidoRechazado: (id: string) => void
 }
 
@@ -45,6 +46,7 @@ export function TablaPedidosCompra({
   pedidos,
   seleccionados,
   onToggleSeleccion,
+  onSeleccionarVarios,
   onPedidoRechazado,
 }: TablaPedidosCompraProps) {
   const [pedidoARechazar, setPedidoARechazar] = useState<PedidoParaComprar | null>(null)
@@ -67,6 +69,21 @@ export function TablaPedidosCompra({
       setRechazando(false)
     }
   }
+
+  // Agrupadas por requisición (Requisición 1: insumo A, B, C...), en el orden
+  // en que llegan (urgentes y más próximas primero). Compras elige los insumos
+  // que quiere, de una o de varias requisiciones, para cada orden de compra.
+  // Un Map por id: cada línea se ubica en O(1), el total es lineal.
+  const grupoPorId = new Map<string, { id: string; numero: number | null; lineas: PedidoParaComprar[] }>()
+  for (const p of pedidos) {
+    let g = grupoPorId.get(p.requisicionId)
+    if (!g) {
+      g = { id: p.requisicionId, numero: p.requisicionNumero, lineas: [] }
+      grupoPorId.set(p.requisicionId, g)
+    }
+    g.lineas.push(p)
+  }
+  const grupos = [...grupoPorId.values()]
 
   if (pedidos.length === 0) {
     return (
@@ -97,7 +114,36 @@ export function TablaPedidosCompra({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pedidos.map((pedido) => {
+            {grupos.flatMap((grupo) => {
+              const ids = grupo.lineas.map((l) => l.id)
+              const nMarcadas = ids.filter((id) => seleccionados.has(id)).length
+              const primera = grupo.lineas[0]
+              const encabezado = (
+                <TableRow key={`req-${grupo.id}`} className="bg-muted/60 hover:bg-muted/60">
+                  <TableCell colSpan={12} className="whitespace-normal py-2">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+                      <span className="font-semibold">
+                        Requisición {grupo.numero ?? "—"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {grupo.lineas.length} {grupo.lineas.length === 1 ? "insumo" : "insumos"} pendientes de comprar
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {primera.solicitadoPorNombre ?? "—"} · {formatoFecha(primera.fechaPedido)}
+                      </span>
+                      <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs">
+                        <Checkbox
+                          aria-label={`Comprar todos los insumos de la requisición ${grupo.numero ?? ""}`}
+                          checked={nMarcadas === ids.length}
+                          onCheckedChange={(v) => onSeleccionarVarios(ids, v === true)}
+                        />
+                        Seleccionar todos
+                      </label>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+              return [encabezado, ...grupo.lineas.map((pedido) => {
               const comprometido = pedido.cantidadPendiente < pedido.cantidad
 
               return (
@@ -182,6 +228,7 @@ export function TablaPedidosCompra({
                   </TableCell>
                 </TableRow>
               )
+            })]
             })}
           </TableBody>
         </Table>

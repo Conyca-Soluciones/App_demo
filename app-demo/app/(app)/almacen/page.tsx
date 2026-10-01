@@ -1,11 +1,11 @@
 "use client"
 // app/(app)/almacen/page.tsx
+import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SelectorProyecto } from "@/components/selector-proyecto"
-import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
-import { Button } from "@/components/ui/button"
+import { FormularioRequisicion } from "@/components/dialogue-nuevo-pedido"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 
@@ -17,13 +17,15 @@ export default function Almacen() {
   const { proyecto: proyectoActual } = useProyectoActual()
   const proyectoId = proyectoActual?.id ?? null
   const [error, setError] = useState<string | null>(null)
-  const [dialogoPedido, setDialogoPedido] = useState(false)
+  // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
+  const [creada, setCreada] = useState<{ requisicionId: string; numero: number } | null>(null)
 
   const [presupuestoActivo, setPresupuestoActivo] = useState<PresupuestoActivo | null>(null)
   const [cargandoPresupuesto, setCargandoPresupuesto] = useState(false)
 
   useEffect(() => {
     setPresupuestoActivo(null)
+    setCreada(null)
     setError(null)
 
     if (!proyectoId) return
@@ -55,18 +57,6 @@ export default function Almacen() {
       {proyectoActual && (
       <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-10 gap-1.5 rounded-sm px-3 text-xs"
-              onClick={() => setDialogoPedido(true)}
-              disabled={!presupuestoActivo || cargandoPresupuesto}
-            >
-              + Crear requisición
-            </Button>
-          </div>
-
           {proyectoId && cargandoPresupuesto && (
             <p className="text-xs text-muted-foreground">Cargando presupuesto del proyecto…</p>
           )}
@@ -76,15 +66,29 @@ export default function Almacen() {
               cargado — sube uno desde el módulo de Presupuestos antes de crear requisiciones.
             </p>
           )}
+          {creada && (
+            <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              Requisición {creada.numero} creada.{" "}
+              <Link
+                href={`/almacen/registro-requisiciones/${creada.requisicionId}`}
+                className="font-medium underline underline-offset-2"
+              >
+                Ver detalle
+              </Link>
+            </p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
+        {/* El formulario va directo en la página (sin botón para abrirlo). */}
         {presupuestoActivo && (
-          <SolicitudInsumoDialog
-            open={dialogoPedido}
-            onOpenChange={setDialogoPedido}
-            versionId={presupuestoActivo.versionActualId}
-          />
+          <section className="rounded-lg border bg-card">
+            <h2 className="border-b px-6 py-4 text-xl font-semibold">Nueva requisición</h2>
+            <FormularioRequisicion
+              versionId={presupuestoActivo.versionActualId}
+              onPedidoCreado={(c) => setCreada(c ?? null)}
+            />
+          </section>
         )}
       </main>
       )}

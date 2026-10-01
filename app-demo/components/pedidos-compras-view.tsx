@@ -56,6 +56,18 @@ export function PedidosCompraView() {
     })
   }
 
+  // Marca o desmarca varias líneas a la vez (una requisición completa).
+  function seleccionarVarios(ids: string[], seleccionar: boolean) {
+    setSeleccionados((prev) => {
+      const siguiente = new Set(prev)
+      for (const id of ids) {
+        if (seleccionar) siguiente.add(id)
+        else siguiente.delete(id)
+      }
+      return siguiente
+    })
+  }
+
   function handlePedidoRechazado(id: string) {
     setPedidos((prev) => (prev ? prev.filter((p) => p.id !== id) : prev))
     setSeleccionados((prev) => {
@@ -99,6 +111,7 @@ export function PedidosCompraView() {
                 pedidos={pedidos}
                 seleccionados={seleccionados}
                 onToggleSeleccion={toggleSeleccion}
+                onSeleccionarVarios={seleccionarVarios}
                 onPedidoRechazado={handlePedidoRechazado}
               />
             </div>

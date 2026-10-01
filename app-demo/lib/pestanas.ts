@@ -88,7 +88,7 @@ export const ACCIONES: Accion[] = [
   { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Requisiciones" },
   { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar la maestra de insumos.", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
-  { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones, crear órdenes de compra y marcarlas como enviadas.", seccion: "Compras" },
+  { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
   { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },

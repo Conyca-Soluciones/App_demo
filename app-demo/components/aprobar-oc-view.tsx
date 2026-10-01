@@ -345,7 +345,6 @@ export function AprobarOCView() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Badge variant={badge.variant}>{badge.label}</Badge>
-                        {orden.enviada && <Badge variant="outline">Enviada</Badge>}
                         {orden.tieneSobrecostoPrecio && (
                           <Badge
                             variant="destructive"
@@ -468,7 +467,7 @@ export function AprobarOCView() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             La orden vuelve a &ldquo;Pendiente&rdquo; y se podrá aprobar o rechazar de nuevo. Solo se
-            puede desaprobar si no fue enviada al proveedor ni tiene material recibido.
+            puede desaprobar si no tiene material recibido (entradas de almacén).
           </p>
           <Textarea
             placeholder="Motivo (obligatorio)"

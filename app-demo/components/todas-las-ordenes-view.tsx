@@ -145,9 +145,12 @@ export function TodasLasOrdenesView() {
                     <TableCell>{orden.numero}</TableCell>
                     <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
                     <TableCell>{orden.proveedorNombre}</TableCell>
-                    <TableCell className="flex items-center gap-2">
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                      {orden.enviada && <Badge variant="outline">Enviada</Badge>}
+                    <TableCell>
+                      {/* El flex va en un div: una celda con display:flex deja de ser
+                          celda de tabla y se descuadra respecto al resto de la fila. */}
+                      <div className="flex items-center gap-2">
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      </div>
                     </TableCell>
                     <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
                     <TableCell>{formatoFecha(orden.createdAt)}</TableCell>
@@ -213,11 +216,9 @@ export function TodasLasOrdenesView() {
           <p className="text-sm text-muted-foreground">
             La orden queda cancelada y sus pedidos vuelven a &ldquo;Comprar pedidos&rdquo; para poder
             comprarse de nuevo. No se puede cancelar una orden con entrega parcial o entregada.
-            {cancelando?.enviada && (
-              <strong className="mt-2 block text-foreground">
-                Esta orden ya fue marcada como enviada: avísale al proveedor de la cancelación.
-              </strong>
-            )}
+            <strong className="mt-2 block text-foreground">
+              Esta orden ya fue creada: avísale al proveedor de la cancelación.
+            </strong>
           </p>
           <Textarea
             placeholder="Motivo de la cancelación (obligatorio)"

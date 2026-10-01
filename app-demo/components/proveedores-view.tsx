@@ -94,7 +94,7 @@ function BadgeEstado({ estado }: { estado: string | null }) {
   const activo = estado === "ACTIVO"
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+      className={`inline-flex items-center rounded-full h-6 px-3 align-middle text-xs font-medium ${
         activo
           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
           : "bg-muted text-muted-foreground"

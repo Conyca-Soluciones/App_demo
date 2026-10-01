@@ -7,6 +7,16 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
+import {
+  cargarLineas,
+  mapResumen,
+  SELECT_REQUISICIONES,
+  SELECT_REQUISICIONES_CON_INSUMO,
+  type EstadoCompra,
+  type EstadoRequisicion,
+  type LineaRequisicion,
+  type RequisicionResumen,
+} from "@/lib/requisiciones-lineas"
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -255,180 +265,60 @@ export async function crearPedido(input: NuevoPedidoInput) {
     )
   }
 
-  const grupoPedidoId = crypto.randomUUID()
-
-  const filas = input.insumos.flatMap((ins) =>
-    ins.items.map((it) => ({
-      grupo_pedido_id: grupoPedidoId,
-      presupuesto_item_id: it.presupuestoItemId,
-      item_apu_id: it.itemApuId,
-      insumo_id: ins.insumoId,
-      cantidad: it.cantidad,
-      fecha_requerida: input.fechaRequerida,
-      urgente: input.urgente,
-      observaciones: input.observaciones,
-      soporte_url: input.soporteUrl,
-      solicitado_por: userId,
-    }))
-  )
-
-  const { error } = await supabase.from("pedidos_insumos").insert(filas)
-  if (error) throw new Error(error.message)
-
-  return { grupoPedidoId, filasCreadas: filas.length, insumosCreados: input.insumos.length }
-}
-
-// ---------------------------------------------------------------------------
-// Cancelar pedido -- el ingeniero solo puede cancelar SU PROPIO pedido,
-// y solo mientras siga 'pendiente' (una vez aprobado/rechazado, ya no
-// se puede cancelar -- eso queda como registro histórico). La RLS
-// (ver 04_rls_cancelar.sql) refuerza esto mismo del lado de la base de
-// datos, no solo acá.
-// ---------------------------------------------------------------------------
-
-export async function cancelarPedido(id: string, motivo: string) {
-  if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("cancelar_pedido", {
-    p_pedido_id: id,
-    p_motivo: motivo.trim(),
+  const { data: creada, error } = await supabase.rpc("crear_requisicion", {
+    p_lineas: input.insumos.flatMap((ins) =>
+      ins.items.map((it) => ({
+        presupuesto_item_id: it.presupuestoItemId,
+        item_apu_id: it.itemApuId,
+        insumo_id: ins.insumoId,
+        cantidad: it.cantidad,
+      }))
+    ),
+    p_fecha_requerida: input.fechaRequerida,
+    p_urgente: input.urgente,
+    p_observaciones: input.observaciones,
+    p_soporte_url: input.soporteUrl,
   })
   if (error) throw new Error(error.message)
-}
 
-// Modificar un pedido: solo quien lo hizo y solo mientras está pendiente de
-// aprobación (lo valida la base). No cambia el insumo ni el ítem: para eso se
-// cancela y se crea otro.
-export type CambiosPedido = {
-  cantidad: number
-  fechaRequerida: string
-  urgente: boolean
-  observaciones: string | null
-}
-
-export async function modificarPedido(id: string, cambios: CambiosPedido) {
-  if (!esCantidadEnteraPositiva(cambios.cantidad)) throw new Error("La cantidad debe ser un número entero mayor que cero.")
-  if (!cambios.fechaRequerida) throw new Error("La fecha requerida es obligatoria.")
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("modificar_pedido", {
-    p_pedido_id: id,
-    p_cantidad: cambios.cantidad,
-    p_fecha_requerida: cambios.fechaRequerida,
-    p_urgente: cambios.urgente,
-    p_observaciones: cambios.observaciones,
-  })
-  if (error) throw new Error(error.message)
+  const r = creada as { id: string; numero: number }
+  return { requisicionId: r.id, numero: r.numero, insumosCreados: input.insumos.length }
 }
 
 // ---------------------------------------------------------------------------
-// Registro de pedidos del proyecto (todos los solicitantes, filtrable
-// por estado) -- ver actions-verPedidosDeProyecto.ts de la respuesta
-// anterior, se mantiene sin cambios; se incluye acá para que este
-// archivo quede completo si se usa como reemplazo directo.
+// Requisiciones agrupadas (cabecera con número + insumos). Ver
+// supabase/migrations/20261008000000_requisiciones.sql: el estado de la
+// requisición se deriva de sus líneas (vista requisiciones_vista) y cancelar,
+// modificar, aprobar... actúan sobre la requisición entera. El cupo del
+// presupuesto sigue saliendo de las líneas (pendiente o aprobada = comprometida).
 // ---------------------------------------------------------------------------
 
-export type PedidoRegistro = {
-  id: string
-  grupoPedidoId: string
-  insumoCodigo: number
-  insumoDescripcion: string
-  insumoUm: string | null
-  itemCodigo: string
-  itemDescripcion: string
-  cantidad: number
-  fechaPedido: string
-  fechaRequerida: string
-  urgente: boolean
-  observaciones: string | null
-  estado: "pendiente" | "aprobado" | "rechazado" | "cancelado"
-  solicitanteId: string | null
-  solicitanteNombre: string | null
-  comentarioResolucion: string | null
-  resueltoAt: string | null
+export type RequisicionDetalle = RequisicionResumen & {
+  lineas: LineaRequisicion[]
+  motivoRechazo: string | null
   motivoCancelacion: string | null
-  // Solo los llena verRegistroRequisiciones (registro de varios proyectos).
-  proyectoCodigo?: string | null
-  proyectoNombre?: string | null
-  // Para el diálogo de modificar: cuánto se puede pedir como máximo no se
-  // conoce acá; lo valida la base al guardar.
+  resueltoPorNombre: string | null
+  resueltoAt: string | null
 }
 
-export async function verPedidosDeProyecto(
-  proyectoId: string,
-  estado?: "pendiente" | "aprobado" | "rechazado" | "cancelado"
-): Promise<PedidoRegistro[]> {
-  const supabase = await createClient()
-
-  let query = supabase
-    .from("pedidos_insumos")
-    .select(`
-      id, grupo_pedido_id, cantidad, created_at, fecha_requerida,
-      urgente, observaciones, estado, comentario_resolucion, resuelto_at, motivo_cancelacion,
-      solicitado_por,
-      insumo:maestro_insumos(codigo, descripcion, u_m),
-      presupuesto_item:presupuesto_items!inner(
-        codigo, descripcion,
-        presupuesto:presupuestos!inner(proyecto_id)
-      ),
-      solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre)
-    `)
-    .eq("presupuesto_item.presupuesto.proyecto_id", proyectoId)
-    .order("created_at", { ascending: false })
-
-  if (estado) {
-    query = query.eq("estado", estado)
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    throw new Error(error.message)
-  }
-  if (!data) return []
-
-  return data.map((p: any) => ({
-    id: p.id,
-    grupoPedidoId: p.grupo_pedido_id,
-    insumoCodigo: p.insumo?.codigo,
-    insumoDescripcion: p.insumo?.descripcion,
-    insumoUm: p.insumo?.u_m,
-    itemCodigo: p.presupuesto_item?.codigo,
-    itemDescripcion: p.presupuesto_item?.descripcion,
-    cantidad: p.cantidad,
-    fechaPedido: p.created_at,
-    fechaRequerida: p.fecha_requerida,
-    urgente: p.urgente,
-    observaciones: p.observaciones,
-    estado: p.estado,
-    solicitanteId: p.solicitado_por,
-    solicitanteNombre: p.solicitante?.nombre ?? null,
-    comentarioResolucion: p.comentario_resolucion,
-    resueltoAt: p.resuelto_at,
-    motivoCancelacion: p.motivo_cancelacion,
-  }))
-}
-// ---------------------------------------------------------------------------
-// Registro de requisiciones: todas las de los proyectos a los que el usuario
-// tiene acceso (no solo el proyecto actual), con filtros. El filtro de acceso
-// se aplica acá en el servidor, nunca depende de lo que mande el cliente.
-// ---------------------------------------------------------------------------
-
-export type FiltrosRegistro = {
-  desde?: string // YYYY-MM-DD, por fecha de la requisición
-  hasta?: string // YYYY-MM-DD, inclusive
+export type FiltrosRequisiciones = {
+  numero?: number
   proyectoId?: string
   insumoId?: string
-  estado?: "pendiente" | "aprobado" | "rechazado" | "cancelado"
+  estado?: EstadoRequisicion
   solicitadoPorId?: string
+  desde?: string // YYYY-MM-DD, por fecha de la requisición
+  hasta?: string // YYYY-MM-DD, inclusive
 }
 
 const LIMITE_REGISTRO = 500
 
-export async function verRegistroRequisiciones(
-  filtros: FiltrosRegistro
-): Promise<{ filas: PedidoRegistro[]; truncado: boolean }> {
+// Requisiciones de los proyectos a los que el usuario tiene acceso (no solo el
+// proyecto actual), con filtros. El filtro de acceso se aplica acá en el
+// servidor, nunca depende de lo que mande el cliente.
+export async function listarRequisiciones(
+  filtros: FiltrosRequisiciones
+): Promise<{ filas: RequisicionResumen[]; truncado: boolean }> {
   const supabase = await createClient()
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
@@ -440,19 +330,9 @@ export async function verRegistroRequisiciones(
   }
 
   let query = supabase
-    .from("pedidos_insumos")
-    .select(`
-      id, grupo_pedido_id, cantidad, created_at, fecha_requerida,
-      urgente, observaciones, estado, comentario_resolucion, resuelto_at, motivo_cancelacion,
-      solicitado_por,
-      insumo:maestro_insumos!inner(codigo, descripcion, u_m),
-      presupuesto_item:presupuesto_items!inner(
-        codigo, descripcion,
-        presupuesto:presupuestos!inner(proyecto_id, proyecto:proyectos(codigo, nombre))
-      ),
-      solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre)
-    `)
-    .order("created_at", { ascending: false })
+    .from("requisiciones_vista")
+    .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
+    .order("numero", { ascending: false })
     .limit(LIMITE_REGISTRO + 1)
 
   if (filtros.proyectoId) {
@@ -460,43 +340,187 @@ export async function verRegistroRequisiciones(
     if (!permisos.veTodosProyectos && !idsPermitidos.includes(filtros.proyectoId)) {
       return { filas: [], truncado: false }
     }
-    query = query.eq("presupuesto_item.presupuesto.proyecto_id", filtros.proyectoId)
+    query = query.eq("proyecto_id", filtros.proyectoId)
   } else if (!permisos.veTodosProyectos) {
-    query = query.in("presupuesto_item.presupuesto.proyecto_id", idsPermitidos)
+    query = query.in("proyecto_id", idsPermitidos)
   }
+
+  if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
   if (filtros.estado) query = query.eq("estado", filtros.estado)
+  if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
   // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
   if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
   if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
 
-  if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
-  if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
+  // Por insumo: las requisiciones que tienen ese insumo en alguna línea.
+  if (filtros.insumoId) query = query.eq("filtro_insumo.insumo_id", filtros.insumoId)
 
   const { data, error } = await query
   if (error) throw new Error(error.message)
 
-  const truncado = (data?.length ?? 0) > LIMITE_REGISTRO
-  const filas = (data ?? []).slice(0, LIMITE_REGISTRO).map((p: any) => ({
-    id: p.id,
-    grupoPedidoId: p.grupo_pedido_id,
-    insumoCodigo: p.insumo?.codigo,
-    insumoDescripcion: p.insumo?.descripcion,
-    insumoUm: p.insumo?.u_m,
-    itemCodigo: p.presupuesto_item?.codigo,
-    itemDescripcion: p.presupuesto_item?.descripcion,
-    cantidad: p.cantidad,
-    fechaPedido: p.created_at,
-    fechaRequerida: p.fecha_requerida,
-    urgente: p.urgente,
-    observaciones: p.observaciones,
-    estado: p.estado,
-    solicitanteId: p.solicitado_por,
-    solicitanteNombre: p.solicitante?.nombre ?? null,
-    comentarioResolucion: p.comentario_resolucion,
-    resueltoAt: p.resuelto_at,
-    motivoCancelacion: p.motivo_cancelacion,
-    proyectoCodigo: p.presupuesto_item?.presupuesto?.proyecto?.codigo ?? null,
-    proyectoNombre: p.presupuesto_item?.presupuesto?.proyecto?.nombre ?? null,
-  }))
-  return { filas, truncado }
+  const filas = (data ?? []).slice(0, LIMITE_REGISTRO).map(mapResumen)
+  return { filas, truncado: (data?.length ?? 0) > LIMITE_REGISTRO }
+}
+
+export async function obtenerRequisicion(id: string): Promise<RequisicionDetalle> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("requisiciones_vista")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error("La requisición no existe o no tienes acceso a ella.")
+
+  const lineas = (await cargarLineas(supabase, [id])).get(id) ?? []
+  const resumen = mapResumen(data)
+  const resuelta = lineas.find((l) => l._resueltoAt)
+  return {
+    ...resumen,
+    lineas: lineas.map(({ _resolutor, _resueltoAt, _comentario, _motivoCancelacion, ...l }) => l),
+    motivoRechazo:
+      resumen.estado === "rechazada" ? lineas.find((l) => l._comentario)?._comentario ?? null : null,
+    motivoCancelacion:
+      resumen.estado === "cancelada" ? lineas.find((l) => l._motivoCancelacion)?._motivoCancelacion ?? null : null,
+    resueltoPorNombre: resuelta?._resolutor ?? null,
+    resueltoAt: resuelta?._resueltoAt ?? null,
+  }
+}
+
+// Solo quien la hizo, y solo mientras está pendiente de aprobación (lo valida
+// la base). El cupo de todas sus líneas vuelve al presupuesto.
+export async function cancelarRequisicion(id: string, motivo: string) {
+  if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("cancelar_requisicion", { p_id: id, p_motivo: motivo.trim() })
+  if (error) throw new Error(error.message)
+}
+
+// Datos para editar una requisición pendiente: sus líneas actuales marcadas, y
+// por cada insumo TODOS los ítems del presupuesto donde aparece. El cupo de
+// cada ítem incluye lo que esta misma requisición ya tiene reservado (si no,
+// no podría ni conservar su propia cantidad).
+export type EdicionRequisicion = {
+  requisicionId: string
+  numero: number
+  versionId: string
+  fechaRequerida: string
+  urgente: boolean
+  observaciones: string | null
+  insumos: {
+    insumo: InsumoAgrupado
+    marcados: Record<string, number> // presupuestoItemId -> cantidad actual
+  }[]
+}
+
+export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRequisicion> {
+  const supabase = await createClient()
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
+
+  const detalle = await obtenerRequisicion(id)
+  if (detalle.solicitanteId !== userId) throw new Error("Solo quien hizo la requisición puede modificarla.")
+  if (detalle.estado !== "pendiente") throw new Error("Solo se puede modificar una requisición pendiente de aprobación.")
+
+  const lineas = detalle.lineas.filter((l) => l.estado === "pendiente")
+  if (lineas.length === 0) throw new Error("La requisición no tiene insumos pendientes.")
+
+  // Versión del presupuesto a la que pertenecen los ítems de la requisición.
+  const { data: item, error: errorItem } = await supabase
+    .from("presupuesto_items")
+    .select("version_id")
+    .eq("id", lineas[0].presupuestoItemId)
+    .maybeSingle()
+  if (errorItem) throw new Error(errorItem.message)
+  if (!item?.version_id) throw new Error("No se encontró la versión del presupuesto de esta requisición.")
+  const versionId = item.version_id as string
+
+  const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidad]))
+  // Líneas agrupadas por insumo en una sola pasada (marcados = ítem -> cantidad).
+  const marcadosPorInsumo = new Map<string, { linea: (typeof lineas)[number]; marcados: Record<string, number> }>()
+  for (const l of lineas) {
+    const g = marcadosPorInsumo.get(l.insumoId) ?? { linea: l, marcados: {} }
+    g.marcados[l.presupuestoItemId] = l.cantidad
+    marcadosPorInsumo.set(l.insumoId, g)
+  }
+  const insumosUnicos = Array.from(marcadosPorInsumo.values()).map((g) => g.linea)
+
+  // UNA llamada para todos los insumos, por id exacto (ver
+  // 20261010100000_rendimiento_requisiciones.sql). Antes era una llamada por
+  // insumo buscando su código como texto con límite de 200 filas, que podía
+  // dejar por fuera los ítems del insumo en un presupuesto grande.
+  const { data, error } = await supabase.rpc("insumos_presupuesto_por_ids", {
+    p_version_id: versionId,
+    p_insumo_ids: insumosUnicos.map((l) => l.insumoId),
+  })
+  if (error) throw new Error(error.message)
+  const filasPorInsumo = new Map<string, any[]>()
+  for (const f of (data ?? []) as any[]) {
+    const arr = filasPorInsumo.get(f.insumo_id) ?? []
+    arr.push(f)
+    filasPorInsumo.set(f.insumo_id, arr)
+  }
+  const grupos = insumosUnicos.map((l) => {
+    const agrupado: InsumoAgrupado = {
+      insumoId: l.insumoId,
+      insumoCodigo: l.insumoCodigo,
+      insumoDescripcion: l.insumoDescripcion,
+      insumoUm: l.insumoUm,
+      items: (filasPorInsumo.get(l.insumoId) ?? []).map((f) => ({
+        presupuestoItemId: f.presupuesto_item_id,
+        itemCodigo: f.item_codigo,
+        itemDescripcion: f.item_descripcion,
+        itemApuId: f.item_apu_id,
+        cantidadDisponible:
+          Number(f.cantidad_disponible) + (propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0),
+      })),
+    }
+    return { insumo: agrupado, marcados: marcadosPorInsumo.get(l.insumoId)?.marcados ?? {} }
+  })
+
+  return {
+    requisicionId: id,
+    numero: detalle.numero,
+    versionId,
+    fechaRequerida: detalle.fechaRequerida ?? "",
+    urgente: detalle.urgente,
+    observaciones: detalle.observaciones,
+    insumos: grupos,
+  }
+}
+
+export async function modificarRequisicion(
+  id: string,
+  input: Omit<NuevoPedidoInput, "soporteUrl">
+) {
+  if (!input.fechaRequerida) throw new Error("La fecha requerida es obligatoria.")
+  if (input.insumos.length === 0) throw new Error("La requisición debe tener al menos un insumo.")
+  if (input.insumos.length > MAX_INSUMOS_POR_PEDIDO) {
+    throw new Error(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
+  }
+  for (const ins of input.insumos) {
+    if (ins.items.length === 0) throw new Error("Cada insumo necesita al menos un ítem del presupuesto.")
+    for (const it of ins.items) {
+      if (!esCantidadEnteraPositiva(it.cantidad)) {
+        throw new Error("Todas las cantidades deben ser números enteros mayores que cero.")
+      }
+    }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("modificar_requisicion", {
+    p_id: id,
+    p_lineas: input.insumos.flatMap((ins) =>
+      ins.items.map((it) => ({
+        presupuesto_item_id: it.presupuestoItemId,
+        item_apu_id: it.itemApuId,
+        insumo_id: ins.insumoId,
+        cantidad: it.cantidad,
+      }))
+    ),
+    p_fecha_requerida: input.fechaRequerida,
+    p_urgente: input.urgente,
+    p_observaciones: input.observaciones,
+  })
+  if (error) throw new Error(error.message)
 }

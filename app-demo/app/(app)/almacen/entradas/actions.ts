@@ -55,6 +55,75 @@ export async function listarOrdenesParaEntrada(
   }))
 }
 
+// ---------------------------------------------------------------------------
+// Lista de Entradas con filtros (panel de la izquierda). Una fila por orden de
+// compra, con la ÚLTIMA entrada vigente (quién la hizo y cuándo). Si hay
+// filtro por usuario o por fecha, esa "última entrada" es la última que
+// cumple el filtro, y solo salen las órdenes que tienen alguna.
+// ---------------------------------------------------------------------------
+
+export type FiltrosEntradas = {
+  numero?: number // N° de la orden de compra
+  proveedor?: string // parte del nombre
+  usuarioId?: string // quien hizo la entrada
+  // undefined = todos los estados; "por_recibir" = pendiente o parcial.
+  estado?: EstadoEntrega | "por_recibir"
+  desde?: string // YYYY-MM-DD, fecha de la entrada
+  hasta?: string // YYYY-MM-DD, inclusive
+}
+
+export type OrdenEntradaFila = OrdenParaEntrada & {
+  entradaFecha: string | null
+  entradaPersona: string | null
+}
+
+export async function listarOrdenesEntradas(filtros: FiltrosEntradas): Promise<OrdenEntradaFila[]> {
+  await requerirAccion("gestionar_almacen")
+
+  // Las órdenes ya entregadas solo se piden si el filtro las puede incluir.
+  const incluirEntregadas = filtros.estado === undefined || filtros.estado === "entregada"
+  let ordenes = await listarOrdenesParaEntrada(incluirEntregadas)
+
+  if (filtros.numero !== undefined) ordenes = ordenes.filter((o) => o.numero === filtros.numero)
+  const proveedor = filtros.proveedor?.trim().toLowerCase()
+  if (proveedor) ordenes = ordenes.filter((o) => o.proveedorNombre.toLowerCase().includes(proveedor))
+  if (filtros.estado === "por_recibir") {
+    ordenes = ordenes.filter((o) => o.estadoEntrega !== "entregada")
+  } else if (filtros.estado) {
+    ordenes = ordenes.filter((o) => o.estadoEntrega === filtros.estado)
+  }
+  if (ordenes.length === 0) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("entradas_por_orden", {
+    p_orden_ids: ordenes.map((o) => o.id),
+  })
+  if (error) throw new Error(error.message)
+
+  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+  const desde = filtros.desde ? new Date(`${filtros.desde}T00:00:00-05:00`).getTime() : null
+  const hasta = filtros.hasta ? new Date(`${filtros.hasta}T23:59:59.999-05:00`).getTime() : null
+
+  const ultimaPorOrden = new Map<string, { fecha: string; persona: string | null }>()
+  for (const e of (data ?? []) as any[]) {
+    const t = new Date(e.created_at).getTime()
+    if (filtros.usuarioId && e.recibido_por !== filtros.usuarioId) continue
+    if (desde !== null && t < desde) continue
+    if (hasta !== null && t > hasta) continue
+    // Vienen ordenadas de la más antigua a la más reciente: la última pisa.
+    ultimaPorOrden.set(e.orden_id, { fecha: e.created_at, persona: e.recibido_por_nombre ?? null })
+  }
+
+  const filtraPorEntrada = Boolean(filtros.usuarioId || filtros.desde || filtros.hasta)
+  return ordenes
+    .filter((o) => !filtraPorEntrada || ultimaPorOrden.has(o.id))
+    .map((o) => ({
+      ...o,
+      entradaFecha: ultimaPorOrden.get(o.id)?.fecha ?? null,
+      entradaPersona: ultimaPorOrden.get(o.id)?.persona ?? null,
+    }))
+}
+
 export type LineaEntrada = {
   id: string // ordenes_compra_items.id
   insumoCodigo: number

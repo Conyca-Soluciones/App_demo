@@ -18,18 +18,39 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
-import { buscarInsumos, crearPedido } from "@/app/(app)/almacen/actions"
+import {
+  buscarInsumos,
+  crearPedido,
+  modificarRequisicion,
+  type EdicionRequisicion,
+} from "@/app/(app)/almacen/actions"
 import {
   MAX_INSUMOS_POR_PEDIDO,
   type InsumoAgrupado,
   type LineaPedido,
 } from "@/app/(app)/almacen/types"
 
+interface FormularioRequisicionProps {
+  // Solo importa dentro de un diálogo: el formulario se reinicia al abrirlo.
+  open?: boolean
+  versionId: string
+  // Al crear, recibe el número de la requisición nueva (al modificar, nada).
+  onPedidoCreado?: (creada?: { requisicionId: string; numero: number }) => void
+  // Si se pasa, el formulario MODIFICA esa requisición pendiente (precargada con
+  // sus insumos) en vez de crear una nueva.
+  edicion?: EdicionRequisicion | null
+  // Dentro de un diálogo: cierra el diálogo (al guardar o al cancelar). Sin
+  // esto el formulario va directo en la página: al guardar se vacía para
+  // poder hacer otra requisición, y el botón secundario es "Limpiar".
+  onTerminar?: () => void
+}
+
 interface SolicitudInsumoDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   versionId: string
-  onPedidoCreado?: () => void
+  onPedidoCreado?: (creada?: { requisicionId: string; numero: number }) => void
+  edicion?: EdicionRequisicion | null
 }
 
 // Una línea (insumo) está lista cuando tiene al menos un ítem marcado, y
@@ -45,12 +66,15 @@ function estadoLinea(linea: LineaPedido) {
   return { marcados, hayExceso, lista: completa && !hayExceso }
 }
 
-export function SolicitudInsumoDialog({
-  open,
-  onOpenChange,
+export function FormularioRequisicion({
+  open = true,
   versionId,
   onPedidoCreado,
-}: SolicitudInsumoDialogProps) {
+  edicion = null,
+  onTerminar,
+}: FormularioRequisicionProps) {
+  // Sube cada vez que hay que vaciar el formulario (Limpiar, o tras crear).
+  const [reinicio, setReinicio] = useState(0)
   const [fechaPedido, setFechaPedido] = useState("")
   const [fechaRequerida, setFechaRequerida] = useState("")
   const [busqueda, setBusqueda] = useState("")
@@ -73,14 +97,32 @@ export function SolicitudInsumoDialog({
     // ya era "mañana" y no dejaba escoger hoy como fecha requerida).
     const fecha = hoyColombia()
     setFechaPedido(fecha)
-    setFechaRequerida("")
     setBusqueda("")
     setSugerencias([])
-    setLineas([])
-    setUrgente(false)
-    setObservaciones("")
     setError(null)
-  }, [open])
+    if (edicion) {
+      setFechaRequerida(edicion.fechaRequerida.slice(0, 10))
+      setUrgente(edicion.urgente)
+      setObservaciones(edicion.observaciones ?? "")
+      setLineas(
+        edicion.insumos.map(({ insumo, marcados }) => ({
+          insumo,
+          items: insumo.items.map((it) => ({
+            ...it,
+            marcado: it.presupuestoItemId in marcados,
+            cantidad:
+              it.presupuestoItemId in marcados ? String(marcados[it.presupuestoItemId]) : "",
+          })),
+        }))
+      )
+    } else {
+      setFechaRequerida("")
+      setUrgente(false)
+      setObservaciones("")
+      setLineas([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, edicion, reinicio])
 
   // Buscar insumos mientras escribe (código o descripción del insumo,
   // o código del ítem del presupuesto -- ver buscar_insumos_presupuesto)
@@ -167,38 +209,58 @@ export function SolicitudInsumoDialog({
     setError(null)
 
     try {
-      await crearPedido({
-        insumos: lineas.map((l) => ({
-          insumoId: l.insumo.insumoId,
-          items: estadoLinea(l).marcados.map((it) => ({
-            presupuestoItemId: it.presupuestoItemId,
-            itemApuId: it.itemApuId,
-            cantidad: Number(it.cantidad),
-          })),
+      const insumos = lineas.map((l) => ({
+        insumoId: l.insumo.insumoId,
+        items: estadoLinea(l).marcados.map((it) => ({
+          presupuestoItemId: it.presupuestoItemId,
+          itemApuId: it.itemApuId,
+          cantidad: Number(it.cantidad),
         })),
-        fechaRequerida,
-        urgente,
-        observaciones: observaciones.trim() || null,
-        soporteUrl: null, // subida de archivo a Storage: pendiente de implementar
-      })
+      }))
+      if (edicion) {
+        await modificarRequisicion(edicion.requisicionId, {
+          insumos,
+          fechaRequerida,
+          urgente,
+          observaciones: observaciones.trim() || null,
+        })
+      } else {
+        const creada = await crearPedido({
+          insumos,
+          fechaRequerida,
+          urgente,
+          observaciones: observaciones.trim() || null,
+          soporteUrl: null, // subida de archivo a Storage: pendiente de implementar
+        })
+        onPedidoCreado?.({ requisicionId: creada.requisicionId, numero: creada.numero })
+        setReinicio((r) => r + 1)
+        onTerminar?.()
+        return
+      }
 
       onPedidoCreado?.()
-      onOpenChange(false)
+      onTerminar?.()
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear la requisición.")
+      setError(
+        e instanceof Error
+          ? e.message
+          : edicion
+            ? "No se pudo modificar la requisición."
+            : "No se pudo crear la requisición."
+      )
     } finally {
       setGuardando(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-3xl p-0">
-        <DialogHeader className="border-b px-8 py-5">
-          <DialogTitle className="text-xl">Nueva requisición</DialogTitle>
-        </DialogHeader>
-
-        <div className="max-h-[75vh] space-y-6 overflow-y-auto px-8 py-6">
+    <div
+      className={
+        onTerminar
+          ? "max-h-[75vh] space-y-6 overflow-y-auto px-8 py-6"
+          : "space-y-6 px-6 py-6"
+      }
+    >
           {/* Fechas */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-2">
@@ -211,7 +273,7 @@ export function SolicitudInsumoDialog({
               <Input
                 type="date"
                 value={fechaRequerida}
-                min={fechaPedido}
+                min={edicion ? undefined : fechaPedido}
                 onChange={(e) => setFechaRequerida(e.target.value)}
                 className="h-10"
               />
@@ -384,7 +446,7 @@ export function SolicitudInsumoDialog({
 
                       {!lista && (
                         <p className="pt-1 text-[11px] text-amber-800">
-                          Marca al menos un ítem y escribe su cantidad para poder crear la requisición.
+                          Marca al menos un ítem y escribe su cantidad para poder guardar la requisición.
                         </p>
                       )}
                     </div>
@@ -416,18 +478,52 @@ export function SolicitudInsumoDialog({
 
           {/* Acciones */}
           <div className="flex justify-end gap-3 border-t pt-5">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={guardando}>
-              Cancelar
+            <Button
+              variant="outline"
+              onClick={() => (onTerminar ? onTerminar() : setReinicio((r) => r + 1))}
+              disabled={guardando}
+            >
+              {onTerminar ? "Cancelar" : "Limpiar"}
             </Button>
             <Button onClick={handleGuardar} disabled={!puedeGuardar}>
               {guardando
-                ? "Creando…"
-                : lineas.length > 1
-                  ? `Crear requisición (${lineas.length} insumos)`
-                  : "Crear requisición"}
+                ? edicion
+                  ? "Guardando…"
+                  : "Creando…"
+                : edicion
+                  ? "Guardar cambios"
+                  : lineas.length > 1
+                    ? `Crear requisición (${lineas.length} insumos)`
+                    : "Crear requisición"}
             </Button>
           </div>
-        </div>
+    </div>
+  )
+}
+
+// El mismo formulario dentro de un diálogo (se usa para MODIFICAR una requisición).
+export function SolicitudInsumoDialog({
+  open,
+  onOpenChange,
+  versionId,
+  onPedidoCreado,
+  edicion = null,
+}: SolicitudInsumoDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[95vw] max-w-3xl p-0">
+        <DialogHeader className="border-b px-8 py-5">
+          <DialogTitle className="text-xl">
+            {edicion ? `Modificar requisición #${edicion.numero}` : "Nueva requisición"}
+          </DialogTitle>
+        </DialogHeader>
+        <FormularioRequisicion
+          open={open}
+          versionId={versionId}
+          edicion={edicion}
+          onPedidoCreado={onPedidoCreado}
+          onTerminar={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   )

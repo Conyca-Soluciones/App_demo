@@ -18,6 +18,9 @@ type BuscadorAsyncProps = {
   buscar: (termino: string) => Promise<OpcionBuscador[]>
   minCaracteres?: number
   disabled?: boolean
+  // Para enfocar el campo desde fuera (llenado rápido con teclado).
+  inputId?: string
+  autoFocus?: boolean
 }
 
 /**
@@ -35,6 +38,8 @@ export function BuscadorAsync({
   buscar,
   minCaracteres = 2,
   disabled,
+  inputId,
+  autoFocus,
 }: BuscadorAsyncProps) {
   const [termino, setTermino] = useState("")
   const [abierto, setAbierto] = useState(false)
@@ -104,6 +109,8 @@ export function BuscadorAsync({
     <div ref={contenedorRef} className="relative">
       <div className="relative">
         <Input
+          id={inputId}
+          autoFocus={autoFocus}
           placeholder={placeholder}
           value={termino}
           disabled={disabled}
@@ -122,7 +129,7 @@ export function BuscadorAsync({
       </div>
 
       {abierto && !disabled && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+        <div className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
           {!puedeBuscar(termino, minCaracteres) && (
             <div className="px-2 py-3 text-sm text-muted-foreground">
               Escribe al menos {minCaracteres} caracteres, o {COMODIN_LISTAR} para ver las opciones disponibles.

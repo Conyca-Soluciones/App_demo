@@ -3,6 +3,7 @@
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
@@ -80,6 +81,9 @@ export type FiltrosPedidosCompra = {
 
 export type PedidoParaComprar = {
   id: string
+  // Requisición (agrupada) a la que pertenece esta línea.
+  requisicionId: string
+  requisicionNumero: number | null
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
@@ -97,7 +101,8 @@ export type PedidoParaComprar = {
 }
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
-  id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  id, grupo_pedido_id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
@@ -120,6 +125,8 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
   return {
     id: f.id,
+    requisicionId: f.grupo_pedido_id,
+    requisicionNumero: f.requisicion?.numero ?? null,
     insumoId: f.insumo?.id,
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
@@ -143,29 +150,34 @@ export async function listarPedidosParaComprar(
   await requerirScope("rol_compras")
   const supabase = await createClient()
 
-  let query = supabase
-    .from("pedidos_insumos")
-    .select(SELECT_PEDIDO_PARA_COMPRAR)
-    .eq("proyecto_id", filtros.proyectoId)
-    .eq("estado", "aprobado")
-    .is("rechazado_compras_at", null)
-    .order("urgente", { ascending: false })
-    .order("fecha_requerida", { ascending: true })
+  // Paginado: trae TODAS las líneas aprobadas del proyecto (también las ya
+  // compradas completas, que se descartan abajo); la API corta cada respuesta
+  // en 1000 filas sin avisar y se perdían requisiciones por comprar.
+  const consulta = (desde: number, hasta: number) => {
+    let query = supabase
+      .from("pedidos_insumos")
+      .select(SELECT_PEDIDO_PARA_COMPRAR)
+      .eq("proyecto_id", filtros.proyectoId)
+      .eq("estado", "aprobado")
+      .is("rechazado_compras_at", null)
+      .order("urgente", { ascending: false })
+      .order("fecha_requerida", { ascending: true })
+      .order("id", { ascending: true })
 
-  if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
-  if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
-  if (filtros.observacion?.trim()) query = query.ilike("observaciones", `%${filtros.observacion.trim()}%`)
-  if (filtros.soloUrgentes) query = query.eq("urgente", true)
+    if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
+    if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
+    if (filtros.observacion?.trim()) query = query.ilike("observaciones", `%${filtros.observacion.trim()}%`)
+    if (filtros.soloUrgentes) query = query.eq("urgente", true)
 
-  if (filtros.fechaPedidoInicio) query = query.gte("created_at", filtros.fechaPedidoInicio)
-  if (filtros.fechaPedidoFin) query = query.lte("created_at", `${filtros.fechaPedidoFin}T23:59:59`)
-  if (filtros.fechaRequerimientoInicio) query = query.gte("fecha_requerida", filtros.fechaRequerimientoInicio)
-  if (filtros.fechaRequerimientoFin) query = query.lte("fecha_requerida", filtros.fechaRequerimientoFin)
-  if (filtros.fechaAprobacionInicio) query = query.gte("resuelto_at", filtros.fechaAprobacionInicio)
-  if (filtros.fechaAprobacionFin) query = query.lte("resuelto_at", `${filtros.fechaAprobacionFin}T23:59:59`)
-
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
+    if (filtros.fechaPedidoInicio) query = query.gte("created_at", filtros.fechaPedidoInicio)
+    if (filtros.fechaPedidoFin) query = query.lte("created_at", `${filtros.fechaPedidoFin}T23:59:59`)
+    if (filtros.fechaRequerimientoInicio) query = query.gte("fecha_requerida", filtros.fechaRequerimientoInicio)
+    if (filtros.fechaRequerimientoFin) query = query.lte("fecha_requerida", filtros.fechaRequerimientoFin)
+    if (filtros.fechaAprobacionInicio) query = query.gte("resuelto_at", filtros.fechaAprobacionInicio)
+    if (filtros.fechaAprobacionFin) query = query.lte("resuelto_at", `${filtros.fechaAprobacionFin}T23:59:59`)
+    return query.range(desde, hasta)
+  }
+  const data = await traerTodo<any>(consulta)
 
   return (data ?? []).map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
 }
@@ -175,16 +187,24 @@ export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComp
   if (ids.length === 0) return []
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("pedidos_insumos")
-    .select(SELECT_PEDIDO_PARA_COMPRAR)
-    .in("id", ids)
-    .eq("estado", "aprobado")
-    .is("rechazado_compras_at", null)
-
-  if (error) throw new Error(error.message)
-
-  return (data ?? []).map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
+  // Por tandas: los ids van en la URL, que tiene límite de tamaño.
+  const tandas: string[][] = []
+  for (let i = 0; i < ids.length; i += 100) tandas.push(ids.slice(i, i + 100))
+  const data = (
+    await Promise.all(
+      tandas.map(async (tanda) => {
+        const { data, error } = await supabase
+          .from("pedidos_insumos")
+          .select(SELECT_PEDIDO_PARA_COMPRAR)
+          .in("id", tanda)
+          .eq("estado", "aprobado")
+          .is("rechazado_compras_at", null)
+        if (error) throw new Error(error.message)
+        return data ?? []
+      })
+    )
+  ).flat()
+  return data.map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
 }
 
 export async function rechazarPedidoCompras(pedidoId: string, motivo: string): Promise<void> {
@@ -377,7 +397,7 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
 // Qué puede hacer el usuario con las órdenes de compra (lo decide su rol; ver
 // Roles y permisos). Los nombres esAdmin / rolCompras se conservan porque las
 // pantallas ya los usan: esAdmin = puede aprobar/rechazar, rolCompras = puede
-// comprar (crear la orden, marcarla como enviada).
+// comprar (crear la orden).
 export type PermisosOrdenCompra = {
   esAdmin: boolean
   rolCompras: boolean
@@ -489,7 +509,6 @@ export type OrdenCompraDetalle = {
   email: string | null
   condicionesPago: string | null
   observaciones: string | null
-  enviada: boolean
   creadaPorNombre: string | null
   creadaPorId: string | null
   createdAt: string
@@ -511,7 +530,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     .select(
       `
       id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
-      condiciones_pago, observaciones, enviada, created_at, aprobada_at, motivo_rechazo,
+      condiciones_pago, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
@@ -565,7 +584,6 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     email: d.email,
     condicionesPago: d.condiciones_pago,
     observaciones: d.observaciones,
-    enviada: d.enviada,
     creadaPorNombre: d.creado_por?.nombre ?? null,
     creadaPorId: d.created_by ?? null,
     createdAt: d.created_at,
@@ -606,8 +624,8 @@ export async function rechazarOrdenCompra(ordenId: string, motivo: string): Prom
   if (error) throw new Error(error.message)
 }
 
-// Devuelve una orden aprobada a "pendiente de aprobación". Solo si no fue
-// enviada al proveedor ni tiene material recibido (lo valida la base).
+// Devuelve una orden aprobada a "pendiente de aprobación". Solo si no tiene
+// material recibido (sin entradas de almacén; lo valida la base).
 export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
   await requerirAccion("desaprobar_oc")
   if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
@@ -634,20 +652,12 @@ export async function cancelarOrdenCompra(ordenId: string, motivo: string): Prom
   if (error) throw new Error(error.message)
 }
 
-export async function marcarOrdenEnviada(ordenId: string): Promise<void> {
-  await requerirScope("rol_compras")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("marcar_orden_enviada", { p_orden_id: ordenId })
-  if (error) throw new Error(error.message)
-}
-
 export type OrdenCompraListado = {
   id: string
   numero: number
   estado: OrdenCompraEstado
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
-  enviada: boolean
   proyectoId: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -670,7 +680,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, estado_entrega, enviada, created_at, proyecto_id,
+      id, numero, estado, estado_entrega, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
       created_by,
@@ -687,7 +697,6 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     estado: o.estado,
     estadoEntrega: o.estado_entrega,
     estadoVisible: calcularEstadoVisible(o.estado, o.estado_entrega),
-    enviada: o.enviada,
     proyectoId: o.proyecto_id ?? null,
     proyectoCodigo: o.proyecto?.codigo ?? null,
     proyectoNombre: o.proyecto?.nombre ?? null,
@@ -732,7 +741,7 @@ export type NotificacionTipo =
   | "orden_compra_aprobada"
   | "insumo_sobre_presupuesto"
   | "orden_compra_precio_sobre_efectivo"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra"
+export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion"
 
 export type Notificacion = {
   id: string
