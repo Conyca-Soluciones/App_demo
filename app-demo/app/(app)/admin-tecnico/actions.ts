@@ -12,6 +12,8 @@ import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
   cargarLineas,
   mapResumen,
+  SELECT_REQUISICIONES,
+  SELECT_REQUISICIONES_CON_INSUMO,
   type LineaRequisicion,
   type RequisicionResumen,
 } from "@/lib/requisiciones-lineas"
@@ -35,7 +37,9 @@ export async function verRequisicionesAprobacion(
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
-  let query = supabase.from("requisiciones_vista").select("*")
+  let query = supabase
+    .from("requisiciones_vista")
+    .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
   query = filtros.estado
     ? query.eq("estado", filtros.estado)
     : query.in("estado", ["pendiente", "aprobada", "rechazada"])
@@ -46,17 +50,7 @@ export async function verRequisicionesAprobacion(
   // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
   if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
   if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
-  if (filtros.insumoId) {
-    const { data: lineas, error: errorLineas } = await supabase
-      .from("pedidos_insumos")
-      .select("grupo_pedido_id")
-      .eq("insumo_id", filtros.insumoId)
-      .limit(5000)
-    if (errorLineas) throw new Error(errorLineas.message)
-    const ids = Array.from(new Set((lineas ?? []).map((l: any) => l.grupo_pedido_id as string)))
-    if (ids.length === 0) return []
-    query = query.in("id", ids)
-  }
+  if (filtros.insumoId) query = query.eq("filtro_insumo.insumo_id", filtros.insumoId)
 
   const { data, error } = await query.order("created_at", { ascending: false }).limit(500)
   if (error) throw new Error(error.message)

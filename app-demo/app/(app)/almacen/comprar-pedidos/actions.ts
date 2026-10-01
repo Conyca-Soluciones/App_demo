@@ -3,6 +3,7 @@
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
@@ -149,29 +150,34 @@ export async function listarPedidosParaComprar(
   await requerirScope("rol_compras")
   const supabase = await createClient()
 
-  let query = supabase
-    .from("pedidos_insumos")
-    .select(SELECT_PEDIDO_PARA_COMPRAR)
-    .eq("proyecto_id", filtros.proyectoId)
-    .eq("estado", "aprobado")
-    .is("rechazado_compras_at", null)
-    .order("urgente", { ascending: false })
-    .order("fecha_requerida", { ascending: true })
+  // Paginado: trae TODAS las líneas aprobadas del proyecto (también las ya
+  // compradas completas, que se descartan abajo); la API corta cada respuesta
+  // en 1000 filas sin avisar y se perdían requisiciones por comprar.
+  const consulta = (desde: number, hasta: number) => {
+    let query = supabase
+      .from("pedidos_insumos")
+      .select(SELECT_PEDIDO_PARA_COMPRAR)
+      .eq("proyecto_id", filtros.proyectoId)
+      .eq("estado", "aprobado")
+      .is("rechazado_compras_at", null)
+      .order("urgente", { ascending: false })
+      .order("fecha_requerida", { ascending: true })
+      .order("id", { ascending: true })
 
-  if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
-  if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
-  if (filtros.observacion?.trim()) query = query.ilike("observaciones", `%${filtros.observacion.trim()}%`)
-  if (filtros.soloUrgentes) query = query.eq("urgente", true)
+    if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
+    if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
+    if (filtros.observacion?.trim()) query = query.ilike("observaciones", `%${filtros.observacion.trim()}%`)
+    if (filtros.soloUrgentes) query = query.eq("urgente", true)
 
-  if (filtros.fechaPedidoInicio) query = query.gte("created_at", filtros.fechaPedidoInicio)
-  if (filtros.fechaPedidoFin) query = query.lte("created_at", `${filtros.fechaPedidoFin}T23:59:59`)
-  if (filtros.fechaRequerimientoInicio) query = query.gte("fecha_requerida", filtros.fechaRequerimientoInicio)
-  if (filtros.fechaRequerimientoFin) query = query.lte("fecha_requerida", filtros.fechaRequerimientoFin)
-  if (filtros.fechaAprobacionInicio) query = query.gte("resuelto_at", filtros.fechaAprobacionInicio)
-  if (filtros.fechaAprobacionFin) query = query.lte("resuelto_at", `${filtros.fechaAprobacionFin}T23:59:59`)
-
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
+    if (filtros.fechaPedidoInicio) query = query.gte("created_at", filtros.fechaPedidoInicio)
+    if (filtros.fechaPedidoFin) query = query.lte("created_at", `${filtros.fechaPedidoFin}T23:59:59`)
+    if (filtros.fechaRequerimientoInicio) query = query.gte("fecha_requerida", filtros.fechaRequerimientoInicio)
+    if (filtros.fechaRequerimientoFin) query = query.lte("fecha_requerida", filtros.fechaRequerimientoFin)
+    if (filtros.fechaAprobacionInicio) query = query.gte("resuelto_at", filtros.fechaAprobacionInicio)
+    if (filtros.fechaAprobacionFin) query = query.lte("resuelto_at", `${filtros.fechaAprobacionFin}T23:59:59`)
+    return query.range(desde, hasta)
+  }
+  const data = await traerTodo<any>(consulta)
 
   return (data ?? []).map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
 }
@@ -181,16 +187,24 @@ export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComp
   if (ids.length === 0) return []
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("pedidos_insumos")
-    .select(SELECT_PEDIDO_PARA_COMPRAR)
-    .in("id", ids)
-    .eq("estado", "aprobado")
-    .is("rechazado_compras_at", null)
-
-  if (error) throw new Error(error.message)
-
-  return (data ?? []).map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
+  // Por tandas: los ids van en la URL, que tiene límite de tamaño.
+  const tandas: string[][] = []
+  for (let i = 0; i < ids.length; i += 100) tandas.push(ids.slice(i, i + 100))
+  const data = (
+    await Promise.all(
+      tandas.map(async (tanda) => {
+        const { data, error } = await supabase
+          .from("pedidos_insumos")
+          .select(SELECT_PEDIDO_PARA_COMPRAR)
+          .in("id", tanda)
+          .eq("estado", "aprobado")
+          .is("rechazado_compras_at", null)
+        if (error) throw new Error(error.message)
+        return data ?? []
+      })
+    )
+  ).flat()
+  return data.map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
 }
 
 export async function rechazarPedidoCompras(pedidoId: string, motivo: string): Promise<void> {

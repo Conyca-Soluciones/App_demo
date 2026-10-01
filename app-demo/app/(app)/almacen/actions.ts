@@ -10,6 +10,8 @@ import { hoyColombia } from "@/lib/fechas"
 import {
   cargarLineas,
   mapResumen,
+  SELECT_REQUISICIONES,
+  SELECT_REQUISICIONES_CON_INSUMO,
   type EstadoCompra,
   type EstadoRequisicion,
   type LineaRequisicion,
@@ -329,7 +331,7 @@ export async function listarRequisiciones(
 
   let query = supabase
     .from("requisiciones_vista")
-    .select("*")
+    .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
     .order("numero", { ascending: false })
     .limit(LIMITE_REGISTRO + 1)
 
@@ -351,17 +353,7 @@ export async function listarRequisiciones(
   if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
 
   // Por insumo: las requisiciones que tienen ese insumo en alguna línea.
-  if (filtros.insumoId) {
-    const { data: lineas, error: errorLineas } = await supabase
-      .from("pedidos_insumos")
-      .select("grupo_pedido_id")
-      .eq("insumo_id", filtros.insumoId)
-      .limit(5000)
-    if (errorLineas) throw new Error(errorLineas.message)
-    const ids = Array.from(new Set((lineas ?? []).map((l: any) => l.grupo_pedido_id as string)))
-    if (ids.length === 0) return { filas: [], truncado: false }
-    query = query.in("id", ids)
-  }
+  if (filtros.insumoId) query = query.eq("filtro_insumo.insumo_id", filtros.insumoId)
 
   const { data, error } = await query
   if (error) throw new Error(error.message)
@@ -446,34 +438,45 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidad]))
   const insumosUnicos = Array.from(new Map(lineas.map((l) => [l.insumoId, l])).values())
 
-  const grupos = await Promise.all(
-    insumosUnicos.map(async (l) => {
-      const { data, error } = await supabase.rpc("buscar_insumos_presupuesto", {
-        p_version_id: versionId,
-        p_query: String(l.insumoCodigo),
-        p_limite: 200,
-      })
-      if (error) throw new Error(error.message)
-      const filas = ((data ?? []) as any[]).filter((f) => f.insumo_id === l.insumoId)
-      const agrupado: InsumoAgrupado = {
-        insumoId: l.insumoId,
-        insumoCodigo: l.insumoCodigo,
-        insumoDescripcion: l.insumoDescripcion,
-        insumoUm: l.insumoUm,
-        items: filas.map((f) => ({
-          presupuestoItemId: f.presupuesto_item_id,
-          itemCodigo: f.item_codigo,
-          itemDescripcion: f.item_descripcion,
-          itemApuId: f.item_apu_id,
-          cantidadDisponible:
-            Number(f.cantidad_disponible) + (propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0),
-        })),
-      }
-      const marcados: Record<string, number> = {}
-      for (const x of lineas.filter((m) => m.insumoId === l.insumoId)) marcados[x.presupuestoItemId] = x.cantidad
-      return { insumo: agrupado, marcados }
-    })
-  )
+  // UNA llamada para todos los insumos, por id exacto (ver
+  // 20261010000000_rendimiento_requisiciones.sql). Antes era una llamada por
+  // insumo buscando su código como texto con límite de 200 filas, que podía
+  // dejar por fuera los ítems del insumo en un presupuesto grande.
+  const { data, error } = await supabase.rpc("insumos_presupuesto_por_ids", {
+    p_version_id: versionId,
+    p_insumo_ids: insumosUnicos.map((l) => l.insumoId),
+  })
+  if (error) throw new Error(error.message)
+  const filasPorInsumo = new Map<string, any[]>()
+  for (const f of (data ?? []) as any[]) {
+    const arr = filasPorInsumo.get(f.insumo_id) ?? []
+    arr.push(f)
+    filasPorInsumo.set(f.insumo_id, arr)
+  }
+  const marcadosPorInsumo = new Map<string, Record<string, number>>()
+  for (const x of lineas) {
+    const m = marcadosPorInsumo.get(x.insumoId) ?? {}
+    m[x.presupuestoItemId] = x.cantidad
+    marcadosPorInsumo.set(x.insumoId, m)
+  }
+
+  const grupos = insumosUnicos.map((l) => {
+    const agrupado: InsumoAgrupado = {
+      insumoId: l.insumoId,
+      insumoCodigo: l.insumoCodigo,
+      insumoDescripcion: l.insumoDescripcion,
+      insumoUm: l.insumoUm,
+      items: (filasPorInsumo.get(l.insumoId) ?? []).map((f) => ({
+        presupuestoItemId: f.presupuesto_item_id,
+        itemCodigo: f.item_codigo,
+        itemDescripcion: f.item_descripcion,
+        itemApuId: f.item_apu_id,
+        cantidadDisponible:
+          Number(f.cantidad_disponible) + (propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0),
+      })),
+    }
+    return { insumo: agrupado, marcados: marcadosPorInsumo.get(l.insumoId) ?? {} }
+  })
 
   return {
     requisicionId: id,

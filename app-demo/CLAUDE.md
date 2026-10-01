@@ -830,6 +830,13 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
   `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
+- **Límites de la API que fallan en silencio o con listas largas**: cada
+  respuesta se corta en 1000 filas (también las RPC que devuelven filas): lo
+  que pueda crecer se trae con `traerTodo` (orden que termine en `id`). Y
+  `.in("col", ids)` va en la URL: con cientos de ids falla; partir en tandas
+  de ~100, o mejor filtrar en la misma consulta (embed `!inner`, como el
+  filtro por insumo de requisiciones, `SELECT_REQUISICIONES_CON_INSUMO`).
+  Revisión de requisiciones agrupadas: `20261010000000_rendimiento_requisiciones.sql`.
 
 ## Reglas transversales (auditoría de casos borde, 2026-10-01)
 
