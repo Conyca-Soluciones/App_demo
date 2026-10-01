@@ -60,3 +60,16 @@ export const sePuedeDesaprobar = (o: OrdenParaReglas) =>
 // Aprobada y sin material recibido (Entrega parcial y Entregada NO se cancelan).
 export const sePuedeCancelar = (o: OrdenParaReglas) =>
   o.estado === "aprobada" && o.estadoEntrega === "sin_entregar"
+
+// Pendiente de aprobación: la puede retirar quien la creó o quien tenga
+// cancelar_oc (la base lo vuelve a validar en cancelar_orden_compra).
+export const sePuedeRetirar = (o: OrdenParaReglas, esCreador: boolean, puedeCancelarOC: boolean) =>
+  o.estado === "pendiente_aprobacion" && (esCreador || puedeCancelarOC)
+
+// ¿Se muestra el botón Cancelar/Retirar para esta orden?
+export const muestraCancelar = (
+  o: OrdenParaReglas & { creadaPorId: string | null },
+  permisos: { puedeCancelar: boolean; usuarioId: string | null }
+) =>
+  (permisos.puedeCancelar && sePuedeCancelar(o)) ||
+  sePuedeRetirar(o, o.creadaPorId !== null && o.creadaPorId === permisos.usuarioId, permisos.puedeCancelar)

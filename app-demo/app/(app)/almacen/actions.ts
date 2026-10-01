@@ -190,8 +190,8 @@ export async function crearPedido(input: NuevoPedidoInput) {
       throw new Error("Un insumo tiene el mismo ítem del presupuesto repetido.")
     }
     for (const it of ins.items) {
-      if (!Number.isFinite(it.cantidad) || it.cantidad <= 0) {
-        throw new Error("Todas las cantidades de la requisición deben ser mayores que cero.")
+      if (!esCantidadEnteraPositiva(it.cantidad)) {
+        throw new Error("Todas las cantidades de la requisición deben ser números enteros mayores que cero.")
       }
     }
   }

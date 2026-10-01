@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
-import { ESTADO_VISIBLE_BADGE, sePuedeCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
+import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import {
   obtenerOrdenCompraDetalle,
@@ -160,7 +160,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
   const puedeMarcarEnviada = permisos.rolCompras && orden.estado === "aprobada" && !orden.enviada
   const puedeDesaprobar = permisos.puedeDesaprobar && sePuedeDesaprobar(orden)
-  const puedeCancelar = permisos.puedeCancelar && sePuedeCancelar(orden)
+  // Aprobada: con cancelar_oc. Pendiente: también quien la creó ("Retirar").
+  const puedeCancelar = muestraCancelar(orden, permisos)
+  const esRetiro = orden.estado === "pendiente_aprobacion"
   // Misma fórmula que usan orden-compra-pdf.tsx y generar-oc-view.tsx, para
   // que el total mostrado acá, en el PDF y en la pantalla de creación sean
   // siempre el mismo número.
@@ -203,7 +205,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 setMotivoAccion("")
               }}
             >
-              Cancelar orden
+              {esRetiro ? "Retirar orden" : "Cancelar orden"}
             </Button>
           )}
         </div>

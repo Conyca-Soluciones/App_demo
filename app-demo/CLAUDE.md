@@ -840,10 +840,22 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   corre en UTC: usar `(now() at time zone 'America/Bogota')::date`, no
   `current_date` (`20261006300000_fechas_colombia.sql`). Lo que se renderiza
   en el servidor (PDF de OC) necesita `timeZone: ZONA_HORARIA`.
-- **Cantidades en Entradas, Salidas y Modificar requisición: solo enteros**
-  (decisión del usuario). `leerCantidadEntera` (`lib/numeros.ts`): "1.500" y
-  "1,500" = 1500, "1,5" se rechaza. Las server actions lo revalidan con
-  `esCantidadEnteraPositiva`. (Antes "1.500" se guardaba como 1,5.)
+- **Cantidades de requisiciones, órdenes de compra, entradas y salidas: solo
+  enteros** (decisión del usuario). Todo el flujo igual, para que nunca
+  quede un saldo decimal imposible de recibir o sacar. Campos de texto:
+  `leerCantidadEntera` (`lib/numeros.ts`: "1.500" = 1500, "1,5" se rechaza);
+  campos numéricos: `step="1"` + `Number.isInteger`. Las server actions lo
+  revalidan con `esCantidadEnteraPositiva`. Precios y porcentajes sí admiten
+  decimales. Las cantidades del APU (por unidad) también.
+- **Generar OC avisa precios sospechosos**: 3 veces o más por encima o por
+  debajo del `vr_unitario` del maestro (no del precio efectivo, que ya puede
+  estar contaminado). Un precio malo en una orden aprobada entra al promedio
+  de `precios_efectivos_insumos` (caso real: Amarre teja valorado a $8.000
+  con referencia $325, por la OC #26).
+- **Retirar una OC pendiente**: `cancelar_orden_compra` acepta órdenes
+  pendientes de quien las creó o de quien tenga `cancelar_oc`
+  (`20261006400000_retirar_oc_pendiente.sql`); en pantalla el botón dice
+  "Retirar". Las aprobadas siguen exigiendo `cancelar_oc` y sin entregas.
 - **Cambios de estado**: toda acción que resuelve algo (aprobar/rechazar
   requisiciones, rechazo de Compras, rechazar solicitudes de insumo/MO/
   equipo) filtra por el estado esperado en el mismo UPDATE

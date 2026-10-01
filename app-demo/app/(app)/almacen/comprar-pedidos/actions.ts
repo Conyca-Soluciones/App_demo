@@ -1,5 +1,7 @@
 "use server"
 
+import { esCantidadEnteraPositiva } from "@/lib/numeros"
+
 import { createClient } from "@/lib/supabase/server"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
@@ -336,6 +338,10 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
   if (datos.lineas.length === 0) {
     throw new Error("Selecciona al menos un insumo para la orden de compra.")
   }
+  // Cantidades solo enteras (precio y porcentajes pueden tener decimales).
+  if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidadComprar))) {
+    throw new Error("Las cantidades de la orden deben ser números enteros mayores que cero.")
+  }
 
   const supabase = await createClient()
 
@@ -376,12 +382,14 @@ export type PermisosOrdenCompra = {
   rolCompras: boolean
   puedeDesaprobar: boolean
   puedeCancelar: boolean
+  // Para saber si la orden es propia (retirar una pendiente).
+  usuarioId: string | null
 }
 
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
   const permisos = await obtenerPermisosRol()
   if (!permisos) {
-    return { esAdmin: false, rolCompras: false, puedeDesaprobar: false, puedeCancelar: false }
+    return { esAdmin: false, rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, usuarioId: null }
   }
 
   const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
@@ -390,6 +398,7 @@ export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra>
     rolCompras: puede("comprar"),
     puedeDesaprobar: puede("desaprobar_oc"),
     puedeCancelar: puede("cancelar_oc"),
+    usuarioId: await obtenerUsuarioId(),
   }
 }
 
@@ -400,6 +409,7 @@ export type OrdenCompraResumen = {
   proyectoNombre: string | null
   proveedorNombre: string
   creadaPorNombre: string | null
+  creadaPorId: string | null
   createdAt: string
   totalLineas: number
 }
@@ -415,6 +425,7 @@ export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResume
       id, numero, created_at,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+      created_by,
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(id)
     `
@@ -431,6 +442,7 @@ export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResume
     proyectoNombre: o.proyecto?.nombre ?? null,
     proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",
     creadaPorNombre: o.creado_por?.nombre ?? null,
+    creadaPorId: o.created_by ?? null,
     createdAt: o.created_at,
     totalLineas: (o.lineas ?? []).length,
   }))
@@ -478,6 +490,7 @@ export type OrdenCompraDetalle = {
   observaciones: string | null
   enviada: boolean
   creadaPorNombre: string | null
+  creadaPorId: string | null
   createdAt: string
   aprobadaPorNombre: string | null
   aprobadaAt: string | null
@@ -503,6 +516,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
       ),
+      created_by,
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
       aprobada_por_perfil:perfiles!ordenes_compra_aprobada_por_fkey(nombre),
       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
@@ -552,6 +566,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     observaciones: d.observaciones,
     enviada: d.enviada,
     creadaPorNombre: d.creado_por?.nombre ?? null,
+    creadaPorId: d.created_by ?? null,
     createdAt: d.created_at,
     aprobadaPorNombre: d.aprobada_por_perfil?.nombre ?? null,
     aprobadaAt: d.aprobada_at,
@@ -605,8 +620,10 @@ export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Pr
 
 // Cancela una orden aprobada. No se puede si tiene material recibido (entrega
 // parcial o entregada). Sus pedidos vuelven a la cola de "Comprar pedidos".
+// Aprobada: exige cancelar_oc. Pendiente: también quien la creó (retirarla).
+// La base valida cuál aplica (cancelar_orden_compra).
 export async function cancelarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
-  await requerirAccion("cancelar_oc")
+  if (!(await obtenerUsuarioId())) throw new Error("No autenticado.")
   if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
   const supabase = await createClient()
   const { error } = await supabase.rpc("cancelar_orden_compra", {
@@ -635,6 +652,7 @@ export type OrdenCompraListado = {
   proyectoNombre: string | null
   proveedorNombre: string
   creadaPorNombre: string | null
+  creadaPorId: string | null
   createdAt: string
   tieneSobrecostoPrecio: boolean
 }
@@ -654,6 +672,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
       id, numero, estado, estado_entrega, enviada, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+      created_by,
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
     `
     )
@@ -673,6 +692,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     proyectoNombre: o.proyecto?.nombre ?? null,
     proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",
     creadaPorNombre: o.creado_por?.nombre ?? null,
+    creadaPorId: o.created_by ?? null,
     createdAt: o.created_at,
   }))
 

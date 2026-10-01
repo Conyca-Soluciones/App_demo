@@ -41,6 +41,23 @@ type LineaForm = {
 const formatoMoneda = (n: number) =>
   n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
 
+// Precio muy lejos del de referencia del maestro (3 veces o más, por encima o
+// por debajo). Un precio mal digitado en una orden aprobada entra al precio
+// promedio con el que se valoran los APU (caso real: Amarre teja a $8.000 con
+// referencia $325). Se compara contra vr_unitario del maestro y no contra el
+// precio efectivo, porque ese puede estar ya contaminado por compras malas.
+const FACTOR_ALERTA_PRECIO = 3
+function alertaPrecio(precio: number, referencia: number | null): string | null {
+  if (referencia == null || referencia <= 1 || !Number.isFinite(precio)) return null
+  if (precio >= referencia * FACTOR_ALERTA_PRECIO) {
+    return `${Math.round(precio / referencia)} veces el precio de referencia (${formatoMoneda(referencia)})`
+  }
+  if (precio <= referencia / FACTOR_ALERTA_PRECIO) {
+    return `muy por debajo del precio de referencia (${formatoMoneda(referencia)})`
+  }
+  return null
+}
+
 async function buscarProveedoresAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const proveedores = await buscarProveedores(termino)
   return proveedores.map((p) => ({
@@ -143,7 +160,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     const porcentajeDescuento = Number(l.porcentajeDescuento || "0")
     const porcentajeIva = Number(l.porcentajeIva || "0")
 
-    if (!l.cantidad.trim() || Number.isNaN(cantidad) || cantidad <= 0 || cantidad > pedido.cantidadPendiente)
+    // Cantidad: solo enteros (Entradas solo recibe enteros; una línea de 2,5
+    // dejaría 0,5 imposible de recibir). Precio y porcentajes sí decimales.
+    if (!l.cantidad.trim() || !Number.isInteger(cantidad) || cantidad <= 0 || cantidad > pedido.cantidadPendiente)
       return null
     if (!l.precioUnitario.trim() || Number.isNaN(precioUnitario) || precioUnitario < 0) return null
     if (Number.isNaN(porcentajeDescuento) || porcentajeDescuento < 0 || porcentajeDescuento > 100) return null
@@ -163,6 +182,21 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
   async function handleGenerar() {
     if (!seleccion || !proveedor || !todasLasLineasValidas) return
+    // Precios sospechosos: confirmar antes de crear la orden (ver alertaPrecio).
+    const sospechosos = pedidos
+      .map((p) => {
+        const alerta = alertaPrecio(Number(lineas[p.id]?.precioUnitario), p.valorUnitarioProyectado)
+        return alerta ? `• ${p.insumoDescripcion}: ${alerta}` : null
+      })
+      .filter((x): x is string => x !== null)
+    if (
+      sospechosos.length > 0 &&
+      !window.confirm(
+        `Revisa estos precios antes de crear la orden:\n\n${sospechosos.join("\n")}\n\nUn precio equivocado en una orden aprobada afecta el precio promedio con el que se valoran los APU. ¿Los precios son correctos?`
+      )
+    ) {
+      return
+    }
     setGenerando(true)
     setError(null)
     try {
@@ -279,7 +313,8 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                             type="number"
                             min={0}
                             max={pedido.cantidadPendiente}
-                            step="any"
+                            step="1"
+                            inputMode="numeric"
                             value={l.cantidad}
                             onChange={(e) => actualizarLinea(pedido.id, "cantidad", e.target.value)}
                             className={`text-right ${!valida ? "border-destructive" : ""}`}
@@ -294,6 +329,14 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                             onChange={(e) => actualizarLinea(pedido.id, "precioUnitario", e.target.value)}
                             className={`text-right ${!valida ? "border-destructive" : ""}`}
                           />
+                          {(() => {
+                            const alerta = l.precioUnitario.trim()
+                              ? alertaPrecio(Number(l.precioUnitario), pedido.valorUnitarioProyectado)
+                              : null
+                            return alerta ? (
+                              <p className="mt-0.5 text-right text-[10px] leading-tight text-amber-700">{alerta}</p>
+                            ) : null
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <Input

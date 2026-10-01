@@ -32,11 +32,15 @@ interface SolicitudInsumoDialogProps {
 }
 
 // Una línea (insumo) está lista cuando tiene al menos un ítem marcado, y
-// todos los marcados traen cantidad > 0 sin pasar de su tope.
+// todos los marcados traen una cantidad ENTERA > 0 sin pasar de su tope.
+// Solo enteros: Entradas y Salidas solo aceptan enteros, así que una
+// requisición de 2,5 dejaría 0,5 que nunca se podría recibir ni sacar.
+const esEntero = (texto: string) => texto.trim() !== "" && Number.isInteger(Number(texto))
 function estadoLinea(linea: LineaPedido) {
   const marcados = linea.items.filter((it) => it.marcado)
   const hayExceso = marcados.some((it) => Number(it.cantidad) > it.cantidadDisponible)
-  const completa = marcados.length > 0 && marcados.every((it) => Number(it.cantidad) > 0)
+  const completa =
+    marcados.length > 0 && marcados.every((it) => esEntero(it.cantidad) && Number(it.cantidad) > 0)
   return { marcados, hayExceso, lista: completa && !hayExceso }
 }
 
@@ -350,7 +354,8 @@ export function SolicitudInsumoDialog({
                                 type="number"
                                 min="0"
                                 max={it.cantidadDisponible}
-                                step="any"
+                                step="1"
+                                inputMode="numeric"
                                 value={it.cantidad}
                                 onChange={(e) =>
                                   actualizarItem(insumo.insumoId, it.presupuestoItemId, {
@@ -367,6 +372,9 @@ export function SolicitudInsumoDialog({
                                 <p className="text-right text-[10px] text-destructive">
                                   Supera lo disponible
                                 </p>
+                              )}
+                              {!excedido && it.cantidad.trim() !== "" && !esEntero(it.cantidad) && (
+                                <p className="text-right text-[10px] text-destructive">Solo números enteros</p>
                               )}
                             </div>
                           </div>
