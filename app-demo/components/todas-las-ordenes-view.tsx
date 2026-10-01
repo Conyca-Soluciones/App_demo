@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -76,6 +77,8 @@ export function TodasLasOrdenesView() {
   const [proyectoId, setProyectoId] = useState("todos")
   const [proveedor, setProveedor] = useState("")
   const [estado, setEstado] = useState<EstadoOrdenVisible | "todos">("todos")
+  // Las canceladas no se muestran salvo que se pida (o se filtre por ese estado).
+  const [mostrarCanceladas, setMostrarCanceladas] = useState(false)
   const [creadaPor, setCreadaPor] = useState<OpcionBuscador | null>(null)
   const [desde, setDesde] = useState("")
   const [hasta, setHasta] = useState("")
@@ -115,6 +118,7 @@ export function TodasLasOrdenesView() {
       proyectoId: proyectoId === "todos" ? undefined : proyectoId,
       proveedor: proveedor.trim() || undefined,
       estado: estado === "todos" ? undefined : estado,
+      incluirCanceladas: mostrarCanceladas,
       creadaPorId: creadaPor?.id,
       desde: desde || undefined,
       hasta: hasta || undefined,
@@ -127,6 +131,7 @@ export function TodasLasOrdenesView() {
     setProyectoId("todos")
     setProveedor("")
     setEstado("todos")
+    setMostrarCanceladas(false)
     setCreadaPor(null)
     setDesde("")
     setHasta("")
@@ -226,6 +231,14 @@ export function TodasLasOrdenesView() {
               </SelectContent>
             </Select>
           </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={mostrarCanceladas}
+              onCheckedChange={(v) => setMostrarCanceladas(v === true)}
+            />
+            Mostrar órdenes canceladas
+          </label>
 
           <div className="space-y-1.5">
             <Label>Creada por</Label>

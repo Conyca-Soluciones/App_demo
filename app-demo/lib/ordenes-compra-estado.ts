@@ -18,12 +18,12 @@ export function calcularEstadoVisible(
   return estado
 }
 
-// Colores: Pendiente amarillo, Aprobada verde, Rechazada rojo, Cancelada negro.
+// Colores: Pendiente amarillo, Aprobada verde, Rechazada rojo, Cancelada gris.
 export const ESTADO_VISIBLE_BADGE: Record<EstadoOrdenVisible, { label: string; clase: string }> = {
   pendiente_aprobacion: { label: "Pendiente", clase: "border-transparent bg-amber-100 text-amber-800" },
   aprobada: { label: "Aprobada", clase: "border-transparent bg-emerald-100 text-emerald-800" },
   rechazada: { label: "Rechazada", clase: "border-transparent bg-red-100 text-red-800" },
-  cancelada: { label: "Cancelada", clase: "border-transparent bg-black text-white" },
+  cancelada: { label: "Cancelada", clase: "border-transparent bg-slate-200 text-slate-700" },
 }
 
 export const FILTROS_ESTADO_VISIBLE: { valor: EstadoOrdenVisible | "todas"; etiqueta: string }[] = [

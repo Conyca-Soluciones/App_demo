@@ -684,6 +684,9 @@ export type FiltrosOrdenesCompra = {
   proveedor?: string // parte del nombre
   estado?: EstadoOrdenVisible
   creadaPorId?: string
+  // false = no traer las canceladas (salvo que el filtro Estado sea Cancelada).
+  // Por defecto se traen todas.
+  incluirCanceladas?: boolean
   desde?: string // YYYY-MM-DD, fecha de creación
   hasta?: string // YYYY-MM-DD, inclusive
 }
@@ -735,6 +738,7 @@ export async function listarTodasLasOrdenesCompra(
     // El estado visible de una orden es solo el de aprobación (ver
     // lib/ordenes-compra-estado.ts).
     if (filtros.estado) query = query.eq("estado", filtros.estado)
+    else if (filtros.incluirCanceladas === false) query = query.neq("estado", "cancelada")
     return query.range(desde, hasta)
   })
 
