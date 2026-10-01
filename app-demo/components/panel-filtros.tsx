@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button"
 
 type Props = {
   children: React.ReactNode
-  onConsultar: () => void
+  // Si devuelve false (p. ej. un filtro inválido) el panel no se minimiza.
+  onConsultar: () => void | boolean
   onLimpiar: () => void
   cargando?: boolean
   // Texto de ayuda al pie (opcional).
@@ -56,8 +57,7 @@ export function PanelFiltros({ children, onConsultar, onLimpiar, cargando = fals
             className="w-full"
             disabled={cargando}
             onClick={() => {
-              onConsultar()
-              setAbierto(false)
+              if (onConsultar() !== false) setAbierto(false)
             }}
           >
             {cargando ? "Consultando..." : "Consultar"}

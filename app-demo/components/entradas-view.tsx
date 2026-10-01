@@ -9,6 +9,18 @@ import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
+import { PanelFiltros } from "@/components/panel-filtros"
+import { buscarUsuarios } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
@@ -28,13 +40,14 @@ import {
 import {
   anularEntrada,
   editarEntrada,
-  listarOrdenesParaEntrada,
+  listarOrdenesEntradas,
   obtenerDetalleOrdenParaEntrada,
   registrarEntrada,
   type DetalleOrdenEntrada,
   type EntradaRegistrada,
   type EstadoEntrega,
-  type OrdenParaEntrada,
+  type FiltrosEntradas,
+  type OrdenEntradaFila,
 } from "@/app/(app)/almacen/entradas/actions"
 
 const formatoFecha = (iso: string) =>
@@ -46,32 +59,91 @@ const ESTADO_BADGE: Record<
   EstadoEntrega,
   { label: string; variant: "default" | "secondary" | "outline" }
 > = {
-  sin_entregar: { label: "Aprobada", variant: "default" },
-  entrega_parcial: { label: "Entrega parcial", variant: "secondary" },
-  entregada: { label: "Entregada", variant: "default" },
+  sin_entregar: { label: "Entrega Pendiente", variant: "default" },
+  entrega_parcial: { label: "Entrega Parcial", variant: "secondary" },
+  entregada: { label: "Entrega Completa", variant: "default" },
+}
+
+const formatoFechaHora = (iso: string) =>
+  new Date(iso).toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+
+const ESTADOS_FILTRO: { valor: EstadoEntrega | "todos"; etiqueta: string }[] = [
+  { valor: "todos", etiqueta: "Todos" },
+  { valor: "sin_entregar", etiqueta: "Entrega Pendiente" },
+  { valor: "entrega_parcial", etiqueta: "Entrega Parcial" },
+  { valor: "entregada", etiqueta: "Entrega Completa" },
+]
+
+async function buscarUsuariosAdaptado(termino: string): Promise<OpcionBuscador[]> {
+  const usuarios = await buscarUsuarios(termino)
+  return usuarios.map((u) => ({ id: u.id, etiqueta: u.nombre }))
 }
 
 // Cantidades: solo números enteros (ver lib/numeros.ts). "1.500" es 1500;
 // "1,5" se rechaza con el motivo para mostrárselo al usuario.
 
 export function EntradasView() {
-  const [ordenes, setOrdenes] = useState<OrdenParaEntrada[] | null>(null)
+  // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
+  const [ordenes, setOrdenes] = useState<OrdenEntradaFila[] | null>(null)
+  const [cargando, setCargando] = useState(false)
   const [ordenId, setOrdenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const [mostrarEntregadas, setMostrarEntregadas] = useState(false)
+  // Últimos filtros consultados (para refrescar al volver del detalle).
+  const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosEntradas | null>(null)
 
-  function cargarOrdenes() {
-    listarOrdenesParaEntrada(mostrarEntregadas)
-      .then((lista: OrdenParaEntrada[]) => setOrdenes(lista))
+  // Filtros del panel (todos opcionales)
+  const [numero, setNumero] = useState("")
+  const [proveedor, setProveedor] = useState("")
+  const [usuario, setUsuario] = useState<OpcionBuscador | null>(null)
+  const [estado, setEstado] = useState<EstadoEntrega | "todos">("todos")
+  // "Solo por Recibir" (marcado de entrada): entrega pendiente o parcial.
+  const [soloPorRecibir, setSoloPorRecibir] = useState(true)
+  const [desde, setDesde] = useState("")
+  const [hasta, setHasta] = useState("")
+
+  function consultar(filtros: FiltrosEntradas) {
+    setUltimosFiltros(filtros)
+    setCargando(true)
+    setError(null)
+    listarOrdenesEntradas(filtros)
+      .then((lista: OrdenEntradaFila[]) => setOrdenes(lista))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las órdenes."))
+      .finally(() => setCargando(false))
   }
 
-  useEffect(() => {
-    setOrdenes(null)
-    cargarOrdenes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mostrarEntregadas])
+  function handleConsultar(): boolean {
+    const n = numero.trim() === "" ? undefined : Number(numero)
+    if (n !== undefined && (!Number.isInteger(n) || n <= 0)) {
+      setError("El número de orden de compra debe ser un número entero mayor que cero.")
+      return false
+    }
+    consultar({
+      numero: n,
+      proveedor: proveedor.trim() || undefined,
+      usuarioId: usuario?.id,
+      estado: soloPorRecibir ? "por_recibir" : estado === "todos" ? undefined : estado,
+      desde: desde || undefined,
+      hasta: hasta || undefined,
+    })
+    return true
+  }
+
+  function limpiar() {
+    setNumero("")
+    setProveedor("")
+    setUsuario(null)
+    setEstado("todos")
+    setSoloPorRecibir(true)
+    setDesde("")
+    setHasta("")
+  }
 
   if (ordenId) {
     return (
@@ -79,13 +151,13 @@ export function EntradasView() {
         ordenId={ordenId}
         onVolver={() => {
           setOrdenId(null)
-          cargarOrdenes()
+          if (ultimosFiltros) consultar(ultimosFiltros)
         }}
         onRegistrada={(estado) =>
           setAviso(
             estado === "entregada"
-              ? "Entrada registrada. La orden quedó Entregada y ya no aparece en la lista."
-              : "Entrada registrada. La orden quedó en Entrega parcial."
+              ? "Entrada registrada. La orden quedó en Entrega Completa."
+              : "Entrada registrada. La orden quedó en Entrega Parcial."
           )
         }
       />
@@ -97,79 +169,164 @@ export function EntradasView() {
       <div>
         <h1 className="text-2xl font-semibold">Entradas</h1>
         <p className="text-sm text-muted-foreground">
-          Selecciona una orden de compra aprobada para registrar el material recibido en bodega.
+          Consulta las órdenes de compra aprobadas y selecciona una para registrar el material recibido en
+          bodega.
         </p>
       </div>
 
-      <div>
-        <Button
-          size="sm"
-          variant={mostrarEntregadas ? "default" : "outline"}
-          onClick={() => setMostrarEntregadas((v) => !v)}
+      <div className="flex min-h-0 flex-1 gap-4">
+        <PanelFiltros
+          cargando={cargando}
+          onConsultar={handleConsultar}
+          onLimpiar={limpiar}
+          ayuda="Ningún filtro es obligatorio: sin filtros se consultan todas."
         >
-          {mostrarEntregadas ? "Ocultar órdenes entregadas" : "Mostrar órdenes entregadas (para corregir)"}
-        </Button>
-      </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="numero-oc-entradas">Número de OC</Label>
+            <Input
+              id="numero-oc-entradas"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              placeholder="Ej. 34"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
 
-      {aviso && (
-        <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
-          <CheckCircle2 className="h-4 w-4" /> {aviso}
-        </div>
-      )}
-      {error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+          <div className="space-y-1.5">
+            <Label htmlFor="proveedor-entradas">Proveedor</Label>
+            <Input
+              id="proveedor-entradas"
+              placeholder="Nombre del proveedor"
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
 
-      {ordenes === null ? (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando órdenes...
-        </div>
-      ) : ordenes.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          No hay órdenes de compra pendientes de entrada.
-        </div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>OC N°</TableHead>
-                <TableHead>Proyecto</TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Entrega esperada</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Líneas</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordenes.map((o) => {
-                const badge = ESTADO_BADGE[o.estadoEntrega]
-                return (
-                  <TableRow
-                    key={o.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => {
-                      setAviso(null)
-                      setOrdenId(o.id)
-                    }}
-                  >
-                    <TableCell>{o.numero}</TableCell>
-                    <TableCell>{o.proyectoCodigo ?? o.proyectoNombre ?? "—"}</TableCell>
-                    <TableCell>{o.proveedorNombre}</TableCell>
-                    <TableCell>{formatearFechaSinHora(o.fechaEntrega)}</TableCell>
-                    <TableCell>
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{o.totalLineas}</TableCell>
+          <div className="space-y-1.5">
+            <Label>Persona que hizo la entrada</Label>
+            <BuscadorAsync
+              placeholder="Buscar usuario"
+              valorSeleccionado={usuario}
+              onSeleccionar={setUsuario}
+              buscar={buscarUsuariosAdaptado}
+            />
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox checked={soloPorRecibir} onCheckedChange={(v) => setSoloPorRecibir(v === true)} />
+            Solo por Recibir
+          </label>
+
+          <div className="space-y-1.5">
+            <Label>Estado</Label>
+            <Select
+              disabled={soloPorRecibir}
+              value={soloPorRecibir ? "por_recibir" : estado}
+              onValueChange={(v) => setEstado((v ?? "todos") as EstadoEntrega | "todos")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {soloPorRecibir && (
+                  <SelectItem value="por_recibir">Entrega Pendiente o Parcial</SelectItem>
+                )}
+                {ESTADOS_FILTRO.map((e) => (
+                  <SelectItem key={e.valor} value={e.valor}>
+                    {e.etiqueta}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Fecha de la entrada</Label>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-xs text-muted-foreground">Inicial</span>
+              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-xs text-muted-foreground">Final</span>
+              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+          </div>
+        </PanelFiltros>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+          {aviso && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+              <CheckCircle2 className="h-4 w-4" /> {aviso}
+            </div>
+          )}
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {ordenes === null && !cargando ? (
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              Elige los filtros que quieras y presiona Consultar para ver las órdenes. Con &quot;Solo por
+              Recibir&quot; ves únicamente las que tienen entrega pendiente o parcial.
+            </div>
+          ) : ordenes === null ? (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando órdenes...
+            </div>
+          ) : ordenes.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              Ninguna orden de compra coincide con los filtros.
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>OC N°</TableHead>
+                    <TableHead>Proyecto</TableHead>
+                    <TableHead>Proveedor</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Persona que hizo la entrada</TableHead>
+                    <TableHead>Fecha de la entrada</TableHead>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {ordenes.map((o) => {
+                    const badge = ESTADO_BADGE[o.estadoEntrega]
+                    return (
+                      <TableRow
+                        key={o.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => {
+                          setAviso(null)
+                          setOrdenId(o.id)
+                        }}
+                      >
+                        <TableCell>{o.numero}</TableCell>
+                        <TableCell>{o.proyectoCodigo ?? o.proyectoNombre ?? "—"}</TableCell>
+                        <TableCell>{o.proveedorNombre}</TableCell>
+                        <TableCell>
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                        </TableCell>
+                        <TableCell>{o.entradaPersona ?? "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {o.entradaFecha ? formatoFechaHora(o.entradaFecha) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
