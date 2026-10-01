@@ -1116,6 +1116,17 @@ permiso y las reglas, la pantalla solo decide si muestra el botón
   (`20261006100000_liberar_ordenes_rechazadas.sql`). Es seguro porque una
   orden rechazada no puede volver a activarse. Si se agrega un estado de
   orden nuevo, revisar estos 4 lugares.
+- **Cantidad comprometida de una requisición** (tope del presupuesto): una
+  sola función, `_comprometido_insumo_item`, la usan `disponible_insumo_item`
+  y `buscar_insumos_presupuesto`
+  (`20261006200000_cantidades_consistentes.sql`). Reglas:
+  pendiente + aprobada; de una **rechazada por Compras** solo cuenta lo que
+  ya está en órdenes vigentes; y se suman las requisiciones del **mismo ítem
+  en cualquier versión** (mismo presupuesto + mismo código), porque
+  `crearNuevaVersion` copia los ítems con ids nuevos. Si el código de un ítem
+  cambia entre versiones, sus requisiciones viejas dejan de contar.
+- `verificar_salida_no_supera_disponible` (trigger de salidas) ignora las
+  salidas anuladas; antes las contaba y lo anulado no se podía volver a sacar.
 - `cancelar_pedido` en la base no coincidía con su migración (una versión
   aplicada a mano solo dejaba cancelar al solicitante con la requisición
   pendiente; el botón de los aprobadores fallaba siempre). La misma migración
