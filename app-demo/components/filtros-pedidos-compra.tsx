@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { etiquetaProyecto } from "@/lib/proyecto-actual"
 import {
-  listarProyectosCompras,
   buscarUsuarios,
   buscarInsumosCompras,
   type FiltrosPedidosCompra,
@@ -21,15 +22,6 @@ type FiltrosPedidosCompraPanelProps = {
 
 // Adaptadores: las server actions devuelven su propia forma de fila; el
 // buscador genérico espera { id, etiqueta, subetiqueta }.
-async function buscarProyectosAdaptado(termino: string): Promise<OpcionBuscador[]> {
-  const proyectos = await listarProyectosCompras()
-  const t = termino.trim().toLowerCase()
-  return proyectos
-    .filter((p) => (p.codigo ?? "").toLowerCase().includes(t) || p.nombre.toLowerCase().includes(t))
-    .slice(0, 20)
-    .map((p) => ({ id: p.id, etiqueta: p.codigo ?? p.nombre, subetiqueta: p.codigo ? p.nombre : null }))
-}
-
 async function buscarUsuariosAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const usuarios = await buscarUsuarios(termino)
   return usuarios.map((u) => ({ id: u.id, etiqueta: u.nombre }))
@@ -46,7 +38,15 @@ async function buscarInsumosAdaptado(termino: string): Promise<OpcionBuscador[]>
 
 export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedidosCompraPanelProps) {
   const [abierto, setAbierto] = useState(true)
-  const [proyecto, setProyecto] = useState<OpcionBuscador | null>(null)
+  // El proyecto ya no se elige acá: es el proyecto actual (se elige en /inicio).
+  const { proyecto: proyectoActual } = useProyectoActual()
+  const proyecto: OpcionBuscador | null = proyectoActual
+    ? {
+        id: proyectoActual.id,
+        etiqueta: proyectoActual.codigo ?? proyectoActual.nombre,
+        subetiqueta: proyectoActual.codigo ? proyectoActual.nombre : null,
+      }
+    : null
   const [usuario, setUsuario] = useState<OpcionBuscador | null>(null)
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [observacion, setObservacion] = useState("")
@@ -121,16 +121,10 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
 
       <div className="space-y-4 p-4">
         <div className="space-y-1.5">
-          <Label>
-            Proyecto <span className="text-destructive">*</span>
-          </Label>
-          <BuscadorAsync
-            placeholder="Buscar proyecto"
-            valorSeleccionado={proyecto}
-            onSeleccionar={setProyecto}
-            buscar={buscarProyectosAdaptado}
-            minCaracteres={0}
-          />
+          <Label>Proyecto</Label>
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            {proyectoActual ? etiquetaProyecto(proyectoActual) : "Sin proyecto seleccionado"}
+          </p>
         </div>
 
         <div className="space-y-1.5">
@@ -154,17 +148,17 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="observacion-pedido">Observación pedido</Label>
+          <Label htmlFor="observacion-pedido">Observación requisición</Label>
           <Input
             id="observacion-pedido"
-            placeholder="observación pedido"
+            placeholder="observación requisición"
             value={observacion}
             onChange={(e) => setObservacion(e.target.value)}
           />
         </div>
 
         <div className="space-y-1.5">
-          <Label>Rango de fechas Pedidos</Label>
+          <Label>Rango de fechas Requisiciones</Label>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Inicial</span>
             <Input
@@ -225,7 +219,9 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
           {cargando ? "Consultando..." : "Consultar"}
         </Button>
         {!proyecto && (
-          <p className="text-xs text-muted-foreground">Selecciona un proyecto para consultar.</p>
+          <p className="text-xs text-muted-foreground">
+            Elige un proyecto en <a href="/inicio" className="underline">el inicio</a> para consultar.
+          </p>
         )}
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
-import { ChevronRight, LayoutDashboard, LogOut } from "lucide-react"
+import { ArrowLeftRight, Building2, ChevronRight, LayoutDashboard, LogOut } from "lucide-react"
 
 import {
   Collapsible,
@@ -29,90 +29,23 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 import { handleLogout } from "./logout-button"
 import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
+import { construirMenu, type PermisosRol } from "@/lib/pestanas"
+import { useProyectoActual } from "@/components/proyecto-provider"
 
-type NavItem = {
-  title: string
-  url: string
-}
-
-type NavGroup = {
-  title: string
-  icon: React.ComponentType<{ className?: string }>
-  items: NavItem[]
-}
-
-const navMain: NavGroup[] = [
-  {
-    title: "Presupuestos",
-    icon: LayoutDashboard,
-    items: [
-      { title: "Elaboracion de presupuestos(edit)", url: "/presupuestos" },  
-       
-    ],
-  },
-  {
-    title: "Tecnico",
-    icon: LayoutDashboard,
-    items: [
-      { title: "Pedidos", url: "/almacen" },
-      { title: "Aprobacion de Pedidos", url: "/admin-tecnico" },
-      { title: "Aprobacion de mano de obra", url: "/presupuestos/admin-mo" },
-      
-    ],
-  },
-
-  {
-    title: "Almacen",
-    icon: LayoutDashboard,
-    items: [
-      { title: "Insumos maestro", url: "/presupuestos/insumos" },
-      { title: "Aprobacion de insumos", url: "/presupuestos/admin-insumos" },
-      { title: "Proveedores", url: "/presupuestos/admin-insumos" },
-      
-    ],
-  },
-
-  {
-    title: "Compras",
-    icon: LayoutDashboard,
-    items: [
-      { title: "Comprar pedidos", url: "/almacen/comprar-pedidos" },
-      { title: "Ordenes de compras", url: "/almacen/ordenes-compra" },
-      { title: "Aprobacion de Ordenes de compra", url: "/almacen/aprobar-oc" },
-        
-    ],
-  },
-
-  {
-    title: "Contratos",
-    icon: LayoutDashboard,
-    items: [
-      { title: "Contratos", url: "/" },
-      { title: "Cortes de proyectos", url: "/" },
-      { title: "Informes", url: "/" },
-    ],
-  },
-
-  // {
-  //   title: "Mantenimiento",
-  //   icon: LayoutDashboard,
-  //   items: [{ title: "Control 1", url: "/presupuestos" }],
-  // },
-
-  {
-    title: "Admin",
-    icon: LayoutDashboard,
-    items: [{ title: "Control Administrativo", url: "/admin" }],
-  },
-]
-
+// El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
+// permisos). Un usuario sin rol asignado ve el menú completo, como antes.
 // Placeholder de usuario -- reemplazar por el usuario real (perfiles.nombre
 // + iniciales) cuando esté disponible en este componente; se dejó igual
 // a como estaba en el código original (no se cambia lógica de datos acá,
 // solo la disposición visual).
 const usuarioActual = { nombre: "Sofia", rol: "Usuario", iniciales: "SP" }
 
-export function AppSidebar() {
+export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
+  const navMain = permisos ? construirMenu(permisos) : []
+  const { proyecto } = useProyectoActual()
+  const rolVisible =
+    permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : usuarioActual.rol)
+
   const router = useRouter()
   const pathname = usePathname()
 
@@ -173,29 +106,29 @@ export function AppSidebar() {
 
                 return (
                   <Collapsible
-                    key={grupo.title}
-                    open={gruposAbiertos[grupo.title] ?? activo}
+                    key={grupo.titulo}
+                    open={gruposAbiertos[grupo.titulo] ?? activo}
                     onOpenChange={(open) =>
-                      setGruposAbiertos((prev) => ({ ...prev, [grupo.title]: open }))
+                      setGruposAbiertos((prev) => ({ ...prev, [grupo.titulo]: open }))
                     }
                     className="group/collapsible"
                     render={<SidebarMenuItem />}
                   >
-                    <CollapsibleTrigger render={<SidebarMenuButton tooltip={grupo.title} />}>
-                      <grupo.icon className="size-4" />
-                      <span>{grupo.title}</span>
+                    <CollapsibleTrigger render={<SidebarMenuButton tooltip={grupo.titulo} />}>
+                      <LayoutDashboard className="size-4" />
+                      <span>{grupo.titulo}</span>
                       <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
                     </CollapsibleTrigger>
 
                     <CollapsibleContent>
                       <SidebarMenuSub>
                         {grupo.items.map((item) => (
-                          <SidebarMenuSubItem key={item.title}>
+                          <SidebarMenuSubItem key={`${grupo.titulo}-${item.titulo}`}>
                             <SidebarMenuSubButton
                               isActive={pathname === item.url}
                               onClick={() => router.push(item.url)}
                             >
-                              <span>{item.title}</span>
+                              <span>{item.titulo}</span>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
@@ -210,6 +143,35 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t">
+        {/* Proyecto actual + acceso al landing para cambiarlo. Es el ÚNICO
+            lugar de la app desde donde se cambia de proyecto. */}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => router.push("/inicio")}
+                aria-label="Cambiar proyecto"
+                className="flex w-full items-center gap-2 rounded-md border bg-sidebar-accent/40 px-2 py-2 text-left transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+              />
+            }
+          >
+            <Building2 className="size-4 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+              <span className="truncate text-xs font-semibold">
+                {proyecto ? proyecto.codigo ?? proyecto.nombre : "Sin proyecto"}
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {proyecto ? "Cambiar proyecto" : "Seleccionar proyecto"}
+              </span>
+            </div>
+            <ArrowLeftRight className="size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {proyecto ? `${proyecto.nombre} — cambiar proyecto` : "Seleccionar proyecto"}
+          </TooltipContent>
+        </Tooltip>
+
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
@@ -220,7 +182,7 @@ export function AppSidebar() {
               <div className="flex min-w-0 flex-1 flex-col text-left group-data-[collapsible=icon]:hidden">
                 <span className="truncate text-sm font-medium">{usuarioActual.nombre}</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {usuarioActual.rol}
+                  {rolVisible}
                 </span>
               </div>
 

@@ -1,10 +1,11 @@
 // pedidos-compras-view.tsx
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useProyectoActual } from "@/components/proyecto-provider"
 import { FiltrosPedidosCompraPanel } from "./filtros-pedidos-compra"
 import { TablaPedidosCompra } from "./tabla-pedidos-compra"
 import {
@@ -22,6 +23,14 @@ export function PedidosCompraView() {
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { proyecto: proyectoActual } = useProyectoActual()
+
+  // Al cambiar de proyecto se descarta lo consultado del anterior.
+  useEffect(() => {
+    setPedidos(null)
+    setProyectoConsultado(null)
+    setSeleccionados(new Set())
+  }, [proyectoActual?.id])
 
   async function handleConsultar(filtros: FiltrosPedidosCompra) {
     setCargando(true)
@@ -32,7 +41,7 @@ export function PedidosCompraView() {
       setProyectoConsultado(filtros.proyectoId)
       setSeleccionados(new Set())
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudieron cargar los pedidos.")
+      setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones.")
     } finally {
       setCargando(false)
     }
@@ -68,7 +77,7 @@ export function PedidosCompraView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Comprar pedidos</h1>
+      <h1 className="text-2xl font-semibold">Comprar requisiciones</h1>
 
       <div className="flex min-h-0 flex-1 gap-4">
         <FiltrosPedidosCompraPanel onConsultar={handleConsultar} cargando={cargando} />
@@ -100,7 +109,7 @@ export function PedidosCompraView() {
       {seleccionados.size > 0 && (
         <div className="flex shrink-0 items-center justify-between rounded-lg border bg-card px-4 py-3 shadow-lg">
           <span className="text-sm">
-            <strong>{seleccionados.size}</strong> pedido{seleccionados.size === 1 ? "" : "s"} seleccionado
+            <strong>{seleccionados.size}</strong> requisición{seleccionados.size === 1 ? "" : "es"} seleccionada
             {seleccionados.size === 1 ? "" : "s"} para comprar
           </span>
           <Button onClick={handleGenerarOC}>

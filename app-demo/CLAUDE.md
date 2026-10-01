@@ -754,6 +754,76 @@ Rediseño con tono azul de marca (extraído del logo real de CONYCA,
   ambigüedad de "cuál") -- se eliminó el popup/tarjeta que antes pedía
   clic en "Continuar".
 
+## Selector de proyecto en el encabezado
+
+La landing, la cookie y el provider son los de "Landing de proyecto y menú
+reorganizado" (más abajo). Además del botón del sidebar, las páginas que
+trabajan sobre un proyecto (Presupuestos, Requisiciones, Inventario, Salidas)
+tienen `SelectorProyecto` en su encabezado (`components/selector-proyecto.tsx`,
+también dentro de `components/encabezado-pagina.tsx`): usa el mismo
+mecanismo (`seleccionarProyecto` + `router.refresh()`), es solo un atajo.
+Al hacer el merge con `lcpr` se descartó la landing propia de `spr`
+(`proyecto-actual-provider.tsx`, `inicio-view.tsx`).
+
+## Proveedores `/almacen/proveedores` (implementado)
+
+Tabla tipo Excel sobre `proveedores` (~400 filas, se traen todas y se
+filtran/ordenan en el cliente) con edición en línea por celda
+(`components/proveedores-view.tsx`, validación compartida en
+`lib/proveedores.ts`, usada en cliente y otra vez en el servidor).
+
+- Sin textos montados: `table-fixed` + ancho fijo por columna + `truncate`
+  con el texto completo en `title`. ID y Proveedor fijos al hacer scroll.
+- Tabla o tarjetas se decide con **container query** (`@container` /
+  `@3xl:`), no con breakpoint de pantalla: con el sidebar abierto en una
+  tablet quedan ~460px y la tabla no sirve.
+- Si un valor no valida y el usuario hace clic afuera, se descarta (no se
+  retiene el foco -- eso "atrapaba" la celda). El foco tras error se da en
+  un efecto porque el input sigue `disabled` justo después del await.
+- Permisos: ver = pestaña `almacen.proveedores`; editar = acción `comprar`
+  o Administrador. Política RLS `proveedores_update`
+  (`20261004000000_proveedores_editar.sql`, ya aplicada) con la misma regla
+  que `proveedores_select`. RLS no da error al bloquear un UPDATE (0 filas),
+  por eso `actualizarProveedor` revisa que vuelva la fila.
+- Sin alta ni borrado de proveedores por ahora (solo edición).
+- Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
+  (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
+
+## Tablas tipo Excel y encabezado estándar (implementado)
+
+- `components/tabla-excel.tsx` (`TablaExcel`, `PaginacionExcel`): diseño de
+  Proveedores como componente de SOLO presentación (el filtrado/orden/
+  paginación los hace cada página). Lo usan Maestro de insumos y el Catálogo
+  de MO/equipo (`admin-mo`). Proveedores todavía tiene su propia copia (con
+  edición en línea) -- pendiente unificar.
+- `components/encabezado-pagina.tsx`: menú + título + subtítulo + (opcional)
+  `SelectorProyecto`. Inventario y Salidas ya usan el proyecto del header.
+- Nuevo proveedor: `crearProveedor` asigna `PV####` (siguiente número) y
+  reintenta si choca con `proveedores_id_prov_key` (UNIQUE, aplicado).
+
+## Rendimiento: índices y hallazgos (2026-09-30)
+
+Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
+- `ORDER BY col <-> término LIMIT n` (todas las `buscar_*_candidatos`) solo
+  usa índices **GiST** de trigramas; los GIN no sirven para ordenar. Se
+  agregaron (93 ms -> 5 ms). Cualquier búsqueda nueva por similitud con
+  ORDER BY necesita GiST.
+- FKs sin índice hacían que borrar en cascada fuera O(padres × hijos); se
+  indexaron (`20261004200000_indices_rendimiento.sql`, aplicada).
+- Catálogos (resuelto, `20261005100000_seguridad_catalogos.sql`):
+  `maestro_insumos` UPDATE exige `aprobar_insumos`; `mano_obra_categorias` /
+  `equipo_categorias` se leen con sesión y se escriben con
+  `aprobar_mano_obra`. Siguen abiertas a cualquier autenticado: `apu`,
+  `item_apu`, `apu_import_revision`, `transporte_precios`.
+- Ninguna función de `public` es ejecutable sin sesión
+  (`20261005200000_funciones_sin_anon.sql`); las nuevas tampoco (default
+  privileges). `test_fase1_compras` (prueba que inserta datos) sin permiso
+  para nadie -- pendiente decidir si se borra.
+- Permisos fallan CERRADO: si `permisos_rol_usuario` falla, el middleware
+  niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
+- Middleware usa `getClaims()` (JWT ES256 validado localmente), no
+  `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
+
 ## Pendientes generales
 
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de
@@ -858,10 +928,16 @@ ingeniero lo haga a mano ítem por ítem.
 
 ```
 lib/parse-apu-excel.ts       -- parser de la hoja "APU" (bloques capítulo/ítem/insumo)
-lib/apu-item-flow.ts          -- tipos y helpers de la decisión por ítem (recomendado/manual/auto-escaneo)
-lib/apu-import-types.ts       -- tipos compartidos (ApuRecomendado, ResolucionInsumo, etc.)
-components/revision-import-apu-dialog.tsx  -- diálogo de 2 fases (decisión por ítem, luego por insumo)
+lib/apu-import-types.ts       -- tipos compartidos (ResolucionInsumo, FilaRevisionImport, etc.)
+components/revision-apu-dialog.tsx  -- revisión de líneas pendientes del import
 ```
+
+**Nota (2026-09-30)**: el flujo descrito en esta sección quedó
+desactualizado -- hoy el matching y el guardado corren del lado del
+servidor en `matchearYGuardarImportApu`, por tandas de 40 ítems desde
+`page.tsx`. `lib/apu-item-flow.ts`, `lib/matching-apu-import.ts`,
+`components/revision-import-apu-dialog.tsx` y `buscarApusSimilares` se
+eliminaron (no se usaban).
 
 `app/presupuestos/actions.ts` y `app/presupuestos/page.tsx` se
 extendieron (no se reescribieron desde cero) con las funciones nuevas
@@ -952,3 +1028,184 @@ propósito en vez de importados).
 - Decidir si vale la pena envolver `handleConfirmarApu` en algo más
   transaccional, o si un reporte claro de "qué se guardó y qué no" al
   final del proceso es suficiente por ahora.
+
+## Roles y permisos (implementado)
+
+Reemplaza el esquema de banderas en `perfiles` + grupos. Un usuario tiene
+**un rol general** (`perfiles.rol_id`) y **una lista de proyectos**
+(`usuario_proyectos`, o `perfiles.todos_los_proyectos`).
+
+- **Tablas**: `roles` (clave, nombre, es_sistema, orden), `rol_permisos`
+  (rol_id, permiso). El permiso es `'tab.<clave>'` (una pestaña del menú) o
+  `'accion.<clave>'` (algo que se puede hacer dentro). El rol
+  `administrador` siempre tiene todo y no se edita. Roles base: Compras,
+  Líder Compras, Área Técnica, Líder Técnico, Gerencia, Administrador,
+  Legal, Líder Legal; se pueden crear más desde la página.
+- **`lib/pestanas.ts`**: única fuente de verdad de pestañas, rutas que cada
+  una habilita y acciones. La matriz, el menú lateral y el middleware leen de
+  ahí. Gana la ruta más específica (`/almacen/entradas` es de Entradas, no de
+  Pedidos aunque `/almacen` sea prefijo). Agregar una pestaña = una entrada.
+- **Páginas (solo Administrador)**: `/admin/roles` (matriz rol × permiso, se
+  guarda al instante) y `/admin/accesos` (rol y proyectos de cada usuario).
+- **Middleware** (`lib/supabase/middleware.ts`): en cada request llama UNA vez
+  a `permisos_rol_usuario`, protege la ruta y deja los permisos en el header
+  `x-permisos`. Las Server Actions (`requerirAdmin`, `requerirAccion`,
+  `requerirPestana`, `requerirScope` en `lib/permisos.ts`) los leen de ahí.
+  **Seguridad**: el middleware borra siempre `x-user-id`, `x-permisos`,
+  `x-es-admin` y `x-scope-*` si vienen del cliente. Antes se copiaban y solo
+  se sobrescribían en algunas rutas, así que un usuario con sesión podía
+  mandar `x-es-admin: true` a una Server Action y pasar `requerirAdmin`
+  (que además usa la llave de servicio).
+- **Base de datos**: `tiene_accion(uid, accion)` decide las acciones. Las
+  funciones de ayuda (`es_admin`, `rol_compras`, `admin_insumos`,
+  `admin_proyectos`, `admin_usuarios`, `usuario_puede_ver_proyecto`,
+  `usuario_puede_editar_proyecto`, `usuario_tiene_acceso_a_item`,
+  `obtener_permisos_usuario`) conservan nombre y firma, así que las ~35
+  políticas RLS que las usan no cambiaron. `rol_compras()` = acción
+  `comprar`, `admin_insumos()` = `aprobar_insumos`, `admin_proyectos()` =
+  `aprobar_pedidos`. Editar presupuesto es la acción `editar_presupuestos` +
+  ver el proyecto (el proyecto asignado solo da acceso).
+- **Compatibilidad**: un usuario con `rol_id` NULL sigue con las banderas
+  anteriores y los grupos, idéntico a antes. `20261001100000_migrar_usuarios_a_roles.sql`
+  (se corre aparte, cuando la matriz esté lista) asigna rol según las
+  banderas: es_admin -> Administrador, rol_compras -> Compras,
+  admin_insumos/admin_proyectos/admin_mano_obra -> Líder Técnico.
+  Si `permisos_rol_usuario` falla, el middleware y `lib/permisos.ts` niegan el
+  acceso (fallan cerrado); ya no caen a las banderas.
+- **Acciones**: `editar_presupuestos`, `aprobar_pedidos`, `aprobar_mano_obra`,
+  `aprobar_insumos`, `gestionar_almacen` (entradas/salidas),
+  `comprar`, `aprobar_oc`, `desaprobar_oc`, `cancelar_oc`.
+- **Pendiente**: siguen abiertas a cualquier usuario con sesión `apu`,
+  `item_apu`, `transporte_precios` y `apu_import_revision` (la restricción por
+  pestaña las oculta de la pantalla pero no de la API). `maestro_insumos` y
+  los catálogos de MO/equipo ya se cerraron (ver "Rendimiento: índices y
+  hallazgos").
+
+
+## Desaprobar y cancelar órdenes de compra (implementado)
+
+Migración `20261002000000_desaprobar_cancelar_oc.sql`. Acciones del rol
+`desaprobar_oc` y `cancelar_oc` (se dan en Roles y permisos); la base valida el
+permiso y las reglas, la pantalla solo decide si muestra el botón
+(`sePuedeDesaprobar` / `sePuedeCancelar` en `lib/ordenes-compra-estado.ts`).
+
+- **Desaprobar** (botón en Aprobación de órdenes de compra y en el detalle):
+  aprobada -> pendiente_aprobacion. Solo si `enviada = false` y
+  `estado_entrega = 'sin_entregar'`. Motivo obligatorio
+  (`motivo_desaprobacion`); se limpian `aprobada_por/aprobada_at`.
+- **Cancelar** (botón en Órdenes de compra y en el detalle): aprobada ->
+  cancelada. Solo si `estado_entrega = 'sin_entregar'` y sin entradas vigentes
+  (Entrega parcial y Entregada NO se cancelan). Puede estar enviada: el check
+  `ordenes_compra_enviada_requiere_aprobada` ahora permite
+  `enviada` con estado `aprobada` o `cancelada`, para conservar el dato de que
+  ya se había enviado al proveedor. Motivo obligatorio (`motivo_cancelacion`).
+- **`enviada`** es una casilla manual: Compras pulsa "Marcar como enviada"
+  (`marcar_orden_enviada`). El sistema no envía nada ni guarda quién/cuándo.
+- **Liberar pedidos al cancelar**: las líneas de órdenes canceladas dejan de
+  contar como "ya comprado" en `crear_orden_compra` (SQL) y en
+  `mapPedidoParaComprar` (cola de Comprar pedidos). Las de órdenes
+  *rechazadas* siguen contando (revisión manual, decisión previa).
+
+
+## Historial y pedidos: desaprobar / cancelar / modificar (implementado)
+
+Migración `20261003000000_historial_y_pedidos.sql`.
+
+- **`historial_eventos`** (entidad_tipo `orden_compra`|`pedido`, entidad_id,
+  evento, usuario_id, motivo, datos, created_at): registro **inmutable** de
+  quién hizo qué y cuándo. Lo escriben DISPARADORES sobre `ordenes_compra`
+  (`trg_historial_orden_compra`) y `pedidos_insumos` (`trg_historial_pedido`),
+  así que cubre cualquier camino y no depende de las pantallas. Sin policies
+  (nadie edita ni borra); se lee con `historial_entidad(tipo, id)`, que valida
+  que quien pregunta pueda ver la orden/pedido. Eventos de órdenes: creada,
+  aprobada, rechazada, desaprobada, cancelada, marcada_enviada,
+  entrega_actualizada. De pedidos: creado, modificado (antes/después),
+  aprobado, rechazado, desaprobado, cancelado, rechazado_por_compras. La
+  historia previa a la migración se reconstruyó (creación y aprobación/rechazo,
+  marcada `reconstruido`); lo que no se guardaba (quién marcó "enviada") no se
+  pudo recuperar.
+- **UI**: `components/historial-timeline.tsx` (línea de tiempo + diálogo). Se
+  ve en el detalle de la orden de compra, en Pedidos (botón Historial) y en
+  Aprobación de pedidos.
+- **Pedidos**: nuevo estado `cancelado` (la cantidad vuelve a estar disponible
+  porque `buscar_insumos_presupuesto`/`disponible_insumo_item` solo cuentan
+  pendiente+aprobado). Cancelar ya **no borra** la fila (se quitó la policy
+  `pedidos_insumos_delete_propio_pendiente`).
+  - `modificar_pedido`: solo quien lo hizo, solo pendiente; cambia cantidad,
+    fecha requerida, urgente y observaciones (no insumo ni ítem); el tope es
+    lo disponible + la cantidad actual del mismo pedido.
+  - `cancelar_pedido(id, motivo)`: pendiente -> quien lo hizo o acción
+    `cancelar_pedidos`; aprobado -> solo `cancelar_pedidos` y solo si ninguna
+    orden de compra no cancelada lo usa.
+  - `desaprobar_pedido(id, motivo)`: acción `desaprobar_pedidos`; aprobado ->
+    pendiente, mismas condiciones sobre órdenes de compra. Limpia
+    `resuelto_*`; el rastro queda en el historial.
+  - Aprobar / rechazar sigue siendo la acción `aprobar_pedidos`.
+- **Acciones nuevas en la matriz**: `desaprobar_pedidos`, `cancelar_pedidos`
+  (el Líder Técnico las recibe en la migración).
+- Nota: el parser `pglast` no puede validar funciones de disparador (falla con
+  cualquiera, incluso `return new;`): esas se revisan leyendo el SQL.
+
+
+## Landing de proyecto y menú reorganizado (implementado)
+
+- **El proyecto se elige UNA sola vez**, en `/inicio` (landing): a donde se llega
+  al iniciar sesión (login, `/` y `/login` ya autenticado redirigen ahí) y a
+  donde se manda a quien no puede ver la ruta que pidió
+  (`?error=no-autorizado`). Es una ruta libre: no pertenece a ninguna pestaña.
+  Al elegir un proyecto se va a la primera pestaña del rol
+  (`rutaPrimeraPestana`).
+- **Dónde vive**: cookie `proyecto_actual` (httpOnly, 30 días) que fija la
+  acción `seleccionarProyecto` (`app/(app)/inicio/actions.ts`). No da acceso a
+  nada: `layout.tsx` la valida contra `listarMisProyectos()` (RLS de
+  `proyectos`) y la ignora si el proyecto ya no es accesible. El layout la
+  entrega a las pantallas con `ProyectoProvider` /
+  `useProyectoActual()` (`components/proyecto-provider.tsx`). Cambiar de
+  proyecto = `seleccionarProyecto` + `router.refresh()`: las pantallas que
+  dependen de `proyecto.id` se recargan solas. Sin proyecto elegido, las
+  pantallas muestran `components/sin-proyecto.tsx` (enlace al landing).
+- **Ya no hay selector de proyecto** en: Elaboración de requisiciones
+  (`almacen/page.tsx`), Inventario, Salidas, Compras > Requisiciones (panel de
+  filtros), Elaboración de presupuestos y Visualización. El cambio se hace
+  desde el botón "Cambiar proyecto" del menú lateral o, como atajo, desde el
+  `SelectorProyecto` del encabezado de esas páginas.
+- **No filtran por proyecto actual** (siguen viendo todos los proyectos que el
+  usuario tiene): Aprobación de requisiciones, Órdenes de compra, Aprobación
+  de órdenes de compra, Entradas (van por orden de compra).
+- **Menú** (`lib/pestanas.ts`): Presupuestos / Requisiciones / Almacén /
+  Compras / Contratos / Control / Administrador. "Pedidos" pasó a llamarse
+  **Requisiciones** en pantalla; las rutas (`/almacen`, `/admin-tecnico`,
+  `/almacen/comprar-pedidos`...), las tablas (`pedidos_insumos`), las
+  funciones SQL y las CLAVES de permisos (`tecnico.pedidos`,
+  `compras.comprar_pedidos`, acciones `aprobar_pedidos`...) NO cambiaron, para
+  no romper nada ni perder los permisos guardados. Solo cambian títulos y
+  secciones. "Elaboración de actas" es la pestaña `contratos.cortes` (antes
+  "Cortes de proyectos"); "Informes" se quitó del menú.
+- Los mensajes de error que lanza la base (`raise exception '... pedido ...'`)
+  todavía dicen "pedido": cambiarlos requiere recrear las funciones SQL.
+
+
+## Control administrativo (simplificado)
+
+`/admin` ahora solo tiene dos pestañas:
+- **Proyectos**: crear y editar proyectos (código, nombre, empresa, ciudad),
+  sin cambios respecto a antes.
+- **Empresas**: crear, editar y eliminar (`crearEmpresa`, `editarEmpresa`,
+  `eliminarEmpresa` en `admin/actions.ts`). Solo NIT y razón social. No se
+  puede eliminar una empresa que tenga proyectos (se cuenta antes y se avisa)
+  ni una con datos asociados (error 23503 -> mensaje legible); NIT repetido
+  (23505) también tiene mensaje propio. La lista de empresas se comparte con
+  la pestaña Proyectos: lo que se cambie se ve al instante en su dropdown.
+
+Se quitaron las pestañas **Usuarios** y **Grupos** (las reemplazan Roles y
+permisos y Usuarios y accesos) y las acciones que solo ellas usaban (banderas
+de `perfiles`, grupos, asignación de proyectos por grupo). Las tablas
+`grupos`, `grupo_proyectos`, `usuario_grupos` siguen en la base (las leen las
+funciones de compatibilidad para usuarios sin rol) pero ya no hay pantalla
+para editarlas.
+
+**Crear usuarios y cambiar contraseñas** eran exclusivos de la pestaña
+Usuarios: se pasaron a **Usuarios y accesos** (botón "Nuevo usuario" con rol
+opcional, y el ícono de llave en cada fila). `crearUsuario` ahora recibe
+`{ nombre, email, password, rolId? }`; usa la llave de servicio y sigue sin
+haber auto-registro.

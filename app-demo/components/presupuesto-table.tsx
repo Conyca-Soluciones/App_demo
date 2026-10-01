@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Trash2 } from "lucide-react"
 import {
   Table,
@@ -220,29 +220,30 @@ function calcularRollupsPorCapitulo(data: ItemPresupuesto[]): Map<string, Rollup
 
   const porId = new Map(data.map((i) => [i.id, i]))
 
-  function recolectarDescendientes(id: string): ItemPresupuesto[] {
-    const resultado: ItemPresupuesto[] = []
+  // Suma del valorTotal de TODOS los descendientes de `id` (los que no
+  // tienen valorTotal cuentan 0). Memoizada: cada ítem se visita una sola vez
+  // en todo el cálculo -> O(n). Antes se volvía a recolectar el subárbol
+  // completo de cada capítulo (copiando arreglos en cada nivel), lo que
+  // crecía con n × profundidad del árbol.
+  const sumaDescendientes = new Map<string, number>()
+  function totalDescendientes(id: string): number {
+    const memo = sumaDescendientes.get(id)
+    if (memo !== undefined) return memo
+    let total = 0
     for (const hijoId of hijosDirectos.get(id) ?? []) {
       const hijo = porId.get(hijoId)
       if (!hijo) continue
-      resultado.push(hijo)
-      resultado.push(...recolectarDescendientes(hijoId))
+      total += (hijo.valorTotal ?? 0) + totalDescendientes(hijoId)
     }
-    return resultado
+    sumaDescendientes.set(id, total)
+    return total
   }
 
   const rollups = new Map<string, RollupCapitulo>()
 
   for (const item of data) {
     if (!hijosDirectos.has(item.id)) continue // no es capítulo (no tiene hijos) -- no se calcula rollup
-
-    // Solo cuentan los descendientes que son ítems REALES de presupuesto
-    // (con valorTotal propio) -- los subcapítulos intermedios ya
-    // contribuyen 0 y no hay que filtrarlos aparte.
-    const itemsConCosto = recolectarDescendientes(item.id).filter((d) => d.valorTotal != null)
-    const totalCalculado = itemsConCosto.reduce((s, d) => s + (d.valorTotal ?? 0), 0)
-
-    rollups.set(item.id, { totalCalculado })
+    rollups.set(item.id, { totalCalculado: totalDescendientes(item.id) })
   }
 
   return rollups
@@ -386,7 +387,9 @@ export function PresupuestoTable({
     )
   }
 
-  const rollupsPorCapitulo = calcularRollupsPorCapitulo(data)
+  // Solo se recalcula cuando cambian los datos, no en cada render (antes
+  // corría con cada tecla o clic en la tabla).
+  const rollupsPorCapitulo = useMemo(() => calcularRollupsPorCapitulo(data), [data])
 
   return (
     // overflow-hidden -> overflow-x-auto: antes el scroll horizontal de
