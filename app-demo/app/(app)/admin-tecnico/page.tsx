@@ -4,13 +4,15 @@ import { formatearFechaSinHora } from "@/lib/fechas"
 
 // app/(app)/admin-tecnico/page.tsx
 //
-// Panel de aprobación de REQUISICIONES. Cada requisición (con su número) trae
-// sus insumos; se aprueba o rechaza la requisición ENTERA, no insumo por
-// insumo. Agrupadas por proyecto (quien aprueba ve todos).
+// Aprobación de REQUISICIONES, con el mismo formato que Aprobación de órdenes
+// de compra: una lista (una fila por requisición) y el botón Ver abre su
+// detalle encima. Se aprueba o rechaza la requisición ENTERA, no insumo por
+// insumo. Quien aprueba ve todos los proyectos.
 
-import Link from "next/link"
 import { useEffect, useState } from "react"
+import { Check, ClipboardCheck, Eye, Loader2, Undo2, X } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -20,9 +22,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
-import { HistorialDialog } from "@/components/historial-timeline"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
+import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
   verRequisicionesAprobacion,
@@ -49,9 +59,6 @@ const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; bo
   },
 }
 
-const headClasses = "border-r bg-muted/50 px-3 py-2 text-left text-xs font-medium last:border-r-0"
-const celda = "border-r px-3 py-2 text-xs last:border-r-0"
-
 export default function AdminTecnico() {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [requisiciones, setRequisiciones] = useState<RequisicionParaAprobar[] | null>(null)
@@ -59,12 +66,12 @@ export default function AdminTecnico() {
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
   const [permisos, setPermisos] = useState<PermisosPedidos | null>(null)
-  // Rechazar / desaprobar piden motivo; el historial se abre por requisición.
+  // Rechazar / desaprobar piden motivo; Ver abre el detalle encima de la lista.
   const [accion, setAccion] = useState<{ tipo: TipoAccion; req: RequisicionParaAprobar } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
-  const [historial, setHistorial] = useState<RequisicionParaAprobar | null>(null)
-  // Últimos filtros consultados (para repetir la consulta tras desaprobar).
+  const [abiertaId, setAbiertaId] = useState<string | null>(null)
+  // Últimos filtros consultados (para repetir la consulta tras una acción).
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
 
   function cargar(f: FiltrosRequisiciones = filtros) {
@@ -89,15 +96,12 @@ export default function AdminTecnico() {
     try {
       if (accion.tipo === "rechazar") {
         await resolverRequisicion(accion.req.id, "rechazado", motivo.trim())
-        // Optimista, igual que aprobar: sale de la cola de pendientes.
-        const id = accion.req.id
-        setRequisiciones((prev) => (prev ?? []).filter((r) => r.id !== id))
       } else {
         await desaprobarRequisicion(accion.req.id, motivo.trim())
-        cargar()
       }
       setAccion(null)
       setMotivo("")
+      cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo completar la acción.")
       setAccion(null)
@@ -111,8 +115,6 @@ export default function AdminTecnico() {
     setError(null)
     try {
       await resolverRequisicion(id, "aprobado")
-      // Optimista: se saca de la lista de pendientes al instante.
-      // Se vuelve a consultar para que aparezca como aprobada.
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo actualizar la requisición.")
@@ -123,17 +125,6 @@ export default function AdminTecnico() {
         return next
       })
     }
-  }
-
-  // Agrupar por proyecto -- barato porque ya es solo la cola de
-  // pendientes (nunca todo el histórico).
-  const porProyecto = new Map<string, { nombre: string; reqs: RequisicionParaAprobar[] }>()
-  for (const r of requisiciones ?? []) {
-    const clave = r.proyectoId ?? "sin-proyecto"
-    if (!porProyecto.has(clave)) {
-      porProyecto.set(clave, { nombre: r.proyectoNombre ?? "Sin proyecto", reqs: [] })
-    }
-    porProyecto.get(clave)!.reqs.push(r)
   }
 
   return (
@@ -159,254 +150,195 @@ export default function AdminTecnico() {
           }}
         />
 
-        <div className="min-w-0 flex-1 space-y-8">
-        {cargando && <p className="text-sm text-muted-foreground">Cargando requisiciones…</p>}
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="min-w-0 flex-1 space-y-4">
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
 
-        {requisiciones === null && !cargando && (
-          <div className="flex items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            Elige los filtros que quieras y presiona Consultar. Con &quot;Solo por Aprobar&quot; ves únicamente las
-            que están esperando aprobación.
-          </div>
-        )}
-
-        {requisiciones !== null && requisiciones.length === 0 && !cargando && !error && (
-          <p className="rounded-lg border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-            Ninguna requisición coincide con los filtros.
-          </p>
-        )}
-
-        {[...porProyecto.entries()].map(([proyectoId, grupo]) => (
-          <div key={proyectoId} className="space-y-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              {grupo.nombre}{" "}
-              <span className="font-normal text-muted-foreground">
-                ({grupo.reqs.length} {grupo.reqs.length === 1 ? "requisición" : "requisiciones"})
-              </span>
-            </h2>
-
-            {grupo.reqs.map((req) => {
-              const procesando = idsEnProceso.has(req.id)
-              return (
-                <div
-                  key={req.id}
-                  className={`overflow-hidden rounded-md border ${req.urgente ? "border-amber-300" : ""}`}
-                >
-                  {/* Cabecera de la requisición */}
-                  <div
-                    className={`flex flex-wrap items-center gap-x-6 gap-y-2 border-b px-4 py-3 ${
-                      req.urgente ? "bg-amber-50/70" : "bg-muted/30"
-                    }`}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold">
-                        Requisición {req.numero}
-                        {req.urgente && (
-                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
-                            Urgente
-                          </span>
-                        )}
-                      </p>
-                      <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                        {req.nLineas} {req.nLineas === 1 ? "insumo" : "insumos"}
-                        <BadgeEstadoRequisicion estado={req.estado} />
-                      </p>
-                    </div>
-                    <div className="text-xs">
-                      <p className="text-muted-foreground">Solicitado por</p>
-                      <p>{req.solicitanteNombre ?? "—"}</p>
-                    </div>
-                    <div className="text-xs">
-                      <p className="text-muted-foreground">Fecha requisición</p>
-                      <p>{new Date(req.createdAt).toLocaleDateString("es-CO")}</p>
-                    </div>
-                    <div className="text-xs">
-                      <p className="text-muted-foreground">Fecha requerida</p>
-                      <p>{req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}</p>
-                    </div>
-                    {req.estado === "aprobada" && (
-                      <div className="text-xs">
-                        <p className="text-muted-foreground">Compra</p>
-                        <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
-                      </div>
-                    )}
-                    {req.estado === "rechazada" && (
-                      <div className="text-xs">
-                        <p className="text-muted-foreground">Rechazada por</p>
-                        <p>
-                          {req.resueltoPorNombre ?? "—"}
-                          {req.resueltoAt ? ` · ${new Date(req.resueltoAt).toLocaleDateString("es-CO")}` : ""}
-                        </p>
-                      </div>
-                    )}
-                    {req.soporteUrl && (
-                      <a
-                        href={req.soporteUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-primary underline underline-offset-2"
-                      >
-                        Ver soporte
-                      </a>
-                    )}
-
-                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                      {req.estado === "pendiente" && permisos?.aprobar && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-3 text-xs text-emerald-700 hover:bg-emerald-50"
-                            onClick={() => aprobar(req.id)}
-                            disabled={procesando}
-                          >
-                            Aprobar requisición
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-3 text-xs text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              setAccion({ tipo: "rechazar", req })
-                              setMotivo("")
-                            }}
-                            disabled={procesando}
-                          >
-                            Rechazar requisición
-                          </Button>
-                        </>
-                      )}
-                      {req.estado === "aprobada" && permisos?.desaprobar && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 px-3 text-xs text-amber-700 hover:bg-amber-50"
-                          onClick={() => {
-                            setAccion({ tipo: "desaprobar", req })
-                            setMotivo("")
-                          }}
-                          disabled={procesando}
-                        >
-                          Desaprobar
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 px-3 text-xs text-muted-foreground"
-                        onClick={() => setHistorial(req)}
-                      >
-                        Historial
-                      </Button>
-                    </div>
-                  </div>
-
-                  {req.observaciones && (
-                    <p className="border-b bg-background px-4 py-2 text-xs">
-                      <span className="text-muted-foreground">Observaciones: </span>
-                      {req.observaciones}
-                    </p>
-                  )}
-                  {req.estado === "rechazada" && (
-                    <p className="border-b bg-red-50/60 px-4 py-2 text-xs text-red-900">
-                      <span className="font-medium">Motivo del rechazo: </span>
-                      {req.motivoRechazo ?? "(sin motivo)"}
-                    </p>
-                  )}
-
-                  {/* Insumos de la requisición */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-separate border-spacing-0">
-                      <thead>
-                        <tr>
-                          <th className={`${headClasses} w-24`}>Código</th>
-                          <th className={headClasses}>Insumo</th>
-                          <th className={`${headClasses} w-16 text-center`}>UM</th>
-                          <th className={`${headClasses} w-24 text-right`}>Cantidad</th>
-                          <th className={`${headClasses} w-64`}>Ítem del presupuesto</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {req.lineas.map((l) => (
-                          <tr key={l.id} className="border-b hover:bg-muted/30">
-                            <td className={`${celda} font-mono text-muted-foreground`}>{l.insumoCodigo}</td>
-                            <td className={celda}>{l.insumoDescripcion}</td>
-                            <td className={`${celda} text-center`}>{l.insumoUm ?? "—"}</td>
-                            <td className={`${celda} text-right`}>{l.cantidad}</td>
-                            <td className={celda}>
-                              {l.presupuestoId ? (
-                                <Link
-                                  href={`/presupuestos?presupuestoId=${l.presupuestoId}`}
-                                  className="text-primary underline underline-offset-2"
+          {requisiciones === null && !cargando ? (
+            <div className="flex items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              Elige los filtros que quieras y presiona Consultar. Con &quot;Solo por Aprobar&quot; ves
+              únicamente las que están esperando aprobación.
+            </div>
+          ) : cargando && requisiciones === null ? (
+            <div className="flex items-center justify-center p-12 text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando requisiciones...
+            </div>
+          ) : requisiciones !== null && requisiciones.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              <ClipboardCheck className="h-8 w-8" />
+              Ninguna requisición coincide con los filtros.
+            </div>
+          ) : requisiciones !== null ? (
+            <div className="overflow-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N°</TableHead>
+                    <TableHead>Proyecto</TableHead>
+                    <TableHead>Solicitado por</TableHead>
+                    <TableHead>Fecha requisición</TableHead>
+                    <TableHead>Fecha requerida</TableHead>
+                    <TableHead className="text-center">Insumos</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {requisiciones.map((req) => {
+                    const puedeGestionar = permisos?.aprobar && req.estado === "pendiente"
+                    const puedeDesaprobar = permisos?.desaprobar && req.estado === "aprobada"
+                    const procesando = idsEnProceso.has(req.id)
+                    return (
+                      <TableRow key={req.id} className={req.urgente && req.estado === "pendiente" ? "bg-amber-50/60" : undefined}>
+                        <TableCell className="font-medium">{req.numero}</TableCell>
+                        <TableCell>{req.proyectoCodigo ?? req.proyectoNombre ?? "—"}</TableCell>
+                        <TableCell>{req.solicitanteNombre ?? "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(req.createdAt).toLocaleDateString("es-CO")}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}
+                        </TableCell>
+                        <TableCell className="text-center">{req.nLineas}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <BadgeEstadoRequisicion estado={req.estado} />
+                            {req.urgente && <Badge variant="destructive">Urgente</Badge>}
+                            {req.estado === "aprobada" && req.estadoCompra && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                Compra: <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => setAbiertaId(req.id)}>
+                              <Eye className="mr-1.5 h-4 w-4" />
+                              Ver
+                            </Button>
+                            {puedeDesaprobar && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                                disabled={procesando}
+                                onClick={() => {
+                                  setAccion({ tipo: "desaprobar", req })
+                                  setMotivo("")
+                                }}
+                                aria-label={`Desaprobar requisición ${req.numero}`}
+                              >
+                                <Undo2 className="mr-1.5 h-4 w-4" />
+                                Desaprobar
+                              </Button>
+                            )}
+                            {puedeGestionar && (
+                              <>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                  disabled={procesando}
+                                  onClick={() => aprobar(req.id)}
+                                  aria-label={`Aprobar requisición ${req.numero}`}
                                 >
-                                  {l.itemCodigo}
-                                </Link>
-                              ) : (
-                                l.itemCodigo
-                              )}{" "}
-                              <span className="text-muted-foreground">{l.itemDescripcion}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ))}
-
-        <Dialog
-          open={accion !== null}
-          onOpenChange={(abierto) => {
-            if (!abierto) {
-              setAccion(null)
-              setMotivo("")
-            }
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {accion ? `${TEXTO_ACCION[accion.tipo].titulo} ${accion.req.numero}` : ""}
-              </DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              {accion?.req.nLineas} {accion?.req.nLineas === 1 ? "insumo" : "insumos"} (
-              {accion?.req.solicitanteNombre ?? "sin solicitante"}).{" "}
-              {accion ? TEXTO_ACCION[accion.tipo].explicacion : ""}
-            </p>
-            <Textarea
-              placeholder="Motivo (obligatorio)"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              rows={3}
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAccion(null)}>
-                Volver
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={!motivo.trim() || procesandoAccion}
-                onClick={confirmarAccion}
-              >
-                {procesandoAccion ? "Procesando..." : accion ? TEXTO_ACCION[accion.tipo].boton : ""}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <HistorialDialog
-          abierto={historial !== null}
-          tipo="requisicion"
-          id={historial?.id ?? null}
-          titulo={`Historial — Requisición ${historial?.numero ?? ""}`}
-          onCerrar={() => setHistorial(null)}
-        />
+                                  {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                  disabled={procesando}
+                                  onClick={() => {
+                                    setAccion({ tipo: "rechazar", req })
+                                    setMotivo("")
+                                  }}
+                                  aria-label={`Rechazar requisición ${req.numero}`}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </div>
       </main>
+
+      <Dialog
+        open={accion !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) {
+            setAccion(null)
+            setMotivo("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {accion ? `${TEXTO_ACCION[accion.tipo].titulo} #${accion.req.numero}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {accion?.req.nLineas} {accion?.req.nLineas === 1 ? "insumo" : "insumos"} (
+            {accion?.req.solicitanteNombre ?? "sin solicitante"}).{" "}
+            {accion ? TEXTO_ACCION[accion.tipo].explicacion : ""}
+          </p>
+          <Textarea
+            placeholder="Motivo (obligatorio)"
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccion(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!motivo.trim() || procesandoAccion}
+              onClick={confirmarAccion}
+            >
+              {procesandoAccion ? "Procesando..." : accion ? TEXTO_ACCION[accion.tipo].boton : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalle encima de la lista (igual que Aprobación de órdenes de compra). */}
+      <Dialog
+        open={abiertaId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAbiertaId(null)
+            if (requisiciones !== null) cargar()
+          }
+        }}
+      >
+        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de la requisición</DialogTitle>
+          {abiertaId && (
+            <RequisicionDetalleView
+              requisicionId={abiertaId}
+              onCerrar={() => {
+                setAbiertaId(null)
+                if (requisiciones !== null) cargar()
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
