@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Building2, CheckCircle2, Loader2, MapPin, Search } from "lucide-react"
@@ -23,7 +24,7 @@ export function LandingProyectos({
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
-    if (!q) return proyectos
+    if (!q || q === COMODIN_LISTAR) return proyectos
     return proyectos.filter((p) =>
       [p.codigo, p.nombre, p.cliente, p.ciudad].some((x) => (x ?? "").toLowerCase().includes(q))
     )

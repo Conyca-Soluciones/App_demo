@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import {
   listarSolicitudesManoObra,
@@ -667,7 +668,7 @@ function CatalogoRecurso({
     const filtradas = categorias.filter((c) => {
       if (filtroGrupo !== "todos" && c.grupo !== filtroGrupo) return false
       if (filtroUnidad !== "todos" && c.unidad !== filtroUnidad) return false
-      if (!termino) return true
+      if (!termino || termino === COMODIN_LISTAR) return true
       return (
         c.categoria.toLowerCase().includes(termino) ||
         (c.grupo ?? "").toLowerCase().includes(termino)

@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -166,7 +167,7 @@ export default function MaestroInsumos() {
       if (filtroUM !== "todos" && insumo.u_m !== filtroUM) return false
       if (filtroAgrupacion !== "todos" && insumo.agrupacion !== filtroAgrupacion) return false
 
-      if (!termino) return true
+      if (!termino || termino === COMODIN_LISTAR) return true
       return (
         insumo.descripcion.toLowerCase().includes(termino) ||
         String(insumo.codigo).includes(termino) ||
