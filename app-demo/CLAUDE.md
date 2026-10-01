@@ -1336,3 +1336,37 @@ indexar con `Map`/`Set` antes de recorrer (nada de `.find()`/`.filter()`/
 sola pasada, y en la base usar consultas por lotes (`in`, joins, RPC) en vez de
 una consulta por fila; acotar los listados con filtros y `limit` del lado del
 servidor.
+
+
+## Contratistas `/contratos/contratistas` (implementado)
+
+Primera pieza del módulo de Contratos (plan revisado con Jurídica). Directorio
+de personas naturales y jurídicas con los **documentos generales** que exige
+Jurídica para todo contrato; los que dependen del tipo de contrato (planilla de
+seguridad social, SOAT, cotización...) van con el contrato, después.
+
+- **Tablas** (`20261011000000_contratistas.sql`): `contratistas` (tipo de
+  persona, documento + DV, nombre/razón social, representante legal si es
+  jurídica, contacto, datos bancarios; `created_by` -> `perfiles`) y
+  `contratista_documentos` (un documento vigente por tipo, con su ruta en
+  Storage). Documento único por (tipo, número). Jurídica = NIT; el DV se valida
+  con el algoritmo de la DIAN (`dv_nit` en la base, `calcularDvNit` en
+  `lib/contratistas.ts`; probado contra 380 NIT de proveedores, 379 cuadran).
+- **Obligatorio para crear**: todos los datos y los documentos obligatorios
+  (catálogo en `DOCUMENTOS_POR_PERSONA`; hoja de vida es opcional). No hay
+  contratista "a medias": `crear_contratista` (SECURITY DEFINER) valida todo,
+  comprueba que cada archivo exista en Storage e inserta datos + documentos en
+  una transacción.
+- **Archivos**: primer uso de Supabase Storage en el proyecto. Bucket PRIVADO
+  `contratistas` (PDF/JPG/PNG, 10 MB), ruta `<contratista_id>/<tipo>-<n>.<ext>`.
+  El navegador sube con la sesión del usuario (políticas de `storage.objects`
+  exigen la acción) y luego llama la Server Action; si algo falla, borra lo que
+  subió (la política de DELETE solo deja borrar archivos que todavía no son
+  documento de nadie). Para ver un documento: enlace firmado de 2 minutos
+  (`enlaceDocumentoContratista`).
+- **Permisos**: pestaña `contratos.contratistas` (ver) y acción
+  `gestionar_contratistas` (crear). `tiene_pestana(uid, clave)` es nueva (la
+  usan las políticas, igual que `tiene_accion`). Por defecto ven Gerencia,
+  Legal y Líder Legal; crean Legal y Líder Legal.
+- **Pendiente**: editar datos, reemplazar o agregar documentos, y vencimientos
+  (p. ej. certificación bancaria o cámara de comercio con más de 30 días).

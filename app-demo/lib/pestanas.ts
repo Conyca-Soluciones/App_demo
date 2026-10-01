@@ -60,6 +60,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Compras", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
 
+  { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
   { clave: "contratos.contratos", titulo: "Elaboración de contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.cortes", titulo: "Elaboración de actas", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
@@ -93,6 +94,7 @@ export const ACCIONES: Accion[] = [
   { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
+  { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
 ]
 
 export const permisoPestana = (clave: string) => `tab.${clave}`
