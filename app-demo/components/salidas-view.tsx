@@ -2,8 +2,9 @@
 
 import { leerCantidadEntera } from "@/lib/numeros"
 import { COMODIN_LISTAR } from "@/lib/busqueda"
-import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Loader2, Search } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { CheckCircle2, Loader2, X } from "lucide-react"
+import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,14 +45,23 @@ const formatoFecha = (iso: string) =>
 // Cantidades: solo números enteros (ver lib/numeros.ts). "1.500" es 1500;
 // "1,5" se rechaza con el motivo para mostrárselo al usuario.
 
+// Una línea de la tabla de salida: el insumo elegido y la cantidad que sale.
+type LineaSalida = { key: string; insumo: OpcionBuscador | null; um: string | null; cantidad: string }
+
 export function SalidasView() {
   // Proyecto escogido en /inicio o en el selector del header (ver
   // lib/proyecto-actual.ts).
   const proyectoId = useProyectoActual().proyecto?.id ?? null
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   const [historial, setHistorial] = useState<SalidaRegistrada[] | null>(null)
-  const [busqueda, setBusqueda] = useState("")
-  const [cantidades, setCantidades] = useState<Record<string, string>>({})
+  // Tabla de salida: siempre termina con una línea vacía lista para el
+  // siguiente insumo.
+  const [lineas, setLineas] = useState<LineaSalida[]>([])
+  const contadorLineas = useRef(0)
+  const nuevaLinea = useCallback(
+    (): LineaSalida => ({ key: `l${++contadorLineas.current}`, insumo: null, um: null, cantidad: "" }),
+    []
+  )
   const [retira, setRetira] = useState("")
   const [observaciones, setObservaciones] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -79,55 +89,121 @@ export function SalidasView() {
   }
 
   useEffect(() => {
-    setCantidades({})
+    setLineas([nuevaLinea()])
     setAviso(null)
     setInventario(null)
     setHistorial(null)
     if (proyectoId) cargar(proyectoId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId])
 
-  const disponibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase()
-    return (inventario ?? [])
-      .filter((i) => i.cantidadDisponible > 0)
-      .filter(
-        (i) => !q || q === COMODIN_LISTAR || i.insumoDescripcion.toLowerCase().includes(q) || String(i.insumoCodigo).includes(q)
+  // Insumo -> inventario, una sola vez (O(1) por búsqueda en vez de recorrer
+  // el inventario por cada línea).
+  const inventarioPorId = useMemo(
+    () => new Map((inventario ?? []).map((i) => [i.insumoId, i])),
+    [inventario]
+  )
+  // Insumos ya puestos en la tabla: no se ofrecen otra vez.
+  const idsEnTabla = useMemo(
+    () => new Set(lineas.flatMap((l) => (l.insumo ? [l.insumo.id] : []))),
+    [lineas]
+  )
+
+  // Solo se sugieren insumos con algo en bodega, pero sin mostrar cuánto hay.
+  const buscarInsumo = useCallback(
+    async (termino: string): Promise<OpcionBuscador[]> => {
+      const q = termino.trim().toLowerCase()
+      const todos = q === COMODIN_LISTAR
+      const resultado: OpcionBuscador[] = []
+      for (const i of inventario ?? []) {
+        if (i.cantidadDisponible <= 0 || idsEnTabla.has(i.insumoId)) continue
+        if (
+          todos ||
+          i.insumoDescripcion.toLowerCase().includes(q) ||
+          String(i.insumoCodigo).includes(q)
+        ) {
+          resultado.push({
+            id: i.insumoId,
+            etiqueta: i.insumoDescripcion,
+            subetiqueta: `${i.insumoCodigo} · ${i.insumoUm ?? ""}`,
+          })
+          if (resultado.length >= (todos ? 50 : 15)) break
+        }
+      }
+      return resultado
+    },
+    [inventario, idsEnTabla]
+  )
+
+  function elegirInsumo(key: string, opcion: OpcionBuscador | null) {
+    setLineas((prev) => {
+      const siguiente = prev.map((l) =>
+        l.key === key
+          ? { ...l, insumo: opcion, um: opcion ? inventarioPorId.get(opcion.id)?.insumoUm ?? null : null, cantidad: opcion ? l.cantidad : "" }
+          : l
       )
-  }, [inventario, busqueda])
+      // Al llenar la última línea aparece otra vacía debajo.
+      const ultima = siguiente[siguiente.length - 1]
+      if (ultima.insumo) siguiente.push(nuevaLinea())
+      return siguiente
+    })
+    // Tras elegir, el cursor pasa a la cantidad de esa misma línea.
+    if (opcion) setTimeout(() => document.getElementById(`salida-cant-${key}`)?.focus(), 0)
+  }
+
+  function quitarLinea(key: string) {
+    setLineas((prev) => {
+      const siguiente = prev.filter((l) => l.key !== key)
+      if (siguiente.length === 0 || siguiente[siguiente.length - 1].insumo) siguiente.push(nuevaLinea())
+      return siguiente
+    })
+  }
+
+  // Enter en la cantidad: salta al buscador de la línea siguiente.
+  function siguienteLinea(key: string) {
+    const i = lineas.findIndex((l) => l.key === key)
+    const sig = lineas[i + 1]
+    if (sig) setTimeout(() => document.getElementById(`salida-buscar-${sig.key}`)?.focus(), 0)
+  }
 
   async function handleRegistrar() {
     if (!proyectoId || !inventario) return
     setError(null)
     setAviso(null)
 
-    const lineas: { insumoId: string; cantidad: number }[] = []
-    for (const i of inventario) {
-      const texto = cantidades[i.insumoId]
-      if (!texto || !texto.trim()) continue
-      const leida = leerCantidadEntera(texto)
-      if (!leida.ok || leida.valor < 0) {
-        setError(`"${i.insumoDescripcion}": ${leida.ok ? "la cantidad no puede ser negativa." : leida.error}`)
+    // Una pasada por las líneas de la tabla (las vacías se ignoran).
+    const aEnviar: { insumoId: string; cantidad: number }[] = []
+    for (const l of lineas) {
+      if (!l.insumo) continue
+      const inv = inventarioPorId.get(l.insumo.id)
+      const nombre = l.insumo.etiqueta
+      if (!l.cantidad.trim()) {
+        setError(`"${nombre}": escribe la cantidad a sacar.`)
         return
       }
-      const cantidad = leida.valor
-      if (cantidad > i.cantidadDisponible) {
+      const leida = leerCantidadEntera(l.cantidad)
+      if (!leida.ok || leida.valor <= 0) {
+        setError(`"${nombre}": ${leida.ok ? "la cantidad debe ser mayor que cero." : leida.error}`)
+        return
+      }
+      if (!inv || leida.valor > inv.cantidadDisponible) {
         setError(
-          `"${i.insumoDescripcion}": solo hay ${formatoNumero.format(i.cantidadDisponible)} disponibles.`
+          `"${nombre}": solo hay ${formatoNumero.format(inv?.cantidadDisponible ?? 0)} disponibles en bodega.`
         )
         return
       }
-      if (cantidad > 0) lineas.push({ insumoId: i.insumoId, cantidad })
+      aEnviar.push({ insumoId: l.insumo.id, cantidad: leida.valor })
     }
-    if (lineas.length === 0) {
-      setError("Ingresa la cantidad a sacar de al menos un insumo.")
+    if (aEnviar.length === 0) {
+      setError("Agrega al menos un insumo y la cantidad a sacar.")
       return
     }
 
     setGuardando(true)
     try {
-      const n = await registrarSalida({ proyectoId, retira, observaciones, lineas })
+      const n = await registrarSalida({ proyectoId, retira, observaciones, lineas: aEnviar })
       setAviso(`Salida registrada (${n} ${n === 1 ? "insumo" : "insumos"}).`)
-      setCantidades({})
+      setLineas([nuevaLinea()])
       setRetira("")
       setObservaciones("")
       cargar(proyectoId)
@@ -228,79 +304,79 @@ export function SalidasView() {
       ) : (
         <>
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-medium">Insumos disponibles en bodega</h2>
-              <div className="relative w-72">
-                <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-8"
-                  placeholder="Buscar insumo o código"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                />
-              </div>
+            <div>
+              <h2 className="text-lg font-medium">Nueva salida</h2>
+              <p className="text-sm text-muted-foreground">
+                Busca el insumo, elígelo y escribe la cantidad que sale; con Enter pasas a la
+                siguiente línea. Puedes sacar varios insumos en una misma salida.
+              </p>
             </div>
 
-            {disponibles.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-                {inventario.some((i) => i.cantidadDisponible > 0)
-                  ? "Ningún insumo coincide con la búsqueda."
-                  : "No hay insumos disponibles en la bodega de este proyecto. Registra una entrada primero."}
-              </div>
-            ) : (
-              <div className="max-h-96 overflow-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Insumo</TableHead>
-                      <TableHead>UM</TableHead>
-                      <TableHead className="text-right">Disponible</TableHead>
-                      <TableHead className="w-44 text-right">Sacar</TableHead>
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10 text-center">#</TableHead>
+                    <TableHead>Insumo</TableHead>
+                    <TableHead className="w-20">UM</TableHead>
+                    <TableHead className="w-40 text-right">Cantidad a sacar</TableHead>
+                    <TableHead className="w-12" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lineas.map((l, idx) => (
+                    <TableRow key={l.key}>
+                      <TableCell className="text-center text-muted-foreground">{idx + 1}</TableCell>
+                      <TableCell className="min-w-72 whitespace-normal">
+                        <BuscadorAsync
+                          inputId={`salida-buscar-${l.key}`}
+                          placeholder="Buscar insumo (o _ para ver todos)"
+                          valorSeleccionado={l.insumo}
+                          onSeleccionar={(o) => elegirInsumo(l.key, o)}
+                          buscar={buscarInsumo}
+                        />
+                      </TableCell>
+                      <TableCell>{l.insumo ? l.um ?? "—" : ""}</TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          id={`salida-cant-${l.key}`}
+                          inputMode="numeric"
+                          className="ml-auto h-9 w-28 text-right"
+                          placeholder="0"
+                          disabled={!l.insumo}
+                          value={l.cantidad}
+                          onChange={(e) =>
+                            setLineas((prev) =>
+                              prev.map((x) => (x.key === l.key ? { ...x, cantidad: e.target.value } : x))
+                            )
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault()
+                              siguienteLinea(l.key)
+                            }
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {l.insumo && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Quitar esta línea"
+                            aria-label="Quitar esta línea"
+                            onClick={() => quitarLinea(l.key)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {disponibles.map((i) => (
-                      <TableRow key={i.insumoId}>
-                        <TableCell>{i.insumoCodigo}</TableCell>
-                        <TableCell>{i.insumoDescripcion}</TableCell>
-                        <TableCell>{i.insumoUm ?? "—"}</TableCell>
-                        <TableCell className="text-right">
-                          {formatoNumero.format(i.cantidadDisponible)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Input
-                              inputMode="numeric"
-                              className="h-8 w-24 text-right"
-                              placeholder="0"
-                              value={cantidades[i.insumoId] ?? ""}
-                              onChange={(e) =>
-                                setCantidades((prev) => ({ ...prev, [i.insumoId]: e.target.value }))
-                              }
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              title="Sacar todo lo disponible"
-                              onClick={() =>
-                                setCantidades((prev) => ({
-                                  ...prev,
-                                  [i.insumoId]: String(i.cantidadDisponible),
-                                }))
-                              }
-                            >
-                              Todo
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Input

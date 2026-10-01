@@ -18,6 +18,9 @@ type BuscadorAsyncProps = {
   buscar: (termino: string) => Promise<OpcionBuscador[]>
   minCaracteres?: number
   disabled?: boolean
+  // Para enfocar el campo desde fuera (llenado rápido con teclado).
+  inputId?: string
+  autoFocus?: boolean
 }
 
 /**
@@ -35,6 +38,8 @@ export function BuscadorAsync({
   buscar,
   minCaracteres = 2,
   disabled,
+  inputId,
+  autoFocus,
 }: BuscadorAsyncProps) {
   const [termino, setTermino] = useState("")
   const [abierto, setAbierto] = useState(false)
@@ -104,6 +109,8 @@ export function BuscadorAsync({
     <div ref={contenedorRef} className="relative">
       <div className="relative">
         <Input
+          id={inputId}
+          autoFocus={autoFocus}
           placeholder={placeholder}
           value={termino}
           disabled={disabled}
