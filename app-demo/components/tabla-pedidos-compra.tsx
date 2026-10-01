@@ -78,7 +78,7 @@ export function TablaPedidosCompra({
   if (pedidos.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-        No hay requisiciones aprobadas pendientes de comprar con estos filtros.
+        No hay requisiciones aprobadas con estos filtros.
       </div>
     )
   }
@@ -89,7 +89,7 @@ export function TablaPedidosCompra({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="whitespace-nowrap">Número de Requisición</TableHead>
+              <TableHead className="whitespace-nowrap"># Requisición</TableHead>
               <TableHead className="min-w-64">Insumo</TableHead>
               <TableHead>UM</TableHead>
               <TableHead className="text-right">Cantidad</TableHead>
@@ -162,6 +162,7 @@ export function TablaPedidosCompra({
                       size="icon"
                       className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
                       title="Rechazar"
+                      disabled={pedido.cantidadPendiente <= 0}
                       aria-label={`Rechazar requisición de ${pedido.insumoDescripcion}`}
                       onClick={() => {
                         setError(null)
@@ -174,6 +175,7 @@ export function TablaPedidosCompra({
                   <TableCell className="text-center">
                     <Checkbox
                       aria-label={`Comprar requisición de ${pedido.insumoDescripcion}`}
+                      disabled={pedido.cantidadPendiente <= 0}
                       checked={seleccionados.has(pedido.id)}
                       onCheckedChange={() => onToggleSeleccion(pedido.id)}
                     />

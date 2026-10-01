@@ -77,6 +77,9 @@ export type FiltrosPedidosCompra = {
   fechaAprobacionInicio?: string | null
   fechaAprobacionFin?: string | null
   soloUrgentes?: boolean
+  // true (por defecto): solo lo que todavía falta comprar. false: también las
+  // líneas que ya quedaron completas en órdenes de compra.
+  soloPendientes?: boolean
 }
 
 export type PedidoParaComprar = {
@@ -179,7 +182,9 @@ export async function listarPedidosParaComprar(
   }
   const data = await traerTodo<any>(consulta)
 
-  return (data ?? []).map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
+  return (data ?? [])
+    .map(mapPedidoParaComprar)
+    .filter((p) => filtros.soloPendientes === false || p.cantidadPendiente > 0)
 }
 
 export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComprar[]> {
