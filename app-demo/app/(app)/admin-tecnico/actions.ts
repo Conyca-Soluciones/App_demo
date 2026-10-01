@@ -10,21 +10,15 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
 import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
-  cargarLineas,
   mapResumen,
   SELECT_REQUISICIONES,
   SELECT_REQUISICIONES_CON_INSUMO,
-  type LineaRequisicion,
   type RequisicionResumen,
 } from "@/lib/requisiciones-lineas"
 
-export type RequisicionParaAprobar = RequisicionResumen & {
-  lineas: LineaRequisicion[]
-  // Solo rechazadas: el motivo y quién rechazó.
-  motivoRechazo: string | null
-  resueltoPorNombre: string | null
-  resueltoAt: string | null
-}
+// Una fila de la lista de aprobación. Los insumos, el motivo de rechazo y quién
+// resolvió están en el detalle (botón Ver), no se cargan para la lista.
+export type RequisicionParaAprobar = RequisicionResumen
 
 // Consulta de requisiciones para aprobar. Sin filtro de estado trae las
 // pendientes, aprobadas y rechazadas (no las canceladas); cada una se muestra
@@ -57,21 +51,9 @@ export async function verRequisicionesAprobacion(
   const filas = (data ?? []) as any[]
   if (filas.length === 0) return []
 
-  const lineas = await cargarLineas(supabase, filas.map((f) => f.id))
-
-  const lista = filas.map((f) => {
-    const ls = lineas.get(f.id) ?? []
-    const resuelta = ls.find((l) => l._resueltoAt)
-    const resumen = mapResumen(f)
-    return {
-      ...resumen,
-      lineas: ls.map(({ _resolutor, _resueltoAt, _comentario, _motivoCancelacion, ...l }) => l),
-      motivoRechazo:
-        resumen.estado === "rechazada" ? ls.find((l) => l._comentario)?._comentario ?? null : null,
-      resueltoPorNombre: resuelta?._resolutor ?? null,
-      resueltoAt: resuelta?._resueltoAt ?? null,
-    }
-  })
+  // La lista no muestra los insumos de cada requisición (están en el detalle),
+  // así que no se cargan: es una consulta menos y miles de filas menos.
+  const lista: RequisicionParaAprobar[] = filas.map((f) => mapResumen(f))
 
   // Primero lo que falta por aprobar (urgentes y más antiguas arriba); después
   // el resto, de la más reciente a la más antigua.

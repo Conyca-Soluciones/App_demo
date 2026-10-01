@@ -698,38 +698,44 @@ export async function listarTodasLasOrdenesCompra(
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
 
-  // Proveedor por nombre: se resuelven sus ids una vez y se filtra con IN.
-  let idsProveedor: string[] | null = null
+  // Proveedor por nombre: se filtra con un join (!inner) dentro de la misma
+  // consulta. Antes se traían sus ids y se mandaban en un IN dentro de la URL,
+  // que falla con muchos proveedores o corta el resultado.
   const proveedor = filtros.proveedor?.trim()
-  if (proveedor) {
-    const { data: provs, error: errorProv } = await supabase
-      .from("proveedores")
-      .select("unique_id")
-      .ilike("nombre", `%${proveedor}%`)
-      .limit(500)
-    if (errorProv) throw new Error(errorProv.message)
-    idsProveedor = (provs ?? []).map((p: any) => p.unique_id as string)
-    if (idsProveedor.length === 0) return []
-  }
 
   const data = await traerTodo<any>((desde, hasta) => {
-    let query = supabase
-      .from("ordenes_compra")
-      .select(
-        `
+    // Dos formas del select (literales, para que el cliente infiera bien): con
+    // el join !inner a proveedores solo cuando se filtra por proveedor.
+    let query = (proveedor
+      ? supabase
+          .from("ordenes_compra")
+          .select(
+            `
+        id, numero, estado, estado_entrega, created_at, proyecto_id,
+        proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
+        proveedor:proveedores!ordenes_compra_proveedor_id_fkey!inner(nombre),
+        created_by,
+        creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
+      `
+          )
+          .ilike("proveedor.nombre", `%${proveedor}%`)
+      : supabase
+          .from("ordenes_compra")
+          .select(
+            `
         id, numero, estado, estado_entrega, created_at, proyecto_id,
         proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
         proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
         created_by,
         creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
       `
-      )
+          )
+    )
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
 
     if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
     if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
-    if (idsProveedor) query = query.in("proveedor_id", idsProveedor)
     if (filtros.creadaPorId) query = query.eq("created_by", filtros.creadaPorId)
     // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
     if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
