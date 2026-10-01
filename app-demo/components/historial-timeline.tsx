@@ -25,7 +25,6 @@ const EVENTOS: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" 
   rechazada: { etiqueta: "Orden rechazada", tono: "malo" },
   desaprobada: { etiqueta: "Orden desaprobada", tono: "aviso" },
   cancelada: { etiqueta: "Orden cancelada", tono: "malo" },
-  marcada_enviada: { etiqueta: "Marcada como enviada al proveedor", tono: "neutro" },
   entrega_actualizada: { etiqueta: "Estado de entrega", tono: "neutro" },
   // requisiciones
   creado: { etiqueta: "Requisición solicitada", tono: "neutro" },

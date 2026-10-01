@@ -32,7 +32,6 @@ import {
   obtenerPermisosOrdenCompra,
   aprobarOrdenCompra,
   rechazarOrdenCompra,
-  marcarOrdenEnviada,
   desaprobarOrdenCompra,
   cancelarOrdenCompra,
   type OrdenCompraDetalle,
@@ -127,19 +126,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     }
   }
 
-  async function handleMarcarEnviada() {
-    setProcesando(true)
-    setError(null)
-    try {
-      await marcarOrdenEnviada(ordenId)
-      cargar()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo marcar como enviada.")
-    } finally {
-      setProcesando(false)
-    }
-  }
-
   if (!orden || !permisos) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -158,7 +144,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
 
   const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
   const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
-  const puedeMarcarEnviada = permisos.rolCompras && orden.estado === "aprobada" && !orden.enviada
   const puedeDesaprobar = permisos.puedeDesaprobar && sePuedeDesaprobar(orden)
   // Aprobada: con cancelar_oc. Pendiente: también quien la creó ("Retirar").
   const puedeCancelar = muestraCancelar(orden, permisos)
@@ -175,7 +160,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Orden de Compra #{orden.numero}</h1>
           <Badge variant={badge.variant}>{badge.label}</Badge>
-          {orden.enviada && <Badge variant="outline">Enviada</Badge>}
 
           {orden.estado === "aprobada" && (
           <a href={`/almacen/ordenes-compra/${orden.id}/pdf`} target="_blank" rel="noreferrer">
@@ -227,11 +211,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           <strong>Motivo de la cancelación:</strong> {orden.motivoCancelacion}
           {orden.canceladaAt ? ` — ${formatoFecha(orden.canceladaAt)}` : ""}
-          {orden.enviada && (
-            <span className="mt-1 block">
-              Esta orden ya había sido enviada al proveedor: recuerda avisarle de la cancelación.
-            </span>
-          )}
+          <span className="mt-1 block">
+            Esta orden ya había sido creada: recuerda avisarle al proveedor de la cancelación.
+          </span>
         </div>
       )}
 
@@ -370,34 +352,25 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <p className="font-medium">Historial</p>
             {/* key: se recarga cuando cambia el estado de la orden */}
             <HistorialTimeline
-              key={`${orden.estado}-${orden.estadoEntrega}-${orden.enviada}`}
+              key={`${orden.estado}-${orden.estadoEntrega}`}
               tipo="orden_compra"
               id={orden.id}
             />
           </div>
 
-          {(puedeAprobarORechazar || puedeMarcarEnviada) && (
+          {puedeAprobarORechazar && (
             <div className="space-y-2 border-t pt-3">
-              {puedeAprobarORechazar && (
-                <>
-                  <Button className="w-full" disabled={procesando} onClick={handleAprobar}>
-                    Aprobar orden
-                  </Button>
-                  <Button
-                    className="w-full"
-                    variant="destructive"
-                    disabled={procesando}
-                    onClick={() => setRechazando(true)}
-                  >
-                    Rechazar orden
-                  </Button>
-                </>
-              )}
-              {puedeMarcarEnviada && (
-                <Button className="w-full" disabled={procesando} onClick={handleMarcarEnviada}>
-                  Marcar como enviada
-                </Button>
-              )}
+              <Button className="w-full" disabled={procesando} onClick={handleAprobar}>
+                Aprobar orden
+              </Button>
+              <Button
+                className="w-full"
+                variant="destructive"
+                disabled={procesando}
+                onClick={() => setRechazando(true)}
+              >
+                Rechazar orden
+              </Button>
             </div>
           )}
         </div>
@@ -461,9 +434,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               ? "La orden vuelve a “Pendiente” y se podrá aprobar o rechazar de nuevo."
               : "La orden queda cancelada y sus requisiciones vuelven a “Comprar requisiciones” para poder comprarse de nuevo."}
           </p>
-          {accionAbierta === "cancelar" && orden.enviada && (
+          {accionAbierta === "cancelar" && (
             <p className="text-sm font-medium">
-              Esta orden ya fue marcada como enviada: avísale al proveedor de la cancelación.
+              Esta orden ya fue creada: avísale al proveedor de la cancelación.
             </p>
           )}
           <Textarea
