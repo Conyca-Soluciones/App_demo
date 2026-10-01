@@ -5,42 +5,18 @@ import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { CheckCircle2, Loader2, X } from "lucide-react"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import {
   obtenerInventarioProyecto,
   type InsumoInventario,
 } from "@/app/(app)/almacen/inventario/actions"
-import {
-  anularSalida,
-  editarSalida,
-  listarSalidasDelProyecto,
-  registrarSalida,
-  type SalidaRegistrada,
-} from "@/app/(app)/almacen/salidas/actions"
+import { registrarSalida } from "@/app/(app)/almacen/salidas/actions"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
-const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
 // Cantidades: solo números enteros (ver lib/numeros.ts). "1.500" es 1500;
 // "1,5" se rechaza con el motivo para mostrárselo al usuario.
@@ -53,7 +29,6 @@ export function SalidasView() {
   // lib/proyecto-actual.ts).
   const proyectoId = useProyectoActual().proyecto?.id ?? null
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
-  const [historial, setHistorial] = useState<SalidaRegistrada[] | null>(null)
   // Tabla de salida: siempre termina con una línea vacía lista para el
   // siguiente insumo.
   const [lineas, setLineas] = useState<LineaSalida[]>([])
@@ -68,23 +43,10 @@ export function SalidasView() {
   const [aviso, setAviso] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
-  const [editando, setEditando] = useState<SalidaRegistrada | null>(null)
-  const [edCantidad, setEdCantidad] = useState("")
-  const [edRetira, setEdRetira] = useState("")
-  const [edObservaciones, setEdObservaciones] = useState("")
-  const [procesandoEdicion, setProcesandoEdicion] = useState(false)
-
-  const [anulando, setAnulando] = useState<SalidaRegistrada | null>(null)
-  const [motivo, setMotivo] = useState("")
-  const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
-
   function cargar(pid: string) {
     setError(null)
-    Promise.all([obtenerInventarioProyecto(pid), listarSalidasDelProyecto(pid)])
-      .then(([inv, hist]: [InsumoInventario[], SalidaRegistrada[]]) => {
-        setInventario(inv)
-        setHistorial(hist)
-      })
+    obtenerInventarioProyecto(pid)
+      .then((inv: InsumoInventario[]) => setInventario(inv))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el proyecto."))
   }
 
@@ -92,7 +54,6 @@ export function SalidasView() {
     setLineas([nuevaLinea()])
     setAviso(null)
     setInventario(null)
-    setHistorial(null)
     if (proyectoId) cargar(proyectoId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId])
@@ -214,74 +175,8 @@ export function SalidasView() {
     }
   }
 
-  function abrirEdicion(salida: SalidaRegistrada) {
-    setError(null)
-    setAviso(null)
-    setEditando(salida)
-    setEdCantidad(String(salida.cantidad))
-    setEdRetira(salida.retira ?? "")
-    setEdObservaciones(salida.observaciones ?? "")
-  }
-
-  // Tope al editar: lo disponible + lo que esta misma salida ya tenía sacado.
-  const maximoEdicion = useMemo(() => {
-    if (!editando || !inventario) return null
-    const inv = inventario.find((i) => i.insumoCodigo === editando.insumoCodigo)
-    return (inv?.cantidadDisponible ?? 0) + editando.cantidad
-  }, [editando, inventario])
-
-  async function confirmarEdicion() {
-    if (!editando || !proyectoId) return
-    const leida = leerCantidadEntera(edCantidad)
-    const cantidad = leida.ok ? leida.valor : NaN
-    if (!leida.ok || cantidad <= 0) {
-      setError(leida.ok ? "La cantidad debe ser mayor que cero." : leida.error)
-      setEditando(null)
-      return
-    }
-    if (maximoEdicion !== null && cantidad > maximoEdicion) {
-      setError(`No hay suficiente inventario: máximo ${formatoNumero.format(maximoEdicion)}.`)
-      setEditando(null)
-      return
-    }
-    setProcesandoEdicion(true)
-    try {
-      await editarSalida({
-        salidaId: editando.id,
-        cantidad,
-        retira: edRetira,
-        observaciones: edObservaciones,
-      })
-      setEditando(null)
-      setAviso("Salida corregida.")
-      cargar(proyectoId)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo editar la salida.")
-      setEditando(null)
-    } finally {
-      setProcesandoEdicion(false)
-    }
-  }
-
-  async function confirmarAnulacion() {
-    if (!anulando || !proyectoId) return
-    setProcesandoAnulacion(true)
-    try {
-      await anularSalida(anulando.id, motivo)
-      setAnulando(null)
-      setMotivo("")
-      setAviso("Salida anulada: el material volvió al inventario.")
-      cargar(proyectoId)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo anular la salida.")
-      setAnulando(null)
-    } finally {
-      setProcesandoAnulacion(false)
-    }
-  }
-
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto pb-72">
       {aviso && (
         <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
           <CheckCircle2 className="h-4 w-4" /> {aviso}
@@ -312,22 +207,22 @@ export function SalidasView() {
               </p>
             </div>
 
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10 text-center">#</TableHead>
-                    <TableHead>Insumo</TableHead>
-                    <TableHead className="w-20">UM</TableHead>
-                    <TableHead className="w-40 text-right">Cantidad a sacar</TableHead>
-                    <TableHead className="w-12" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="min-h-[26rem] rounded-lg border">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="border-b">
+                  <tr className="text-left text-muted-foreground">
+                    <th className="h-11 w-10 px-3 text-center font-medium">#</th>
+                    <th className="h-11 px-3 font-medium">Insumo</th>
+                    <th className="h-11 w-24 px-3 font-medium">UM</th>
+                    <th className="h-11 w-44 px-3 text-right font-medium">Cantidad a sacar</th>
+                    <th className="h-11 w-12 px-3" />
+                  </tr>
+                </thead>
+                <tbody>
                   {lineas.map((l, idx) => (
-                    <TableRow key={l.key}>
-                      <TableCell className="text-center text-muted-foreground">{idx + 1}</TableCell>
-                      <TableCell className="min-w-72 whitespace-normal">
+                    <tr key={l.key} className="border-b last:border-b-0 align-top">
+                      <td className="px-3 py-3 text-center text-muted-foreground">{idx + 1}</td>
+                      <td className="min-w-72 px-3 py-2">
                         <BuscadorAsync
                           inputId={`salida-buscar-${l.key}`}
                           placeholder="Buscar insumo (o _ para ver todos)"
@@ -335,9 +230,9 @@ export function SalidasView() {
                           onSeleccionar={(o) => elegirInsumo(l.key, o)}
                           buscar={buscarInsumo}
                         />
-                      </TableCell>
-                      <TableCell>{l.insumo ? l.um ?? "—" : ""}</TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="px-3 py-3">{l.insumo ? l.um ?? "—" : ""}</td>
+                      <td className="px-3 py-2 text-right">
                         <Input
                           id={`salida-cant-${l.key}`}
                           inputMode="numeric"
@@ -357,8 +252,8 @@ export function SalidasView() {
                             }
                           }}
                         />
-                      </TableCell>
-                      <TableCell className="text-center">
+                      </td>
+                      <td className="px-3 py-2 text-center">
                         {l.insumo && (
                           <Button
                             type="button"
@@ -371,11 +266,11 @@ export function SalidasView() {
                             <X className="h-4 w-4" />
                           </Button>
                         )}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -398,158 +293,8 @@ export function SalidasView() {
               </Button>
             </div>
           </div>
-
-          <div className="space-y-2">
-            <h2 className="text-lg font-medium">Salidas registradas</h2>
-            {historial && historial.length > 0 ? (
-              <div className="overflow-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Insumo</TableHead>
-                      <TableHead className="text-right">Cantidad</TableHead>
-                      <TableHead>Retira</TableHead>
-                      <TableHead>Registró</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {historial.map((s) => (
-                      <TableRow key={s.id} className={s.anuladaAt ? "text-muted-foreground" : ""}>
-                        <TableCell>{formatoFecha(s.fecha)}</TableCell>
-                        <TableCell>{s.insumoDescripcion}</TableCell>
-                        <TableCell className="text-right">
-                          {formatoNumero.format(s.cantidad)} {s.insumoUm ?? ""}
-                          {s.cantidadOriginal !== null && (
-                            <span className="block text-xs text-muted-foreground">
-                              (antes {formatoNumero.format(s.cantidadOriginal)})
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>{s.retira ?? "—"}</TableCell>
-                        <TableCell>{s.registradoPorNombre ?? "—"}</TableCell>
-                        <TableCell>
-                          {s.anuladaAt ? (
-                            <span title={s.motivoAnulacion ?? ""}>
-                              <Badge variant="destructive">Anulada</Badge>
-                            </span>
-                          ) : s.editadaAt ? (
-                            <Badge variant="outline">Editada</Badge>
-                          ) : (
-                            <Badge variant="outline">Registrada</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {!s.anuladaAt && (
-                            <>
-                              <Button variant="ghost" size="sm" onClick={() => abrirEdicion(s)}>
-                                Editar
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setAnulando(s)}>
-                                Anular
-                              </Button>
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Este proyecto no tiene salidas registradas.</p>
-            )}
-          </div>
         </>
       )}
-
-      <Dialog
-        open={editando !== null}
-        onOpenChange={(abierto) => {
-          if (!abierto) setEditando(null)
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar salida</DialogTitle>
-          </DialogHeader>
-          {editando && (
-            <p className="text-sm text-muted-foreground">
-              {editando.insumoDescripcion}
-              {maximoEdicion !== null &&
-                ` — máximo permitido: ${formatoNumero.format(maximoEdicion)} ${editando.insumoUm ?? ""}`}
-              . Para cambiar de insumo, anula la salida y regístrala de nuevo.
-            </p>
-          )}
-          <Input
-            inputMode="numeric"
-            placeholder="Cantidad"
-            value={edCantidad}
-            onChange={(e) => setEdCantidad(e.target.value)}
-          />
-          <Input
-            placeholder="¿Quién retira el material?"
-            value={edRetira}
-            onChange={(e) => setEdRetira(e.target.value)}
-          />
-          <Textarea
-            placeholder="Observaciones"
-            value={edObservaciones}
-            onChange={(e) => setEdObservaciones(e.target.value)}
-            rows={2}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditando(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmarEdicion} disabled={procesandoEdicion}>
-              {procesandoEdicion ? "Guardando..." : "Guardar cambios"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={anulando !== null}
-        onOpenChange={(abierto) => {
-          if (!abierto) {
-            setAnulando(null)
-            setMotivo("")
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Anular salida</DialogTitle>
-          </DialogHeader>
-          {anulando && (
-            <p className="text-sm text-muted-foreground">
-              Se devolverán {formatoNumero.format(anulando.cantidad)} {anulando.insumoUm ?? ""} de{" "}
-              {anulando.insumoDescripcion} al inventario. La salida queda registrada como anulada.
-            </p>
-          )}
-          <Textarea
-            placeholder="Motivo de la anulación (obligatorio)"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            rows={3}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAnulando(null)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={!motivo.trim() || procesandoAnulacion}
-              onClick={confirmarAnulacion}
-            >
-              {procesandoAnulacion ? "Anulando..." : "Anular salida"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

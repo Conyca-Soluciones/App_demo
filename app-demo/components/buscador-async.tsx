@@ -129,7 +129,7 @@ export function BuscadorAsync({
       </div>
 
       {abierto && !disabled && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+        <div className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
           {!puedeBuscar(termino, minCaracteres) && (
             <div className="px-2 py-3 text-sm text-muted-foreground">
               Escribe al menos {minCaracteres} caracteres, o {COMODIN_LISTAR} para ver las opciones disponibles.
