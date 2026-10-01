@@ -1771,14 +1771,26 @@ export default function Presupuestos() {
                   )}
                   <Button
                     variant="outline"
-                    onClick={() => {
+                    onClick={async () => {
+                      // Si el presupuesto ya está en la base, este botón lo BORRA
+                      // completo (todas las versiones): antes lo hacía sin preguntar
+                      // y limpiaba la pantalla aunque el borrado fallara.
+                      if (presupuestoDbId) {
+                        const seguro = window.confirm(
+                          "Esto BORRA de la base el presupuesto completo de este proyecto, con todas sus versiones e ítems. No se puede deshacer.\n\n¿Seguro que quieres borrarlo?"
+                        )
+                        if (!seguro) return
+                        try {
+                          await EliminarPresupuesto(presupuestoDbId)
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "No se pudo borrar el presupuesto.")
+                          return
+                        }
+                      }
                       setPresupuesto([])
                       setPresupuestoDbId(null)
                       setViendoVersionActual(true)
                       setEstadoPresupuesto("Borrador")
-                      if (presupuestoDbId) {
-                        EliminarPresupuesto(presupuestoDbId)
-                      }
                     }}
                     disabled={guardando}
                   >

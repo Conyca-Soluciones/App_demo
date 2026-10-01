@@ -1,5 +1,7 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
@@ -23,7 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
-import { ESTADO_VISIBLE_BADGE, sePuedeCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
+import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import {
   obtenerOrdenCompraDetalle,
@@ -158,7 +160,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
   const puedeMarcarEnviada = permisos.rolCompras && orden.estado === "aprobada" && !orden.enviada
   const puedeDesaprobar = permisos.puedeDesaprobar && sePuedeDesaprobar(orden)
-  const puedeCancelar = permisos.puedeCancelar && sePuedeCancelar(orden)
+  // Aprobada: con cancelar_oc. Pendiente: también quien la creó ("Retirar").
+  const puedeCancelar = muestraCancelar(orden, permisos)
+  const esRetiro = orden.estado === "pendiente_aprobacion"
   // Misma fórmula que usan orden-compra-pdf.tsx y generar-oc-view.tsx, para
   // que el total mostrado acá, en el PDF y en la pantalla de creación sean
   // siempre el mismo número.
@@ -201,7 +205,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 setMotivoAccion("")
               }}
             >
-              Cancelar orden
+              {esRetiro ? "Retirar orden" : "Cancelar orden"}
             </Button>
           )}
         </div>
@@ -322,7 +326,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Fecha de entrega</p>
-            <p>{orden.fechaEntrega ? formatoFecha(orden.fechaEntrega) : "—"}</p>
+            <p>{formatearFechaSinHora(orden.fechaEntrega)}</p>
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Contacto</p>

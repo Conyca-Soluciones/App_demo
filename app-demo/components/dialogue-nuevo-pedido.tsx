@@ -1,5 +1,7 @@
 "use client"
 
+import { hoyColombia } from "@/lib/fechas"
+
 // components/dialogue-nuevo-pedido.tsx
 //
 // Todo el flujo de crear un pedido en un solo componente: buscar insumos y
@@ -8,6 +10,7 @@
 // cantidadDisponible de cada uno), y los campos comunes del pedido (fecha,
 // urgente, observaciones).
 
+import { puedeBuscar } from "@/lib/busqueda"
 import { useEffect, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -30,11 +33,15 @@ interface SolicitudInsumoDialogProps {
 }
 
 // Una línea (insumo) está lista cuando tiene al menos un ítem marcado, y
-// todos los marcados traen cantidad > 0 sin pasar de su tope.
+// todos los marcados traen una cantidad ENTERA > 0 sin pasar de su tope.
+// Solo enteros: Entradas y Salidas solo aceptan enteros, así que una
+// requisición de 2,5 dejaría 0,5 que nunca se podría recibir ni sacar.
+const esEntero = (texto: string) => texto.trim() !== "" && Number.isInteger(Number(texto))
 function estadoLinea(linea: LineaPedido) {
   const marcados = linea.items.filter((it) => it.marcado)
   const hayExceso = marcados.some((it) => Number(it.cantidad) > it.cantidadDisponible)
-  const completa = marcados.length > 0 && marcados.every((it) => Number(it.cantidad) > 0)
+  const completa =
+    marcados.length > 0 && marcados.every((it) => esEntero(it.cantidad) && Number(it.cantidad) > 0)
   return { marcados, hayExceso, lista: completa && !hayExceso }
 }
 
@@ -62,7 +69,9 @@ export function SolicitudInsumoDialog({
   // Reset al abrir
   useEffect(() => {
     if (!open) return
-    const fecha = new Date().toISOString().split("T")[0]
+    // Hoy en Colombia (toISOString daba el día en UTC: después de las 7 p. m.
+    // ya era "mañana" y no dejaba escoger hoy como fecha requerida).
+    const fecha = hoyColombia()
     setFechaPedido(fecha)
     setFechaRequerida("")
     setBusqueda("")
@@ -76,7 +85,7 @@ export function SolicitudInsumoDialog({
   // Buscar insumos mientras escribe (código o descripción del insumo,
   // o código del ítem del presupuesto -- ver buscar_insumos_presupuesto)
   useEffect(() => {
-    if (busqueda.trim().length < 2) {
+    if (!puedeBuscar(busqueda)) {
       setSugerencias([])
       return
     }
@@ -241,7 +250,7 @@ export function SolicitudInsumoDialog({
                   {buscando && (
                     <div className="px-4 py-3 text-sm text-muted-foreground">Buscando…</div>
                   )}
-                  {!buscando && sugerenciasNuevas.length === 0 && busqueda.trim().length >= 2 && (
+                  {!buscando && sugerenciasNuevas.length === 0 && puedeBuscar(busqueda) && (
                     <div className="px-4 py-3 text-sm text-muted-foreground">
                       {sugerencias.length > 0
                         ? "Todos los insumos que coinciden ya están en la requisición."
@@ -346,7 +355,8 @@ export function SolicitudInsumoDialog({
                                 type="number"
                                 min="0"
                                 max={it.cantidadDisponible}
-                                step="any"
+                                step="1"
+                                inputMode="numeric"
                                 value={it.cantidad}
                                 onChange={(e) =>
                                   actualizarItem(insumo.insumoId, it.presupuestoItemId, {
@@ -363,6 +373,9 @@ export function SolicitudInsumoDialog({
                                 <p className="text-right text-[10px] text-destructive">
                                   Supera lo disponible
                                 </p>
+                              )}
+                              {!excedido && it.cantidad.trim() !== "" && !esEntero(it.cantidad) && (
+                                <p className="text-right text-[10px] text-destructive">Solo números enteros</p>
                               )}
                             </div>
                           </div>

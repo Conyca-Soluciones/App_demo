@@ -1,5 +1,6 @@
 "use client"
 
+import { puedeBuscar, COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Dialog,
@@ -662,7 +663,7 @@ function BuscadorInsumoCategoria({
 
   useEffect(() => {
     if (seleccionado) return
-    if (busqueda.trim().length < 2) {
+    if (!puedeBuscar(busqueda)) {
       setSugerencias([])
       return
     }
@@ -834,7 +835,7 @@ function BuscadorInsumoCategoria({
         </div>
       )}
 
-      {!seleccionado && busqueda.trim().length >= 2 && sugerencias.length === 0 && !solicitudEnviada && (
+      {!seleccionado && puedeBuscar(busqueda) && sugerencias.length === 0 && !solicitudEnviada && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             No hay ningún insumo de {categoriaNombre.toLowerCase()} con ese nombre.
@@ -998,6 +999,7 @@ function BuscadorManoObraCategoria({
   const sugerencias = useMemo(() => {
     if (!catalogo || seleccionado) return []
     const q = normalizarTexto(busqueda)
+    if (busqueda.trim() === COMODIN_LISTAR) return catalogo.slice(0, 50)
     if (q.length < 2) return []
     return catalogo.filter((c) => normalizarTexto(c.categoria).includes(q)).slice(0, 20)
   }, [catalogo, busqueda, seleccionado])
@@ -1298,7 +1300,7 @@ function BuscadorEquipoCategoria({
         </div>
       )}
 
-      {!seleccionado && busqueda.trim().length >= 2 && sugerencias.length === 0 && !solicitudEnviada && (
+      {!seleccionado && puedeBuscar(busqueda) && sugerencias.length === 0 && !solicitudEnviada && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             No hay ningún equipo parecido a &quot;{busqueda.trim()}&quot;.

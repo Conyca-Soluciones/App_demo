@@ -1,6 +1,9 @@
 "use server"
 
+import { esCantidadEnteraPositiva } from "@/lib/numeros"
+
 import { createClient } from "@/lib/supabase/server"
+import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
@@ -30,7 +33,7 @@ export async function listarProyectosCompras(): Promise<ProyectoSugerido[]> {
 export type InsumoSugerido = { id: string; codigo: number; descripcion: string; u_m: string | null }
 
 export async function buscarInsumosCompras(termino: string): Promise<InsumoSugerido[]> {
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -38,7 +41,7 @@ export async function buscarInsumosCompras(termino: string): Promise<InsumoSuger
     .select("id, codigo, descripcion, u_m")
     .ilike("descripcion", `%${termino.trim()}%`)
     .order("descripcion")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (error) throw new Error(error.message)
   return data ?? []
@@ -47,7 +50,7 @@ export async function buscarInsumosCompras(termino: string): Promise<InsumoSuger
 export type UsuarioSugerido = { id: string; nombre: string }
 
 export async function buscarUsuarios(termino: string): Promise<UsuarioSugerido[]> {
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -55,7 +58,7 @@ export async function buscarUsuarios(termino: string): Promise<UsuarioSugerido[]
     .select("id, nombre")
     .ilike("nombre", `%${termino.trim()}%`)
     .order("nombre")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (error) throw new Error(error.message)
   return data ?? []
@@ -103,11 +106,17 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   )
 `
 
+// Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
+const ESTADOS_OC_SIN_COMPROMISO = new Set(["cancelada", "rechazada"])
+
 function mapPedidoParaComprar(f: any): PedidoParaComprar {
-  // Las líneas de órdenes CANCELADAS ya no cuentan como comprado: esos pedidos
-  // vuelven a la cola (igual que valida crear_orden_compra en la base).
+  // Las líneas de órdenes CANCELADAS o RECHAZADAS no cuentan como comprado:
+  // esa cantidad vuelve a la cola (mismo criterio que crear_orden_compra,
+  // desaprobar_pedido y cancelar_pedido en la base, migración
+  // 20261006100000_liberar_ordenes_rechazadas.sql). Antes las rechazadas
+  // seguían contando y la cantidad quedaba bloqueada para siempre.
   const yaComprado = (f.compras ?? [])
-    .filter((c: any) => c.orden?.estado !== "cancelada")
+    .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado))
     .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
   return {
     id: f.id,
@@ -184,7 +193,7 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
 
   const userId = await obtenerUsuarioId()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("pedidos_insumos")
     .update({
       rechazado_compras_at: new Date().toISOString(),
@@ -192,8 +201,17 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
       observaciones_compras: motivo,
     })
     .eq("id", pedidoId)
+    // Solo una vez y solo sobre requisiciones aprobadas: con la pantalla
+    // desactualizada se podía volver a rechazar (sobrescribiendo el motivo)
+    // o rechazar una que ya habían cancelado/desaprobado.
+    .eq("estado", "aprobado")
+    .is("rechazado_compras_at", null)
+    .select("id")
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error("Esta requisición ya no está disponible para Compras (ya fue rechazada o cambió de estado). Actualiza la página.")
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +227,7 @@ export type ProveedorSugerido = {
 
 export async function buscarProveedores(termino: string): Promise<ProveedorSugerido[]> {
   await requerirScope("rol_compras")
-  if (!termino || termino.trim().length < 2) return []
+  if (!puedeBuscar(termino)) return []
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -218,7 +236,7 @@ export async function buscarProveedores(termino: string): Promise<ProveedorSuger
     .eq("estado", "ACTIVO")
     .ilike("nombre", `%${termino.trim()}%`)
     .order("nombre")
-    .limit(15)
+    .limit(limiteBusqueda(termino))
 
   if (error) throw new Error(error.message)
   return (data ?? []).map((p) => ({
@@ -244,6 +262,9 @@ export type ProveedorDetalle = {
   correo: string | null
   ciudad: string | null
   direccion: string | null
+  tipoDocumento: string | null
+  numeroDocumento: number | null
+  digitoVerificacion: number | null
   informacionBancaria: InformacionBancariaProveedor | null
 }
 
@@ -256,6 +277,7 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
     .select(
       `
       unique_id, nombre, nombre_contacto, telefono, correo, ciudad, direccion,
+      tipo_documento, numero_documento, digito_verificacion,
       informacion_bancaria!informacion_bancaria_id_fkey(titular, entidad_bancaria, tipo_cuenta, no_cuenta)
     `
     )
@@ -275,6 +297,9 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
     correo: d.correo,
     ciudad: d.ciudad,
     direccion: d.direccion,
+    tipoDocumento: d.tipo_documento,
+    numeroDocumento: d.numero_documento,
+    digitoVerificacion: d.digito_verificacion,
     informacionBancaria: banco
       ? {
           titular: banco.titular,
@@ -313,6 +338,10 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
 
   if (datos.lineas.length === 0) {
     throw new Error("Selecciona al menos un insumo para la orden de compra.")
+  }
+  // Cantidades solo enteras (precio y porcentajes pueden tener decimales).
+  if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidadComprar))) {
+    throw new Error("Las cantidades de la orden deben ser números enteros mayores que cero.")
   }
 
   const supabase = await createClient()
@@ -354,12 +383,14 @@ export type PermisosOrdenCompra = {
   rolCompras: boolean
   puedeDesaprobar: boolean
   puedeCancelar: boolean
+  // Para saber si la orden es propia (retirar una pendiente).
+  usuarioId: string | null
 }
 
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
   const permisos = await obtenerPermisosRol()
   if (!permisos) {
-    return { esAdmin: false, rolCompras: false, puedeDesaprobar: false, puedeCancelar: false }
+    return { esAdmin: false, rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, usuarioId: null }
   }
 
   const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
@@ -368,6 +399,7 @@ export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra>
     rolCompras: puede("comprar"),
     puedeDesaprobar: puede("desaprobar_oc"),
     puedeCancelar: puede("cancelar_oc"),
+    usuarioId: await obtenerUsuarioId(),
   }
 }
 
@@ -378,6 +410,7 @@ export type OrdenCompraResumen = {
   proyectoNombre: string | null
   proveedorNombre: string
   creadaPorNombre: string | null
+  creadaPorId: string | null
   createdAt: string
   totalLineas: number
 }
@@ -393,6 +426,7 @@ export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResume
       id, numero, created_at,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+      created_by,
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(id)
     `
@@ -409,6 +443,7 @@ export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResume
     proyectoNombre: o.proyecto?.nombre ?? null,
     proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",
     creadaPorNombre: o.creado_por?.nombre ?? null,
+    creadaPorId: o.created_by ?? null,
     createdAt: o.created_at,
     totalLineas: (o.lineas ?? []).length,
   }))
@@ -456,6 +491,7 @@ export type OrdenCompraDetalle = {
   observaciones: string | null
   enviada: boolean
   creadaPorNombre: string | null
+  creadaPorId: string | null
   createdAt: string
   aprobadaPorNombre: string | null
   aprobadaAt: string | null
@@ -481,6 +517,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
       ),
+      created_by,
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
       aprobada_por_perfil:perfiles!ordenes_compra_aprobada_por_fkey(nombre),
       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
@@ -530,6 +567,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     observaciones: d.observaciones,
     enviada: d.enviada,
     creadaPorNombre: d.creado_por?.nombre ?? null,
+    creadaPorId: d.created_by ?? null,
     createdAt: d.created_at,
     aprobadaPorNombre: d.aprobada_por_perfil?.nombre ?? null,
     aprobadaAt: d.aprobada_at,
@@ -583,8 +621,10 @@ export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Pr
 
 // Cancela una orden aprobada. No se puede si tiene material recibido (entrega
 // parcial o entregada). Sus pedidos vuelven a la cola de "Comprar pedidos".
+// Aprobada: exige cancelar_oc. Pendiente: también quien la creó (retirarla).
+// La base valida cuál aplica (cancelar_orden_compra).
 export async function cancelarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
-  await requerirAccion("cancelar_oc")
+  if (!(await obtenerUsuarioId())) throw new Error("No autenticado.")
   if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
   const supabase = await createClient()
   const { error } = await supabase.rpc("cancelar_orden_compra", {
@@ -608,10 +648,12 @@ export type OrdenCompraListado = {
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
   enviada: boolean
+  proyectoId: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
   proveedorNombre: string
   creadaPorNombre: string | null
+  creadaPorId: string | null
   createdAt: string
   tieneSobrecostoPrecio: boolean
 }
@@ -628,9 +670,10 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, estado_entrega, enviada, created_at,
+      id, numero, estado, estado_entrega, enviada, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+      created_by,
       creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
     `
     )
@@ -645,10 +688,12 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     estadoEntrega: o.estado_entrega,
     estadoVisible: calcularEstadoVisible(o.estado, o.estado_entrega),
     enviada: o.enviada,
+    proyectoId: o.proyecto_id ?? null,
     proyectoCodigo: o.proyecto?.codigo ?? null,
     proyectoNombre: o.proyecto?.nombre ?? null,
     proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",
     creadaPorNombre: o.creado_por?.nombre ?? null,
+    creadaPorId: o.created_by ?? null,
     createdAt: o.created_at,
   }))
 
@@ -682,7 +727,9 @@ async function conSobrecostoPrecio<T extends { id: string }>(
 
 export type NotificacionTipo =
   | "pedido_rechazado"
+  | "pedido_aprobado"
   | "orden_compra_rechazada"
+  | "orden_compra_aprobada"
   | "insumo_sobre_presupuesto"
   | "orden_compra_precio_sobre_efectivo"
 export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra"

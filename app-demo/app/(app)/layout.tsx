@@ -1,10 +1,23 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ProyectoProvider } from "@/components/proyecto-provider"
-import { obtenerPermisosRol } from "@/lib/permisos"
+import { obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
+import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { COOKIE_PROYECTO } from "@/lib/proyecto-actual"
 import { listarMisProyectos } from "./inicio/actions"
+
+async function obtenerNombreUsuario(): Promise<string | null> {
+  try {
+    const id = await obtenerUsuarioId()
+    if (!id) return null
+    const supabase = await createClient()
+    const { data } = await supabase.from("perfiles").select("nombre").eq("id", id).maybeSingle()
+    return data?.nombre?.trim() || null
+  } catch {
+    return null
+  }
+}
 
 export default async function Layout({
   children,
@@ -20,13 +33,15 @@ export default async function Layout({
     listarMisProyectos().catch(() => []),
     cookies(),
   ])
+  // Nombre real del usuario para el pie del menú lateral.
+  const nombreUsuario = await obtenerNombreUsuario()
   const idCookie = jar.get(COOKIE_PROYECTO)?.value
   const proyectoActual = proyectos.find((p) => p.id === idCookie) ?? null
 
   return (
     <ProyectoProvider proyecto={proyectoActual} proyectos={proyectos}>
       <SidebarProvider>
-        <AppSidebar permisos={permisos} />
+        <AppSidebar permisos={permisos} nombreUsuario={nombreUsuario} />
 
         <SidebarInset className="min-w-0">{children}</SidebarInset>
       </SidebarProvider>

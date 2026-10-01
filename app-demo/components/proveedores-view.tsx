@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Loader2, Plus, Search, X } from "lucide-react"
 
@@ -449,7 +450,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
       if (filtroEstado !== "todos" && p.estado !== filtroEstado) return false
       if (filtroTipo === "sin" && p.tipoProveedor) return false
       if (filtroTipo !== "todos" && filtroTipo !== "sin" && p.tipoProveedor !== filtroTipo) return false
-      if (!q) return true
+      if (!q || q === COMODIN_LISTAR) return true
       return normalizar(
         [p.idProv, p.nombre, p.numeroDocumento, p.nombreContacto, p.telefono, p.correo, p.ciudad, p.direccion]
           .filter(Boolean)

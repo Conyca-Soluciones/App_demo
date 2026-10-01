@@ -1,5 +1,6 @@
 "use client"
 
+import { puedeBuscar, COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Dialog,
@@ -86,7 +87,7 @@ export function AgregarItemManualDialog({
 
   useEffect(() => {
     if (seleccionado) return
-    if (busqueda.trim().length < 2) {
+    if (!puedeBuscar(busqueda)) {
       setSugerencias([])
       return
     }

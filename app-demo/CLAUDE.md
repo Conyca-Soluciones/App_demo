@@ -780,12 +780,19 @@ filtran/ordenan en el cliente) con edición en línea por celda
 - Si un valor no valida y el usuario hace clic afuera, se descarta (no se
   retiene el foco -- eso "atrapaba" la celda). El foco tras error se da en
   un efecto porque el input sigue `disabled` justo después del await.
-- Permisos: ver = pestaña `almacen.proveedores`; editar = acción `comprar`
-  o Administrador. Política RLS `proveedores_update`
-  (`20261004000000_proveedores_editar.sql`, ya aplicada) con la misma regla
-  que `proveedores_select`. RLS no da error al bloquear un UPDATE (0 filas),
-  por eso `actualizarProveedor` revisa que vuelva la fila.
-- Sin alta ni borrado de proveedores por ahora (solo edición).
+- Permisos: ver = pestaña `almacen.proveedores`; crear y editar = acción
+  `editar_proveedores` (o Administrador), en la matriz de Roles; por defecto
+  la tiene Líder Compras. Políticas RLS `proveedores_update` /
+  `proveedores_insert` con la misma regla
+  (`20261006000000_accion_editar_proveedores.sql`). RLS no da error al
+  bloquear un UPDATE (0 filas), por eso las actions revisan que vuelva la fila.
+- También se editan desde la tarjeta del proveedor en **Generar orden de
+  compra** (`components/tarjeta-proveedor-oc.tsx`, action
+  `actualizarDatosProveedor`: varios campos en un UPDATE, valida todo antes
+  de escribir). Guarda en `proveedores` y actualiza la tarjeta, de donde la
+  orden en curso toma teléfono/ciudad/correo; el PDF lee NIT, dirección y
+  contacto de `proveedores`. Datos bancarios: solo lectura.
+- Sin borrado de proveedores.
 - Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
   (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
 
@@ -823,6 +830,41 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
   `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
+
+## Reglas transversales (auditoría de casos borde, 2026-10-01)
+
+- **Fechas sin hora** (`date`: fecha_requerida, fecha_entrega...): mostrarlas
+  con `formatearFechaSinHora` (`lib/fechas.ts`), nunca con
+  `new Date("AAAA-MM-DD").toLocaleDateString()` (en Colombia, UTC-5, salía
+  un día antes). "Hoy" = `hoyColombia()`, no `toISOString()`. En SQL la base
+  corre en UTC: usar `(now() at time zone 'America/Bogota')::date`, no
+  `current_date` (`20261006300000_fechas_colombia.sql`). Lo que se renderiza
+  en el servidor (PDF de OC) necesita `timeZone: ZONA_HORARIA`.
+- **Cantidades de requisiciones, órdenes de compra, entradas y salidas: solo
+  enteros** (decisión del usuario). Todo el flujo igual, para que nunca
+  quede un saldo decimal imposible de recibir o sacar. Campos de texto:
+  `leerCantidadEntera` (`lib/numeros.ts`: "1.500" = 1500, "1,5" se rechaza);
+  campos numéricos: `step="1"` + `Number.isInteger`. Las server actions lo
+  revalidan con `esCantidadEnteraPositiva`. Precios y porcentajes sí admiten
+  decimales. Las cantidades del APU (por unidad) también.
+- **Generar OC avisa precios sospechosos**: 3 veces o más por encima o por
+  debajo del `vr_unitario` del maestro (no del precio efectivo, que ya puede
+  estar contaminado). Un precio malo en una orden aprobada entra al promedio
+  de `precios_efectivos_insumos` (caso real: Amarre teja valorado a $8.000
+  con referencia $325, por la OC #26).
+- **Retirar una OC pendiente**: `cancelar_orden_compra` acepta órdenes
+  pendientes de quien las creó o de quien tenga `cancelar_oc`
+  (`20261006400000_retirar_oc_pendiente.sql`); en pantalla el botón dice
+  "Retirar". Las aprobadas siguen exigiendo `cancelar_oc` y sin entregas.
+- **Cambios de estado**: toda acción que resuelve algo (aprobar/rechazar
+  requisiciones, rechazo de Compras, rechazar solicitudes de insumo/MO/
+  equipo) filtra por el estado esperado en el mismo UPDATE
+  (`.eq("estado", "pendiente")`) y revisa que vuelva la fila. Si no, una
+  pantalla abierta un rato podía aprobar algo ya cancelado o rechazar algo ya
+  aprobado y en uso.
+- **"Descartar y cargar otro"** en Presupuestos borra el presupuesto completo:
+  pide confirmación, espera el resultado, y `EliminarPresupuesto` se niega si
+  hay requisiciones.
 
 ## Pendientes generales
 
@@ -1101,10 +1143,37 @@ permiso y las reglas, la pantalla solo decide si muestra el botón
   ya se había enviado al proveedor. Motivo obligatorio (`motivo_cancelacion`).
 - **`enviada`** es una casilla manual: Compras pulsa "Marcar como enviada"
   (`marcar_orden_enviada`). El sistema no envía nada ni guarda quién/cuándo.
-- **Liberar pedidos al cancelar**: las líneas de órdenes canceladas dejan de
-  contar como "ya comprado" en `crear_orden_compra` (SQL) y en
-  `mapPedidoParaComprar` (cola de Comprar pedidos). Las de órdenes
-  *rechazadas* siguen contando (revisión manual, decisión previa).
+- **Liberar requisiciones al cancelar o rechazar**: las líneas de órdenes
+  **canceladas o rechazadas** no cuentan como "ya comprado" en
+  `crear_orden_compra`, `desaprobar_pedido`, `cancelar_pedido` (SQL) ni en
+  `mapPedidoParaComprar` (cola de Compras y Generar OC). Antes las rechazadas
+  seguían contando y la cantidad quedaba bloqueada para siempre
+  (`20261006100000_liberar_ordenes_rechazadas.sql`). Es seguro porque una
+  orden rechazada no puede volver a activarse. Si se agrega un estado de
+  orden nuevo, revisar estos 4 lugares.
+- **Cantidad comprometida de una requisición** (tope del presupuesto): una
+  sola función, `_comprometido_insumo_item`, la usan `disponible_insumo_item`
+  y `buscar_insumos_presupuesto`
+  (`20261006200000_cantidades_consistentes.sql`). Reglas:
+  pendiente + aprobada; de una **rechazada por Compras** solo cuenta lo que
+  ya está en órdenes vigentes; y se suman las requisiciones del **mismo ítem
+  en cualquier versión** (mismo presupuesto + mismo código), porque
+  `crearNuevaVersion` copia los ítems con ids nuevos. Si el código de un ítem
+  cambia entre versiones, sus requisiciones viejas dejan de contar.
+- `verificar_salida_no_supera_disponible` (trigger de salidas) ignora las
+  salidas anuladas; antes las contaba y lo anulado no se podía volver a sacar.
+- **Notificaciones de aprobación/rechazo** (campanita): las generan
+  `trg_notificar_resolucion_pedido` y `trg_notificar_resolucion_oc`
+  (`20261007000000`), con el motivo. Los triggers viejos que hacían lo mismo
+  se quitaron (`20261007100000_quitar_notificaciones_duplicadas.sql`): cada
+  rechazo llegaba dos veces. No agregar otro trigger de notificación sobre
+  esas tablas sin revisar estos.
+- `cancelar_pedido` en la base no coincidía con su migración (una versión
+  aplicada a mano solo dejaba cancelar al solicitante con la requisición
+  pendiente; el botón de los aprobadores fallaba siempre). La misma migración
+  la restauró. Las migraciones de lcpr se aplicaron desde el editor SQL y no
+  aparecen en el registro de Supabase: verificar contra la base, no solo
+  contra los archivos.
 
 
 ## Historial y pedidos: desaprobar / cancelar / modificar (implementado)
@@ -1134,9 +1203,10 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   - `modificar_pedido`: solo quien lo hizo, solo pendiente; cambia cantidad,
     fecha requerida, urgente y observaciones (no insumo ni ítem); el tope es
     lo disponible + la cantidad actual del mismo pedido.
-  - `cancelar_pedido(id, motivo)`: pendiente -> quien lo hizo o acción
-    `cancelar_pedidos`; aprobado -> solo `cancelar_pedidos` y solo si ninguna
-    orden de compra no cancelada lo usa.
+  - `cancelar_pedido(id, motivo)`: solo quien lo hizo y solo pendiente
+    (`20261006150000_cancelar_pedido_solo_propio.sql`, decisión de lcpr). La
+    acción `cancelar_pedidos` ya no da nada en la base; el botón de
+    aprobadores se quitó.
   - `desaprobar_pedido(id, motivo)`: acción `desaprobar_pedidos`; aprobado ->
     pendiente, mismas condiciones sobre órdenes de compra. Limpia
     `resuelto_*`; el rastro queda en el historial.

@@ -31,7 +31,7 @@ import {
 import {
   ESTADO_VISIBLE_BADGE,
   FILTROS_ESTADO_VISIBLE,
-  sePuedeCancelar,
+  muestraCancelar,
   type EstadoOrdenVisible,
 } from "@/lib/ordenes-compra-estado"
 
@@ -83,6 +83,10 @@ export function TodasLasOrdenesView() {
     return ordenes.filter((o) => o.estadoVisible === filtroEstado)
   }, [ordenes, filtroEstado])
 
+  // La columna de acciones aparece si el usuario puede cancelar órdenes, o si
+  // tiene alguna orden propia pendiente que puede retirar.
+  const hayAcciones = !!permisos && (permisos.puedeCancelar || ordenesFiltradas.some((o) => muestraCancelar(o, permisos)))
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
@@ -126,7 +130,7 @@ export function TodasLasOrdenesView() {
                 <TableHead>Creada por</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="text-center">PDF</TableHead>
-                {permisos?.puedeCancelar && <TableHead className="text-center">Acciones</TableHead>}
+                {hayAcciones && <TableHead className="text-center">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,9 +167,9 @@ export function TodasLasOrdenesView() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    {permisos?.puedeCancelar && (
+                    {hayAcciones && (
                       <TableCell className="text-center">
-                        {sePuedeCancelar(orden) ? (
+                        {permisos && muestraCancelar(orden, permisos) ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -178,7 +182,7 @@ export function TodasLasOrdenesView() {
                             aria-label={`Cancelar orden ${orden.numero}`}
                           >
                             <Ban className="mr-1.5 h-4 w-4" />
-                            Cancelar
+                            {orden.estado === "pendiente_aprobacion" ? "Retirar" : "Cancelar"}
                           </Button>
                         ) : (
                           <span className="text-muted-foreground">—</span>

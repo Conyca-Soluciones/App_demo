@@ -45,6 +45,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "presupuestos.elaboracion", titulo: "Elaboración de presupuestos", seccion: "Presupuestos", url: "/presupuestos", rutas: ["/presupuestos", "/presupuestos/apu", "/presupuestos/graficas"] },
 
   { clave: "tecnico.pedidos", titulo: "Elaboración de requisiciones", seccion: "Requisiciones", url: "/almacen", rutas: ["/almacen"] },
+  { clave: "tecnico.registro_pedidos", titulo: "Registro de Requisiciones", seccion: "Requisiciones", url: "/almacen/registro-requisiciones", rutas: ["/almacen/registro-requisiciones"] },
   { clave: "tecnico.aprobar_pedidos", titulo: "Aprobación de requisiciones", seccion: "Requisiciones", url: "/admin-tecnico", rutas: ["/admin-tecnico"] },
   { clave: "tecnico.aprobar_mano_obra", titulo: "Aprobación de mano de obra", seccion: "Requisiciones", url: "/presupuestos/admin-mo", rutas: ["/presupuestos/admin-mo"] },
 
@@ -84,11 +85,11 @@ export const ACCIONES: Accion[] = [
   { clave: "editar_presupuestos", titulo: "Editar presupuestos", descripcion: "Crear y modificar presupuestos, APU y versiones de los proyectos a los que tiene acceso.", seccion: "Presupuestos" },
   { clave: "aprobar_pedidos", titulo: "Aprobar requisiciones", descripcion: "Aprobar o rechazar las requisiciones de insumos de los ingenieros (y ver las de todos los proyectos).", seccion: "Requisiciones" },
   { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
-  { clave: "cancelar_pedidos", titulo: "Cancelar requisiciones", descripcion: "Cancelar requisiciones de otras personas y requisiciones ya aprobadas que no estén en una orden de compra. Quien hizo una requisición siempre puede cancelar la suya mientras esté pendiente.", seccion: "Requisiciones" },
   { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Requisiciones" },
   { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar la maestra de insumos.", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones, crear órdenes de compra y marcarlas como enviadas.", seccion: "Compras" },
+  { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
   { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },

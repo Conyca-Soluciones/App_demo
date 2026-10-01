@@ -1,5 +1,6 @@
 "use client"
 
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, Loader2, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -48,7 +49,7 @@ export function InventarioView() {
   const filtrado = useMemo(() => {
     if (!inventario) return []
     const q = busqueda.trim().toLowerCase()
-    if (!q) return inventario
+    if (!q || q === COMODIN_LISTAR) return inventario
     return inventario.filter(
       (i) =>
         i.insumoDescripcion.toLowerCase().includes(q) || String(i.insumoCodigo).includes(q)

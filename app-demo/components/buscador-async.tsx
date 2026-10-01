@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Search, X, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { puedeBuscar, COMODIN_LISTAR } from "@/lib/busqueda"
 
 export type OpcionBuscador = {
   id: string
@@ -45,7 +46,7 @@ export function BuscadorAsync({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    if (termino.trim().length < minCaracteres) {
+    if (!puedeBuscar(termino, minCaracteres)) {
       setOpciones([])
       setCargando(false)
       return
@@ -122,12 +123,12 @@ export function BuscadorAsync({
 
       {abierto && !disabled && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-          {termino.trim().length < minCaracteres && (
+          {!puedeBuscar(termino, minCaracteres) && (
             <div className="px-2 py-3 text-sm text-muted-foreground">
-              Escribe al menos {minCaracteres} caracteres.
+              Escribe al menos {minCaracteres} caracteres, o {COMODIN_LISTAR} para ver las opciones disponibles.
             </div>
           )}
-          {termino.trim().length >= minCaracteres && !cargando && opciones.length === 0 && (
+          {puedeBuscar(termino, minCaracteres) && !cargando && opciones.length === 0 && (
             <div className="px-2 py-3 text-sm text-muted-foreground">Sin resultados.</div>
           )}
           {!cargando &&

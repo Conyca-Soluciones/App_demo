@@ -5,10 +5,15 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 
+export type EstadoAprobacion = "pendiente" | "aprobado" | "rechazado"
+
 export type PedidoPendiente = {
   id: string
-  estado: "pendiente" | "aprobado"
+  estado: EstadoAprobacion
   resueltoAt: string | null
+  // Solo rechazadas: el motivo (comentario_resolucion) y quién rechazó.
+  motivoRechazo: string | null
+  resueltoPorNombre: string | null
   grupoPedidoId: string
   cantidad: number
   fechaPedido: string
@@ -34,10 +39,9 @@ export type PedidoPendiente = {
 // (ver migracion_fk_perfiles.sql), igual que ya hace con
 // presupuesto_item -> presupuesto -> proyecto.
 // "pendiente" = cola de aprobación; "aprobado" = ya aprobados (para poder
-// desaprobarlos o cancelarlos, mientras no estén en una orden de compra).
-export async function verPedidosPorEstado(
-  estado: "pendiente" | "aprobado"
-): Promise<PedidoPendiente[]> {
+// desaprobarlos o cancelarlos, mientras no estén en una orden de compra);
+// "rechazado" = historial de rechazos, con motivo y quién rechazó.
+export async function verPedidosPorEstado(estado: EstadoAprobacion): Promise<PedidoPendiente[]> {
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
@@ -45,7 +49,7 @@ export async function verPedidosPorEstado(
     .from("pedidos_insumos")
     .select(`
       id, grupo_pedido_id, cantidad, created_at, fecha_requerida, resuelto_at,
-      observaciones, soporte_url, urgente,
+      observaciones, soporte_url, urgente, comentario_resolucion,
       insumo:maestro_insumos(codigo, descripcion, u_m),
       presupuesto_item:presupuesto_items(
         codigo, descripcion,
@@ -54,12 +58,13 @@ export async function verPedidosPorEstado(
           proyecto:proyectos(id, nombre)
         )
       ),
-      solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre)
+      solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
+      resolutor:perfiles!pedidos_insumos_resuelto_por_fkey(nombre)
     `)
     .eq("estado", estado)
     .order(estado === "pendiente" ? "urgente" : "resuelto_at", { ascending: false })
     .order("created_at", { ascending: estado === "pendiente" })
-    .limit(estado === "aprobado" ? 300 : 1000)
+    .limit(estado === "pendiente" ? 1000 : 300)
 
   if (error) throw new Error(error.message)
   if (!data) return []
@@ -68,6 +73,8 @@ export async function verPedidosPorEstado(
     id: p.id,
     estado,
     resueltoAt: p.resuelto_at,
+    motivoRechazo: estado === "rechazado" ? p.comentario_resolucion ?? null : null,
+    resueltoPorNombre: p.resolutor?.nombre ?? null,
     grupoPedidoId: p.grupo_pedido_id,
     cantidad: p.cantidad,
     fechaPedido: p.created_at,
@@ -97,23 +104,38 @@ export async function resolverPedido(
   comentario?: string
 ) {
   await requerirAccion("aprobar_pedidos")
+  // El motivo del rechazo es obligatorio: es lo que le llega al ingeniero en
+  // la notificación (trigger notificar_pedido_rechazado_tecnico usa
+  // comentario_resolucion). Antes la pantalla rechazaba sin pedirlo y la
+  // notificación decía "Motivo: (sin motivo)".
+  const motivo = comentario?.trim() || null
+  if (estado === "rechazado" && !motivo) throw new Error("Escribe el motivo del rechazo.")
+
   const supabase = await createClient()
 
   const userId = await obtenerUsuarioId()
 
   if (!userId) throw new Error("No autenticado.")
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("pedidos_insumos")
     .update({
       estado,
       resuelto_por: userId,
       resuelto_at: new Date().toISOString(),
-      comentario_resolucion: comentario ?? null,
+      comentario_resolucion: motivo,
     })
     .eq("id", id)
+    // Solo si SIGUE pendiente: con la pantalla abierta un rato, alguien pudo
+    // cancelarla, o otro aprobador ya la resolvió (y quizá ya está en una
+    // orden de compra). Sin esto se "re-aprobaba" una requisición cancelada.
+    .eq("estado", "pendiente")
+    .select("id")
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error("Esta requisición ya no está pendiente (la cancelaron o ya fue resuelta). Actualiza la página.")
+  }
 }
 // Devuelve un pedido aprobado a pendiente. Solo si ninguna orden de compra
 // activa lo usa (lo valida la base). Motivo obligatorio.
@@ -129,29 +151,14 @@ export async function desaprobarPedido(id: string, motivo: string) {
   if (error) throw new Error(error.message)
 }
 
-// Cancelar el pedido de otra persona, o uno ya aprobado. Quien hizo un pedido
-// pendiente lo cancela desde su propia pantalla (almacen/actions.cancelarPedido).
-export async function cancelarPedidoComoAprobador(id: string, motivo: string) {
-  await requerirAccion("cancelar_pedidos")
-  if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("cancelar_pedido", {
-    p_pedido_id: id,
-    p_motivo: motivo.trim(),
-  })
-  if (error) throw new Error(error.message)
-}
-
-export type PermisosPedidos = { aprobar: boolean; desaprobar: boolean; cancelar: boolean }
+export type PermisosPedidos = { aprobar: boolean; desaprobar: boolean }
 
 export async function obtenerPermisosPedidos(): Promise<PermisosPedidos> {
   const permisos = await obtenerPermisosRol()
-  if (!permisos) return { aprobar: false, desaprobar: false, cancelar: false }
+  if (!permisos) return { aprobar: false, desaprobar: false }
   const puede = (a: string) => permisos.esAdministrador || permisos.acciones.includes(a)
   return {
     aprobar: puede("aprobar_pedidos"),
     desaprobar: puede("desaprobar_pedidos"),
-    cancelar: puede("cancelar_pedidos"),
   }
 }

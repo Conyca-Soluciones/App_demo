@@ -67,13 +67,14 @@ export async function listarProveedores(): Promise<Proveedor[]> {
 }
 
 // Edita UN campo de un proveedor (edición en línea de la tabla). Mismo
-// permiso que la política proveedores_update: acción 'comprar' o admin.
+// permiso que la política proveedores_update: acción 'editar_proveedores'
+// (o Administrador).
 export async function actualizarProveedor(
   uniqueId: string,
   campo: CampoEditable,
   valorCrudo: string
 ): Promise<Proveedor> {
-  await requerirAccion("comprar")
+  await requerirAccion("editar_proveedores")
 
   if (!(campo in COLUMNA_DE_CAMPO)) throw new Error("Campo no editable.")
   const validado = validarCampo(campo, valorCrudo)
@@ -108,12 +109,12 @@ function siguienteIdProv(existentes: (string | null)[], saltar: number): string 
 
 export type NuevoProveedorInput = Partial<Record<CampoEditable, string>>
 
-// Crea un proveedor. Mismo permiso que editar (acción 'comprar' o admin; la
-// política proveedores_insert exige lo mismo en la base). El ID se asigna
+// Crea un proveedor. Acción 'editar_proveedores' o admin (la política
+// proveedores_insert exige lo mismo en la base). El ID se asigna
 // acá; si otra persona creó uno al mismo tiempo, el UNIQUE de id_prov hace
 // fallar el INSERT (23505) y se reintenta con el número siguiente.
 export async function crearProveedor(input: NuevoProveedorInput): Promise<Proveedor> {
-  await requerirAccion("comprar")
+  await requerirAccion("editar_proveedores")
 
   const fila: Record<string, string | number | null> = {}
   for (const campo of Object.keys(COLUMNA_DE_CAMPO) as CampoEditable[]) {
@@ -158,4 +159,37 @@ export async function crearProveedor(input: NuevoProveedorInput): Promise<Provee
     if (error.code !== "23505") throw new Error(error.message)
   }
   throw new Error("No se pudo asignar un ID al proveedor (muchas personas creando a la vez). Intenta de nuevo.")
+}
+
+// Edita VARIOS campos de un proveedor en un solo UPDATE (tarjeta del
+// proveedor en Generar orden de compra). Valida todo antes de escribir: si un
+// campo no es válido no se guarda ninguno. Campo vacío = se borra el dato.
+export async function actualizarDatosProveedor(
+  uniqueId: string,
+  cambios: Partial<Record<CampoEditable, string>>
+): Promise<Proveedor> {
+  await requerirAccion("editar_proveedores")
+
+  const fila: Record<string, string | number | null> = {}
+  for (const [campo, crudo] of Object.entries(cambios) as [CampoEditable, string][]) {
+    if (!(campo in COLUMNA_DE_CAMPO)) throw new Error("Campo no editable.")
+    const validado = validarCampo(campo, crudo ?? "")
+    if (!validado.ok) throw new Error(`${ETIQUETA_CAMPO[campo]}: ${validado.error}`)
+    fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
+  }
+  if (Object.keys(fila).length === 0) throw new Error("No hay cambios para guardar.")
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("proveedores")
+    .update(fila)
+    .eq("unique_id", uniqueId)
+    .select(SELECT_PROVEEDOR)
+
+  if (error) throw new Error(error.message)
+  // RLS no da error al bloquear un UPDATE: simplemente no actualiza filas.
+  if (!data || data.length === 0) {
+    throw new Error("No se guardó: no tienes permiso para editar proveedores.")
+  }
+  return mapearProveedor(data[0] as FilaProveedor)
 }
