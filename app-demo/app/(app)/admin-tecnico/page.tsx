@@ -183,7 +183,8 @@ export default function AdminTecnico() {
                     <TableHead>Fecha requerida</TableHead>
                     <TableHead className="text-center">Insumos</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
+                    <TableHead>Estado en Compras</TableHead>
+                    <TableHead className="w-[300px]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -207,62 +208,64 @@ export default function AdminTecnico() {
                           <div className="flex items-center gap-2">
                             <BadgeEstadoRequisicion estado={req.estado} />
                             {req.urgente && <Badge variant="destructive">Urgente</Badge>}
-                            {req.estado === "aprobada" && req.estadoCompra && (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                Compra: <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
-                              </span>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button size="sm" variant="outline" onClick={() => setAbiertaId(req.id)}>
+                          <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
+                        </TableCell>
+                        <TableCell>
+                          {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
+                              lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto). */}
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline" className="h-8 w-20 shrink-0" onClick={() => setAbiertaId(req.id)}>
                               <Eye className="mr-1.5 h-4 w-4" />
                               Ver
                             </Button>
-                            {puedeDesaprobar && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-                                disabled={procesando}
-                                onClick={() => {
-                                  setAccion({ tipo: "desaprobar", req })
-                                  setMotivo("")
-                                }}
-                                aria-label={`Desaprobar requisición ${req.numero}`}
-                              >
-                                <Undo2 className="mr-1.5 h-4 w-4" />
-                                Desaprobar
-                              </Button>
-                            )}
-                            {puedeGestionar && (
-                              <>
+                            <div className="flex h-8 w-44 shrink-0 items-center gap-2">
+                              {puedeDesaprobar && (
                                 <Button
-                                  size="icon"
+                                  size="sm"
                                   variant="outline"
-                                  className="border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                                  disabled={procesando}
-                                  onClick={() => aprobar(req.id)}
-                                  aria-label={`Aprobar requisición ${req.numero}`}
-                                >
-                                  {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                  className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
                                   disabled={procesando}
                                   onClick={() => {
-                                    setAccion({ tipo: "rechazar", req })
+                                    setAccion({ tipo: "desaprobar", req })
                                     setMotivo("")
                                   }}
-                                  aria-label={`Rechazar requisición ${req.numero}`}
+                                  aria-label={`Desaprobar requisición ${req.numero}`}
                                 >
-                                  <X className="h-4 w-4" />
+                                  <Undo2 className="mr-1.5 h-4 w-4" />
+                                  Desaprobar
                                 </Button>
-                              </>
-                            )}
+                              )}
+                              {puedeGestionar && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                    disabled={procesando}
+                                    onClick={() => aprobar(req.id)}
+                                    aria-label={`Aprobar requisición ${req.numero}`}
+                                  >
+                                    {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                    disabled={procesando}
+                                    onClick={() => {
+                                      setAccion({ tipo: "rechazar", req })
+                                      setMotivo("")
+                                    }}
+                                    aria-label={`Rechazar requisición ${req.numero}`}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                       </TableRow>
