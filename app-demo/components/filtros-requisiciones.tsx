@@ -75,7 +75,8 @@ export function FiltrosRequisicionesPanel({
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [estado, setEstado] = useState<EstadoRequisicion | "todos">("todos")
   // "Solo por Aprobar" = estado pendiente de aprobación (pisa el filtro Estado).
-  const [soloPorAprobar, setSoloPorAprobar] = useState(false)
+  // Donde existe (Aprobación) viene marcado de entrada.
+  const [soloPorAprobar, setSoloPorAprobar] = useState(conSoloPorAprobar)
   const [solicitante, setSolicitante] = useState<OpcionBuscador | null>(null)
   const [desde, setDesde] = useState("")
   const [hasta, setHasta] = useState("")
@@ -117,7 +118,7 @@ export function FiltrosRequisicionesPanel({
     setProyectoId("todos")
     setInsumo(null)
     setEstado("todos")
-    setSoloPorAprobar(false)
+    setSoloPorAprobar(conSoloPorAprobar)
     setSolicitante(null)
     setDesde("")
     setHasta("")

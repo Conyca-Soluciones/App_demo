@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
+import { BadgeEstadoRequisicion } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
@@ -183,7 +183,6 @@ export default function AdminTecnico() {
                     <TableHead>Fecha requerida</TableHead>
                     <TableHead className="text-center">Insumos</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead>Estado en Compras</TableHead>
                     <TableHead className="w-[300px]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -209,9 +208,6 @@ export default function AdminTecnico() {
                             <BadgeEstadoRequisicion estado={req.estado} />
                             {req.urgente && <Badge variant="destructive">Urgente</Badge>}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
                         </TableCell>
                         <TableCell>
                           {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
