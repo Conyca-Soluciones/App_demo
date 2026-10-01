@@ -76,8 +76,7 @@ export function AppSidebar({
   const pathname = usePathname()
   const setAncho = useAnchoSidebar()
 
-  // Dónde está la página actual (módulo y sección), para abrir de entrada el
-  // camino hasta ella.
+  // Dónde está la página actual (módulo y sección), para resaltarla.
   const ubicacionActual = (() => {
     for (const m of modulos) {
       for (const g of m.grupos) {
@@ -87,8 +86,10 @@ export function AppSidebar({
     return null
   })()
 
-  const [moduloAbierto, setModuloAbierto] = useState<ModuloClave | null>(ubicacionActual?.modulo ?? null)
-  const [seccionAbierta, setSeccionAbierta] = useState<string | null>(ubicacionActual?.seccion ?? null)
+  // De entrada el menú está minimizado (solo módulos); la ubicación actual se
+  // resalta sin abrir nada.
+  const [moduloAbierto, setModuloAbierto] = useState<ModuloClave | null>(null)
+  const [seccionAbierta, setSeccionAbierta] = useState<string | null>(null)
 
   const modulo = modulos.find((m) => m.clave === moduloAbierto) ?? null
   const seccion = modulo?.grupos.find((g) => g.titulo === seccionAbierta) ?? null
@@ -267,7 +268,12 @@ export function AppSidebar({
                   <SidebarMenuItem key={`${seccion.titulo}-${item.titulo}`}>
                     <SidebarMenuButton
                       isActive={pathname === item.url}
-                      onClick={() => router.push(item.url)}
+                      onClick={() => {
+                        router.push(item.url)
+                        // Al elegir una pestaña el menú se minimiza a solo los módulos.
+                        setModuloAbierto(null)
+                        setSeccionAbierta(null)
+                      }}
                     >
                       <span className="whitespace-normal leading-tight">{item.titulo}</span>
                     </SidebarMenuButton>
