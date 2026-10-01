@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
-import { ArrowLeftRight, Building2, ChevronRight, LayoutDashboard, LogOut } from "lucide-react"
+import { ArrowLeftRight, Building2, ChevronRight, LayoutDashboard, Landmark, HardHat, LogOut } from "lucide-react"
 
 import {
   Collapsible,
@@ -29,12 +29,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 import { handleLogout } from "./logout-button"
 import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
-import { construirMenu, type PermisosRol } from "@/lib/pestanas"
+import { construirModulos, type ModuloClave, type PermisosRol } from "@/lib/pestanas"
 import { useProyectoActual } from "@/components/proyecto-provider"
 
 // El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
 const ROL_POR_DEFECTO = "Usuario"
+
+const ICONO_MODULO: Record<ModuloClave, React.ReactNode> = {
+  adpro: <HardHat className="size-3.5" />,
+  ayf: <Landmark className="size-3.5" />,
+}
 
 // Hasta dos iniciales del nombre real ("Luis Pérez" -> "LP").
 function iniciales(nombre: string) {
@@ -55,7 +60,7 @@ export function AppSidebar({
   nombreUsuario: string | null
 }) {
   const nombre = nombreUsuario ?? "Usuario"
-  const navMain = permisos ? construirMenu(permisos) : []
+  const modulos = permisos ? construirModulos(permisos) : []
   const { proyecto } = useProyectoActual()
   const rolVisible =
     permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : ROL_POR_DEFECTO)
@@ -110,50 +115,66 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Módulos</SidebarGroupLabel>
+        {/* Un bloque por módulo (AdPro, A&F); dentro de cada uno, sus secciones. */}
+        {modulos.map((modulo) => (
+          <SidebarGroup key={modulo.clave}>
+            <SidebarGroupLabel className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-foreground">
+              {ICONO_MODULO[modulo.clave]}
+              <span>{modulo.titulo}</span>
+              <span className="truncate text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+                {modulo.descripcion}
+              </span>
+            </SidebarGroupLabel>
 
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navMain.map((grupo) => {
-                const activo = grupo.items.some((item) => item.url === pathname)
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {modulo.grupos.length === 0 && (
+                  <p className="px-2 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                    Próximamente: este módulo todavía no tiene herramientas.
+                  </p>
+                )}
 
-                return (
-                  <Collapsible
-                    key={grupo.titulo}
-                    open={gruposAbiertos[grupo.titulo] ?? activo}
-                    onOpenChange={(open) =>
-                      setGruposAbiertos((prev) => ({ ...prev, [grupo.titulo]: open }))
-                    }
-                    className="group/collapsible"
-                    render={<SidebarMenuItem />}
-                  >
-                    <CollapsibleTrigger render={<SidebarMenuButton tooltip={grupo.titulo} />}>
-                      <LayoutDashboard className="size-4" />
-                      <span>{grupo.titulo}</span>
-                      <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                    </CollapsibleTrigger>
+                {modulo.grupos.map((grupo) => {
+                  const activo = grupo.items.some((item) => item.url === pathname)
+                  const clave = `${modulo.clave}-${grupo.titulo}`
 
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {grupo.items.map((item) => (
-                          <SidebarMenuSubItem key={`${grupo.titulo}-${item.titulo}`}>
-                            <SidebarMenuSubButton
-                              isActive={pathname === item.url}
-                              onClick={() => router.push(item.url)}
-                            >
-                              <span>{item.titulo}</span>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </Collapsible>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                  return (
+                    <Collapsible
+                      key={clave}
+                      open={gruposAbiertos[clave] ?? activo}
+                      onOpenChange={(open) =>
+                        setGruposAbiertos((prev) => ({ ...prev, [clave]: open }))
+                      }
+                      className="group/collapsible"
+                      render={<SidebarMenuItem />}
+                    >
+                      <CollapsibleTrigger render={<SidebarMenuButton tooltip={grupo.titulo} />}>
+                        <LayoutDashboard className="size-4" />
+                        <span>{grupo.titulo}</span>
+                        <ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {grupo.items.map((item) => (
+                            <SidebarMenuSubItem key={`${clave}-${item.titulo}`}>
+                              <SidebarMenuSubButton
+                                isActive={pathname === item.url}
+                                onClick={() => router.push(item.url)}
+                              >
+                                <span>{item.titulo}</span>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="border-t">

@@ -26,9 +26,22 @@ export type PermisosRol = {
   todosProyectos: boolean
 }
 
+// MÓDULOS de la plataforma. AdPro (Administración de Proyectos) es todo lo que
+// existe hoy; A&F (Administrativo y Financiero) es el módulo nuevo, todavía sin
+// pestañas. Una pestaña pertenece a un módulo con `modulo` (por omisión, AdPro);
+// las claves de permisos ('tab.<clave>') NO cambian al mover pestañas entre módulos.
+export type ModuloClave = "adpro" | "ayf"
+
+export const MODULOS: { clave: ModuloClave; titulo: string; descripcion: string }[] = [
+  { clave: "adpro", titulo: "AdPro", descripcion: "Administración de Proyectos" },
+  { clave: "ayf", titulo: "A&F", descripcion: "Administrativo y Financiero" },
+]
+
 export type Pestana = {
   clave: string
   titulo: string
+  // Módulo al que pertenece (por omisión AdPro).
+  modulo?: ModuloClave
   seccion: string
   // A dónde lleva en el menú.
   url: string
@@ -172,11 +185,13 @@ export function rutaPrimeraPestana(permisos: PermisosRol): string {
 
 export type GrupoMenu = { titulo: string; items: { titulo: string; url: string }[] }
 
-export function construirMenu(permisos: PermisosRol): GrupoMenu[] {
+// Secciones y pestañas de UN módulo, filtradas por el rol del usuario.
+export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpro"): GrupoMenu[] {
   const veTodo = permisos.esAdministrador || permisos.sinRol
   const grupos = new Map<string, GrupoMenu>()
 
   for (const p of PESTANAS) {
+    if ((p.modulo ?? "adpro") !== modulo) continue
     if (!veTodo && !permisos.pestanas.includes(p.clave)) continue
     // Sin rol y sin ser Administrador: la sección Control no se muestra (sus
     // rutas les están bloqueadas).
@@ -186,8 +201,8 @@ export function construirMenu(permisos: PermisosRol): GrupoMenu[] {
     grupos.set(p.seccion, g)
   }
 
-  // "Administrador": solo el Administrador, siempre al final.
-  if (permisos.esAdministrador) {
+  // "Administrador": solo el Administrador, siempre al final. Hoy vive en AdPro.
+  if (modulo === "adpro" && permisos.esAdministrador) {
     grupos.set("Administrador", {
       titulo: "Administrador",
       items: PESTANAS_SOLO_ADMIN.map((x) => ({ titulo: x.titulo, url: x.url })),
@@ -195,6 +210,19 @@ export function construirMenu(permisos: PermisosRol): GrupoMenu[] {
   }
 
   return [...grupos.values()]
+}
+
+export type ModuloMenu = {
+  clave: ModuloClave
+  titulo: string
+  descripcion: string
+  grupos: GrupoMenu[]
+}
+
+// Menú lateral completo: un bloque por módulo, cada uno con sus secciones.
+// Un módulo sin pestañas todavía (A&F) se devuelve con `grupos` vacío.
+export function construirModulos(permisos: PermisosRol): ModuloMenu[] {
+  return MODULOS.map((m) => ({ ...m, grupos: construirMenu(permisos, m.clave) }))
 }
 
 // ---------------------------------------------------------------------------
