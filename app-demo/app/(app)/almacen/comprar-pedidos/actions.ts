@@ -683,7 +683,9 @@ async function conSobrecostoPrecio<T extends { id: string }>(
 
 export type NotificacionTipo =
   | "pedido_rechazado"
+  | "pedido_aprobado"
   | "orden_compra_rechazada"
+  | "orden_compra_aprobada"
   | "insumo_sobre_presupuesto"
   | "orden_compra_precio_sobre_efectivo"
 export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra"
