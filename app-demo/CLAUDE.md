@@ -758,7 +758,7 @@ Rediseño con tono azul de marca (extraído del logo real de CONYCA,
 
 La landing, la cookie y el provider son los de "Landing de proyecto y menú
 reorganizado" (más abajo). Además del botón del sidebar, las páginas que
-trabajan sobre un proyecto (Presupuestos, Requisiciones, Inventario, Salidas)
+trabajan sobre un proyecto (Presupuestos, Requisiciones, Inventario, Salidas, Entradas)
 tienen `SelectorProyecto` en su encabezado (`components/selector-proyecto.tsx`,
 también dentro de `components/encabezado-pagina.tsx`): usa el mismo
 mecanismo (`seleccionarProyecto` + `router.refresh()`), es solo un atajo.
@@ -1242,13 +1242,18 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   dependen de `proyecto.id` se recargan solas. Sin proyecto elegido, las
   pantallas muestran `components/sin-proyecto.tsx` (enlace al landing).
 - **Ya no hay selector de proyecto** en: Elaboración de requisiciones
-  (`almacen/page.tsx`), Inventario, Salidas, Compras > Requisiciones (panel de
+  (`almacen/page.tsx`), Inventario, Salidas, Entradas, Compras > Requisiciones (panel de
   filtros), Elaboración de presupuestos y Visualización. El cambio se hace
   desde el botón "Cambiar proyecto" del menú lateral o, como atajo, desde el
   `SelectorProyecto` del encabezado de esas páginas.
 - **No filtran por proyecto actual** (siguen viendo todos los proyectos que el
   usuario tiene): Aprobación de requisiciones, Órdenes de compra, Aprobación
-  de órdenes de compra, Entradas (van por orden de compra).
+  de órdenes de compra.
+- **Entradas sí filtra por el proyecto actual** (selector en el encabezado,
+  como Inventario y Salidas): `listar_ordenes_para_entrada(p_incluir_entregadas,
+  p_proyecto_id)` filtra en la base y valida el acceso al proyecto
+  (`20261010200000_entradas_por_proyecto.sql`). La vista se remonta con
+  `key={proyectoId}` al cambiar de proyecto.
 - **Menú** (`lib/pestanas.ts`): Presupuestos / Requisiciones / Almacén /
   Compras / Contratos / Control / Administrador. "Pedidos" pasó a llamarse
   **Requisiciones** en pantalla; las rutas (`/almacen`, `/admin-tecnico`,

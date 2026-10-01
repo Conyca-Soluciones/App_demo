@@ -31,13 +31,16 @@ export type OrdenParaEntrada = {
 
 // incluirEntregadas = true también trae las OC ya entregadas, para poder
 // abrirlas y corregir una entrada.
+// proyectoId = solo las órdenes de ese proyecto (la base valida el acceso).
 export async function listarOrdenesParaEntrada(
-  incluirEntregadas = false
+  incluirEntregadas = false,
+  proyectoId: string | null = null
 ): Promise<OrdenParaEntrada[]> {
   await requerirAccion("gestionar_almacen")
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("listar_ordenes_para_entrada", {
     p_incluir_entregadas: incluirEntregadas,
+    p_proyecto_id: proyectoId,
   })
   if (error) throw new Error(error.message)
 
@@ -63,6 +66,7 @@ export async function listarOrdenesParaEntrada(
 // ---------------------------------------------------------------------------
 
 export type FiltrosEntradas = {
+  proyectoId: string // proyecto actual (selector del encabezado)
   numero?: number // N° de la orden de compra
   proveedor?: string // parte del nombre
   usuarioId?: string // quien hizo la entrada
@@ -82,7 +86,7 @@ export async function listarOrdenesEntradas(filtros: FiltrosEntradas): Promise<O
 
   // Las órdenes ya entregadas solo se piden si el filtro las puede incluir.
   const incluirEntregadas = filtros.estado === undefined || filtros.estado === "entregada"
-  let ordenes = await listarOrdenesParaEntrada(incluirEntregadas)
+  let ordenes = await listarOrdenesParaEntrada(incluirEntregadas, filtros.proyectoId)
 
   if (filtros.numero !== undefined) ordenes = ordenes.filter((o) => o.numero === filtros.numero)
   const proveedor = filtros.proveedor?.trim().toLowerCase()

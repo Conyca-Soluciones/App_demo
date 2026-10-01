@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { SinProyecto } from "@/components/sin-proyecto"
 import { buscarUsuarios } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -89,7 +91,16 @@ async function buscarUsuariosAdaptado(termino: string): Promise<OpcionBuscador[]
 // Cantidades: solo números enteros (ver lib/numeros.ts). "1.500" es 1500;
 // "1,5" se rechaza con el motivo para mostrárselo al usuario.
 
+// Trabaja sobre el proyecto actual (selector del encabezado). La key remonta
+// la vista al cambiar de proyecto: se limpian la lista, los filtros y la orden
+// abierta, sin efectos que copien estado.
 export function EntradasView() {
+  const proyectoId = useProyectoActual().proyecto?.id ?? null
+  if (!proyectoId) return <SinProyecto />
+  return <EntradasProyecto key={proyectoId} proyectoId={proyectoId} />
+}
+
+function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [ordenes, setOrdenes] = useState<OrdenEntradaFila[] | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -126,6 +137,7 @@ export function EntradasView() {
       return false
     }
     consultar({
+      proyectoId,
       numero: n,
       proveedor: proveedor.trim() || undefined,
       usuarioId: usuario?.id,
@@ -167,14 +179,6 @@ export function EntradasView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Entradas</h1>
-        <p className="text-sm text-muted-foreground">
-          Consulta las órdenes de compra aprobadas y selecciona una para registrar el material recibido en
-          bodega.
-        </p>
-      </div>
-
       <div className="flex min-h-0 flex-1 gap-4">
         <PanelFiltros
           cargando={cargando}
@@ -282,7 +286,7 @@ export function EntradasView() {
             </div>
           ) : ordenes.length === 0 ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-              Ninguna orden de compra coincide con los filtros.
+              Ninguna orden de compra de este proyecto coincide con los filtros.
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
@@ -290,7 +294,6 @@ export function EntradasView() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>OC N°</TableHead>
-                    <TableHead>Proyecto</TableHead>
                     <TableHead>Proveedor</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Persona que hizo la entrada</TableHead>
@@ -310,7 +313,6 @@ export function EntradasView() {
                         }}
                       >
                         <TableCell>{o.numero}</TableCell>
-                        <TableCell>{o.proyectoCodigo ?? o.proyectoNombre ?? "—"}</TableCell>
                         <TableCell>{o.proveedorNombre}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
