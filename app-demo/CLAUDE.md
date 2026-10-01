@@ -1322,3 +1322,12 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   historial; Modificar y Cancelar si es el dueño y está pendiente).
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
+
+## Regla de rendimiento: todo en tiempo lineal
+
+La app va a manejar mucho volumen, así que ningún cambio puede ser O(n²):
+indexar con `Map`/`Set` antes de recorrer (nada de `.find()`/`.filter()`/
+`.includes()` dentro de un bucle sobre colecciones grandes), agrupar en una
+sola pasada, y en la base usar consultas por lotes (`in`, joins, RPC) en vez de
+una consulta por fila; acotar los listados con filtros y `limit` del lado del
+servidor.

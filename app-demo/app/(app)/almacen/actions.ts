@@ -436,7 +436,14 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   const versionId = item.version_id as string
 
   const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidad]))
-  const insumosUnicos = Array.from(new Map(lineas.map((l) => [l.insumoId, l])).values())
+  // Líneas agrupadas por insumo en una sola pasada (marcados = ítem -> cantidad).
+  const marcadosPorInsumo = new Map<string, { linea: (typeof lineas)[number]; marcados: Record<string, number> }>()
+  for (const l of lineas) {
+    const g = marcadosPorInsumo.get(l.insumoId) ?? { linea: l, marcados: {} }
+    g.marcados[l.presupuestoItemId] = l.cantidad
+    marcadosPorInsumo.set(l.insumoId, g)
+  }
+  const insumosUnicos = Array.from(marcadosPorInsumo.values()).map((g) => g.linea)
 
   // UNA llamada para todos los insumos, por id exacto (ver
   // 20261010000000_rendimiento_requisiciones.sql). Antes era una llamada por
@@ -453,13 +460,6 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
     arr.push(f)
     filasPorInsumo.set(f.insumo_id, arr)
   }
-  const marcadosPorInsumo = new Map<string, Record<string, number>>()
-  for (const x of lineas) {
-    const m = marcadosPorInsumo.get(x.insumoId) ?? {}
-    m[x.presupuestoItemId] = x.cantidad
-    marcadosPorInsumo.set(x.insumoId, m)
-  }
-
   const grupos = insumosUnicos.map((l) => {
     const agrupado: InsumoAgrupado = {
       insumoId: l.insumoId,
@@ -475,7 +475,7 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
           Number(f.cantidad_disponible) + (propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0),
       })),
     }
-    return { insumo: agrupado, marcados: marcadosPorInsumo.get(l.insumoId) ?? {} }
+    return { insumo: agrupado, marcados: marcadosPorInsumo.get(l.insumoId)?.marcados ?? {} }
   })
 
   return {
