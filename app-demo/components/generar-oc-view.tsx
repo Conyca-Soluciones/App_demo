@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
+import { TarjetaProveedorOC } from "./tarjeta-proveedor-oc"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import {
   obtenerPedidosPorId,
@@ -49,7 +50,9 @@ async function buscarProveedoresAdaptado(termino: string): Promise<OpcionBuscado
   }))
 }
 
-export function GenerarOCView() {
+// puedeEditarProveedor: acción `editar_proveedores` (o Administrador); lo
+// calcula la página en el servidor. La base vuelve a exigirlo (RLS).
+export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarProveedor?: boolean }) {
   const router = useRouter()
 
   const [seleccion, setSeleccion] = useState<SeleccionGuardada | null | undefined>(undefined)
@@ -365,25 +368,17 @@ export function GenerarOCView() {
           )}
 
           {detalleProveedor && !cargandoProveedor && (
-            <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
-              <p>
-                <span className="text-muted-foreground">Contacto: </span>
-                {detalleProveedor.nombreContacto ?? "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Teléfono: </span>
-                {detalleProveedor.telefono ?? "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Correo: </span>
-                {detalleProveedor.correo ?? "—"}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Ciudad: </span>
-                {detalleProveedor.ciudad ?? "—"}
-              </p>
+            <TarjetaProveedorOC
+              key={detalleProveedor.id}
+              detalle={detalleProveedor}
+              puedeEditar={puedeEditarProveedor}
+              onActualizado={setDetalleProveedor}
+            />
+          )}
 
-              <div className="border-t pt-2">
+          {detalleProveedor && !cargandoProveedor && (
+            <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
+              <div>
                 {detalleProveedor.informacionBancaria ? (
                   <>
                     <p>

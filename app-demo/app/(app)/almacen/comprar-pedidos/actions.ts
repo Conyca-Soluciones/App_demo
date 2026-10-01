@@ -244,6 +244,9 @@ export type ProveedorDetalle = {
   correo: string | null
   ciudad: string | null
   direccion: string | null
+  tipoDocumento: string | null
+  numeroDocumento: number | null
+  digitoVerificacion: number | null
   informacionBancaria: InformacionBancariaProveedor | null
 }
 
@@ -256,6 +259,7 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
     .select(
       `
       unique_id, nombre, nombre_contacto, telefono, correo, ciudad, direccion,
+      tipo_documento, numero_documento, digito_verificacion,
       informacion_bancaria!informacion_bancaria_id_fkey(titular, entidad_bancaria, tipo_cuenta, no_cuenta)
     `
     )
@@ -275,6 +279,9 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
     correo: d.correo,
     ciudad: d.ciudad,
     direccion: d.direccion,
+    tipoDocumento: d.tipo_documento,
+    numeroDocumento: d.numero_documento,
+    digitoVerificacion: d.digito_verificacion,
     informacionBancaria: banco
       ? {
           titular: banco.titular,

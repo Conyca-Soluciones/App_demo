@@ -780,12 +780,19 @@ filtran/ordenan en el cliente) con edición en línea por celda
 - Si un valor no valida y el usuario hace clic afuera, se descarta (no se
   retiene el foco -- eso "atrapaba" la celda). El foco tras error se da en
   un efecto porque el input sigue `disabled` justo después del await.
-- Permisos: ver = pestaña `almacen.proveedores`; editar = acción `comprar`
-  o Administrador. Política RLS `proveedores_update`
-  (`20261004000000_proveedores_editar.sql`, ya aplicada) con la misma regla
-  que `proveedores_select`. RLS no da error al bloquear un UPDATE (0 filas),
-  por eso `actualizarProveedor` revisa que vuelva la fila.
-- Sin alta ni borrado de proveedores por ahora (solo edición).
+- Permisos: ver = pestaña `almacen.proveedores`; crear y editar = acción
+  `editar_proveedores` (o Administrador), en la matriz de Roles; por defecto
+  la tiene Líder Compras. Políticas RLS `proveedores_update` /
+  `proveedores_insert` con la misma regla
+  (`20261006000000_accion_editar_proveedores.sql`). RLS no da error al
+  bloquear un UPDATE (0 filas), por eso las actions revisan que vuelva la fila.
+- También se editan desde la tarjeta del proveedor en **Generar orden de
+  compra** (`components/tarjeta-proveedor-oc.tsx`, action
+  `actualizarDatosProveedor`: varios campos en un UPDATE, valida todo antes
+  de escribir). Guarda en `proveedores` y actualiza la tarjeta, de donde la
+  orden en curso toma teléfono/ciudad/correo; el PDF lee NIT, dirección y
+  contacto de `proveedores`. Datos bancarios: solo lectura.
+- Sin borrado de proveedores.
 - Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
   (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
 
