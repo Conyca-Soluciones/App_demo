@@ -927,6 +927,12 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
 
 ## Pendientes generales
 
+- **Seguridad APU** (auditoría 2026-10-02): `apu`, `item_apu`,
+  `apu_import_revision` y `transporte_precios` aceptan escritura de cualquier
+  usuario con sesión. Propuesta: exigir `editar_presupuestos` para escribir.
+- **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
+  mitad, deja una versión vacía y APUs huérfanos).
+
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de
   insumos~~ -- **resuelto** (ver "Riesgos resueltos" en Pedidos de
   insumos: se descuenta pendiente+aprobado del disponible).
