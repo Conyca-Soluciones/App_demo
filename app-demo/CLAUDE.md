@@ -1501,5 +1501,21 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
 - **Permisos**: pestaña `contratos.preaprobacion` (Legal, Líder Legal,
   Gerencia) y acción `aprobar_contratos` (Legal, Líder Legal). Quien tiene la
   pestaña también ve contratistas y sus documentos.
+- **Minuta** (pestaña "Minuta" del detalle, que en Pre-aprobación es un
+  diálogo grande): plantilla GJ-F-003 de mano de obra. Todos los campos que la
+  plantilla deja en "XXX" (partes, objeto, obligaciones, plazos, valor y forma
+  de pago, domicilio, arbitramento, porcentajes, anexo N° 1) se editan en
+  `components/minuta-mano-obra-editor.tsx`; vienen prellenados de la
+  solicitud, el contratista y el proyecto (`minutaPorDefecto` en
+  `lib/minuta-mano-obra.ts`). El texto fijo de las cláusulas vive en
+  `components/minuta-mano-obra-pdf.tsx`. El PDF lo genera
+  `POST /contratos/pre-aprobacion/[id]/minuta` con la minuta en pantalla (la
+  vista previa y la descarga muestran cambios sin guardar). Guardar =
+  `guardar_minuta_contrato` -> `contratos.minuta_datos` (jsonb, acción
+  `aprobar_contratos`, no en rechazadas;
+  `20261015000000_minuta_contratos.sql`). Al leer, lo guardado gana campo por
+  campo sobre lo calculado (`mezclarMinuta`). Editar el anexo en la minuta NO
+  cambia lo reservado del presupuesto. Otros tipos de contrato: sin plantilla
+  todavía.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos).
+  contratos) y las plantillas de los demás tipos.
