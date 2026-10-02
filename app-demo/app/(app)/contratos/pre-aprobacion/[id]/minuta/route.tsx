@@ -9,6 +9,7 @@ import { MinutaManoObraPDF } from "@/components/minuta-mano-obra-pdf"
 // @react-pdf/renderer usa APIs de Node -- no corre en el edge runtime.
 export const runtime = "nodejs"
 
+const MAXIMO_BYTES = 200_000
 const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 
 // PDF de la minuta con lo que está en pantalla (POST con la minuta en el
@@ -28,9 +29,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "La solicitud no existe o no tienes acceso." }, { status: 404 })
   }
 
+  // Tope de tamaño (el mismo que guardar_minuta_contrato): sin él, un cuerpo
+  // enorme ocuparía el servidor generando un PDF de miles de páginas.
+  const texto = await req.text()
+  if (texto.length > MAXIMO_BYTES) {
+    return NextResponse.json({ error: "La minuta es demasiado grande." }, { status: 413 })
+  }
   let cuerpo: unknown
   try {
-    cuerpo = await req.json()
+    cuerpo = JSON.parse(texto)
   } catch {
     return NextResponse.json({ error: "La minuta no es válida." }, { status: 400 })
   }

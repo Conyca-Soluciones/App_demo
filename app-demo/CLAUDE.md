@@ -905,6 +905,26 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   pide confirmación, espera el resultado, y `EliminarPresupuesto` se niega si
   hay requisiciones.
 
+## Auditoría de producción (2026-10-02)
+
+- **Corregido**: `cargarVersion` y `crearNuevaVersion` traían solo 1000 ítems
+  (presupuestos grandes se veían incompletos y la versión nueva perdía
+  ítems); ahora usan `traerTodo`. Igual `listarRevisionLote` y
+  `listarRevisionPorItems`.
+- **Corregido**: copiar un APU (`crearNuevaVersion`, `copiarApuParaItem`,
+  `copiarApuStandalone`) solo copiaba las columnas de insumo: se perdían las
+  líneas de mano de obra, equipo, transporte y herramienta menor. Ahora
+  copian `COLUMNAS_COPIA_ITEM_APU`.
+- **Corregido** (`20261017000000_acceso_proyecto_funciones.sql`):
+  `resumen_ejecucion_proyecto` y `registrar_salida_almacen` (SECURITY
+  DEFINER) no revisaban acceso al proyecto. Envoltura con el nombre de
+  siempre + original renombrada con "_" (sin EXECUTE para usuarios).
+- **Abierto**: `apu`, `item_apu`, `apu_import_revision` y
+  `transporte_precios` aceptan escritura de cualquier usuario con sesión
+  (cualquiera puede cambiar o borrar líneas de un APU por la API, y eso
+  mueve los topes de requisiciones). `crearNuevaVersion` no es
+  transaccional (si falla a mitad deja una versión vacía y APUs huérfanos).
+
 ## Pendientes generales
 
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de

@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { buscarSimilares } from "@/lib/similitud-texto"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
@@ -314,6 +315,28 @@ export async function crearVersionVacia(
   }
 }
 
+// Columnas de item_apu que hay que copiar al duplicar un APU (versión nueva,
+// APU recomendado). Antes solo se copiaban las de insumo y se perdían las
+// líneas de mano de obra, equipo, transporte y herramienta menor: el APU
+// copiado valía menos en cuanto se recalculaba.
+const COLUMNAS_COPIA_ITEM_APU =
+  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado"
+
+function copiaLineaApu(linea: any, apuId: string) {
+  return {
+    apu_id: apuId,
+    insumo_id: linea.insumo_id,
+    mano_obra_categoria_id: linea.mano_obra_categoria_id,
+    porcentaje_mano_obra: linea.porcentaje_mano_obra,
+    equipo_categoria_id: linea.equipo_categoria_id,
+    transporte_precio_id: linea.transporte_precio_id,
+    cantidad: linea.cantidad,
+    rendimiento: linea.rendimiento ?? 1,
+    tipo: linea.tipo,
+    precio_unitario_congelado: linea.precio_unitario_congelado,
+  }
+}
+
 export async function crearNuevaVersion(
   presupuestoId: string,
   nombre: string
@@ -322,15 +345,17 @@ export async function crearNuevaVersion(
 
   const versionActualId = await obtenerOCrearVersionActual(supabase, presupuestoId)
 
-  const { data: itemsActuales, error: errorItems } = await supabase
-    .from("presupuesto_items")
-    .select("id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original")
-    .eq("presupuesto_id", presupuestoId)
-    .eq("version_id", versionActualId)
-
-  if (errorItems) {
-    throw new Error(errorItems.message)
-  }
+  // Paginado: la API corta en 1000 filas sin avisar y la versión nueva
+  // quedaba sin los ítems que pasaran de ahí.
+  const itemsActuales = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("presupuesto_items")
+      .select("id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original")
+      .eq("presupuesto_id", presupuestoId)
+      .eq("version_id", versionActualId)
+      .order("id")
+      .range(desde, hasta)
+  )
 
   const { data: ultimaVersion, error: errorUltima } = await supabase
     .from("presupuesto_versiones")
@@ -376,7 +401,7 @@ export async function crearNuevaVersion(
       const { data, error } = await supabase
         .from("apu")
         .select(
-          "id, codigo, descripcion, item_apu(insumo_id, cantidad, rendimiento, tipo, precio_unitario_congelado)"
+          `id, codigo, descripcion, item_apu(${COLUMNAS_COPIA_ITEM_APU})`
         )
         .in("id", lote)
       if (error) throw new Error(error.message)
@@ -401,14 +426,7 @@ export async function crearNuevaVersion(
     // quedaría sin congelar y recalcular_valor_apu caería al precio en
     // vivo de maestro_insumos, moviendo un valor que no debía moverse.
     const todasLasLineasNuevas = (apusOrigen ?? []).flatMap((apu) =>
-      (apu.item_apu ?? []).map((linea: any) => ({
-        apu_id: apuNuevoDe.get(apu.id),
-        insumo_id: linea.insumo_id,
-        cantidad: linea.cantidad,
-        rendimiento: linea.rendimiento ?? 1,
-        tipo: linea.tipo,
-        precio_unitario_congelado: linea.precio_unitario_congelado,
-      }))
+      (apu.item_apu ?? []).map((linea: any) => copiaLineaApu(linea, apuNuevoDe.get(apu.id)!))
     )
 
     if (todasLasLineasNuevas.length > 0) {
@@ -511,18 +529,20 @@ export async function actualizarEstadoPresupuesto(
 export async function cargarVersion(versionId: string): Promise<ItemPresupuesto[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("presupuesto_items")
-    .select(
-      "id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original"
-    )
-    .eq("version_id", versionId)
+  // Paginado: la API corta en 1000 filas sin avisar; un presupuesto más
+  // grande se veía (y se exportaba) incompleto.
+  const data = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("presupuesto_items")
+      .select(
+        "id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original"
+      )
+      .eq("version_id", versionId)
+      .order("id")
+      .range(desde, hasta)
+  )
 
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  const items: ItemPresupuesto[] = (data ?? []).map((r) => ({
+  const items: ItemPresupuesto[] = data.map((r) => ({
     id: r.id,
     padreId: r.padre_id,
     nivel: r.nivel,
@@ -1539,7 +1559,7 @@ export async function copiarApuParaItem(
 
   const { data: origen, error: errorOrigen } = await supabase
     .from("apu")
-    .select("item_apu(insumo_id, cantidad, rendimiento, tipo, precio_unitario_congelado)")
+    .select(`item_apu(${COLUMNAS_COPIA_ITEM_APU})`)
     .eq("id", apuOrigenId)
     .single()
 
@@ -1561,14 +1581,7 @@ export async function copiarApuParaItem(
   // crearNuevaVersion (ver esa función para el porqué).
   const lineasOrigen = origen.item_apu ?? []
   if (lineasOrigen.length > 0) {
-    const copias = lineasOrigen.map((it: any) => ({
-      apu_id: nuevoApu.id,
-      insumo_id: it.insumo_id,
-      cantidad: it.cantidad,
-      rendimiento: it.rendimiento ?? 1,
-      tipo: it.tipo,
-      precio_unitario_congelado: it.precio_unitario_congelado,
-    }))
+    const copias = lineasOrigen.map((it: any) => copiaLineaApu(it, nuevoApu.id))
 
     const { error: errorCopia } = await supabase.from("item_apu").insert(copias)
     if (errorCopia) {
@@ -1619,7 +1632,7 @@ export async function copiarApuStandalone(
 
   const { data: origen, error: errorOrigen } = await supabase
     .from("apu")
-    .select("item_apu(insumo_id, cantidad, rendimiento, tipo, precio_unitario_congelado)")
+    .select(`item_apu(${COLUMNAS_COPIA_ITEM_APU})`)
     .eq("id", apuOrigenId)
     .single()
 
@@ -1641,14 +1654,7 @@ export async function copiarApuStandalone(
   // crearNuevaVersion (ver esa función para el porqué).
   const lineasOrigen = origen.item_apu ?? []
   if (lineasOrigen.length > 0) {
-    const copias = lineasOrigen.map((it: any) => ({
-      apu_id: nuevoApu.id,
-      insumo_id: it.insumo_id,
-      cantidad: it.cantidad,
-      rendimiento: it.rendimiento ?? 1,
-      tipo: it.tipo,
-      precio_unitario_congelado: it.precio_unitario_congelado,
-    }))
+    const copias = lineasOrigen.map((it: any) => copiaLineaApu(it, nuevoApu.id))
 
     const { error: errorCopia } = await supabase.from("item_apu").insert(copias)
     if (errorCopia) {
@@ -3378,15 +3384,18 @@ const SELECT_REVISION_CON_MOTIVO =
 export async function listarRevisionLote(loteImportId: string): Promise<LoteRevisionInfo> {
   const supabase = await createClient()
  
-  const { data, error } = await supabase
-    .from("apu_import_revision")
-    .select(SELECT_REVISION_CON_MOTIVO)
-    .eq("lote_import_id", loteImportId)
-    .order("created_at", { ascending: true })
- 
-  if (error) throw new Error(error.message)
- 
-  return mapearFilasConItems(supabase, data ?? [])
+  // Paginado: un import grande deja más de 1000 líneas por revisar.
+  const data = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("apu_import_revision")
+      .select(SELECT_REVISION_CON_MOTIVO)
+      .eq("lote_import_id", loteImportId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(desde, hasta)
+  )
+
+  return mapearFilasConItems(supabase, data)
 }
  
 /**
@@ -3406,14 +3415,17 @@ export async function listarRevisionPorItems(presupuestoItemIds: string[]): Prom
  
   for (let i = 0; i < presupuestoItemIds.length; i += TAMANO_LOTE) {
     const lote = presupuestoItemIds.slice(i, i + TAMANO_LOTE)
-    const { data, error } = await supabase
-      .from("apu_import_revision")
-      .select(SELECT_REVISION_CON_MOTIVO)
-      .in("presupuesto_item_id", lote)
-      .order("created_at", { ascending: true })
- 
-    if (error) throw new Error(error.message)
-    todasLasFilas.push(...(data ?? []))
+    // 200 ítems con varias líneas cada uno pasan de 1000 filas: paginado.
+    const data = await traerTodo<any>((desde, hasta) =>
+      supabase
+        .from("apu_import_revision")
+        .select(SELECT_REVISION_CON_MOTIVO)
+        .in("presupuesto_item_id", lote)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(desde, hasta)
+    )
+    todasLasFilas.push(...data)
   }
  
   return mapearFilasConItems(supabase, todasLasFilas)
