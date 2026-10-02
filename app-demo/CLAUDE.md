@@ -953,23 +953,17 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   usuario con sesión. Propuesta: exigir `editar_presupuestos` para escribir.
 - **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
   mitad, deja una versión vacía y APUs huérfanos).
-- **Escritura directa en `pedidos_insumos`** (revisión del flujo
-  2026-10-02): `authenticated` tiene INSERT/UPDATE en la tabla y la política
-  de INSERT no limita `estado` ni cantidad: se puede meter por la API una
-  línea ya `aprobado` en una requisición existente, saltándose la aprobación
-  y el tope del presupuesto. La política de UPDATE de compras no tiene WITH
-  CHECK. La app escribe todo por RPCs SECURITY DEFINER, así que la propuesta
-  es `revoke insert, update on pedidos_insumos from authenticated` + `grant
-  update (rechazado_compras_at, rechazado_compras_por, observaciones_compras)`
-  y `revoke insert on ordenes_compra` (se crea con `crear_orden_compra`).
-- **Almacén sin revisar proyecto**: `registrar_entrada_almacen`,
-  `editar_/anular_entrada_almacen`, `editar_/anular_salida_almacen`,
-  `detalle_orden_para_entrada`, `entradas_por_orden`, `inventario_proyecto`
-  y `listar_salidas_proyecto` solo piden `gestionar_almacen`, no acceso al
-  proyecto. Decidir si hay almacén central a propósito.
+- **Resuelto en `20261018000000_requisiciones_y_almacen_por_proyecto.sql`
+  (falta aplicarla en producción, junto con el deploy de la app)**:
+  (1) usuarios sin INSERT/UPDATE/DELETE en `pedidos_insumos`,
+  `ordenes_compra` y `ordenes_compra_items` (todo va por RPCs SECURITY
+  DEFINER); el rechazo de Compras pasa a `rechazar_pedido_compras()`.
+  (2) Almacén por proyecto: entradas, salidas, inventario y listados exigen
+  ver el proyecto (`usuario_puede_ver_proyecto`/`proyectos_visibles`); quien
+  tiene "todos los proyectos" los sigue viendo todos. Se borró el
+  `listar_ordenes_entradas` viejo. Probada sobre `supabase/esquema/`.
 - `crear_orden_compra` acepta líneas rechazadas por compras
-  (`rechazado_compras_at`). Sigue existiendo el `listar_ordenes_entradas`
-  viejo sin filtro de proyecto. Tabla sobrante `_tmp_auditoria_buscar` en
+  (`rechazado_compras_at`). Tabla sobrante `_tmp_auditoria_buscar` en
   producción. Las migraciones 15/16/17 están aplicadas pero no registradas
   en `schema_migrations`.
 - **Esquema real**: `supabase/esquema/` tiene el volcado de producción
