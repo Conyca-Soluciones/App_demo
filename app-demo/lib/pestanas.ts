@@ -62,6 +62,7 @@ export const PESTANAS: Pestana[] = [
 
   { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
   { clave: "contratos.solicitar", titulo: "Solicitud de contratos", seccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
+  { clave: "contratos.preaprobacion", titulo: "Pre-aprobación de contratos", seccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
   { clave: "contratos.contratos", titulo: "Elaboración de contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.cortes", titulo: "Elaboración de actas", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
@@ -96,6 +97,7 @@ export const ACCIONES: Accion[] = [
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
+  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Aprobar, devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
 ]
 

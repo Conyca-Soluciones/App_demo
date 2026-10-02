@@ -1,32 +1,28 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Eye, Loader2, Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { CheckCircle2, Loader2, PencilLine, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { SolicitudContratoForm } from "@/components/solicitud-contrato-form"
-import { VisorDocumento } from "@/components/visor-documento"
+import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
-import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
-import { ETIQUETA_ESTADO_CONTRATO, TIPO_CONTRATO_POR_VALOR, numero, pesos, plazoTexto } from "@/lib/contratos"
+import { formatearFechaSinHora } from "@/lib/fechas"
 import {
-  enlaceDocumentoContrato,
-  listarSolicitudesContrato,
-  obtenerSolicitudContrato,
+  CLASE_ESTADO_CONTRATO,
+  ETIQUETA_ESTADO_CONTRATO,
+  pesos,
+  plazoTexto,
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
-} from "@/app/(app)/contratos/solicitar/actions"
+} from "@/lib/contratos"
+import { listarSolicitudesContrato } from "@/app/(app)/contratos/solicitar/actions"
 
-const fechaHora = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
-const tituloTipo = (t: string) => TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t
-
-
-export function SolicitudesContratosView({ puedeSolicitar }: { puedeSolicitar: boolean }) {
+export function SolicitudesContratosView({ puedeSolicitar, verInicial }: { puedeSolicitar: boolean; verInicial: string | null }) {
   const proyecto = useProyectoActual().proyecto
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -37,7 +33,13 @@ export function SolicitudesContratosView({ puedeSolicitar }: { puedeSolicitar: b
       />
       {proyecto ? (
         // key: al cambiar de proyecto se limpia todo (lista y formulario a medias).
-        <Solicitudes key={proyecto.id} proyectoId={proyecto.id} proyectoNombre={proyecto.nombre} puedeSolicitar={puedeSolicitar} />
+        <Solicitudes
+          key={proyecto.id}
+          proyectoId={proyecto.id}
+          proyectoNombre={proyecto.nombre}
+          puedeSolicitar={puedeSolicitar}
+          verInicial={verInicial}
+        />
       ) : (
         <div className="p-4 sm:p-6">
           <SinProyecto />
@@ -51,16 +53,21 @@ function Solicitudes({
   proyectoId,
   proyectoNombre,
   puedeSolicitar,
+  verInicial,
 }: {
   proyectoId: string
   proyectoNombre: string
   puedeSolicitar: boolean
+  verInicial: string | null
 }) {
+  const router = useRouter()
   const [solicitudes, setSolicitudes] = useState<SolicitudContratoFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [formulario, setFormulario] = useState(false)
+  // null = lista; "nueva" = formulario vacío; detalle = corrigiendo una devuelta.
+  const [formulario, setFormulario] = useState<"nueva" | SolicitudContratoDetalle | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const [detalleId, setDetalleId] = useState<string | null>(null)
+  // ?ver=<id> (desde la campanita) abre el detalle de esa solicitud.
+  const [detalleId, setDetalleId] = useState<string | null>(verInicial)
 
   function cargar() {
     listarSolicitudesContrato(proyectoId)
@@ -72,7 +79,7 @@ function Solicitudes({
   const columnas: ColumnaExcel<SolicitudContratoFila>[] = useMemo(
     () => [
       { clave: "numero", titulo: "N°", ancho: 70, fija: true, alinear: "right", texto: (s) => String(s.numero), claseCelda: "tabular-nums" },
-      { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => tituloTipo(s.tipo) },
+      { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => tituloTipoContrato(s.tipo) },
       { clave: "contratista", titulo: "Contratista", ancho: 220, texto: (s) => s.contratistaNombre },
       { clave: "objeto", titulo: "Objeto", ancho: 260, flexible: true, texto: (s) => s.objeto },
       { clave: "valor", titulo: "Valor", ancho: 150, alinear: "right", texto: (s) => pesos(s.valor), claseCelda: "tabular-nums" },
@@ -84,16 +91,23 @@ function Solicitudes({
         alinear: "center",
         texto: (s) => ETIQUETA_ESTADO_CONTRATO[s.estado],
         celda: (s) => (
-          <Badge variant="outline" className="border-transparent bg-amber-100 text-amber-800">
+          <Badge variant="outline" className={CLASE_ESTADO_CONTRATO[s.estado]} title={s.motivoResolucion ?? undefined}>
             {ETIQUETA_ESTADO_CONTRATO[s.estado]}
           </Badge>
         ),
       },
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
-      { clave: "fecha", titulo: "Fecha", ancho: 110, texto: (s) => fechaHora(s.createdAt), claseCelda: "tabular-nums" },
+      { clave: "fecha", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },
     ],
     []
   )
+
+  const devueltas = solicitudes?.filter((s) => s.estado === "devuelta").length ?? 0
+
+  function cerrarDetalle() {
+    setDetalleId(null)
+    if (verInicial) router.replace("/contratos/solicitar")
+  }
 
   if (formulario) {
     return (
@@ -101,10 +115,15 @@ function Solicitudes({
         <SolicitudContratoForm
           proyectoId={proyectoId}
           proyectoNombre={proyectoNombre}
-          onCancelar={() => setFormulario(false)}
+          edicion={formulario === "nueva" ? undefined : formulario}
+          onCancelar={() => setFormulario(null)}
           onEnviada={(n) => {
-            setFormulario(false)
-            setAviso(`Solicitud N° ${n} enviada a pre-aprobación.`)
+            setAviso(
+              formulario === "nueva"
+                ? `Solicitud N° ${n} enviada a pre-aprobación.`
+                : `Solicitud N° ${n} corregida y reenviada a pre-aprobación.`
+            )
+            setFormulario(null)
             cargar()
           }}
         />
@@ -115,9 +134,24 @@ function Solicitudes({
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
-        {solicitudes && <span className="text-sm text-muted-foreground tabular-nums">{solicitudes.length} {solicitudes.length === 1 ? "solicitud" : "solicitudes"}</span>}
+        {solicitudes && (
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {solicitudes.length} {solicitudes.length === 1 ? "solicitud" : "solicitudes"}
+          </span>
+        )}
+        {devueltas > 0 && (
+          <Badge variant="outline" className={CLASE_ESTADO_CONTRATO.devuelta}>
+            {devueltas} {devueltas === 1 ? "devuelta por corregir" : "devueltas por corregir"}
+          </Badge>
+        )}
         {puedeSolicitar && (
-          <Button className="ml-auto" onClick={() => { setAviso(null); setFormulario(true) }}>
+          <Button
+            className="ml-auto"
+            onClick={() => {
+              setAviso(null)
+              setFormulario("nueva")
+            }}
+          >
             <Plus className="size-4" /> Nueva solicitud
           </Button>
         )}
@@ -138,7 +172,7 @@ function Solicitudes({
         <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
           <p>Este proyecto todavía no tiene solicitudes de contrato.</p>
           {puedeSolicitar && (
-            <Button variant="outline" onClick={() => setFormulario(true)}>
+            <Button variant="outline" onClick={() => setFormulario("nueva")}>
               <Plus className="size-4" /> Crear la primera
             </Button>
           )}
@@ -157,7 +191,7 @@ function Solicitudes({
                   N° {s.numero} · {s.contratistaNombre}
                 </button>
               ),
-              subtitulo: (s) => tituloTipo(s.tipo),
+              subtitulo: (s) => tituloTipoContrato(s.tipo),
               esquina: (s) => columnas.find((c) => c.clave === "estado")!.celda!(s),
               campos: ["objeto", "valor", "plazo", "solicitante"],
             }}
@@ -165,181 +199,23 @@ function Solicitudes({
         )
       )}
 
-      <DetalleSolicitud id={detalleId} onCerrar={() => setDetalleId(null)} />
-    </main>
-  )
-}
-
-function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () => void }) {
-  const [detalle, setDetalle] = useState<SolicitudContratoDetalle | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  // Documento abierto en el visor (dentro del mismo diálogo).
-  const [viendo, setViendo] = useState<{ id: string; titulo: string; nombreArchivo: string; mime: string } | null>(null)
-
-  useEffect(() => {
-    if (!id) return
-    let cancelado = false
-    obtenerSolicitudContrato(id)
-      .then((d: SolicitudContratoDetalle) => !cancelado && setDetalle(d))
-      .catch((e) => !cancelado && setError(e instanceof Error ? e.message : "No se pudo cargar la solicitud."))
-    return () => {
-      cancelado = true
-    }
-  }, [id])
-
-  const tipo = detalle ? TIPO_CONTRATO_POR_VALOR.get(detalle.tipo) : null
-  const docPorTipo = new Map(detalle?.documentos.map((d) => [d.tipo, d]) ?? [])
-
-  return (
-    <Dialog
-      open={id !== null}
-      onOpenChange={(abierto) => {
-        if (!abierto) {
-          setDetalle(null)
-          setError(null)
-          setViendo(null)
-          onCerrar()
+      <DetalleSolicitudContrato
+        id={detalleId}
+        onCerrar={cerrarDetalle}
+        acciones={(d) =>
+          d.estado === "devuelta" && puedeSolicitar && d.proyectoId === proyectoId ? (
+            <Button
+              onClick={() => {
+                cerrarDetalle()
+                setAviso(null)
+                setFormulario(d)
+              }}
+            >
+              <PencilLine className="size-4" /> Corregir y reenviar
+            </Button>
+          ) : null
         }
-      }}
-    >
-      <DialogContent className={`max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-3xl"}`}>
-        <DialogHeader>
-          <DialogTitle>{detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipo(detalle.tipo)}` : "Solicitud de contrato"}</DialogTitle>
-        </DialogHeader>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {viendo ? (
-          <VisorDocumento
-            titulo={viendo.titulo}
-            nombreArchivo={viendo.nombreArchivo}
-            mime={viendo.mime}
-            cargarUrl={() => enlaceDocumentoContrato(viendo.id)}
-            onVolver={() => setViendo(null)}
-          />
-        ) : !detalle && !error ? (
-          <div className="flex items-center justify-center py-10 text-muted-foreground">
-            <Loader2 className="mr-2 size-4 animate-spin" /> Cargando...
-          </div>
-        ) : (
-          detalle && (
-            <div className="space-y-5 text-sm">
-              <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                {(
-                  [
-                    ["Estado", ETIQUETA_ESTADO_CONTRATO[detalle.estado]],
-                    ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
-                    ["Valor", `${pesos(detalle.valor)} (${detalle.anexoTipo === "valor_global" ? "valor global" : "valores unitarios"})`],
-                    ["Anticipo", detalle.tieneAnticipo ? `${numero(detalle.anticipoPorcentaje ?? 0)} % = ${pesos((detalle.valor * (detalle.anticipoPorcentaje ?? 0)) / 100)}` : "No"],
-                    ["Plazo", plazoTexto(detalle, formatearFechaSinHora) + (detalle.plazoTipo === "duracion" && detalle.fechaInicio ? ` desde ${formatearFechaSinHora(detalle.fechaInicio)} (estimado)` : "")],
-                    ["Correo de notificación", detalle.correoNotificacion],
-                    ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} el ${fechaHora(detalle.createdAt)}`],
-                  ] as [string, string][]
-                ).map(([k, v]) => (
-                  <div key={k} className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">{k}</dt>
-                    <dd className="break-words">{v}</dd>
-                  </div>
-                ))}
-              </dl>
-
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Objeto</h3>
-                <p className="whitespace-pre-line">{detalle.objeto}</p>
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Forma de pago</h3>
-                <p className="whitespace-pre-line">{detalle.formaPago}</p>
-              </div>
-
-              {detalle.items.length > 0 && (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full min-w-[520px]">
-                    <thead>
-                      <tr className="bg-muted/60 text-left text-xs">
-                        <th className="px-2 py-1.5">Ítem del presupuesto</th>
-                        <th className="px-2 py-1.5">Unidad</th>
-                        <th className="px-2 py-1.5 text-right">Cantidad</th>
-                        <th className="px-2 py-1.5 text-right">Valor unitario</th>
-                        <th className="px-2 py-1.5 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detalle.items.map((it, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="px-2 py-1.5">
-                            {it.codigo && <span className="font-medium tabular-nums">{it.codigo} </span>}
-                            {it.actividad}
-                          </td>
-                          <td className="px-2 py-1.5">{it.unidad}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{numero(it.cantidad)}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.valorUnitario)}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.cantidad * it.valorUnitario)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {(
-                [
-                  ["Obligaciones específicas", detalle.obligaciones],
-                  ["Entregables", detalle.entregables],
-                ] as [string, string[]][]
-              ).map(
-                ([titulo, lista]) =>
-                  lista.length > 0 && (
-                    <div key={titulo}>
-                      <h3 className="text-xs font-semibold text-muted-foreground uppercase">{titulo}</h3>
-                      <ol className="list-decimal space-y-1 pl-5">
-                        {lista.map((t, i) => (
-                          <li key={i} className="whitespace-pre-line">
-                            {t}
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )
-              )}
-
-              {detalle.observaciones && (
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Observaciones</h3>
-                  <p className="whitespace-pre-line">{detalle.observaciones}</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>
-                <ul className="divide-y rounded-md border">
-                  {tipo?.documentos.map((req) => {
-                    const doc = docPorTipo.get(req.tipo)
-                    return (
-                      <li key={req.tipo} className="flex items-center gap-3 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                          <p>{req.titulo}</p>
-                          {doc && <p className="truncate text-xs text-muted-foreground" title={doc.nombreArchivo}>{doc.nombreArchivo}</p>}
-                        </div>
-                        {doc ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setViendo({ id: doc.id, titulo: req.titulo, nombreArchivo: doc.nombreArchivo, mime: doc.mime })}
-                          >
-                            <Eye className="size-4" />
-                            Ver
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No aplica</span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            </div>
-          )
-        )}
-      </DialogContent>
-    </Dialog>
+      />
+    </main>
   )
 }

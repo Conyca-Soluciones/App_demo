@@ -7,6 +7,8 @@
 // los dos lados.
 // ---------------------------------------------------------------------------
 
+import type { TipoDocumentoContratista, TipoPersona } from "@/lib/contratistas"
+
 export type TipoContrato =
   | "mano_obra"
   | "obra"
@@ -97,8 +99,73 @@ export const TIPOS_CONTRATO: { valor: TipoContrato; titulo: string; documentos: 
 
 export const TIPO_CONTRATO_POR_VALOR = new Map(TIPOS_CONTRATO.map((t) => [t.valor, t]))
 
-export type EstadoContrato = "pre_aprobacion"
-export const ETIQUETA_ESTADO_CONTRATO: Record<EstadoContrato, string> = { pre_aprobacion: "En pre-aprobación" }
+// Solicitud tal como la leen las pantallas (la arma lib/contratos-db.ts en el
+// servidor). Aquí y no allá: los componentes de cliente no deben importar
+// nada de un archivo que toca el servidor (ver CLAUDE.md, boundary).
+export type SolicitudContratoFila = {
+  id: string
+  numero: number
+  proyectoId: string
+  proyectoCodigo: string | null
+  proyectoNombre: string | null
+  tipo: TipoContrato
+  estado: EstadoContrato
+  contratistaNombre: string
+  contratistaDocumento: string
+  objeto: string
+  valor: number
+  plazoTipo: "fechas" | "duracion"
+  fechaInicio: string | null
+  fechaFin: string | null
+  duracionCantidad: number | null
+  duracionUnidad: "dias" | "meses" | null
+  solicitadoPorNombre: string | null
+  createdAt: string
+  enviadoAt: string
+  motivoResolucion: string | null
+  resueltoPorNombre: string | null
+  resueltoAt: string | null
+}
+
+export type SolicitudContratoDetalle = SolicitudContratoFila & {
+  contratistaId: string
+  contratistaCorreo: string
+  contratistaTipoPersona: TipoPersona
+  contratistaDocumentos: { id: string; tipo: TipoDocumentoContratista; nombreArchivo: string; mime: string }[]
+  anexoTipo: "valor_global" | "valores_unitarios"
+  tieneAnticipo: boolean
+  anticipoPorcentaje: number | null
+  formaPago: string
+  correoNotificacion: string
+  observaciones: string | null
+  obligaciones: string[]
+  entregables: string[]
+  items: {
+    presupuestoItemId: string
+    codigo: string | null
+    actividad: string
+    unidad: string
+    cantidad: number
+    valorUnitario: number
+  }[]
+  documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string; ruta: string; tamano: number }[]
+}
+
+
+export type EstadoContrato = "pre_aprobacion" | "devuelta" | "rechazada" | "aprobada"
+export const ETIQUETA_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
+  pre_aprobacion: "En pre-aprobación",
+  devuelta: "Devuelta",
+  rechazada: "Rechazada",
+  aprobada: "Pre-aprobada",
+}
+// Ámbar = esperando a alguien; rojo = devuelta/rechazada; verde = aprobada.
+export const CLASE_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
+  pre_aprobacion: "border-transparent bg-amber-100 text-amber-800",
+  devuelta: "border-transparent bg-orange-100 text-orange-800",
+  rechazada: "border-transparent bg-red-100 text-red-800",
+  aprobada: "border-transparent bg-emerald-100 text-emerald-800",
+}
 
 // ---------------------------------------------------------------- números
 // Formato colombiano: punto de miles y coma decimal ("1.500.000,50"). Un punto

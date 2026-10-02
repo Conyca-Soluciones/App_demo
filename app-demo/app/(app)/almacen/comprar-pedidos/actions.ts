@@ -741,7 +741,11 @@ export type NotificacionTipo =
   | "orden_compra_aprobada"
   | "insumo_sobre_presupuesto"
   | "orden_compra_precio_sobre_efectivo"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion"
+  | "contrato_por_revisar"
+  | "contrato_aprobado"
+  | "contrato_devuelto"
+  | "contrato_rechazado"
+export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato"
 
 export type Notificacion = {
   id: string

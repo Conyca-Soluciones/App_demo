@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion } from "@/lib/permisos"
 import {
   DOCUMENTOS_POR_PERSONA,
   MIME_PERMITIDOS,
@@ -159,8 +159,20 @@ export async function crearContratista(
 }
 
 // Enlace temporal (2 minutos) para ver un documento: el bucket es privado.
+// También desde Pre-aprobación: Jurídica revisa los documentos generales del
+// contratista (igual que la política contratistas_archivos_select).
 export async function enlaceDocumentoContratista(documentoId: string): Promise<string> {
-  await requerirPestana("contratos.contratistas")
+  const permisos = await obtenerPermisosRol()
+  if (
+    !permisos ||
+    !(
+      permisos.esAdministrador ||
+      permisos.pestanas.includes("contratos.contratistas") ||
+      permisos.pestanas.includes("contratos.preaprobacion")
+    )
+  ) {
+    throw new Error("No tienes permiso para ver documentos de contratistas.")
+  }
   const supabase = await createClient()
   const { data: doc, error } = await supabase
     .from("contratista_documentos")

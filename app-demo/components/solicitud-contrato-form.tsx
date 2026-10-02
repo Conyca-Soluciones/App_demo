@@ -24,6 +24,7 @@ import {
   validarSolicitud,
   type CampoSolicitud,
   type ItemPresupuestoContrato,
+  type SolicitudContratoDetalle,
   type SolicitudContratoForm,
   type TipoContrato,
   type TipoDocumentoContrato,
@@ -32,6 +33,7 @@ import { listarContratistas } from "@/app/(app)/contratos/contratistas/actions"
 import {
   crearSolicitudContrato,
   listarItemsPresupuestoContrato,
+  reenviarSolicitudContrato,
   type DocumentoContratoSubido,
 } from "@/app/(app)/contratos/solicitar/actions"
 
@@ -63,6 +65,35 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   correoNotificacion: "",
   observaciones: "",
 }
+
+// Formulario lleno con una solicitud devuelta, para corregirla.
+function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
+  return {
+    tipo: d.tipo,
+    contratistaId: d.contratistaId,
+    objeto: d.objeto,
+    anexoTipo: d.anexoTipo,
+    valor: d.anexoTipo === "valor_global" ? numero(d.valor) : "",
+    items:
+      d.items.length > 0
+        ? d.items.map((i) => ({ presupuestoItemId: i.presupuestoItemId, cantidad: numero(i.cantidad), valorUnitario: numero(i.valorUnitario) }))
+        : [{ ...ITEM_VACIO }],
+    tieneAnticipo: d.tieneAnticipo,
+    anticipoPorcentaje: d.anticipoPorcentaje !== null ? numero(d.anticipoPorcentaje) : "",
+    formaPago: d.formaPago,
+    plazoTipo: d.plazoTipo,
+    fechaInicio: d.fechaInicio ?? "",
+    fechaFin: d.fechaFin ?? "",
+    duracionCantidad: d.duracionCantidad !== null ? String(d.duracionCantidad) : "",
+    duracionUnidad: d.duracionUnidad ?? "meses",
+    obligaciones: d.obligaciones,
+    entregables: d.entregables,
+    correoNotificacion: d.correoNotificacion,
+    observaciones: d.observaciones ?? "",
+  }
+}
+
+type DocumentoExistente = DocumentoContratoSubido
 
 const claseCampo = (conError = false) =>
   `h-9 w-full min-w-0 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60 ${
@@ -193,15 +224,28 @@ function SelectorItemPresupuesto({
 export function SolicitudContratoForm({
   proyectoId,
   proyectoNombre,
+  edicion,
   onCancelar,
   onEnviada,
 }: {
   proyectoId: string
   proyectoNombre: string
+  // Solicitud DEVUELTA que se corrige y reenvía (mismo número). Sin esto, es nueva.
+  edicion?: SolicitudContratoDetalle
   onCancelar: () => void
   onEnviada: (numero: number) => void
 }) {
-  const [f, setF] = useState<SolicitudContratoForm>(FORMULARIO_VACIO)
+  const [f, setF] = useState<SolicitudContratoForm>(() => (edicion ? formularioDesde(edicion) : FORMULARIO_VACIO))
+  // Documentos que ya tiene la solicitud devuelta: se conservan salvo que se
+  // cambien o se quiten.
+  const [existentes, setExistentes] = useState<Partial<Record<TipoDocumentoContrato, DocumentoExistente>>>(() =>
+    Object.fromEntries(
+      (edicion?.documentos ?? []).map((d) => [
+        d.tipo,
+        { tipo: d.tipo, ruta: d.ruta, nombreArchivo: d.nombreArchivo, tamano: d.tamano, mime: d.mime },
+      ])
+    )
+  )
   const [errores, setErrores] = useState<Partial<Record<CampoSolicitud, string>>>({})
   const [archivos, setArchivos] = useState<Partial<Record<TipoDocumentoContrato, File>>>({})
   const [erroresArchivo, setErroresArchivo] = useState<Partial<Record<TipoDocumentoContrato, string>>>({})
@@ -222,7 +266,19 @@ export function SolicitudContratoForm({
       .then((lista: ItemPresupuestoContrato[]) => setCatalogo(lista))
       .catch((e) => setErrorCatalogo(e instanceof Error ? e.message : "No se pudo cargar el presupuesto del proyecto."))
   }, [proyectoId])
-  const catalogoPorId = useMemo(() => new Map((catalogo ?? []).map((i) => [i.id, i])), [catalogo])
+  // Al corregir una devuelta, su propia cantidad todavía figura como
+  // contratada en el presupuesto: se suma de vuelta (la base hace lo mismo al
+  // reenviar: borra sus líneas antes de revisar los topes).
+  const catalogoPorId = useMemo(() => {
+    const propias = new Map((edicion?.items ?? []).map((i) => [i.presupuestoItemId, i.cantidad]))
+    return new Map(
+      (catalogo ?? []).map((i) => {
+        const propia = propias.get(i.id) ?? 0
+        return [i.id, propia ? { ...i, contratado: i.contratado - propia, disponible: i.disponible + propia } : i]
+      })
+    )
+  }, [catalogo, edicion])
+  const catalogoAjustado = useMemo(() => [...catalogoPorId.values()], [catalogoPorId])
 
   useEffect(() => {
     listarContratistas()
@@ -256,6 +312,7 @@ export function SolicitudContratoForm({
     // Los documentos de otro tipo no aplican (salvo los que se repiten).
     const validos = new Set(TIPO_CONTRATO_POR_VALOR.get(valor)!.documentos.map((d) => d.tipo))
     setArchivos((a) => Object.fromEntries(Object.entries(a).filter(([t]) => validos.has(t as TipoDocumentoContrato))))
+    setExistentes((a) => Object.fromEntries(Object.entries(a).filter(([t]) => validos.has(t as TipoDocumentoContrato))))
     setErroresArchivo({})
   }
 
@@ -294,7 +351,7 @@ export function SolicitudContratoForm({
     setErrorGeneral(null)
     const r = validarSolicitud(f, catalogoPorId)
     const faltan: Partial<Record<TipoDocumentoContrato, string>> = {}
-    for (const d of tipo?.documentos ?? []) if (d.obligatorio && !archivos[d.tipo]) faltan[d.tipo] = "Adjunta este documento."
+    for (const d of tipo?.documentos ?? []) if (d.obligatorio && !archivos[d.tipo] && !existentes[d.tipo]) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
     setErroresArchivo(faltan)
     if (!r.ok || Object.keys(faltan).length > 0) {
@@ -304,7 +361,7 @@ export function SolicitudContratoForm({
       return
     }
 
-    const id = crypto.randomUUID()
+    const id = edicion?.id ?? crypto.randomUUID()
     const supabase = createClient()
     const subidos: DocumentoContratoSubido[] = []
     setPaso("subiendo")
@@ -314,17 +371,37 @@ export function SolicitudContratoForm({
           .filter((d) => archivos[d.tipo])
           .map(async (d) => {
             const archivo = archivos[d.tipo]!
-            const ruta = `${id}/${d.tipo}.${extension(archivo)}`
+            // Al corregir, el nombre lleva un sufijo: el archivo anterior del
+            // mismo tipo sigue existiendo hasta que la base acepte el cambio.
+            const sufijo = edicion ? `-${crypto.randomUUID().slice(0, 8)}` : ""
+            const ruta = `${id}/${d.tipo}${sufijo}.${extension(archivo)}`
             const { error } = await supabase.storage.from("contratos").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
             if (error) throw new Error(`No se pudo subir "${archivo.name}": ${error.message}`)
             subidos.push({ tipo: d.tipo, ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type })
           })
       )
+      // Lo nuevo reemplaza; lo demás que ya tenía, se conserva.
+      const nuevosTipos = new Set(subidos.map((x) => x.tipo))
+      const conservados = tipo!.documentos
+        .filter((d) => !nuevosTipos.has(d.tipo) && existentes[d.tipo])
+        .map((d) => existentes[d.tipo]!)
+      const documentos = [...subidos, ...conservados]
+
       setPaso("guardando")
-      const numero = await crearSolicitudContrato(id, proyectoId, f, subidos)
+      const numero = edicion
+        ? await reenviarSolicitudContrato(id, proyectoId, f, documentos)
+        : await crearSolicitudContrato(id, proyectoId, f, subidos)
+
+      // Archivos viejos que ya no usa la solicitud (reemplazados o quitados):
+      // se borran; si falla, no afecta la solicitud.
+      if (edicion) {
+        const enUso = new Set(documentos.map((x) => x.ruta))
+        const sobran = edicion.documentos.map((x) => x.ruta).filter((r) => !enUso.has(r))
+        if (sobran.length > 0) await supabase.storage.from("contratos").remove(sobran)
+      }
       onEnviada(numero)
     } catch (err) {
-      // La solicitud no se creó (es una sola transacción): se borran los archivos.
+      // No se guardó (es una sola transacción): se borran los archivos nuevos.
       if (subidos.length > 0) await supabase.storage.from("contratos").remove(subidos.map((s) => s.ruta))
       setErrorGeneral(err instanceof Error ? err.message : "No se pudo mandar la solicitud.")
     } finally {
@@ -341,9 +418,18 @@ export function SolicitudContratoForm({
           <ArrowLeft className="size-4" /> Volver a las solicitudes
         </Button>
         <p className="text-sm text-muted-foreground">
-          Nueva solicitud para <span className="font-medium text-foreground">{proyectoNombre}</span>
+          {edicion ? `Corregir solicitud N° ${edicion.numero} de ` : "Nueva solicitud para "}
+          <span className="font-medium text-foreground">{proyectoNombre}</span>
         </p>
       </div>
+      {edicion?.motivoResolucion && (
+        <div className="rounded-md border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+          <p className="font-medium">
+            Jurídica la devolvió{edicion.resueltoPorNombre ? ` (${edicion.resueltoPorNombre})` : ""}. Motivo:
+          </p>
+          <p className="whitespace-pre-line">{edicion.motivoResolucion}</p>
+        </div>
+      )}
 
       {/* 1. Tipo de contrato */}
       <Seccion titulo="Tipo de contrato" ayuda="Define qué documentos se piden para este contrato.">
@@ -616,9 +702,15 @@ export function SolicitudContratoForm({
                               </button>
                             </div>
                           ) : (
+                            <>
+                            {it.presupuestoItemId && catalogo && (
+                              <p className="px-1 pb-1 text-xs text-destructive">
+                                Este ítem ya no está en el presupuesto vigente (¿cambió la versión?). Elige otro.
+                              </p>
+                            )}
                             <SelectorItemPresupuesto
                               etiqueta={`Ítem del presupuesto ${i + 1}`}
-                              catalogo={catalogo ?? []}
+                              catalogo={catalogoAjustado}
                               excluir={usados}
                               disabled={enviando}
                               onElegir={(item) =>
@@ -629,6 +721,7 @@ export function SolicitudContratoForm({
                                 })
                               }
                             />
+                            </>
                           )}
                         </td>
                         <td className="px-2 py-2.5">{ref?.unidad ?? "—"}</td>
@@ -888,6 +981,7 @@ export function SolicitudContratoForm({
           <ul className="divide-y rounded-md border">
             {tipo.documentos.map((d) => {
               const archivo = archivos[d.tipo]
+              const existente = existentes[d.tipo]
               const err = erroresArchivo[d.tipo]
               const id = `contrato-archivo-${d.tipo}`
               return (
@@ -900,9 +994,12 @@ export function SolicitudContratoForm({
                     {err ? (
                       <p className="text-xs text-destructive">{err}</p>
                     ) : (
-                      archivo && (
-                        <p className="truncate text-xs text-muted-foreground" title={archivo.name}>
-                          {archivo.name}
+                      (archivo || existente) && (
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={archivo?.name ?? existente?.nombreArchivo}
+                        >
+                          {archivo ? archivo.name : `Actual: ${existente!.nombreArchivo}`}
                         </p>
                       )
                     )}
@@ -925,18 +1022,23 @@ export function SolicitudContratoForm({
                     } ${err ? "border-destructive" : ""}`}
                   >
                     <FileUp className="size-4" />
-                    {archivo ? "Cambiar" : "Adjuntar"}
+                    {archivo || existente ? "Cambiar" : "Adjuntar"}
                   </label>
-                  {archivo && !d.obligatorio && (
+                  {(archivo || existente) && !d.obligatorio && (
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         setArchivos((a) => {
                           const sig = { ...a }
                           delete sig[d.tipo]
                           return sig
                         })
-                      }
+                        setExistentes((a) => {
+                          const sig = { ...a }
+                          delete sig[d.tipo]
+                          return sig
+                        })
+                      }}
                       className="rounded p-1 text-muted-foreground hover:text-foreground"
                       aria-label={`Quitar ${d.titulo}`}
                       disabled={enviando}
@@ -958,7 +1060,13 @@ export function SolicitudContratoForm({
         </Button>
         <Button type="submit" disabled={enviando}>
           {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          {paso === "subiendo" ? "Subiendo documentos..." : paso === "guardando" ? "Enviando..." : "Mandar a pre-aprobación"}
+          {paso === "subiendo"
+            ? "Subiendo documentos..."
+            : paso === "guardando"
+              ? "Enviando..."
+              : edicion
+                ? "Reenviar a pre-aprobación"
+                : "Mandar a pre-aprobación"}
         </Button>
       </div>
     </form>

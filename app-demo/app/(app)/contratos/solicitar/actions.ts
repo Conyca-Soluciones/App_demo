@@ -2,81 +2,32 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { MIME_PERMITIDOS, TAMANO_MAXIMO } from "@/lib/contratistas"
 import {
   TIPO_CONTRATO_POR_VALOR,
   validarSolicitud,
-  type EstadoContrato,
   type ItemPresupuestoContrato,
   type SolicitudContratoForm,
-  type TipoContrato,
   type TipoDocumentoContrato,
 } from "@/lib/contratos"
+import {
+  SELECT_FILA_CONTRATO,
+  cargarDetalleContrato,
+  mapFilaContrato,
+  type SolicitudContratoDetalle,
+  type SolicitudContratoFila,
+} from "@/lib/contratos-db"
 
-export type SolicitudContratoFila = {
-  id: string
-  numero: number
-  tipo: TipoContrato
-  estado: EstadoContrato
-  contratistaNombre: string
-  contratistaDocumento: string
-  objeto: string
-  valor: number
-  plazoTipo: "fechas" | "duracion"
-  fechaInicio: string | null
-  fechaFin: string | null
-  duracionCantidad: number | null
-  duracionUnidad: "dias" | "meses" | null
-  solicitadoPorNombre: string | null
-  createdAt: string
-}
-
-export type SolicitudContratoDetalle = SolicitudContratoFila & {
-  contratistaId: string
-  contratistaCorreo: string
-  anexoTipo: "valor_global" | "valores_unitarios"
-  tieneAnticipo: boolean
-  anticipoPorcentaje: number | null
-  formaPago: string
-  correoNotificacion: string
-  observaciones: string | null
-  obligaciones: string[]
-  entregables: string[]
-  items: { codigo: string | null; actividad: string; unidad: string; cantidad: number; valorUnitario: number }[]
-  documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string }[]
-}
-
-const SELECT_FILA = `
-  id, numero, tipo, estado, objeto, valor, plazo_tipo, fecha_inicio, fecha_fin, duracion_cantidad,
-  duracion_unidad, created_at,
-  contratista:contratistas!contratos_contratista_id_fkey(id, nombre, tipo_documento, numero_documento, digito_verificacion, correo),
-  solicitante:perfiles!contratos_solicitado_por_fkey(nombre)
-`
-
-function mapFila(f: any): SolicitudContratoFila {
-  const c = f.contratista
-  return {
-    id: f.id,
-    numero: Number(f.numero),
-    tipo: f.tipo,
-    estado: f.estado,
-    contratistaNombre: c?.nombre ?? "(contratista eliminado)",
-    contratistaDocumento: c
-      ? c.tipo_documento === "NIT"
-        ? `NIT ${c.numero_documento}-${c.digito_verificacion ?? ""}`
-        : `${c.tipo_documento} ${c.numero_documento}`
-      : "",
-    objeto: f.objeto,
-    valor: Number(f.valor),
-    plazoTipo: f.plazo_tipo,
-    fechaInicio: f.fecha_inicio,
-    fechaFin: f.fecha_fin,
-    duracionCantidad: f.duracion_cantidad,
-    duracionUnidad: f.duracion_unidad,
-    solicitadoPorNombre: f.solicitante?.nombre ?? null,
-    createdAt: f.created_at,
-  }
+// Ver el detalle de una solicitud: quien la pide (Solicitud de contratos) o
+// quien la revisa (Pre-aprobación). La base además limita por proyecto.
+async function requerirVerContratos() {
+  const permisos = await obtenerPermisosRol()
+  const ok =
+    permisos &&
+    (permisos.esAdministrador ||
+      ["contratos.solicitar", "contratos.preaprobacion", "contratos.contratos"].some((t) => permisos.pestanas.includes(t)))
+  if (!ok) throw new Error("No tienes permiso para ver contratos.")
 }
 
 // Solicitudes del proyecto actual (la base filtra además por acceso al proyecto).
@@ -86,54 +37,18 @@ export async function listarSolicitudesContrato(proyectoId: string): Promise<Sol
   const filas = await traerTodo<any>((desde, hasta) =>
     supabase
       .from("contratos")
-      .select(SELECT_FILA)
+      .select(SELECT_FILA_CONTRATO)
       .eq("proyecto_id", proyectoId)
       .order("numero", { ascending: false })
       .range(desde, hasta)
   )
-  return filas.map(mapFila)
+  return filas.map(mapFilaContrato)
 }
 
 export async function obtenerSolicitudContrato(id: string): Promise<SolicitudContratoDetalle> {
-  await requerirPestana("contratos.solicitar")
+  await requerirVerContratos()
   const supabase = await createClient()
-  const { data: f, error } = await supabase
-    .from("contratos")
-    .select(`
-      ${SELECT_FILA},
-      anexo_tipo, tiene_anticipo, anticipo_porcentaje, forma_pago, correo_notificacion, observaciones,
-      obligaciones:contrato_obligaciones(orden, texto),
-      entregables:contrato_entregables(orden, texto),
-      items:contrato_anexo_items(orden, actividad, unidad, cantidad, valor_unitario, presupuesto_item:presupuesto_items(codigo)),
-      documentos:contrato_documentos(id, tipo, nombre_archivo, mime)
-    `)
-    .eq("id", id)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  if (!f) throw new Error("La solicitud no existe o no tienes acceso.")
-
-  const porOrden = (a: { orden: number }, b: { orden: number }) => a.orden - b.orden
-  return {
-    ...mapFila(f),
-    contratistaId: (f as any).contratista?.id,
-    contratistaCorreo: (f as any).contratista?.correo ?? "",
-    anexoTipo: (f as any).anexo_tipo,
-    tieneAnticipo: (f as any).tiene_anticipo,
-    anticipoPorcentaje: (f as any).anticipo_porcentaje === null ? null : Number((f as any).anticipo_porcentaje),
-    formaPago: (f as any).forma_pago,
-    correoNotificacion: (f as any).correo_notificacion,
-    observaciones: (f as any).observaciones,
-    obligaciones: [...((f as any).obligaciones ?? [])].sort(porOrden).map((o: any) => o.texto),
-    entregables: [...((f as any).entregables ?? [])].sort(porOrden).map((e: any) => e.texto),
-    items: [...((f as any).items ?? [])].sort(porOrden).map((i: any) => ({
-      codigo: i.presupuesto_item?.codigo ?? null,
-      actividad: i.actividad,
-      unidad: i.unidad,
-      cantidad: Number(i.cantidad),
-      valorUnitario: Number(i.valor_unitario),
-    })),
-    documentos: ((f as any).documentos ?? []).map((d: any) => ({ id: d.id, tipo: d.tipo, nombreArchivo: d.nombre_archivo, mime: d.mime })),
-  }
+  return cargarDetalleContrato(supabase, id)
 }
 
 export type DocumentoContratoSubido = {
@@ -145,9 +60,11 @@ export type DocumentoContratoSubido = {
 }
 
 // Los archivos ya los subió el navegador a `contratos/<id>/...`. Aquí se
-// valida todo otra vez y crear_solicitud_contrato guarda la solicitud en una
-// sola transacción, en estado 'pre_aprobacion'. Devuelve el número.
-export async function crearSolicitudContrato(
+// valida todo otra vez y la base guarda la solicitud en una sola transacción
+// (crear_solicitud_contrato / reenviar_solicitud_contrato), en estado
+// 'pre_aprobacion'. Devuelve el número.
+async function guardarSolicitud(
+  modo: "crear" | "reenviar",
   id: string,
   proyectoId: string,
   form: SolicitudContratoForm,
@@ -171,7 +88,7 @@ export async function crearSolicitudContrato(
   }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("crear_solicitud_contrato", {
+  const { data, error } = await supabase.rpc(modo === "crear" ? "crear_solicitud_contrato" : "reenviar_solicitud_contrato", {
     p_id: id,
     p_datos: {
       proyecto_id: proyectoId,
@@ -210,6 +127,26 @@ export async function crearSolicitudContrato(
   return Number(data)
 }
 
+export async function crearSolicitudContrato(
+  id: string,
+  proyectoId: string,
+  form: SolicitudContratoForm,
+  documentos: DocumentoContratoSubido[]
+): Promise<number> {
+  return guardarSolicitud("crear", id, proyectoId, form, documentos)
+}
+
+// Corrige una solicitud DEVUELTA y la vuelve a mandar a pre-aprobación (mismo
+// número). Reemplaza sus líneas y documentos.
+export async function reenviarSolicitudContrato(
+  id: string,
+  proyectoId: string,
+  form: SolicitudContratoForm,
+  documentos: DocumentoContratoSubido[]
+): Promise<number> {
+  return guardarSolicitud("reenviar", id, proyectoId, form, documentos)
+}
+
 // Ítems del presupuesto vigente del proyecto que se pueden contratar a
 // valores unitarios, con lo disponible (vacío si el proyecto no tiene
 // presupuesto). Paginado: la API corta en 1000 filas.
@@ -233,7 +170,7 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
 
 // Enlace temporal (2 minutos) para ver un documento del contrato.
 export async function enlaceDocumentoContrato(documentoId: string): Promise<string> {
-  await requerirPestana("contratos.solicitar")
+  await requerirVerContratos()
   const supabase = await createClient()
   const { data: doc, error } = await supabase.from("contrato_documentos").select("ruta").eq("id", documentoId).maybeSingle()
   if (error) throw new Error(error.message)

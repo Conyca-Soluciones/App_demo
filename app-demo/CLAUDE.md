@@ -1461,3 +1461,43 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
 - **Pendiente**: borradores (hoy el formulario se pierde si se sale), pantalla
   de pre-aprobación/minutas, opciones fijas de forma/plazo de pago cuando
   Jurídica las defina, y el 7.º tipo de contrato si existe.
+
+
+## Pre-aprobación de contratos `/contratos/pre-aprobacion` (implementado)
+
+Jurídica revisa las solicitudes de TODOS los proyectos que puede ver (no usa el
+proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
+**devuelve** con motivo o **rechaza** con motivo
+(`20261014000000_preaprobacion_contratos.sql`).
+
+- **Estados** de `contratos`: `pre_aprobacion` -> `aprobada` | `devuelta` |
+  `rechazada`. Una **devuelta** la corrige el director: "Corregir y reenviar"
+  abre el mismo formulario lleno (`edicion`), con los documentos actuales
+  (se conservan o se cambian), y vuelve a `pre_aprobacion` con el MISMO número
+  (`reenviar_solicitud_contrato`). Rechazada es definitiva.
+- **Presupuesto**: devuelta sigue reservando su cantidad; rechazada deja de
+  contar (`_contratado_item` e `items_presupuesto_para_contrato` excluyen
+  `rechazada`). Al reenviar, la base borra las líneas propias ANTES de revisar
+  topes, y el formulario suma lo propio al disponible (si no, la solicitud
+  competiría contra sí misma).
+- **Lógica común**: `_guardar_solicitud_contrato(..., p_existente)` hace crear
+  y reenviar; `resolver_solicitud_contrato(id, accion, motivo)` resuelve
+  (bloquea la fila y exige estado `pre_aprobacion`: dos personas no resuelven
+  la misma).
+- **Historial** (`historial_eventos`, entidad `contrato`): creada, reenviada,
+  aprobada, devuelta, rechazada; se ve en el detalle (`HistorialTimeline
+  tipo="contrato"`). **Notificaciones**: a quienes tienen `aprobar_contratos`
+  y ven el proyecto (incluye a los Administradores) cuando llega o vuelve una
+  solicitud; al solicitante cuando se resuelve. La campanita lleva a
+  `?ver=<id>` en Pre-aprobación o en Solicitud de contratos.
+- **Detalle compartido**: `components/detalle-solicitud-contrato.tsx` (datos,
+  anexo, documentos del contrato y documentos generales del contratista con el
+  visor, motivo y historial); cada pantalla pone sus botones. Consultas
+  compartidas en `lib/contratos-db.ts` (servidor); los tipos van en
+  `lib/contratos.ts` para que los componentes no importen nada que toque el
+  servidor.
+- **Permisos**: pestaña `contratos.preaprobacion` (Legal, Líder Legal,
+  Gerencia) y acción `aprobar_contratos` (Legal, Líder Legal). Quien tiene la
+  pestaña también ve contratistas y sus documentos.
+- **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
+  contratos) y quizá no notificar a los Administradores si no lo quieren.
