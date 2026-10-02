@@ -102,7 +102,7 @@ export const TIPO_CONTRATO_POR_VALOR = new Map(TIPOS_CONTRATO.map((t) => [t.valo
 
 // Tipos que, además del valor del contrato, llevan un valor de pago mensual
 // obligatorio (la base repite la regla en _guardar_solicitud_contrato,
-// 20261016000000_solicitud_valor_mensual.sql).
+// 20261016000001_solicitud_valor_mensual.sql).
 export const TIPOS_CON_PAGO_MENSUAL: TipoContrato[] = ["prestacion_servicios", "alquiler_vehiculo", "arrendamiento"]
 export const pideValorMensual = (tipo: TipoContrato | "" | null | undefined) => Boolean(tipo && TIPOS_CON_PAGO_MENSUAL.includes(tipo))
 

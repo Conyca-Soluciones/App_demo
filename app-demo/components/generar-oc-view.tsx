@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -87,6 +89,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const [contactoProyecto, setContactoProyecto] = useState("")
   const [condicionesPago, setCondicionesPago] = useState("")
   const [observaciones, setObservaciones] = useState("")
+  // Anticipo (A&F): % del total y cuándo se paga el saldo.
+  const [conAnticipo, setConAnticipo] = useState(false)
+  const [anticipoPct, setAnticipoPct] = useState("")
+  const [saldoModo, setSaldoModo] = useState<"entrega" | "fecha">("entrega")
+  const [saldoFecha, setSaldoFecha] = useState("")
 
   const [generando, setGenerando] = useState(false)
   const [ordenCreada, setOrdenCreada] = useState<string | null>(null)
@@ -177,8 +184,20 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     ? calcularTotalesOrden(pedidos.map((p) => lineaValida(p)!))
     : null
 
+  // Hoy en hora local (YYYY-MM-DD): la fecha del saldo no puede ser anterior.
+  const hoy = new Date().toLocaleDateString("en-CA")
+  const pctNumero = Number(anticipoPct)
+  const anticipoValido =
+    !conAnticipo ||
+    (anticipoPct.trim() !== "" &&
+      Number.isFinite(pctNumero) &&
+      pctNumero > 0 &&
+      pctNumero < 100 &&
+      (saldoModo === "entrega" || (saldoFecha !== "" && saldoFecha >= hoy)))
+  const montoAnticipo = conAnticipo && totales && anticipoValido ? Math.round((totales.total * pctNumero) / 100) : null
+
   const puedeGenerar =
-    proveedor !== null && !cargandoProveedor && todasLasLineasValidas && !generando
+    proveedor !== null && !cargandoProveedor && todasLasLineasValidas && anticipoValido && !generando
 
   async function handleGenerar() {
     if (!seleccion || !proveedor || !todasLasLineasValidas) return
@@ -211,6 +230,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         email: detalleProveedor?.correo ?? null,
         condicionesPago: condicionesPago.trim() || null,
         observaciones: observaciones.trim() || null,
+        ...(conAnticipo
+          ? { anticipoPorcentaje: pctNumero, saldoModo, saldoFecha: saldoModo === "fecha" ? saldoFecha : null }
+          : {}),
         lineas: pedidos.map((p) => {
           const l = lineaValida(p)!
           return {
@@ -484,6 +506,64 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
               onChange={(e) => setCondicionesPago(e.target.value)}
               placeholder="Ej. Anticipado, 30 días..."
             />
+          </div>
+
+          <div className="space-y-2 rounded-lg border p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <Checkbox checked={conAnticipo} onCheckedChange={(v) => setConAnticipo(v === true)} />
+              Anticipo
+            </label>
+            {conAnticipo && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="anticipo-pct">Porcentaje del anticipo (%)</Label>
+                  <Input
+                    id="anticipo-pct"
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    max="99.99"
+                    step="0.01"
+                    value={anticipoPct}
+                    onChange={(e) => setAnticipoPct(e.target.value)}
+                    placeholder="Ej. 30"
+                  />
+                  {montoAnticipo !== null && totales && (
+                    <p className="text-xs text-muted-foreground">
+                      Anticipo {formatoMoneda(montoAnticipo)} · Saldo {formatoMoneda(Math.round(totales.total) - montoAnticipo)}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>¿Cuándo se paga el saldo?</Label>
+                  <Select value={saldoModo} onValueChange={(v) => setSaldoModo((v ?? "entrega") as "entrega" | "fecha")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="entrega">Al ser entregado</SelectItem>
+                      <SelectItem value="fecha">En una fecha</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {saldoModo === "fecha" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="saldo-fecha">Fecha de pago del saldo</Label>
+                    <Input
+                      id="saldo-fecha"
+                      type="date"
+                      min={hoy}
+                      value={saldoFecha}
+                      onChange={(e) => setSaldoFecha(e.target.value)}
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Al aprobar la orden se aprueba el pago del anticipo. El saldo llega a aprobación de Gerencia
+                  {saldoModo === "entrega" ? " cuando la orden quede entregada por completo." : " en la fecha indicada."}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

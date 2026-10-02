@@ -936,7 +936,7 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   "VEINTIUNO MIL", "TREINTA Y UNO MILLONES" -> UN / VEINTIÚN / TREINTA Y UN;
   "veintidos/veintitres/veintiseis" sin tilde; desde mil millones salía
   "UNDEFINED MILLONES"; 1,996 daba "100 centavos".
-- **Corregido** (`20261017000000_acceso_proyecto_funciones.sql`):
+- **Corregido** (`20261017000001_acceso_proyecto_funciones.sql`):
   `resumen_ejecucion_proyecto` y `registrar_salida_almacen` (SECURITY
   DEFINER) no revisaban acceso al proyecto. Envoltura con el nombre de
   siempre + original renombrada con "_" (sin EXECUTE para usuarios).
@@ -953,7 +953,7 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   usuario con sesión. Propuesta: exigir `editar_presupuestos` para escribir.
 - **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
   mitad, deja una versión vacía y APUs huérfanos).
-- **Resuelto en `20261018000000_requisiciones_y_almacen_por_proyecto.sql`
+- **Resuelto en `20261024000000_requisiciones_y_almacen_por_proyecto.sql`
   (falta aplicarla en producción, junto con el deploy de la app)**:
   (1) usuarios sin INSERT/UPDATE/DELETE en `pedidos_insumos`,
   `ordenes_compra` y `ordenes_compra_items` (todo va por RPCs SECURITY
@@ -1521,7 +1521,7 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   acceso al proyecto (`puede_ver_contrato`). Quien solicita también puede leer
   contratistas (para elegir uno). Por defecto: Director de obra solicita;
   Gerencia, Legal y Líder Legal ven.
-- **Obligatorios extra** (`20261016000000_solicitud_valor_mensual.sql`, que
+- **Obligatorios extra** (`20261016000001_solicitud_valor_mensual.sql`, que
   recrea `_guardar_solicitud_contrato`; igual en `validarSolicitud`):
   obligaciones específicas y entregables, al menos uno cada uno (si no hay, se
   escribe "N/A" o "No aplica"; `esNoAplica` evita copiarlos a la minuta); y
@@ -1595,3 +1595,88 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   después de la décima octava con `ordinalClausula`).
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
   contratos) y las plantillas de los demás tipos.
+
+---
+
+# TRASPASO DE SESIÓN (2026-10-02) — leer esto primero
+
+Resumen para quien (Claude o persona) retome el trabajo. Rama de trabajo: **`lcpr`**
+(Sofia trabaja en paralelo en `spr` y se mezcla por pull request: antes de empezar,
+`git fetch` y revisar si hay commits nuevos; las migraciones pueden chocar de número).
+
+## Preferencias del usuario (Luis)
+- **Español** en todo (UI, comentarios, mensajes de commit, respuestas).
+- **Rendimiento lineal siempre**: nada O(n²). Indexar con `Map`/`Set` antes de
+  recorrer, consultas por lotes (`in`, joins, RPC) en vez de una por fila, listados
+  con filtros y paginación **en el servidor**. La app va a manejar mucho volumen.
+- **Commit y push directos a `lcpr`** tras cada cambio (nunca a `main`). Las
+  migraciones SQL las ejecuta él a mano en Supabase: avisarle cuáles faltan.
+- Antes de dar por hecho un cambio: `npx tsc --noEmit`. No hay acceso a la base de
+  datos desde aquí: decir siempre que no se probó contra Supabase.
+- Quiere cambios **pedidos tal cual**, sin agregar extras; si hay una decisión de
+  producto dudosa, la deja anotada al final de la respuesta, no la decide sola.
+
+## Convenciones de interfaz (ya aplicadas en toda la app)
+- **Encabezado estándar** de página: `EncabezadoPagina` / `MarcoPagina`
+  (`components/encabezado-pagina.tsx`): botón del menú + título (+ subtítulo,
+  + selector de proyecto). Misma altura y margen (`px-4 sm:px-6`) en todas.
+- **Listados con panel de filtros a la izquierda** (`components/panel-filtros.tsx`;
+  para requisiciones `filtros-requisiciones.tsx`): ningún filtro es obligatorio,
+  **no se muestra nada hasta presionar Consultar**, el panel **se minimiza al
+  consultar**, "Limpiar filtros" lo vacía. Casillas por defecto marcadas donde
+  aplica ("Solo por Aprobar", "Solo por Recibir", "Solo pendientes por comprar").
+- **Paginación de 50** (`lib/paginacion.ts` + `components/paginacion-simple.tsx`):
+  se pide una fila de más para saber si hay página siguiente, sin conteo total.
+- **Acciones de tabla**: botón **Ver** que abre el detalle en un diálogo encima de
+  la lista (no al hacer clic en la fila); columna Acciones con dos casillas de
+  ancho fijo (Ver + Aprobar/Rechazar/Desaprobar/Cancelar) para que quede alineada.
+- **Buscadores**: `_` lista todas las opciones (`lib/busqueda.ts`), mínimo 2 letras.
+- **Etiquetas de estado**: tamaño `h-6 px-3 text-xs`, centradas en la fila.
+  Requisiciones: Pendiente (amarillo), Aprobada (verde), Rechazada (rojo),
+  Cancelada (gris). Órdenes de compra: igual. Entradas: Entrega Pendiente (rojo),
+  Entrega Parcial (amarillo), Entrega Completa (verde).
+- **`Select`** (`components/ui/select.tsx`) arma solo las etiquetas desde los
+  `SelectItem`: no mostrar el valor interno ("todos") en el botón.
+- **Menú lateral por módulos** (`lib/pestanas.ts`: `MODULOS`, `construirModulos`):
+  **AdPro** (todo lo existente) y **A&F** (nuevo, sin pestañas todavía). Tres
+  columnas que se abren a la derecha (módulos → secciones → pestañas), se minimiza
+  al elegir una pestaña, y una flecha en la orilla lo abre en la ruta actual.
+  Para una pestaña nueva de A&F: entrada en `PESTANAS` con `modulo: "ayf"`.
+- **Columnas de tablas en Aprobación**: sin columna de estado de compras.
+
+## Reglas de negocio vigentes (resumen; el detalle está arriba en este archivo)
+- Requisiciones agrupadas con número; aprobar/rechazar/cancelar/modificar actúan
+  sobre la requisición completa; el cupo del presupuesto sale de las líneas
+  (pendiente o aprobada = comprometida). Compras compra y rechaza **por línea**.
+- Cancelar una requisición: solo quien la creó y solo si está pendiente.
+- Órdenes de compra: estados visibles solo Pendiente/Aprobada/Rechazada/Cancelada;
+  **ya no existe "enviada"** (columna `enviada` queda sin usar). Desaprobar o
+  cancelar una orden: no se permite si ya hay entradas de almacén.
+- Entradas/salidas: no se puede editar ni anular una entrada si el inventario del
+  insumo quedaría negativo (lo valida la base, con candado por proyecto).
+- Cantidades siempre **enteras**.
+
+## Migraciones de la última sesión (orden de ejecución)
+`20261004050000` logo de empresas · `20261006050000` pestaña Registro de
+Requisiciones · `20261006150000` cancelar solo propio · `20261007000000`
+notificaciones · `20261007100000` quitar duplicadas · `20261008000000`
+requisiciones · `20261009000000` quitar enviada · `20261010000000` entradas por
+orden · `20261010100000` rendimiento (Sofia) · `20261011000000` revisión de
+seguridad/rendimiento · `20261012000000` lista de entradas en SQL.
+**Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
+Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
+
+## Pendientes conocidos (no hechos)
+- El estado de compra de las requisiciones se calcula con una función por línea;
+  con mucho volumen conviene guardarlo o calcularlo solo para la página.
+- Funciones por línea antiguas siguen en la base sin uso: `cancelar_pedido`,
+  `modificar_pedido`, `desaprobar_pedido` (decisión: dejarlas por ahora).
+- La matriz de Roles y permisos no agrupa por módulo todavía.
+- La sección "Administrador" quedó dentro de AdPro (administra toda la plataforma).
+- A&F es visible para todos los usuarios aunque esté vacío.
+
+## Notas de herramientas
+- Desde Windows/Git Bash, los scripts de edición largos con comillas fallan en
+  heredoc: escribir el script con el editor a un archivo `.py` y ejecutarlo.
+- Un archivo `"use server"` solo puede exportar funciones async (ni constantes ni
+  re-exportar tipos): los tipos/helpers compartidos van en `lib/`.
