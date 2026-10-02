@@ -82,6 +82,8 @@ export const PESTANAS: Pestana[] = [
   { clave: "admin.visualizacion", titulo: "Visualización", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
 
   // A&F (Administrativo y Financiero)
+  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos"] },
+  { clave: "ayf.consolidado", titulo: "Consolidado de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado", rutas: ["/ayf/consolidado"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 
@@ -115,6 +117,8 @@ export const ACCIONES: Accion[] = [
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Aprobar, devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
+  { clave: "aprobar_pagos", titulo: "Aprobar pagos", descripcion: "Aprobar o rechazar los pagos pendientes (por ahora, los saldos de órdenes de compra con anticipo).", seccion: "A&F" },
+  { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, y generar los pagos de una orden ya aprobada.", seccion: "A&F" },
   { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Crear terceros y agregar o corregir sus cuentas bancarias (las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]
