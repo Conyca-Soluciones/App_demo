@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
+import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import type { RequisicionResumen } from "@/lib/requisiciones-lineas"
 
@@ -21,21 +22,25 @@ export default function RegistroRequisiciones() {
 
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [requisiciones, setRequisiciones] = useState<RequisicionResumen[] | null>(null)
-  const [truncado, setTruncado] = useState(false)
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
   const [cargando, setCargando] = useState(false)
   // Última consulta (para refrescar la lista al cerrar el detalle) y la
   // requisición abierta en el diálogo de detalle.
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosRequisiciones>({})
   const [abiertaId, setAbiertaId] = useState<string | null>(null)
 
-  function consultar(filtros: FiltrosRequisiciones) {
+  function consultar(filtros: FiltrosRequisiciones, pag = 0) {
     setUltimosFiltros(filtros)
     setCargando(true)
     setError(null)
-    listarRequisiciones(filtros)
+    listarRequisiciones(filtros, pag)
       .then((r) => {
+        // Si la página quedó vacía (p. ej. se canceló la última de la página), se retrocede.
+        if (r.filas.length === 0 && pag > 0) return consultar(filtros, pag - 1)
         setRequisiciones(r.filas)
-        setTruncado(r.truncado)
+        setPagina(pag)
+        setHayMas(r.hayMas)
       })
       .catch((e) =>
         setError(e instanceof Error ? e.message : "No se pudo cargar el registro de requisiciones.")
@@ -71,9 +76,8 @@ export default function RegistroRequisiciones() {
           ) : (
             <>
               <p className="text-xs text-muted-foreground">
-                {requisiciones.length} {requisiciones.length === 1 ? "requisición" : "requisiciones"}
-                {truncado && " — se muestran las más recientes; afina los filtros para ver otras."}
-                {" "}Haz clic en una para ver su detalle.
+                {requisiciones.length} {requisiciones.length === 1 ? "requisición" : "requisiciones"} en
+                esta página. Haz clic en una para ver su detalle.
               </p>
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full border-separate border-spacing-0">
@@ -129,6 +133,12 @@ export default function RegistroRequisiciones() {
                   </tbody>
                 </table>
               </div>
+              <PaginacionSimple
+                pagina={pagina}
+                hayMas={hayMas}
+                cargando={cargando}
+                onCambiar={(n) => consultar(ultimosFiltros, n)}
+              />
             </>
           )}
         </div>
@@ -141,7 +151,7 @@ export default function RegistroRequisiciones() {
           if (!open) {
             setAbiertaId(null)
             // Pudo modificarse o cancelarse: se refresca la lista.
-            if (requisiciones !== null) consultar(ultimosFiltros)
+            if (requisiciones !== null) consultar(ultimosFiltros, pagina)
           }
         }}
       >
@@ -152,7 +162,7 @@ export default function RegistroRequisiciones() {
               requisicionId={abiertaId}
               onCerrar={() => {
                 setAbiertaId(null)
-                if (requisiciones !== null) consultar(ultimosFiltros)
+                if (requisiciones !== null) consultar(ultimosFiltros, pagina)
               }}
             />
           )}

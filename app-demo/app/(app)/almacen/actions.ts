@@ -7,6 +7,7 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import {
   cargarLineas,
   mapResumen,
@@ -311,14 +312,13 @@ export type FiltrosRequisiciones = {
   hasta?: string // YYYY-MM-DD, inclusive
 }
 
-const LIMITE_REGISTRO = 500
-
 // Requisiciones de los proyectos a los que el usuario tiene acceso (no solo el
 // proyecto actual), con filtros. El filtro de acceso se aplica acá en el
 // servidor, nunca depende de lo que mande el cliente.
 export async function listarRequisiciones(
-  filtros: FiltrosRequisiciones
-): Promise<{ filas: RequisicionResumen[]; truncado: boolean }> {
+  filtros: FiltrosRequisiciones,
+  pagina = 0
+): Promise<{ filas: RequisicionResumen[]; hayMas: boolean }> {
   const supabase = await createClient()
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
@@ -326,19 +326,19 @@ export async function listarRequisiciones(
   const permisos = await obtenerPermisosUsuario(userId)
   const idsPermitidos = Array.from(permisos.proyectos.keys())
   if (!permisos.veTodosProyectos && idsPermitidos.length === 0) {
-    return { filas: [], truncado: false }
+    return { filas: [], hayMas: false }
   }
 
   let query = supabase
     .from("requisiciones_vista")
     .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
     .order("numero", { ascending: false })
-    .limit(LIMITE_REGISTRO + 1)
+    .range(...rangoPagina(pagina))
 
   if (filtros.proyectoId) {
     // Un proyecto pedido a mano solo vale si el usuario tiene acceso a él.
     if (!permisos.veTodosProyectos && !idsPermitidos.includes(filtros.proyectoId)) {
-      return { filas: [], truncado: false }
+      return { filas: [], hayMas: false }
     }
     query = query.eq("proyecto_id", filtros.proyectoId)
   } else if (!permisos.veTodosProyectos) {
@@ -358,8 +358,8 @@ export async function listarRequisiciones(
   const { data, error } = await query
   if (error) throw new Error(error.message)
 
-  const filas = (data ?? []).slice(0, LIMITE_REGISTRO).map(mapResumen)
-  return { filas, truncado: (data?.length ?? 0) > LIMITE_REGISTRO }
+  const { filas, hayMas } = cortarPagina(data ?? [])
+  return { filas: filas.map(mapResumen), hayMas }
 }
 
 export async function obtenerRequisicion(id: string): Promise<RequisicionDetalle> {

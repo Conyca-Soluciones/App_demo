@@ -5,6 +5,7 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
@@ -692,8 +693,9 @@ export type FiltrosOrdenesCompra = {
 }
 
 export async function listarTodasLasOrdenesCompra(
-  filtros: FiltrosOrdenesCompra = {}
-): Promise<OrdenCompraListado[]> {
+  filtros: FiltrosOrdenesCompra = {},
+  pagina = 0
+): Promise<{ ordenes: OrdenCompraListado[]; hayMas: boolean }> {
   const supabase = await createClient()
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
@@ -703,7 +705,7 @@ export async function listarTodasLasOrdenesCompra(
   // que falla con muchos proveedores o corta el resultado.
   const proveedor = filtros.proveedor?.trim()
 
-  const data = await traerTodo<any>((desde, hasta) => {
+  const consulta = () => {
     // Dos formas del select (literales, para que el cliente infiera bien): con
     // el join !inner a proveedores solo cuando se filtra por proveedor.
     let query = (proveedor
@@ -745,8 +747,12 @@ export async function listarTodasLasOrdenesCompra(
     // lib/ordenes-compra-estado.ts).
     if (filtros.estado) query = query.eq("estado", filtros.estado)
     else if (filtros.incluirCanceladas === false) query = query.neq("estado", "cancelada")
-    return query.range(desde, hasta)
-  })
+    return query.range(...rangoPagina(pagina))
+  }
+
+  const { data: filasPagina, error } = await consulta()
+  if (error) throw new Error(error.message)
+  const { filas: data, hayMas } = cortarPagina((filasPagina ?? []) as any[])
 
   const ordenes = (data ?? []).map((o: any) => ({
     id: o.id,
@@ -763,7 +769,7 @@ export async function listarTodasLasOrdenesCompra(
     createdAt: o.created_at,
   }))
 
-  return await conSobrecostoPrecio(ordenes)
+  return { ordenes: await conSobrecostoPrecio(ordenes), hayMas }
 }
 
 // Marca, para cada orden, si alguna de sus líneas tiene precio_unitario por

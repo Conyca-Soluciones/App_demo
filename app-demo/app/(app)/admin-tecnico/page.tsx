@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table"
 import { BadgeEstadoRequisicion } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
+import { PaginacionSimple } from "@/components/paginacion-simple"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
@@ -73,12 +74,20 @@ export default function AdminTecnico() {
   const [abiertaId, setAbiertaId] = useState<string | null>(null)
   // Últimos filtros consultados (para repetir la consulta tras una acción).
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
 
-  function cargar(f: FiltrosRequisiciones = filtros) {
+  function cargar(f: FiltrosRequisiciones = filtros, pag: number = pagina) {
     setCargando(true)
     setError(null)
-    verRequisicionesAprobacion(f)
-      .then((lista: RequisicionParaAprobar[]) => setRequisiciones(lista))
+    verRequisicionesAprobacion(f, pag)
+      .then((r: { filas: RequisicionParaAprobar[]; hayMas: boolean }) => {
+        // Si la página quedó vacía (se resolvió la última de la página), se retrocede.
+        if (r.filas.length === 0 && pag > 0) return cargar(f, pag - 1)
+        setRequisiciones(r.filas)
+        setPagina(pag)
+        setHayMas(r.hayMas)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargando(false))
   }
@@ -141,7 +150,7 @@ export default function AdminTecnico() {
           onError={setError}
           onConsultar={(f) => {
             setFiltros(f)
-            cargar(f)
+            cargar(f, 0)
           }}
         />
 
@@ -266,6 +275,14 @@ export default function AdminTecnico() {
               </Table>
             </div>
           ) : null}
+          {requisiciones !== null && requisiciones.length > 0 && (
+            <PaginacionSimple
+              pagina={pagina}
+              hayMas={hayMas}
+              cargando={cargando}
+              onCambiar={(n) => cargar(filtros, n)}
+            />
+          )}
         </div>
       </main>
 

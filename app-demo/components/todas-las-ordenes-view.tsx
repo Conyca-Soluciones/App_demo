@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
+import { PaginacionSimple } from "@/components/paginacion-simple"
 import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
 import {
   Dialog,
@@ -66,6 +67,8 @@ export function TodasLasOrdenesView() {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [ordenes, setOrdenes] = useState<OrdenCompraListado[] | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Últimos filtros consultados (para refrescar tras cancelar una orden).
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosOrdenesCompra>({})
@@ -89,12 +92,18 @@ export function TodasLasOrdenesView() {
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
 
-  function cargar(filtros: FiltrosOrdenesCompra = ultimosFiltros) {
+  function cargar(filtros: FiltrosOrdenesCompra = ultimosFiltros, pag: number = pagina) {
     setUltimosFiltros(filtros)
     setCargando(true)
     setError(null)
-    listarTodasLasOrdenesCompra(filtros)
-      .then((o: OrdenCompraListado[]) => setOrdenes(o))
+    listarTodasLasOrdenesCompra(filtros, pag)
+      .then((r: { ordenes: OrdenCompraListado[]; hayMas: boolean }) => {
+        // Si la página quedó vacía (p. ej. se canceló la última de la página), se retrocede.
+        if (r.ordenes.length === 0 && pag > 0) return cargar(filtros, pag - 1)
+        setOrdenes(r.ordenes)
+        setPagina(pag)
+        setHayMas(r.hayMas)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las órdenes."))
       .finally(() => setCargando(false))
   }
@@ -123,7 +132,7 @@ export function TodasLasOrdenesView() {
       creadaPorId: creadaPor?.id,
       desde: desde || undefined,
       hasta: hasta || undefined,
-    })
+    }, 0)
     return true
   }
 
@@ -364,6 +373,14 @@ export function TodasLasOrdenesView() {
           </Table>
         </div>
       )}
+          {ordenes !== null && ordenes.length > 0 && (
+            <PaginacionSimple
+              pagina={pagina}
+              hayMas={hayMas}
+              cargando={cargando}
+              onCambiar={(n) => cargar(ultimosFiltros, n)}
+            />
+          )}
         </div>
       </div>
 
