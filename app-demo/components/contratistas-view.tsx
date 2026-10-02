@@ -138,8 +138,15 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
       const col = columnas.find((c) => c.clave === orden.clave)
       if (col) {
         const factor = orden.dir === "asc" ? 1 : -1
-        const clave = orden.clave === "createdAt" ? (c: Contratista) => c.createdAt : (c: Contratista) => normalizar(col.texto(c))
-        lista = [...lista].sort((a, b) => (clave(a) < clave(b) ? -1 : clave(a) > clave(b) ? 1 : 0) * factor)
+        // La clave de cada fila se calcula UNA vez (no en cada comparación).
+        const clave = new Map(
+          lista.map((c) => [c.id, orden.clave === "createdAt" ? c.createdAt : normalizar(col.texto(c))])
+        )
+        lista = [...lista].sort((a, b) => {
+          const x = clave.get(a.id)!
+          const y = clave.get(b.id)!
+          return (x < y ? -1 : x > y ? 1 : 0) * factor
+        })
       }
     }
     return lista

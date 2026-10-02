@@ -830,6 +830,15 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
   `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
+- **Políticas RLS: nada de funciones de permiso por fila.** Lo que no depende
+  de la fila va envuelto en `(select f(...))` (se evalúa una vez por consulta)
+  y "¿puede ver el proyecto?" se escribe
+  `proyecto_id in (select public.proyectos_visibles((select auth.uid())))`, no
+  `usuario_puede_ver_proyecto(uid, proyecto_id)` (misma respuesta, verificado).
+  Tablas hijas: `exists (select 1 from padre where padre.id = padre_id)` (la
+  subconsulta ya aplica la política del padre). Medido en Contratos: 2.000
+  solicitudes 2.122 ms -> 8 ms (`20261012100000_rendimiento_rls_contratos.sql`).
+  Las políticas viejas de otras tablas todavía usan el patrón por fila.
 - **Límites de la API que fallan en silencio o con listas largas**: cada
   respuesta se corta en 1000 filas (también las RPC que devuelven filas): lo
   que pueda crecer se trae con `traerTodo` (orden que termine en `id`). Y
