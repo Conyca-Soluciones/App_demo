@@ -11,8 +11,11 @@ import {
   editarEmpresa,
   eliminarEmpresa,
   actualizarLogoEmpresa,
+  listarConsolidados,
+  asignarConsolidadoEmpresa,
   type Proyecto,
   type Empresa,
+  type Consolidado,
 } from "./actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -295,11 +298,13 @@ function TabEmpresas({
   setEmpresas,
   proyectos,
   setProyectos,
+  consolidados,
 }: {
   empresas: Empresa[]
   setEmpresas: React.Dispatch<React.SetStateAction<Empresa[]>>
   proyectos: Proyecto[]
   setProyectos: React.Dispatch<React.SetStateAction<Proyecto[]>>
+  consolidados: Consolidado[]
 }) {
   const [nitNuevo, setNitNuevo] = useState("")
   const [razonNueva, setRazonNueva] = useState("")
@@ -360,6 +365,17 @@ function TabEmpresas({
       setEditandoId(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo editar la empresa.")
+    }
+  }
+
+  // A&F: a qué consolidado de pagos va cada empresa.
+  async function cambiarConsolidado(empresaId: string, consolidadoId: string | null) {
+    setError(null)
+    try {
+      await asignarConsolidadoEmpresa(empresaId, consolidadoId)
+      setEmpresas((prev) => prev.map((x) => (x.id === empresaId ? { ...x, consolidadoId } : x)))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo asignar el consolidado.")
     }
   }
 
@@ -451,7 +467,7 @@ function TabEmpresas({
 
       <div className="divide-y rounded-lg border">
         {empresas.map((e) => (
-          <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+          <div key={e.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
             <LogoEmpresa src={e.logoUrl} />
             {editandoId === e.id ? (
               <>
@@ -478,10 +494,26 @@ function TabEmpresas({
             ) : (
               <>
                 <span className="w-40 shrink-0 font-mono text-xs text-muted-foreground">{e.nit}</span>
-                <span className="flex-1 text-sm">{e.razonSocial}</span>
+                <span className="min-w-48 flex-1 text-sm">{e.razonSocial}</span>
                 <span className="w-28 shrink-0 text-xs text-muted-foreground">
                   {proyectosDe(e.id)} {proyectosDe(e.id) === 1 ? "proyecto" : "proyectos"}
                 </span>
+                <Select
+                  value={e.consolidadoId ?? "__ninguno__"}
+                  onValueChange={(v) => cambiarConsolidado(e.id, !v || v === "__ninguno__" ? null : v)}
+                >
+                  <SelectTrigger className="h-8 w-48 shrink-0" aria-label={`Consolidado de ${e.razonSocial}`}>
+                    <SelectValue placeholder="Consolidado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__ninguno__">Sin consolidado</SelectItem>
+                    {consolidados.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <label className="inline-flex h-8 cursor-pointer items-center rounded-md px-2.5 text-sm font-medium hover:bg-accent">
                   {e.logoUrl ? "Cambiar logo" : "Subir logo"}
                   <input
@@ -532,6 +564,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<"proyectos" | "empresas">("proyectos")
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [empresas, setEmpresas] = useState<Empresa[]>([])
+  const [consolidados, setConsolidados] = useState<Consolidado[]>([])
 
   // Proyectos y empresas se cargan UNA VEZ al entrar al panel, no en cada
   // cambio de pestaña: así el dropdown de empresa de Proyectos y la pestaña
@@ -542,6 +575,9 @@ export default function AdminPage() {
       .catch(() => {})
     listarEmpresas()
       .then(setEmpresas)
+      .catch(() => {})
+    listarConsolidados()
+      .then(setConsolidados)
       .catch(() => {})
   }, [])
 
@@ -580,6 +616,7 @@ export default function AdminPage() {
           setEmpresas={setEmpresas}
           proyectos={proyectos}
           setProyectos={setProyectos}
+          consolidados={consolidados}
         />
       )}
     </main>
