@@ -356,6 +356,11 @@ export type DatosOrdenCompra = {
   email?: string | null
   condicionesPago?: string | null
   observaciones?: string | null
+  // Anticipo (A&F): porcentaje del total que se paga al aprobar la orden, y
+  // cuándo se paga el saldo: al quedar entregada o en una fecha.
+  anticipoPorcentaje?: number | null
+  saldoModo?: "entrega" | "fecha" | null
+  saldoFecha?: string | null // YYYY-MM-DD
   lineas: LineaOrdenCompra[]
 }
 
@@ -368,6 +373,28 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
   // Cantidades solo enteras (precio y porcentajes pueden tener decimales).
   if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidadComprar))) {
     throw new Error("Las cantidades de la orden deben ser números enteros mayores que cero.")
+  }
+
+  // Anticipo: se valida acá también (la base lo vuelve a validar). Los
+  // parámetros solo se mandan si hay anticipo, así una orden sin anticipo
+  // llama a la función exactamente como antes.
+  let anticipo: { p_anticipo_porcentaje: number; p_saldo_modo: string; p_saldo_fecha: string | null } | null = null
+  if (datos.anticipoPorcentaje != null && datos.anticipoPorcentaje !== 0) {
+    const pct = datos.anticipoPorcentaje
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+      throw new Error("El porcentaje del anticipo debe ser mayor que 0 y menor que 100.")
+    }
+    if (datos.saldoModo !== "entrega" && datos.saldoModo !== "fecha") {
+      throw new Error("Indica cuándo se paga el saldo: al ser entregado o en una fecha.")
+    }
+    if (datos.saldoModo === "fecha" && !/^\d{4}-\d{2}-\d{2}$/.test(datos.saldoFecha ?? "")) {
+      throw new Error("Indica la fecha en que se paga el saldo.")
+    }
+    anticipo = {
+      p_anticipo_porcentaje: Math.round(pct * 100) / 100,
+      p_saldo_modo: datos.saldoModo,
+      p_saldo_fecha: datos.saldoModo === "fecha" ? (datos.saldoFecha as string) : null,
+    }
   }
 
   const supabase = await createClient()
@@ -383,6 +410,7 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     p_email: datos.email ?? null,
     p_condiciones_pago: datos.condicionesPago ?? null,
     p_observaciones: datos.observaciones ?? null,
+    ...(anticipo ?? {}),
     p_lineas: datos.lineas.map((l) => ({
       pedido_id: l.pedidoId,
       cantidad_comprar: l.cantidadComprar,
