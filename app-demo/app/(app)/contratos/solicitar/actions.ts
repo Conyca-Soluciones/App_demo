@@ -8,6 +8,7 @@ import {
   TIPO_CONTRATO_POR_VALOR,
   validarSolicitud,
   type EstadoContrato,
+  type ItemPresupuestoContrato,
   type SolicitudContratoForm,
   type TipoContrato,
   type TipoDocumentoContrato,
@@ -42,7 +43,7 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   observaciones: string | null
   obligaciones: string[]
   entregables: string[]
-  items: { actividad: string; unidad: string; cantidad: number; valorUnitario: number }[]
+  items: { codigo: string | null; actividad: string; unidad: string; cantidad: number; valorUnitario: number }[]
   documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string }[]
 }
 
@@ -103,7 +104,7 @@ export async function obtenerSolicitudContrato(id: string): Promise<SolicitudCon
       anexo_tipo, tiene_anticipo, anticipo_porcentaje, forma_pago, correo_notificacion, observaciones,
       obligaciones:contrato_obligaciones(orden, texto),
       entregables:contrato_entregables(orden, texto),
-      items:contrato_anexo_items(orden, actividad, unidad, cantidad, valor_unitario),
+      items:contrato_anexo_items(orden, actividad, unidad, cantidad, valor_unitario, presupuesto_item:presupuesto_items(codigo)),
       documentos:contrato_documentos(id, tipo, nombre_archivo, mime)
     `)
     .eq("id", id)
@@ -125,6 +126,7 @@ export async function obtenerSolicitudContrato(id: string): Promise<SolicitudCon
     obligaciones: [...((f as any).obligaciones ?? [])].sort(porOrden).map((o: any) => o.texto),
     entregables: [...((f as any).entregables ?? [])].sort(porOrden).map((e: any) => e.texto),
     items: [...((f as any).items ?? [])].sort(porOrden).map((i: any) => ({
+      codigo: i.presupuesto_item?.codigo ?? null,
       actividad: i.actividad,
       unidad: i.unidad,
       cantidad: Number(i.cantidad),
@@ -192,8 +194,7 @@ export async function crearSolicitudContrato(
     p_obligaciones: d.obligaciones,
     p_entregables: d.entregables,
     p_items: d.items.map((i) => ({
-      actividad: i.actividad,
-      unidad: i.unidad,
+      presupuesto_item_id: i.presupuestoItemId,
       cantidad: i.cantidad,
       valor_unitario: i.valorUnitario,
     })),
@@ -207,6 +208,27 @@ export async function crearSolicitudContrato(
   })
   if (error) throw new Error(error.message)
   return Number(data)
+}
+
+// Ítems del presupuesto vigente del proyecto que se pueden contratar a
+// valores unitarios, con lo disponible (vacío si el proyecto no tiene
+// presupuesto). Paginado: la API corta en 1000 filas.
+export async function listarItemsPresupuestoContrato(proyectoId: string): Promise<ItemPresupuestoContrato[]> {
+  await requerirAccion("solicitar_contratos")
+  const supabase = await createClient()
+  const filas = await traerTodo<any>((desde, hasta) =>
+    supabase.rpc("items_presupuesto_para_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
+  )
+  return filas.map((f) => ({
+    id: f.presupuesto_item_id,
+    codigo: f.codigo,
+    descripcion: f.descripcion,
+    unidad: f.unidad,
+    cantidad: Number(f.cantidad),
+    valorUnitario: Number(f.valor_unitario),
+    contratado: Number(f.contratado),
+    disponible: Number(f.disponible),
+  }))
 }
 
 // Enlace temporal (2 minutos) para ver un documento del contrato.

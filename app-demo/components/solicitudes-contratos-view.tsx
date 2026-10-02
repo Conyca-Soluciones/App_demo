@@ -255,7 +255,7 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                   <table className="w-full min-w-[520px]">
                     <thead>
                       <tr className="bg-muted/60 text-left text-xs">
-                        <th className="px-2 py-1.5">Actividad</th>
+                        <th className="px-2 py-1.5">Ítem del presupuesto</th>
                         <th className="px-2 py-1.5">Unidad</th>
                         <th className="px-2 py-1.5 text-right">Cantidad</th>
                         <th className="px-2 py-1.5 text-right">Valor unitario</th>
@@ -265,7 +265,10 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                     <tbody>
                       {detalle.items.map((it, i) => (
                         <tr key={i} className="border-t">
-                          <td className="px-2 py-1.5">{it.actividad}</td>
+                          <td className="px-2 py-1.5">
+                            {it.codigo && <span className="font-medium tabular-nums">{it.codigo} </span>}
+                            {it.actividad}
+                          </td>
                           <td className="px-2 py-1.5">{it.unidad}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{numero(it.cantidad)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.valorUnitario)}</td>

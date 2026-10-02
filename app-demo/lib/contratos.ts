@@ -125,7 +125,21 @@ export const numero = (n: number) => formatoNumero.format(n)
 export const aCentavos = (n: number) => Math.round(n * 100) / 100
 
 // ---------------------------------------------------------------- formulario
-export type ItemAnexoForm = { actividad: string; unidad: string; cantidad: string; valorUnitario: string }
+// Anexo de valores unitarios: cada línea es un ítem del presupuesto vigente
+// del proyecto (la descripción y la unidad salen de ahí).
+export type ItemAnexoForm = { presupuestoItemId: string; cantidad: string; valorUnitario: string }
+
+// Ítem del presupuesto vigente que se puede contratar (items_presupuesto_para_contrato).
+export type ItemPresupuestoContrato = {
+  id: string
+  codigo: string
+  descripcion: string
+  unidad: string | null
+  cantidad: number // presupuestada
+  valorUnitario: number // del presupuesto: tope del valor unitario contratado
+  contratado: number // ya en otros contratos
+  disponible: number // tope de la cantidad
+}
 
 export type SolicitudContratoForm = {
   tipo: TipoContrato | ""
@@ -166,7 +180,7 @@ export type SolicitudContratoValida = {
   objeto: string
   anexoTipo: "valor_global" | "valores_unitarios"
   valor: number
-  items: { actividad: string; unidad: string; cantidad: number; valorUnitario: number }[]
+  items: { presupuestoItemId: string; cantidad: number; valorUnitario: number }[]
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
   formaPago: string
@@ -198,7 +212,12 @@ export type ResultadoSolicitud =
   | { ok: true; datos: SolicitudContratoValida }
   | { ok: false; errores: Partial<Record<CampoSolicitud, string>> }
 
-export function validarSolicitud(f: SolicitudContratoForm): ResultadoSolicitud {
+// `catalogo` (ítems del presupuesto) permite revisar los topes en el
+// formulario; la base los vuelve a revisar al crear (crear_solicitud_contrato).
+export function validarSolicitud(
+  f: SolicitudContratoForm,
+  catalogo?: Map<string, ItemPresupuestoContrato>
+): ResultadoSolicitud {
   const errores: Partial<Record<CampoSolicitud, string>> = {}
 
   if (!f.tipo || !TIPO_CONTRATO_POR_VALOR.has(f.tipo)) errores.tipo = "Elige el tipo de contrato."
@@ -214,17 +233,38 @@ export function validarSolicitud(f: SolicitudContratoForm): ResultadoSolicitud {
   const items: SolicitudContratoValida["items"] = []
   let valor: number | null
   if (f.anexoTipo === "valores_unitarios") {
-    const llenos = f.items.filter((it) => it.actividad.trim() || it.unidad.trim() || it.cantidad.trim() || it.valorUnitario.trim())
-    if (llenos.length === 0) errores.items = "Agrega al menos una actividad con su valor unitario."
+    const llenos = f.items.filter((it) => it.presupuestoItemId || it.cantidad.trim() || it.valorUnitario.trim())
+    if (llenos.length === 0) errores.items = "Agrega al menos una actividad del presupuesto."
+    const vistos = new Set<string>()
     for (let i = 0; i < llenos.length; i++) {
       const it = llenos[i]
       const cantidad = leerNumero(it.cantidad)
       const valorUnitario = leerNumero(it.valorUnitario)
-      if (!it.actividad.trim() || !it.unidad.trim() || !cantidad || !valorUnitario) {
-        errores.items = `Completa la actividad ${i + 1}: descripción, unidad, cantidad y valor unitario mayores que cero.`
+      if (!it.presupuestoItemId) {
+        errores.items = `Elige el ítem del presupuesto de la actividad ${i + 1}.`
         break
       }
-      items.push({ actividad: it.actividad.trim(), unidad: it.unidad.trim(), cantidad, valorUnitario: aCentavos(valorUnitario) })
+      if (vistos.has(it.presupuestoItemId)) {
+        errores.items = `La actividad ${i + 1} repite un ítem del presupuesto.`
+        break
+      }
+      vistos.add(it.presupuestoItemId)
+      if (!cantidad || !valorUnitario) {
+        errores.items = `Completa la actividad ${i + 1}: cantidad y valor unitario mayores que cero.`
+        break
+      }
+      const ref = catalogo?.get(it.presupuestoItemId)
+      if (ref) {
+        if (cantidad > ref.disponible) {
+          errores.items = `Ítem ${ref.codigo}: la cantidad (${numero(cantidad)}) supera lo disponible en el presupuesto (${numero(ref.disponible)}).`
+          break
+        }
+        if (valorUnitario > ref.valorUnitario) {
+          errores.items = `Ítem ${ref.codigo}: el valor unitario (${pesos(valorUnitario)}) supera el del presupuesto (${pesos(ref.valorUnitario)}).`
+          break
+        }
+      }
+      items.push({ presupuestoItemId: it.presupuestoItemId, cantidad, valorUnitario: aCentavos(valorUnitario) })
     }
     valor = aCentavos(items.reduce((acc, it) => acc + aCentavos(it.cantidad * it.valorUnitario), 0))
   } else {

@@ -1439,6 +1439,18 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   `<contrato_id>/<tipo>.<ext>`. `crear_solicitud_contrato` guarda todo en una
   transacción, verifica archivos y documentos obligatorios, y con valores
   unitarios CALCULA el valor desde el anexo (no confía en la suma del navegador).
+- **Valores unitarios = ítems del presupuesto vigente**
+  (`20261013000000_contratos_anexo_presupuesto.sql`): cada actividad del anexo
+  es un `presupuesto_item` (`contrato_anexo_items.presupuesto_item_id`); la
+  descripción y la unidad se copian del presupuesto. Topes, revisados en el
+  formulario y otra vez en `crear_solicitud_contrato` (con bloqueo de los
+  ítems para que dos solicitudes simultáneas no pasen juntas): cantidad <=
+  presupuestada menos lo ya contratado, y valor unitario <= el del
+  presupuesto. Lo contratado se suma por presupuesto + código (como las
+  requisiciones), así sigue contando en versiones nuevas. Hoy cuentan TODOS
+  los contratos; cuando existan estados rechazado/anulado, excluirlos en
+  `_contratado_item` e `items_presupuesto_para_contrato`. Un ítem del
+  presupuesto con contratos no se puede borrar (FK).
 - **Números** en formato colombiano con `leerNumero` (`lib/contratos.ts`):
   "1.250,5" = 1250,5; "38.500" = 38500; "2.5" = 2,5.
 - **Permisos**: pestaña `contratos.solicitar` (ver las del proyecto) y acción

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import { ArrowLeft, FileUp, Loader2, Plus, Search, Send, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,15 +18,21 @@ import {
   empiezaConVerbo,
   leerNumero,
   pesos,
+  numero,
   totalAnexo,
   validarSolicitud,
   type CampoSolicitud,
+  type ItemPresupuestoContrato,
   type SolicitudContratoForm,
   type TipoContrato,
   type TipoDocumentoContrato,
 } from "@/lib/contratos"
 import { listarContratistas } from "@/app/(app)/contratos/contratistas/actions"
-import { crearSolicitudContrato, type DocumentoContratoSubido } from "@/app/(app)/contratos/solicitar/actions"
+import {
+  crearSolicitudContrato,
+  listarItemsPresupuestoContrato,
+  type DocumentoContratoSubido,
+} from "@/app/(app)/contratos/solicitar/actions"
 
 // ---------------------------------------------------------------------------
 // Formulario de solicitud de contrato. El director elige el tipo (eso define
@@ -34,7 +40,7 @@ import { crearSolicitudContrato, type DocumentoContratoSubido } from "@/app/(app
 // llena las condiciones y lo manda a pre-aprobación.
 // ---------------------------------------------------------------------------
 
-const ITEM_VACIO = { actividad: "", unidad: "", cantidad: "", valorUnitario: "" }
+const ITEM_VACIO = { presupuestoItemId: "", cantidad: "", valorUnitario: "" }
 
 const FORMULARIO_VACIO: SolicitudContratoForm = {
   tipo: "",
@@ -90,6 +96,85 @@ function MensajeError({ texto }: { texto?: string }) {
   return texto ? <p className="text-xs text-destructive">{texto}</p> : null
 }
 
+// Buscador de un ítem del presupuesto (por código o descripción). Muestra
+// hasta 10 coincidencias; los ítems sin cantidad disponible salen deshabilitados.
+function SelectorItemPresupuesto({
+  etiqueta,
+  catalogo,
+  excluir,
+  disabled,
+  onElegir,
+}: {
+  etiqueta: string
+  catalogo: ItemPresupuestoContrato[]
+  excluir: Set<string>
+  disabled: boolean
+  onElegir: (item: ItemPresupuestoContrato) => void
+}) {
+  const [texto, setTexto] = useState("")
+  const [abierto, setAbierto] = useState(false)
+  const idLista = useId()
+  const coincidencias = useMemo(() => {
+    const q = normalizar(texto.trim())
+    const lista = catalogo.filter((c) => !excluir.has(c.id) && (!q || normalizar(`${c.codigo} ${c.descripcion}`).includes(q)))
+    return lista.slice(0, 10)
+  }, [catalogo, excluir, texto])
+
+  return (
+    <div className="relative">
+      <input
+        aria-label={etiqueta}
+        value={texto}
+        onChange={(e) => {
+          setTexto(e.target.value)
+          setAbierto(true)
+        }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 150)}
+        placeholder="Buscar por código o descripción"
+        disabled={disabled}
+        className={claseCampo()}
+        role="combobox"
+        aria-expanded={abierto}
+        aria-controls={idLista}
+      />
+      {abierto && (
+        <ul id={idLista} role="listbox" className="absolute z-20 mt-1 max-h-72 w-full min-w-[420px] overflow-auto rounded-md border bg-popover shadow-md">
+          {coincidencias.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted-foreground">Ningún ítem del presupuesto coincide.</li>
+          ) : (
+            coincidencias.map((c) => {
+              const agotado = c.disponible <= 0
+              return (
+                <li key={c.id} role="option" aria-selected={false} aria-disabled={agotado}>
+                  <button
+                    type="button"
+                    disabled={agotado}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onElegir(c)
+                      setTexto("")
+                      setAbierto(false)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="font-medium tabular-nums">{c.codigo}</span> {c.descripcion}
+                    <span className="block text-xs text-muted-foreground tabular-nums">
+                      {agotado
+                        ? "Ya está contratado completo"
+                        : `Disponible ${numero(c.disponible)} ${c.unidad ?? ""} · ${pesos(c.valorUnitario)} c/u`}
+                    </span>
+                  </button>
+                </li>
+              )
+            })
+          )}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function SolicitudContratoForm({
   proyectoId,
   proyectoNombre,
@@ -113,6 +198,16 @@ export function SolicitudContratoForm({
   const [errorContratistas, setErrorContratistas] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState("")
   const [listaAbierta, setListaAbierta] = useState(false)
+
+  // Ítems del presupuesto vigente (para el anexo de valores unitarios).
+  const [catalogo, setCatalogo] = useState<ItemPresupuestoContrato[] | null>(null)
+  const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null)
+  useEffect(() => {
+    listarItemsPresupuestoContrato(proyectoId)
+      .then((lista: ItemPresupuestoContrato[]) => setCatalogo(lista))
+      .catch((e) => setErrorCatalogo(e instanceof Error ? e.message : "No se pudo cargar el presupuesto del proyecto."))
+  }, [proyectoId])
+  const catalogoPorId = useMemo(() => new Map((catalogo ?? []).map((i) => [i.id, i])), [catalogo])
 
   useEffect(() => {
     listarContratistas()
@@ -182,7 +277,7 @@ export function SolicitudContratoForm({
   async function enviar(e: React.FormEvent) {
     e.preventDefault()
     setErrorGeneral(null)
-    const r = validarSolicitud(f)
+    const r = validarSolicitud(f, catalogoPorId)
     const faltan: Partial<Record<TipoDocumentoContrato, string>> = {}
     for (const d of tipo?.documentos ?? []) if (d.obligatorio && !archivos[d.tipo]) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
@@ -441,14 +536,27 @@ export function SolicitudContratoForm({
               total !== null && total > 0 && <p className="text-xs text-muted-foreground tabular-nums">{pesos(total)}</p>
             )}
           </div>
+        ) : catalogo === null && !errorCatalogo ? (
+          <p className="flex items-center text-sm text-muted-foreground">
+            <Loader2 className="mr-2 size-4 animate-spin" /> Cargando el presupuesto del proyecto...
+          </p>
+        ) : errorCatalogo || (catalogo && catalogo.length === 0) ? (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {errorCatalogo ??
+              "El proyecto no tiene presupuesto vigente con ítems (cantidad y valor unitario): no se puede contratar a valores unitarios. Usa valor global o carga el presupuesto."}
+          </p>
         ) : (
           <div className="space-y-2" data-error={Boolean(errores.items)}>
+            <p className="text-xs text-muted-foreground">
+              Cada actividad es un ítem del presupuesto vigente. La cantidad no puede pasar lo disponible (presupuestado menos lo
+              que ya tienen otros contratos) y el valor unitario no puede pasar el del presupuesto.
+            </p>
             <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full min-w-[820px] text-sm">
                 <thead>
                   <tr className="bg-primary text-left text-xs text-primary-foreground">
-                    <th className="px-2 py-2 font-medium">Actividad</th>
-                    <th className="w-24 px-2 py-2 font-medium">Unidad</th>
+                    <th className="px-2 py-2 font-medium">Ítem del presupuesto</th>
+                    <th className="w-16 px-2 py-2 font-medium">Unidad</th>
                     <th className="w-28 px-2 py-2 text-right font-medium">Cantidad</th>
                     <th className="w-36 px-2 py-2 text-right font-medium">Valor unitario</th>
                     <th className="w-36 px-2 py-2 text-right font-medium">Total</th>
@@ -457,35 +565,86 @@ export function SolicitudContratoForm({
                 </thead>
                 <tbody>
                   {f.items.map((it, i) => {
+                    const ref = it.presupuestoItemId ? catalogoPorId.get(it.presupuestoItemId) : undefined
                     const c = leerNumero(it.cantidad)
                     const v = leerNumero(it.valorUnitario)
                     const subtotal = c !== null && v !== null ? c * v : null
-                    const cambiarItem = (campo: keyof typeof it, valor: string) =>
+                    const excedeCantidad = Boolean(ref && c !== null && c > ref.disponible)
+                    const excedeValor = Boolean(ref && v !== null && v > ref.valorUnitario)
+                    const cambiarItem = (cambios: Partial<typeof it>) =>
                       cambiar(
                         "items",
-                        f.items.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)),
+                        f.items.map((x, j) => (j === i ? { ...x, ...cambios } : x)),
                         "items"
                       )
+                    const usados = new Set(f.items.filter((_, j) => j !== i).map((x) => x.presupuestoItemId))
                     return (
-                      <tr key={i} className="border-t">
+                      <tr key={i} className="border-t align-top">
                         <td className="p-1">
-                          <input aria-label={`Actividad ${i + 1}`} value={it.actividad} onChange={(e) => cambiarItem("actividad", e.target.value)} disabled={enviando} className={claseCampo()} />
+                          {ref ? (
+                            <div className="flex items-start gap-2 px-1 py-1">
+                              <div className="min-w-0 flex-1">
+                                <p className="break-words">
+                                  <span className="font-medium tabular-nums">{ref.codigo}</span> {ref.descripcion}
+                                </p>
+                                <p className="text-xs text-muted-foreground tabular-nums">
+                                  Disponible {numero(ref.disponible)} de {numero(ref.cantidad)} · {pesos(ref.valorUnitario)} c/u
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => cambiarItem({ presupuestoItemId: "", cantidad: "", valorUnitario: "" })}
+                                className="shrink-0 text-xs text-primary hover:underline"
+                                disabled={enviando}
+                              >
+                                Cambiar
+                              </button>
+                            </div>
+                          ) : (
+                            <SelectorItemPresupuesto
+                              etiqueta={`Ítem del presupuesto ${i + 1}`}
+                              catalogo={catalogo ?? []}
+                              excluir={usados}
+                              disabled={enviando}
+                              onElegir={(item) =>
+                                cambiarItem({
+                                  presupuestoItemId: item.id,
+                                  // Se propone el valor del presupuesto; solo se puede bajar.
+                                  valorUnitario: numero(item.valorUnitario),
+                                })
+                              }
+                            />
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5">{ref?.unidad ?? "—"}</td>
+                        <td className="p-1">
+                          <input
+                            aria-label={`Cantidad ${i + 1}`}
+                            inputMode="decimal"
+                            value={it.cantidad}
+                            onChange={(e) => cambiarItem({ cantidad: e.target.value })}
+                            disabled={enviando || !ref}
+                            className={`${claseCampo(excedeCantidad)} text-right`}
+                          />
+                          {excedeCantidad && <p className="px-1 text-xs text-destructive">Máx. {numero(ref!.disponible)}</p>}
                         </td>
                         <td className="p-1">
-                          <input aria-label={`Unidad ${i + 1}`} value={it.unidad} onChange={(e) => cambiarItem("unidad", e.target.value)} placeholder="m2" disabled={enviando} className={claseCampo()} />
+                          <input
+                            aria-label={`Valor unitario ${i + 1}`}
+                            inputMode="decimal"
+                            value={it.valorUnitario}
+                            onChange={(e) => cambiarItem({ valorUnitario: e.target.value })}
+                            disabled={enviando || !ref}
+                            className={`${claseCampo(excedeValor)} text-right`}
+                          />
+                          {excedeValor && <p className="px-1 text-xs text-destructive">Máx. {pesos(ref!.valorUnitario)}</p>}
                         </td>
-                        <td className="p-1">
-                          <input aria-label={`Cantidad ${i + 1}`} inputMode="decimal" value={it.cantidad} onChange={(e) => cambiarItem("cantidad", e.target.value)} disabled={enviando} className={`${claseCampo()} text-right`} />
-                        </td>
-                        <td className="p-1">
-                          <input aria-label={`Valor unitario ${i + 1}`} inputMode="decimal" value={it.valorUnitario} onChange={(e) => cambiarItem("valorUnitario", e.target.value)} disabled={enviando} className={`${claseCampo()} text-right`} />
-                        </td>
-                        <td className="px-2 text-right tabular-nums">{subtotal !== null ? pesos(subtotal) : "—"}</td>
+                        <td className="px-2 py-2.5 text-right tabular-nums">{subtotal !== null ? pesos(subtotal) : "—"}</td>
                         <td className="p-1 text-center">
                           <button
                             type="button"
                             onClick={() => cambiar("items", f.items.length > 1 ? f.items.filter((_, j) => j !== i) : [{ ...ITEM_VACIO }], "items")}
-                            className="rounded p-1 text-muted-foreground hover:text-destructive"
+                            className="mt-1 rounded p-1 text-muted-foreground hover:text-destructive"
                             aria-label={`Quitar actividad ${i + 1}`}
                             disabled={enviando}
                           >
