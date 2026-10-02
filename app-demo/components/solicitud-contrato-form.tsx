@@ -16,7 +16,10 @@ import {
 import {
   TIPOS_CONTRATO,
   TIPO_CONTRATO_POR_VALOR,
+  anticipoEnLetras,
   empiezaConVerbo,
+  pesosEnLetras,
+  pideValorMensual,
   leerNumero,
   pesos,
   numero,
@@ -51,6 +54,7 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   objeto: "",
   anexoTipo: "valor_global",
   valor: "",
+  valorMensual: "",
   items: [{ ...ITEM_VACIO }],
   tieneAnticipo: false,
   anticipoPorcentaje: "",
@@ -74,6 +78,7 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     objeto: d.objeto,
     anexoTipo: d.anexoTipo,
     valor: d.anexoTipo === "valor_global" ? numero(d.valor) : "",
+    valorMensual: d.valorMensual !== null ? numero(d.valorMensual) : "",
     items:
       d.items.length > 0
         ? d.items.map((i) => ({ presupuestoItemId: i.presupuestoItemId, cantidad: numero(i.cantidad), valorUnitario: numero(i.valorUnitario) }))
@@ -344,6 +349,7 @@ export function SolicitudContratoForm({
 
   function cambiarLista(campo: "obligaciones" | "entregables", i: number, texto: string) {
     setF((v) => ({ ...v, [campo]: v[campo].map((x, j) => (j === i ? texto : x)) }))
+    if (errores[campo]) setErrores((e) => ({ ...e, [campo]: undefined }))
   }
 
   async function enviar(e: React.FormEvent) {
@@ -634,7 +640,7 @@ export function SolicitudContratoForm({
             {errores.valor ? (
               <MensajeError texto={errores.valor} />
             ) : (
-              total !== null && total > 0 && <p className="text-xs text-muted-foreground tabular-nums">{pesos(total)}</p>
+              total !== null && total > 0 && <p className="text-xs text-muted-foreground tabular-nums">{pesosEnLetras(total)}</p>
             )}
           </div>
         ) : catalogo === null && !errorCatalogo ? (
@@ -780,6 +786,31 @@ export function SolicitudContratoForm({
             <MensajeError texto={errores.items} />
           </div>
         )}
+
+        {pideValorMensual(f.tipo) && (
+          <div className="max-w-sm space-y-1" data-error={Boolean(errores.valorMensual)}>
+            <label htmlFor="contrato-valor-mensual" className="text-xs font-medium text-muted-foreground">
+              Valor del pago mensual (pesos) *
+            </label>
+            <input
+              id="contrato-valor-mensual"
+              inputMode="decimal"
+              value={f.valorMensual}
+              onChange={(e) => cambiar("valorMensual", e.target.value)}
+              placeholder="Ej. 2.500.000"
+              disabled={enviando}
+              className={claseCampo(Boolean(errores.valorMensual))}
+            />
+            {errores.valorMensual ? (
+              <MensajeError texto={errores.valorMensual} />
+            ) : (
+              leerNumero(f.valorMensual) !== null && (
+                <p className="text-xs text-muted-foreground tabular-nums">{pesosEnLetras(leerNumero(f.valorMensual)!)}</p>
+              )
+            )}
+            <p className="text-xs text-muted-foreground">Obligatorio para {tipo?.titulo.toLowerCase()}, además del valor del contrato.</p>
+          </div>
+        )}
       </Seccion>
 
       {/* 5. Forma de pago */}
@@ -819,6 +850,12 @@ export function SolicitudContratoForm({
               </div>
             )}
           </div>
+          {f.tieneAnticipo && total !== null && total > 0 && leerNumero(f.anticipoPorcentaje) !== null && !errores.anticipoPorcentaje && (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs">
+              <span className="font-medium">Anticipo en letras: </span>
+              {anticipoEnLetras(leerNumero(f.anticipoPorcentaje)!, total)}
+            </p>
+          )}
           <MensajeError texto={errores.anticipoPorcentaje} />
           <div className="space-y-1" data-error={Boolean(errores.formaPago)}>
             <label htmlFor="contrato-forma-pago" className="text-xs font-medium text-muted-foreground">
@@ -910,8 +947,13 @@ export function SolicitudContratoForm({
       {/* 7. Obligaciones y entregables */}
       {(
         [
-          ["obligaciones", "Obligaciones específicas", "Adicionales a las propias del tipo de contrato. Opcional.", "Agregar obligación"],
-          ["entregables", "Entregables", "Si aplican.", "Agregar entregable"],
+          [
+            "obligaciones",
+            "Obligaciones específicas *",
+            "Adicionales a las propias del tipo de contrato. Obligatorio: si de verdad no hay, escribe «N/A» o «No aplica».",
+            "Agregar obligación",
+          ],
+          ["entregables", "Entregables *", "Obligatorio: si de verdad no hay, escribe «N/A» o «No aplica».", "Agregar entregable"],
         ] as const
       ).map(([campo, titulo, ayuda, boton]) => (
         <Seccion key={campo} titulo={titulo} ayuda={ayuda}>
@@ -941,9 +983,26 @@ export function SolicitudContratoForm({
               ))}
             </ol>
           )}
-          <Button type="button" variant="outline" size="sm" onClick={() => setF((v) => ({ ...v, [campo]: [...v[campo], ""] }))} disabled={enviando}>
-            <Plus className="size-4" /> {boton}
-          </Button>
+          <div className="flex flex-wrap gap-2" data-error={Boolean(errores[campo])}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setF((v) => ({ ...v, [campo]: [...v[campo], ""] }))} disabled={enviando}>
+              <Plus className="size-4" /> {boton}
+            </Button>
+            {f[campo].every((t) => !t.trim()) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setF((v) => ({ ...v, [campo]: ["No aplica"] }))
+                  setErrores((e) => ({ ...e, [campo]: undefined }))
+                }}
+                disabled={enviando}
+              >
+                No aplica
+              </Button>
+            )}
+          </div>
+          <MensajeError texto={errores[campo]} />
         </Seccion>
       ))}
 

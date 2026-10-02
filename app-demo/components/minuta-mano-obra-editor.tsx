@@ -6,11 +6,20 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { leerNumero, pesos } from "@/lib/contratos"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import {
+  CLAUSULAS_PLANTILLA,
+  OBLIGACIONES_CONTRATANTE,
+  OBLIGACIONES_CONTRATISTA,
   POSICION_OBLIGACION_CORRECCION,
+  REQUISITOS_PAGO,
+  ordinalClausula,
+  origenCampo,
+  origenRenglon,
+  type OrigenDato,
   nombreArchivoMinuta,
   obligacionCorreccion,
   totalItemsMinuta,
   valorEnLetras,
+  type ClausulaAdicional,
   type ItemAnexoMinuta,
   type MinutaManoObra,
 } from "@/lib/minuta-mano-obra"
@@ -34,6 +43,44 @@ const formatoValor = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }
 
 type CampoTexto = { [K in keyof MinutaManoObra]: MinutaManoObra[K] extends string ? K : never }[keyof MinutaManoObra]
 type CampoLista = "obligacionesContratante" | "obligacionesContratista" | "requisitosPago"
+
+// Origen de cada dato: plantilla (texto de la GJ-F-003), solicitud (datos de
+// la solicitud, el contratista o el proyecto), editado a mano o por llenar.
+const ORIGEN: Record<OrigenDato, { etiqueta: string; chip: string; borde: string; ayuda: string }> = {
+  plantilla: {
+    etiqueta: "Plantilla",
+    chip: "bg-slate-100 text-slate-700 ring-slate-300",
+    borde: "border-l-4 border-l-slate-400",
+    ayuda: "Texto que trae la plantilla GJ-F-003.",
+  },
+  solicitud: {
+    etiqueta: "Solicitud",
+    chip: "bg-sky-100 text-sky-800 ring-sky-300",
+    borde: "border-l-4 border-l-sky-500",
+    ayuda: "Dato de la solicitud, el contratista o el proyecto.",
+  },
+  editado: {
+    etiqueta: "Editado",
+    chip: "bg-violet-100 text-violet-800 ring-violet-300",
+    borde: "border-l-4 border-l-violet-500",
+    ayuda: "Escrito o cambiado a mano en la minuta.",
+  },
+  vacio: {
+    etiqueta: "Por llenar",
+    chip: "bg-amber-100 text-amber-800 ring-amber-400",
+    borde: "border-l-4 border-l-amber-400 bg-amber-50/40",
+    ayuda: "Vacío: en el PDF sale como raya para llenar a mano.",
+  },
+}
+
+function ChipOrigen({ origen }: { origen: OrigenDato }) {
+  const o = ORIGEN[origen]
+  return (
+    <span title={o.ayuda} className={`inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-medium ring-1 ${o.chip}`}>
+      {o.etiqueta}
+    </span>
+  )
+}
 
 function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: React.ReactNode }) {
   return (
@@ -146,11 +193,15 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
 
   function campo(clave: CampoTexto, etiqueta: string, opciones?: { placeholder?: string; tipo?: string; ayuda?: string; ancho?: boolean }) {
     const idCampo = `minuta-${clave}`
+    const origen = origenCampo(clave, m![clave] as string, datos!.porDefecto)
     return (
       <div className={`min-w-0 space-y-1 ${opciones?.ancho ? "sm:col-span-2" : ""}`}>
-        <label htmlFor={idCampo} className="text-xs font-medium text-muted-foreground">
-          {etiqueta}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={idCampo} className="text-xs font-medium text-muted-foreground">
+            {etiqueta}
+          </label>
+          <ChipOrigen origen={origen} />
+        </div>
         <input
           id={idCampo}
           type={opciones?.tipo ?? "text"}
@@ -158,7 +209,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
           placeholder={opciones?.placeholder}
           onChange={(e) => (clave === "valor" ? cambiarValor(e.target.value) : actualizar({ [clave]: e.target.value } as Partial<MinutaManoObra>))}
           disabled={deshabilitado}
-          className={`${claseCampo} ${!(m![clave] as string).trim() ? "border-amber-400 bg-amber-50/40" : ""}`}
+          className={`${claseCampo} ${ORIGEN[origen].borde}`}
         />
         {opciones?.ayuda && <p className="text-xs text-muted-foreground">{opciones.ayuda}</p>}
       </div>
@@ -167,18 +218,22 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
 
   function area(clave: CampoTexto, etiqueta: string, filas = 3, ayuda?: string) {
     const idCampo = `minuta-${clave}`
+    const origen = origenCampo(clave, m![clave] as string, datos!.porDefecto)
     return (
       <div className="min-w-0 space-y-1 sm:col-span-2">
-        <label htmlFor={idCampo} className="text-xs font-medium text-muted-foreground">
-          {etiqueta}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={idCampo} className="text-xs font-medium text-muted-foreground">
+            {etiqueta}
+          </label>
+          <ChipOrigen origen={origen} />
+        </div>
         <textarea
           id={idCampo}
           rows={filas}
           value={m![clave] as string}
           onChange={(e) => actualizar({ [clave]: e.target.value } as Partial<MinutaManoObra>)}
           disabled={deshabilitado}
-          className={claseArea}
+          className={`${claseArea} ${ORIGEN[origen].borde}`}
         />
         {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
       </div>
@@ -187,6 +242,9 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
 
   function lista(clave: CampoLista, marcador: (i: number) => string, textoAgregar: string) {
     const items = m![clave]
+    const plantilla =
+      clave === "obligacionesContratante" ? OBLIGACIONES_CONTRATANTE : clave === "obligacionesContratista" ? OBLIGACIONES_CONTRATISTA : REQUISITOS_PAGO
+    const deSolicitud = clave === "obligacionesContratista" ? detalle.obligaciones : []
     const mover = (i: number, d: -1 | 1) => {
       const copia = [...items]
       ;[copia[i], copia[i + d]] = [copia[i + d], copia[i]]
@@ -194,16 +252,21 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
     }
     return (
       <div className="space-y-2">
-        {items.map((t, i) => (
+        {items.map((t, i) => {
+          const origen = origenRenglon(t, plantilla, deSolicitud)
+          return (
           <div key={i} className="flex items-start gap-2">
-            <span className="w-6 pt-2 text-right text-xs text-muted-foreground tabular-nums">{marcador(i)}</span>
+            <div className="flex w-16 shrink-0 flex-col items-end gap-1 pt-1.5">
+              <span className="text-xs text-muted-foreground tabular-nums">{marcador(i)}</span>
+              <ChipOrigen origen={origen} />
+            </div>
             <textarea
               rows={2}
               value={t}
               aria-label={`${textoAgregar} ${i + 1}`}
               onChange={(e) => actualizar({ [clave]: items.map((x, j) => (j === i ? e.target.value : x)) } as Partial<MinutaManoObra>)}
               disabled={deshabilitado}
-              className={`${claseArea} flex-1`}
+              className={`${claseArea} flex-1 ${ORIGEN[origen].borde}`}
             />
             {editable && (
               <div className="flex flex-col">
@@ -226,7 +289,8 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
         {editable && (
           <Button type="button" size="sm" variant="outline" disabled={guardando} onClick={() => actualizar({ [clave]: [...items, ""] } as Partial<MinutaManoObra>)}>
             <Plus className="size-4" /> {textoAgregar}
@@ -321,10 +385,14 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
           )}
         </div>
         {aviso && <p className={`text-sm ${aviso.ok ? "text-emerald-700" : "text-destructive"}`}>{aviso.texto}</p>}
-        <p className="text-xs text-muted-foreground">
-          Los campos en <span className="rounded bg-amber-50 px-1 ring-1 ring-amber-400">amarillo</span> están vacíos: en el PDF salen como raya para
-          llenar a mano.
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Origen de cada dato:</span>
+          {(Object.keys(ORIGEN) as OrigenDato[]).map((o) => (
+            <span key={o} className="flex items-center gap-1">
+              <ChipOrigen origen={o} /> {ORIGEN[o].ayuda}
+            </span>
+          ))}
+        </div>
 
         <Seccion titulo="Lugar y fecha de firma">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -401,7 +469,10 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
                 {campo("plazoAjustes", "Plazo máximo de ajustes", { placeholder: "cinco (5) días hábiles" })}
                 {campo("plazoSilencio", "Silencio = aceptación tras", { placeholder: "siete (7) días hábiles" })}
               </div>
-              <p className="text-xs text-muted-foreground">{obligacionCorreccion(m)}</p>
+              <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                <ChipOrigen origen="plantilla" />
+                <span>{obligacionCorreccion(m)}</span>
+              </p>
             </div>
           </div>
         </Seccion>
@@ -443,11 +514,87 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
           </div>
         </Seccion>
 
-        <Seccion titulo="Cláusula penal, garantía y documentos">
+        <Seccion titulo="Cláusulas" ayuda="Vencimiento, porcentajes y cláusulas que se agregan a las de la plantilla.">
           <div className="grid gap-3 sm:grid-cols-2">
+            {campo("vencimiento", "Vencimiento del contrato (tercera)", { tipo: "date", ayuda: "En el PDF: «El presente contrato vence el …»." })}
+            <div />
             {campo("clausulaPenalPorcentaje", "Cláusula penal (% del valor)")}
             {campo("polizaPorcentaje", "Póliza de cumplimiento (% del valor)")}
             {campo("anexos", "Anexos que forman parte del contrato (décima tercera)", { ancho: true })}
+          </div>
+
+          <details className="rounded-md border">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
+              Cláusulas de la plantilla ({CLAUSULAS_PLANTILLA.length}) — texto fijo
+            </summary>
+            <ol className="space-y-1 border-t px-3 py-2 text-xs">
+              {CLAUSULAS_PLANTILLA.map((t, i) => (
+                <li key={t} className="flex items-center gap-2">
+                  <ChipOrigen origen="plantilla" />
+                  <span>
+                    <span className="font-medium">{ordinalClausula(i + 1)}.</span> {t}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </details>
+
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-muted-foreground">Cláusulas adicionales (van después de la décima octava)</p>
+            {m.clausulasAdicionales.length === 0 && <p className="text-xs text-muted-foreground">No hay cláusulas adicionales.</p>}
+            {m.clausulasAdicionales.map((c, i) => {
+              const cambiarClausula = (cambio: Partial<ClausulaAdicional>) =>
+                actualizar({ clausulasAdicionales: m.clausulasAdicionales.map((x, j) => (j === i ? { ...x, ...cambio } : x)) })
+              const vacia = !c.titulo.trim() || !c.texto.trim()
+              return (
+                <div key={i} className={`space-y-2 rounded-md border p-3 ${ORIGEN[vacia ? "vacio" : "editado"].borde}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 text-xs font-semibold">{ordinalClausula(CLAUSULAS_PLANTILLA.length + 1 + i)}.</span>
+                    <input
+                      aria-label={`Título de la cláusula adicional ${i + 1}`}
+                      value={c.titulo}
+                      onChange={(e) => cambiarClausula({ titulo: e.target.value })}
+                      placeholder="Título, p. ej. Seguridad y salud en el trabajo"
+                      disabled={deshabilitado}
+                      className={claseCampo}
+                    />
+                    <ChipOrigen origen={vacia ? "vacio" : "editado"} />
+                    {editable && (
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Quitar cláusula"
+                        disabled={guardando}
+                        onClick={() => actualizar({ clausulasAdicionales: m.clausulasAdicionales.filter((_, j) => j !== i) })}
+                      >
+                        <Trash2 className="size-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                  <textarea
+                    rows={3}
+                    aria-label={`Texto de la cláusula adicional ${i + 1}`}
+                    value={c.texto}
+                    onChange={(e) => cambiarClausula({ texto: e.target.value })}
+                    placeholder="Texto de la cláusula"
+                    disabled={deshabilitado}
+                    className={claseArea}
+                  />
+                </div>
+              )
+            })}
+            {editable && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={guardando}
+                onClick={() => actualizar({ clausulasAdicionales: [...m.clausulasAdicionales, { titulo: "", texto: "" }] })}
+              >
+                <Plus className="size-4" /> Agregar cláusula
+              </Button>
+            )}
           </div>
         </Seccion>
 
@@ -468,9 +615,23 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
                 {m.items.map((it, i) => {
                   const c = leerNumero(it.cantidad)
                   const v = leerNumero(it.valorUnitario)
+                  const original = datos.porDefecto.items[i]
+                  const origenFila: OrigenDato =
+                    !it.actividad.trim() && !it.cantidad.trim()
+                      ? "vacio"
+                      : original &&
+                          original.actividad === it.actividad &&
+                          original.unidad === it.unidad &&
+                          original.cantidad === it.cantidad &&
+                          original.valorUnitario === it.valorUnitario
+                        ? "solicitud"
+                        : "editado"
                   return (
-                    <tr key={i} className="border-t align-top">
+                    <tr key={i} className={`border-t align-top ${ORIGEN[origenFila].borde}`}>
                       <td className="p-1">
+                        <div className="px-1 pb-1">
+                          <ChipOrigen origen={origenFila} />
+                        </div>
                         <textarea
                           rows={2}
                           aria-label={`Actividad ${i + 1}`}

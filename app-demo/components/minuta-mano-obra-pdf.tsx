@@ -6,6 +6,8 @@ import {
   cantidadEnLetras,
   fechaLarga,
   obligacionCorreccion,
+  ordinalClausula,
+  CLAUSULAS_PLANTILLA,
   partesFecha,
   pesosSinSimbolo,
   totalItemsMinuta,
@@ -157,7 +159,8 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         <Lista items={obligacionesContratista} marcador={(i) => `${i + 1}.`} />
 
         <Clausula titulo="TERCERA. - DURACIÓN Y ENTREGA DE LA OBRA:">
-          La realización de las actividades del presente contrato, se llevará a cabo dentro de un plazo {blanco(m.plazo)}.
+          La realización de las actividades del presente contrato, se llevará a cabo dentro de un plazo {blanco(m.plazo)}. El presente
+          contrato vence el {fechaLarga(m.vencimiento)}.
         </Clausula>
         <Text style={s.p}>
           Una vez finalizado el objeto del contrato y aceptada por EL CONTRATANTE, EL CONTRATISTA deberá hacer entrega formal de las mismas, junto con
@@ -273,6 +276,12 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
           Las partes recibirán notificaciones en: El CONTRATANTE al correo electrónico {blanco(m.contratanteCorreo)} y el CONTRATISTA al correo
           electrónico {blanco(m.contratistaCorreo)}.
         </Clausula>
+
+        {m.clausulasAdicionales.map((c, i) => (
+          <Clausula key={i} titulo={`${ordinalClausula(CLAUSULAS_PLANTILLA.length + 1 + i)}. – ${blanco(c.titulo).toUpperCase()}:`}>
+            {c.texto}
+          </Clausula>
+        ))}
 
         <Text style={s.p}>
           En constancia de lo anterior se firma en la ciudad de {blanco(m.ciudadFirma)}, {lugarFecha}.

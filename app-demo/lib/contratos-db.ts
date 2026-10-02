@@ -59,7 +59,7 @@ export async function cargarDetalleContrato(
     .from("contratos")
     .select(`
       ${SELECT_FILA_CONTRATO},
-      anexo_tipo, tiene_anticipo, anticipo_porcentaje, forma_pago, correo_notificacion, observaciones,
+      anexo_tipo, valor_mensual, tiene_anticipo, anticipo_porcentaje, forma_pago, correo_notificacion, observaciones,
       contratista_completo:contratistas!contratos_contratista_id_fkey(
         tipo_persona, documentos:contratista_documentos(id, tipo, nombre_archivo, mime)
       ),
@@ -87,6 +87,7 @@ export async function cargarDetalleContrato(
       mime: d.mime,
     })),
     anexoTipo: x.anexo_tipo,
+    valorMensual: x.valor_mensual === null || x.valor_mensual === undefined ? null : Number(x.valor_mensual),
     tieneAnticipo: x.tiene_anticipo,
     anticipoPorcentaje: x.anticipo_porcentaje === null ? null : Number(x.anticipo_porcentaje),
     formaPago: x.forma_pago,

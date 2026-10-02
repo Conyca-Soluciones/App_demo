@@ -1458,6 +1458,15 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   acceso al proyecto (`puede_ver_contrato`). Quien solicita también puede leer
   contratistas (para elegir uno). Por defecto: Director de obra solicita;
   Gerencia, Legal y Líder Legal ven.
+- **Obligatorios extra** (`20261016000000_solicitud_valor_mensual.sql`, que
+  recrea `_guardar_solicitud_contrato`; igual en `validarSolicitud`):
+  obligaciones específicas y entregables, al menos uno cada uno (si no hay, se
+  escribe "N/A" o "No aplica"; `esNoAplica` evita copiarlos a la minuta); y
+  **valor de pago mensual** (`contratos.valor_mensual`, <= valor) en
+  prestación de servicios, alquiler de vehículo y arrendamiento
+  (`TIPOS_CON_PAGO_MENSUAL`). Sin CHECK en la tabla, para no romper las
+  solicitudes viejas al aprobarlas. El anticipo y los valores se muestran
+  también en letras (`anticipoEnLetras`, `pesosEnLetras`).
 - **Pendiente**: borradores (hoy el formulario se pierde si se sale), pantalla
   de pre-aprobación/minutas, opciones fijas de forma/plazo de pago cuando
   Jurídica las defina, y el 7.º tipo de contrato si existe.
@@ -1516,6 +1525,10 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   `20261015000000_minuta_contratos.sql`). Al leer, lo guardado gana campo por
   campo sobre lo calculado (`mezclarMinuta`). Editar el anexo en la minuta NO
   cambia lo reservado del presupuesto. Otros tipos de contrato: sin plantilla
-  todavía.
+  todavía. El editor marca el origen de cada dato (`origenCampo` /
+  `origenRenglon`): Plantilla (texto de la GJ-F-003), Solicitud (solicitud,
+  contratista o proyecto), Editado o Por llenar. Tiene vencimiento (sale en
+  la tercera) y cláusulas adicionales (`clausulasAdicionales`, numeradas
+  después de la décima octava con `ordinalClausula`).
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
   contratos) y las plantillas de los demás tipos.

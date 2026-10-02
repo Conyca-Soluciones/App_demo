@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import type { TipoDocumentoContratista, TipoPersona } from "@/lib/contratistas"
+import { numeroALetrasCOP, numeroATexto } from "@/lib/numero-a-letras"
 
 export type TipoContrato =
   | "mano_obra"
@@ -99,6 +100,12 @@ export const TIPOS_CONTRATO: { valor: TipoContrato; titulo: string; documentos: 
 
 export const TIPO_CONTRATO_POR_VALOR = new Map(TIPOS_CONTRATO.map((t) => [t.valor, t]))
 
+// Tipos que, además del valor del contrato, llevan un valor de pago mensual
+// obligatorio (la base repite la regla en _guardar_solicitud_contrato,
+// 20261016000000_solicitud_valor_mensual.sql).
+export const TIPOS_CON_PAGO_MENSUAL: TipoContrato[] = ["prestacion_servicios", "alquiler_vehiculo", "arrendamiento"]
+export const pideValorMensual = (tipo: TipoContrato | "" | null | undefined) => Boolean(tipo && TIPOS_CON_PAGO_MENSUAL.includes(tipo))
+
 // Solicitud tal como la leen las pantallas (la arma lib/contratos-db.ts en el
 // servidor). Aquí y no allá: los componentes de cliente no deben importar
 // nada de un archivo que toca el servidor (ver CLAUDE.md, boundary).
@@ -133,6 +140,7 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   contratistaTipoPersona: TipoPersona
   contratistaDocumentos: { id: string; tipo: TipoDocumentoContratista; nombreArchivo: string; mime: string }[]
   anexoTipo: "valor_global" | "valores_unitarios"
+  valorMensual: number | null
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
   formaPago: string
@@ -214,6 +222,7 @@ export type SolicitudContratoForm = {
   objeto: string
   anexoTipo: "valor_global" | "valores_unitarios"
   valor: string
+  valorMensual: string
   items: ItemAnexoForm[]
   tieneAnticipo: boolean
   anticipoPorcentaje: string
@@ -234,11 +243,14 @@ export type CampoSolicitud =
   | "contratistaId"
   | "objeto"
   | "valor"
+  | "valorMensual"
   | "items"
   | "anticipoPorcentaje"
   | "formaPago"
   | "plazo"
   | "correoNotificacion"
+  | "obligaciones"
+  | "entregables"
 
 // Lo que se manda a crear_solicitud_contrato, ya limpio.
 export type SolicitudContratoValida = {
@@ -247,6 +259,7 @@ export type SolicitudContratoValida = {
   objeto: string
   anexoTipo: "valor_global" | "valores_unitarios"
   valor: number
+  valorMensual: number | null
   items: { presupuestoItemId: string; cantidad: number; valorUnitario: number }[]
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
@@ -340,6 +353,16 @@ export function validarSolicitud(
     else valor = aCentavos(valor)
   }
 
+  let valorMensual: number | null = null
+  if (pideValorMensual(f.tipo)) {
+    valorMensual = leerNumero(f.valorMensual)
+    if (valorMensual === null || valorMensual <= 0) errores.valorMensual = "Escribe el valor del pago mensual en pesos."
+    else {
+      valorMensual = aCentavos(valorMensual)
+      if (valor !== null && valor > 0 && valorMensual > valor) errores.valorMensual = "El pago mensual no puede ser mayor que el valor del contrato."
+    }
+  }
+
   let anticipoPorcentaje: number | null = null
   if (f.tieneAnticipo) {
     anticipoPorcentaje = leerNumero(f.anticipoPorcentaje)
@@ -366,6 +389,12 @@ export function validarSolicitud(
     fechaInicio = f.fechaInicio || null // inicio estimado, opcional
   }
 
+  // Obligatorias: si de verdad no hay, se escribe "N/A" o "No aplica".
+  const obligaciones = f.obligaciones.map((o) => o.trim()).filter(Boolean)
+  const entregables = f.entregables.map((e) => e.trim()).filter(Boolean)
+  if (obligaciones.length === 0) errores.obligaciones = "Escribe al menos una obligación específica. Si no hay, escribe «N/A» o «No aplica»."
+  if (entregables.length === 0) errores.entregables = "Escribe al menos un entregable. Si no hay, escribe «N/A» o «No aplica»."
+
   const correo = f.correoNotificacion.trim().toLowerCase()
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) errores.correoNotificacion = "Escribe un correo de notificación válido."
 
@@ -378,6 +407,7 @@ export function validarSolicitud(
       objeto,
       anexoTipo: f.anexoTipo,
       valor: valor!,
+      valorMensual,
       items,
       tieneAnticipo: f.tieneAnticipo,
       anticipoPorcentaje,
@@ -387,8 +417,8 @@ export function validarSolicitud(
       fechaFin,
       duracionCantidad,
       duracionUnidad,
-      obligaciones: f.obligaciones.map((o) => o.trim()).filter(Boolean),
-      entregables: f.entregables.map((e) => e.trim()).filter(Boolean),
+      obligaciones,
+      entregables,
       correoNotificacion: correo,
       observaciones: f.observaciones.trim() || null,
     },
@@ -406,3 +436,28 @@ export function plazoTexto(c: {
   const u = c.duracionUnidad === "dias" ? (c.duracionCantidad === 1 ? "día" : "días") : c.duracionCantidad === 1 ? "mes" : "meses"
   return `${c.duracionCantidad} ${u}`
 }
+
+// "N/A", "NA", "No aplica" (lo que se escribe cuando de verdad no hay
+// obligaciones o entregables): no se copian a la minuta.
+export const esNoAplica = (t: string) => /^\s*(n\s*\/?\s*a|no\s+aplica)\s*\.?\s*$/i.test(t)
+
+// ---------------------------------------------------------------- en letras
+// "treinta por ciento (30 %)"; con decimales: "doce coma cinco por ciento (12,5 %)".
+export function porcentajeEnLetras(p: number): string {
+  const entero = Math.trunc(p)
+  const decimales = Math.round((p - entero) * 100)
+  let texto = numeroATexto(entero)
+  if (decimales > 0) {
+    const d = decimales % 10 === 0 ? decimales / 10 : decimales
+    texto += ` coma ${decimales < 10 ? "cero " : ""}${numeroATexto(d)}`
+  }
+  return `${texto} por ciento (${numero(p)} %)`
+}
+
+// "QUINCE MILLONES PESOS M/CTE ($15.000.000)"
+export const pesosEnLetras = (n: number) => `${numeroALetrasCOP(n)} (${pesos(n)})`
+
+// Anticipo en número y en letras: "treinta por ciento (30 %) del valor del
+// contrato, es decir QUINCE MILLONES PESOS M/CTE ($15.000.000)".
+export const anticipoEnLetras = (porcentaje: number, valor: number) =>
+  `${porcentajeEnLetras(porcentaje)} del valor del contrato, es decir ${pesosEnLetras(aCentavos((valor * porcentaje) / 100))}`

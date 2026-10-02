@@ -10,11 +10,14 @@
 // ---------------------------------------------------------------------------
 
 import { numeroALetrasCOP } from "@/lib/numero-a-letras"
-import { leerNumero, type SolicitudContratoDetalle } from "@/lib/contratos"
+import { anticipoEnLetras, esNoAplica, leerNumero, pesosEnLetras, type SolicitudContratoDetalle } from "@/lib/contratos"
 
 export const VERSION_MINUTA = 1
 
 export type ItemAnexoMinuta = { actividad: string; unidad: string; cantidad: string; valorUnitario: string }
+// Cláusula que Jurídica agrega a las 18 de la plantilla (sigue la numeración:
+// décima novena, vigésima...).
+export type ClausulaAdicional = { titulo: string; texto: string }
 
 export type MinutaManoObra = {
   v: number
@@ -48,6 +51,8 @@ export type MinutaManoObra = {
   plazoSilencio: string
   // Tercera: duración ("dentro de un plazo ...": "de tres (3) meses contados...")
   plazo: string
+  vencimiento: string // AAAA-MM-DD; fecha en que vence el contrato
+
   // Cuarta: precio y forma de pago
   valor: string
   valorLetras: string
@@ -65,6 +70,8 @@ export type MinutaManoObra = {
   anexos: string
   // Décima quinta: arbitramento
   ciudadArbitramento: string
+  // Cláusulas agregadas después de la décima octava
+  clausulasAdicionales: ClausulaAdicional[]
   // Anexo N° 1
   items: ItemAnexoMinuta[]
 }
@@ -182,6 +189,24 @@ function plazoPorDefecto(d: SolicitudContratoDetalle): string {
   return ""
 }
 
+// Vencimiento: la fecha de fin, o el inicio estimado + la duración.
+function vencimientoPorDefecto(d: SolicitudContratoDetalle): string {
+  if (d.plazoTipo === "fechas") return d.fechaFin ?? ""
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.fechaInicio ?? "")
+  if (!m || !d.duracionCantidad) return ""
+  const f = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+  if (d.duracionUnidad === "dias") f.setUTCDate(f.getUTCDate() + d.duracionCantidad)
+  else {
+    const dia = f.getUTCDate()
+    f.setUTCDate(1)
+    f.setUTCMonth(f.getUTCMonth() + d.duracionCantidad)
+    // 31 de enero + 1 mes = 28/29 de febrero, no 3 de marzo.
+    const ultimo = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)).getUTCDate()
+    f.setUTCDate(Math.min(dia, ultimo))
+  }
+  return f.toISOString().slice(0, 10)
+}
+
 export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraMinuta, hoy: string): MinutaManoObra {
   const juridica = d.contratistaTipoPersona === "juridica"
   const nit =
@@ -191,10 +216,9 @@ export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraM
   const ciudadProyecto = extra.proyectoCiudad ?? ""
 
   const formaPago = [
+    d.valorMensual !== null ? `El valor del pago mensual será de ${pesosEnLetras(d.valorMensual)}.` : "",
     d.formaPago.trim(),
-    d.tieneAnticipo && d.anticipoPorcentaje
-      ? `Se entregará un anticipo del ${numeroTexto(d.anticipoPorcentaje)} % del valor del contrato.`
-      : "",
+    d.tieneAnticipo && d.anticipoPorcentaje ? `Se entregará un anticipo del ${anticipoEnLetras(d.anticipoPorcentaje, d.valor)}.` : "",
   ]
     .filter(Boolean)
     .join(" ")
@@ -230,11 +254,12 @@ export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraM
     objeto: `${primeraMinuscula(d.objeto.trim().replace(/\.$/, ""))}, conforme a las actividades descritas en el anexo N° 1 del presente contrato`,
     obra: d.proyectoNombre ?? "",
     obligacionesContratante: [...OBLIGACIONES_CONTRATANTE],
-    obligacionesContratista: [...OBLIGACIONES_CONTRATISTA, ...d.obligaciones],
+    obligacionesContratista: [...OBLIGACIONES_CONTRATISTA, ...d.obligaciones.filter((o) => !esNoAplica(o))],
     plazoSolicitudCorreccion: "",
     plazoAjustes: "",
     plazoSilencio: "siete (7) días hábiles",
     plazo: plazoPorDefecto(d),
+    vencimiento: vencimientoPorDefecto(d),
     valor: numeroTexto(d.valor),
     valorLetras: valorEnLetras(d.valor),
     formaPago,
@@ -246,6 +271,7 @@ export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraM
     domicilioDepartamento: "",
     anexos: "N° 1 (actividades, cantidades y valores)",
     ciudadArbitramento: ciudadProyecto,
+    clausulasAdicionales: [],
     items,
   }
 }
@@ -279,6 +305,7 @@ export function minutaVacia(): MinutaManoObra {
     plazoAjustes: "",
     plazoSilencio: "",
     plazo: "",
+    vencimiento: "",
     valor: "",
     valorLetras: "",
     formaPago: "",
@@ -290,6 +317,7 @@ export function minutaVacia(): MinutaManoObra {
     domicilioDepartamento: "",
     anexos: "",
     ciudadArbitramento: "",
+    clausulasAdicionales: [],
     items: [],
   }
 }
@@ -316,6 +344,12 @@ export function mezclarMinuta(defecto: MinutaManoObra, guardada: unknown): Minut
             valorUnitario: String(x.valorUnitario ?? ""),
           }))
       }
+    } else if (clave === "clausulasAdicionales") {
+      if (Array.isArray(valor)) {
+        r.clausulasAdicionales = valor
+          .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === "object")
+          .map((x) => ({ titulo: String(x.titulo ?? ""), texto: String(x.texto ?? "") }))
+      }
     } else if (Array.isArray(base)) {
       if (Array.isArray(valor)) r[clave] = valor.map((x) => String(x ?? ""))
     } else if (clave === "contratistaTipoPersona") {
@@ -337,6 +371,9 @@ export function limpiarMinuta(m: MinutaManoObra): MinutaManoObra {
     obligacionesContratante: lista(m.obligacionesContratante),
     obligacionesContratista: lista(m.obligacionesContratista),
     requisitosPago: lista(m.requisitosPago),
+    clausulasAdicionales: m.clausulasAdicionales
+      .map((c) => ({ titulo: c.titulo.trim(), texto: c.texto.trim() }))
+      .filter((c) => c.titulo || c.texto),
     items: m.items
       .map((it) => ({
         actividad: it.actividad.trim(),
@@ -356,3 +393,71 @@ export const nombreArchivoMinuta = (numero: number, contratista: string) =>
     .replace(/^-|-$/g, "")
     .toLowerCase()
     .slice(0, 40)}.pdf`
+
+// ---------------------------------------------------------------- cláusulas
+// Las 18 cláusulas de la plantilla, en orden (texto fijo en el PDF).
+export const CLAUSULAS_PLANTILLA = [
+  "Objeto",
+  "Obligaciones de las partes",
+  "Duración y entrega de la obra",
+  "Precio y forma de pago",
+  "Lugar de ejecución",
+  "Independencia del contratista",
+  "Cesión o subcontratación de las actividades de obra objeto del contrato",
+  "Cláusula penal",
+  "Modificaciones",
+  "Causales de terminación",
+  "Cláusula penal pecuniaria",
+  "Domicilio",
+  "Documentos del contrato",
+  "Confidencialidad",
+  "Solución de controversias",
+  "Garantía general de cumplimiento",
+  "Perfeccionamiento",
+  "Notificaciones",
+]
+
+const ORDINAL_UNIDAD = ["", "PRIMERA", "SEGUNDA", "TERCERA", "CUARTA", "QUINTA", "SEXTA", "SÉPTIMA", "OCTAVA", "NOVENA"]
+const ORDINAL_DECENA = ["", "DÉCIMA", "VIGÉSIMA", "TRIGÉSIMA", "CUADRAGÉSIMA"]
+
+// 19 -> "DÉCIMA NOVENA", 20 -> "VIGÉSIMA", 23 -> "VIGÉSIMA TERCERA" (hasta 49).
+export function ordinalClausula(n: number): string {
+  if (n < 1 || n > 49) return `${n}.ª`
+  const d = Math.floor(n / 10)
+  const u = n % 10
+  return [ORDINAL_DECENA[d], ORDINAL_UNIDAD[u]].filter(Boolean).join(" ")
+}
+
+// ---------------------------------------------------------------- origen de cada dato
+// Para distinguir en el editor qué viene de la plantilla, qué de la solicitud
+// y qué se escribió a mano.
+export type OrigenDato = "plantilla" | "solicitud" | "editado" | "vacio"
+
+// Campos cuyo valor inicial es texto de la plantilla (los demás salen de la
+// solicitud, el contratista o el proyecto).
+const CAMPOS_DE_PLANTILLA = new Set<keyof MinutaManoObra>([
+  "contratanteCorreo",
+  "plazoSilencio",
+  "clausulaPenalPorcentaje",
+  "polizaPorcentaje",
+  "anexos",
+])
+
+export function origenCampo(clave: keyof MinutaManoObra, actual: string, defecto: MinutaManoObra): OrigenDato {
+  if (!actual.trim()) return "vacio"
+  const inicial = defecto[clave]
+  if (typeof inicial !== "string" || actual !== inicial) return "editado"
+  if (CAMPOS_DE_PLANTILLA.has(clave)) return "plantilla"
+  if (clave === "contratanteNombre") return actual === CONTRATANTE_POR_DEFECTO.nombre ? "plantilla" : "solicitud"
+  if (clave === "contratanteNit") return actual === CONTRATANTE_POR_DEFECTO.nit ? "plantilla" : "solicitud"
+  return "solicitud"
+}
+
+// Origen de un renglón de las listas (obligaciones, requisitos de pago).
+export function origenRenglon(texto: string, plantilla: string[], solicitud: string[] = []): OrigenDato {
+  const t = texto.trim()
+  if (!t) return "vacio"
+  if (plantilla.includes(t)) return "plantilla"
+  if (solicitud.some((x) => x.trim() === t)) return "solicitud"
+  return "editado"
+}

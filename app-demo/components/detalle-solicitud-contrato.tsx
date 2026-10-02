@@ -12,7 +12,9 @@ import {
   CLASE_ESTADO_CONTRATO,
   ETIQUETA_ESTADO_CONTRATO,
   TIPO_CONTRATO_POR_VALOR,
+  anticipoEnLetras,
   numero,
+  pesosEnLetras,
   pesos,
   plazoTexto,
   type SolicitudContratoDetalle,
@@ -158,11 +160,10 @@ export function DetalleSolicitudContrato({
                     ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                     ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
                     ["Valor", `${pesos(detalle.valor)} (${detalle.anexoTipo === "valor_global" ? "valor global" : "valores unitarios"})`],
+                    ...(detalle.valorMensual !== null ? [["Pago mensual", pesosEnLetras(detalle.valorMensual)]] : []),
                     [
                       "Anticipo",
-                      detalle.tieneAnticipo
-                        ? `${numero(detalle.anticipoPorcentaje ?? 0)} % = ${pesos((detalle.valor * (detalle.anticipoPorcentaje ?? 0)) / 100)}`
-                        : "No",
+                      detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No",
                     ],
                     [
                       "Plazo",

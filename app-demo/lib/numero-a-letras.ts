@@ -44,7 +44,7 @@ function convertirGrupo(n: number): string {
 // Soporta hasta 999,999,999 (999 millones) -- de sobra para una orden de
 // compra de construcción. Si algún día se necesita más, hay que agregar el
 // grupo de "mil millones".
-function numeroATexto(n: number): string {
+export function numeroATexto(n: number): string {
   if (n === 0) return "cero"
 
   const millones = Math.floor(n / 1_000_000)
@@ -73,7 +73,8 @@ export function numeroALetrasCOP(valor: number): string {
   const centavos = Math.round((valor - pesos) * 100)
 
   const pesosTexto = numeroATexto(pesos).toUpperCase()
-  const etiquetaPesos = pesos === 1 ? "PESO" : "PESOS"
+  // Millones exactos llevan "de": "DOS MILLONES DE PESOS".
+  const etiquetaPesos = pesos === 1 ? "PESO" : pesos >= 1_000_000 && pesos % 1_000_000 === 0 ? "DE PESOS" : "PESOS"
 
   if (centavos === 0) {
     return `${pesosTexto} ${etiquetaPesos} M/CTE`
