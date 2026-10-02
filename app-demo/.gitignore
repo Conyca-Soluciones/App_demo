@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Worktrees de otras sesiones de Claude Code
 .claude/worktrees/
+
+# Archivos de referencia con datos reales (no subir)
+/referencias/
