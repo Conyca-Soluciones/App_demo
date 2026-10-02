@@ -20,6 +20,23 @@ sitio de la llamada (`.then((lista: VersionPresupuesto[]) => ...)`,
 inferencia viaje sola -- no hace daño dejarlo anotado incluso después de
 confirmar que `actions.ts` está completo.
 
+## Pruebas y CI
+
+- **Vitest** (`npm test`, `npm run test:watch`): pruebas de la lógica pura en
+  `tests/*.test.ts` (sin base de datos ni navegador). Cubren `lib/contratos`,
+  `minuta-mano-obra`, `numero-a-letras`, `calcular-nivel`, `numeros`,
+  `ordenes-compra-calculos`, `similitud-texto`, `parse-apu-excel`, fechas,
+  búsqueda y paginación. Al tocar una regla de esos archivos, agregar o
+  ajustar su prueba. `npm run typecheck` también revisa las pruebas.
+- **CI** (`.github/workflows/ci.yml`, en la raíz del repo): en cada push y PR
+  corre tipos, pruebas y build (con variables de Supabase de relleno). El
+  lint corre pero NO bloquea: hay ~140 errores heredados (sobre todo `any`);
+  quitar `continue-on-error` cuando se limpien.
+- **Falta**: pruebas de la base (pgTAP: RLS, funciones SECURITY DEFINER,
+  topes) -- primero hace falta un volcado del esquema real, porque las
+  migraciones no construyen la base desde cero; y pruebas de punta a punta
+  (Playwright) contra un Supabase de pruebas.
+
 ## Estructura de archivos
 
 ```
@@ -915,6 +932,10 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `copiarApuStandalone`) solo copiaba las columnas de insumo: se perdían las
   líneas de mano de obra, equipo, transporte y herramienta menor. Ahora
   copian `COLUMNAS_COPIA_ITEM_APU`.
+- **Corregido** (lo encontraron las pruebas): valores en letras. "UNO PESO",
+  "VEINTIUNO MIL", "TREINTA Y UNO MILLONES" -> UN / VEINTIÚN / TREINTA Y UN;
+  "veintidos/veintitres/veintiseis" sin tilde; desde mil millones salía
+  "UNDEFINED MILLONES"; 1,996 daba "100 centavos".
 - **Corregido** (`20261017000000_acceso_proyecto_funciones.sql`):
   `resumen_ejecucion_proyecto` y `registrar_salida_almacen` (SECURITY
   DEFINER) no revisaban acceso al proyecto. Envoltura con el nombre de

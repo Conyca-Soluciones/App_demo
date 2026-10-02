@@ -111,7 +111,9 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
   obligacionesContratista.splice(Math.min(POSICION_OBLIGACION_CORRECCION, obligacionesContratista.length), 0, obligacionCorreccion(m))
 
   const lugarFecha = fecha
-    ? `a los ${cantidadEnLetras(fecha.dia)} días del mes de ${fecha.mes} de ${fecha.anio}`
+    ? fecha.dia === 1
+      ? `el primer (1) día del mes de ${fecha.mes} de ${fecha.anio}`
+      : `a los ${cantidadEnLetras(fecha.dia)} días del mes de ${fecha.mes} de ${fecha.anio}`
     : "a los ____ días del mes de ________ de ____"
 
   const totalAnexo = totalItemsMinuta(m.items)

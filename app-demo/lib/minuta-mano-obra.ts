@@ -9,7 +9,7 @@
 // PDF.
 // ---------------------------------------------------------------------------
 
-import { numeroALetrasCOP } from "@/lib/numero-a-letras"
+import { numeroALetrasCOP, numeroATexto } from "@/lib/numero-a-letras"
 import { anticipoEnLetras, esNoAplica, leerNumero, pesosEnLetras, type SolicitudContratoDetalle } from "@/lib/contratos"
 
 export const VERSION_MINUTA = 1
@@ -122,24 +122,11 @@ export const obligacionCorreccion = (m: Pick<MinutaManoObra, "plazoSolicitudCorr
 export const blanco = (t: string | null | undefined) => (t && t.trim() ? t.trim() : "__________")
 
 // ---------------------------------------------------------------- números y fechas en letras
-const UNIDADES = [
-  "cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez",
-  "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte",
-  "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve",
-]
-const DECENAS = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"]
+// 0..999.999.999.999 en letras ("treinta y uno").
+export const enteroEnLetras = (n: number) => numeroATexto(n)
 
-// 0..99 en letras ("treinta y uno"). Para días, meses de plazo y porcentajes.
-export function enteroEnLetras(n: number): string {
-  if (!Number.isInteger(n) || n < 0 || n > 99) return String(n)
-  if (n < 30) return UNIDADES[n]
-  const d = Math.floor(n / 10)
-  const u = n % 10
-  return u === 0 ? DECENAS[d] : `${DECENAS[d]} y ${UNIDADES[u]}`
-}
-
-// "tres (3)"
-export const cantidadEnLetras = (n: number) => `${enteroEnLetras(n)} (${n})`
+// "tres (3)", delante de lo que cuenta: "veintiún (21) días", "un (1) mes".
+export const cantidadEnLetras = (n: number) => `${numeroATexto(n, true)} (${n})`
 
 export const MESES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
