@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { ArrowLeft, FileUp, Loader2, Plus, Search, Send, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DropdownFlotante } from "@/components/dropdown-flotante"
 import { createClient } from "@/lib/supabase/client"
 import {
   DOCUMENTOS_POR_PERSONA,
@@ -114,6 +115,7 @@ function SelectorItemPresupuesto({
   const [texto, setTexto] = useState("")
   const [abierto, setAbierto] = useState(false)
   const idLista = useId()
+  const ancla = useRef<HTMLInputElement>(null)
   const coincidencias = useMemo(() => {
     const q = normalizar(texto.trim())
     const lista = catalogo.filter((c) => !excluir.has(c.id) && (!q || normalizar(`${c.codigo} ${c.descripcion}`).includes(q)))
@@ -121,8 +123,9 @@ function SelectorItemPresupuesto({
   }, [catalogo, excluir, texto])
 
   return (
-    <div className="relative">
+    <div>
       <input
+        ref={ancla}
         aria-label={etiqueta}
         value={texto}
         onChange={(e) => {
@@ -131,46 +134,58 @@ function SelectorItemPresupuesto({
         }}
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
-        placeholder="Buscar por código o descripción"
+        placeholder="Buscar ítem por código o descripción"
         disabled={disabled}
         className={claseCampo()}
         role="combobox"
         aria-expanded={abierto}
         aria-controls={idLista}
       />
-      {abierto && (
-        <ul id={idLista} role="listbox" className="absolute z-20 mt-1 max-h-72 w-full min-w-[420px] overflow-auto rounded-md border bg-popover shadow-md">
-          {coincidencias.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-muted-foreground">Ningún ítem del presupuesto coincide.</li>
-          ) : (
-            coincidencias.map((c) => {
-              const agotado = c.disponible <= 0
-              return (
-                <li key={c.id} role="option" aria-selected={false} aria-disabled={agotado}>
-                  <button
-                    type="button"
-                    disabled={agotado}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      onElegir(c)
-                      setTexto("")
-                      setAbierto(false)
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span className="font-medium tabular-nums">{c.codigo}</span> {c.descripcion}
-                    <span className="block text-xs text-muted-foreground tabular-nums">
-                      {agotado
-                        ? "Ya está contratado completo"
-                        : `Disponible ${numero(c.disponible)} ${c.unidad ?? ""} · ${pesos(c.valorUnitario)} c/u`}
-                    </span>
-                  </button>
-                </li>
-              )
-            })
+      {/* Fuera de la tabla (portal): dentro quedaba recortado por su scroll. */}
+      <DropdownFlotante anchorRef={ancla} abierto={abierto} anchoMinimo={640}>
+        <div className="overflow-hidden rounded-md border bg-popover shadow-lg">
+          <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_7.5rem_7.5rem] gap-3 border-b bg-muted/60 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            <span>Código</span>
+            <span>Descripción</span>
+            <span className="text-right">Disponible</span>
+            <span className="text-right">Valor unitario</span>
+          </div>
+          <ul id={idLista} role="listbox" className="max-h-80 overflow-auto">
+            {coincidencias.length === 0 ? (
+              <li className="px-3 py-3 text-sm text-muted-foreground">Ningún ítem del presupuesto coincide.</li>
+            ) : (
+              coincidencias.map((c) => {
+                const agotado = c.disponible <= 0
+                return (
+                  <li key={c.id} role="option" aria-selected={false} aria-disabled={agotado} className="border-b last:border-b-0">
+                    <button
+                      type="button"
+                      disabled={agotado}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        onElegir(c)
+                        setTexto("")
+                        setAbierto(false)
+                      }}
+                      className="grid w-full grid-cols-[4.5rem_minmax(0,1fr)_7.5rem_7.5rem] items-start gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="font-medium tabular-nums">{c.codigo}</span>
+                      <span className="break-words">{c.descripcion}</span>
+                      <span className="text-right text-xs tabular-nums">
+                        {agotado ? "Contratado" : `${numero(c.disponible)} ${c.unidad ?? ""}`}
+                      </span>
+                      <span className="text-right text-xs tabular-nums">{pesos(c.valorUnitario)}</span>
+                    </button>
+                  </li>
+                )
+              })
+            )}
+          </ul>
+          {coincidencias.length === 10 && (
+            <p className="border-t px-3 py-1.5 text-xs text-muted-foreground">Se muestran 10. Escribe más para afinar la búsqueda.</p>
           )}
-        </ul>
-      )}
+        </div>
+      </DropdownFlotante>
     </div>
   )
 }
