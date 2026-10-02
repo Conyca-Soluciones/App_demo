@@ -1527,7 +1527,7 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   cambia lo reservado del presupuesto. Otros tipos de contrato: sin plantilla
   todavía. El editor marca el origen de cada dato (`origenCampo` /
   `origenRenglon`): Plantilla (texto de la GJ-F-003), Solicitud (solicitud,
-  contratista o proyecto), Editado o Por llenar. Tiene vencimiento (sale en
+  contratista o proyecto), Falta (rojo); lo editado a mano queda sin color. Tiene vencimiento (sale en
   la tercera) y cláusulas adicionales (`clausulasAdicionales`, numeradas
   después de la décima octava con `ordinalClausula`).
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de

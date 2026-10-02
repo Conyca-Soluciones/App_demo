@@ -45,7 +45,8 @@ type CampoTexto = { [K in keyof MinutaManoObra]: MinutaManoObra[K] extends strin
 type CampoLista = "obligacionesContratante" | "obligacionesContratista" | "requisitosPago"
 
 // Origen de cada dato: plantilla (texto de la GJ-F-003), solicitud (datos de
-// la solicitud, el contratista o el proyecto), editado a mano o por llenar.
+// la solicitud, el contratista o el proyecto) o falta (rojo). Lo escrito o
+// cambiado a mano queda sin color.
 const ORIGEN: Record<OrigenDato, { etiqueta: string; chip: string; borde: string; ayuda: string }> = {
   plantilla: {
     etiqueta: "Plantilla",
@@ -61,19 +62,20 @@ const ORIGEN: Record<OrigenDato, { etiqueta: string; chip: string; borde: string
   },
   editado: {
     etiqueta: "Editado",
-    chip: "bg-violet-100 text-violet-800 ring-violet-300",
-    borde: "border-l-4 border-l-violet-500",
-    ayuda: "Escrito o cambiado a mano en la minuta.",
+    chip: "",
+    borde: "",
+    ayuda: "Escrito o cambiado a mano en la minuta (sin color).",
   },
   vacio: {
-    etiqueta: "Por llenar",
-    chip: "bg-amber-100 text-amber-800 ring-amber-400",
-    borde: "border-l-4 border-l-amber-400 bg-amber-50/40",
-    ayuda: "Vacío: en el PDF sale como raya para llenar a mano.",
+    etiqueta: "Falta",
+    chip: "bg-red-100 text-red-800 ring-red-300",
+    borde: "border-l-4 border-l-red-500 bg-red-50/40",
+    ayuda: "Falta llenarlo: en el PDF sale como raya.",
   },
 }
 
 function ChipOrigen({ origen }: { origen: OrigenDato }) {
+  if (origen === "editado") return null
   const o = ORIGEN[origen]
   return (
     <span title={o.ayuda} className={`inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-medium ring-1 ${o.chip}`}>
@@ -387,7 +389,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
         {aviso && <p className={`text-sm ${aviso.ok ? "text-emerald-700" : "text-destructive"}`}>{aviso.texto}</p>}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Origen de cada dato:</span>
-          {(Object.keys(ORIGEN) as OrigenDato[]).map((o) => (
+          {(["plantilla", "solicitud", "vacio"] as OrigenDato[]).map((o) => (
             <span key={o} className="flex items-center gap-1">
               <ChipOrigen origen={o} /> {ORIGEN[o].ayuda}
             </span>
