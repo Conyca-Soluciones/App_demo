@@ -43,7 +43,7 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   obligaciones: string[]
   entregables: string[]
   items: { actividad: string; unidad: string; cantidad: number; valorUnitario: number }[]
-  documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string }[]
+  documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string }[]
 }
 
 const SELECT_FILA = `
@@ -104,7 +104,7 @@ export async function obtenerSolicitudContrato(id: string): Promise<SolicitudCon
       obligaciones:contrato_obligaciones(orden, texto),
       entregables:contrato_entregables(orden, texto),
       items:contrato_anexo_items(orden, actividad, unidad, cantidad, valor_unitario),
-      documentos:contrato_documentos(id, tipo, nombre_archivo)
+      documentos:contrato_documentos(id, tipo, nombre_archivo, mime)
     `)
     .eq("id", id)
     .maybeSingle()
@@ -130,7 +130,7 @@ export async function obtenerSolicitudContrato(id: string): Promise<SolicitudCon
       cantidad: Number(i.cantidad),
       valorUnitario: Number(i.valor_unitario),
     })),
-    documentos: ((f as any).documentos ?? []).map((d: any) => ({ id: d.id, tipo: d.tipo, nombreArchivo: d.nombre_archivo })),
+    documentos: ((f as any).documentos ?? []).map((d: any) => ({ id: d.id, tipo: d.tipo, nombreArchivo: d.nombre_archivo, mime: d.mime })),
   }
 }
 

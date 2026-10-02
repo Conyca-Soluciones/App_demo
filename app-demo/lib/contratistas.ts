@@ -93,6 +93,7 @@ export type DocumentoContratista = {
   tipo: TipoDocumentoContratista
   nombreArchivo: string
   tamano: number
+  mime: string
   subidoAt: string
 }
 

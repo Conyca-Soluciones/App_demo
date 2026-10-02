@@ -18,7 +18,7 @@ const SELECT_CONTRATISTA = `
   representante_nombre, representante_tipo_documento, representante_numero_documento,
   correo, telefono, direccion, ciudad, banco, tipo_cuenta, numero_cuenta, created_at,
   creador:perfiles!contratistas_created_by_fkey(nombre),
-  documentos:contratista_documentos(id, tipo, nombre_archivo, tamano, subido_at)
+  documentos:contratista_documentos(id, tipo, nombre_archivo, tamano, mime, subido_at)
 `
 
 function mapContratista(f: any): Contratista {
@@ -46,6 +46,7 @@ function mapContratista(f: any): Contratista {
       tipo: d.tipo,
       nombreArchivo: d.nombre_archivo,
       tamano: Number(d.tamano),
+      mime: d.mime,
       subidoAt: d.subido_at,
     })),
   }

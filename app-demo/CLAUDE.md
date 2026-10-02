@@ -839,6 +839,12 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   subconsulta ya aplica la política del padre). Medido en Contratos: 2.000
   solicitudes 2.122 ms -> 8 ms (`20261012100000_rendimiento_rls_contratos.sql`).
   Las políticas viejas de otras tablas todavía usan el patrón por fila.
+- **Pruebas de volumen en transacción revertida: los contadores NO se
+  revierten.** Insertar filas de prueba avanza las secuencias/identity aunque
+  se haga rollback (pasó: `contratos.numero` saltó a 6001 y hubo que
+  renumerar). Antes de probar una tabla con número visible (`contratos`,
+  `requisiciones`, `ordenes_compra`, `entradas_almacen`...) guardar el valor de
+  su secuencia y restaurarlo después (`setval` / `restart with`).
 - **Límites de la API que fallan en silencio o con listas largas**: cada
   respuesta se corta en 1000 filas (también las RPC que devuelven filas): lo
   que pueda crecer se trae con `traerTodo` (orden que termine en `id`). Y
@@ -1382,6 +1388,11 @@ seguridad social, SOAT, cotización...) van con el contrato, después.
   `20261011100000_rol_director_obra.sql`): arranca solo con ver y crear
   contratistas; el resto se asigna en la matriz. El aviso de contrato vencido
   sin acta de liquidación lo va a buscar por esta clave.
+- **Ver documentos**: se abren dentro del mismo diálogo de detalle
+  (`components/visor-documento.tsx`: PDF en iframe, imagen en img, con "Abrir
+  aparte"), igual en Solicitud de contratos. Funciona porque los enlaces
+  firmados de Storage no traen X-Frame-Options ni `Content-Disposition:
+  attachment` (revisado).
 - **Pendiente**: editar datos, reemplazar o agregar documentos, y vencimientos
   (p. ej. certificación bancaria o cámara de comercio con más de 30 días).
 

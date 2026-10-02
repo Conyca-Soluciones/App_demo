@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, ExternalLink, Loader2, Plus } from "lucide-react"
+import { CheckCircle2, Eye, Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { SolicitudContratoForm } from "@/components/solicitud-contrato-form"
+import { VisorDocumento } from "@/components/visor-documento"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
@@ -24,19 +25,6 @@ const fechaHora = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
 const tituloTipo = (t: string) => TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t
 
-// Abre la pestaña dentro del clic (si no, el navegador la bloquea) y luego le
-// pone el enlace temporal del documento.
-async function abrirDocumento(documentoId: string, onError: (m: string) => void) {
-  const ventana = window.open("", "_blank")
-  try {
-    const url = await enlaceDocumentoContrato(documentoId)
-    if (ventana) ventana.location.href = url
-    else window.location.href = url
-  } catch (e) {
-    ventana?.close()
-    onError(e instanceof Error ? e.message : "No se pudo abrir el documento.")
-  }
-}
 
 export function SolicitudesContratosView({ puedeSolicitar }: { puedeSolicitar: boolean }) {
   const proyecto = useProyectoActual().proyecto
@@ -185,7 +173,8 @@ function Solicitudes({
 function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () => void }) {
   const [detalle, setDetalle] = useState<SolicitudContratoDetalle | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [abriendo, setAbriendo] = useState<string | null>(null)
+  // Documento abierto en el visor (dentro del mismo diálogo).
+  const [viendo, setViendo] = useState<{ id: string; titulo: string; nombreArchivo: string; mime: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -208,16 +197,25 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
         if (!abierto) {
           setDetalle(null)
           setError(null)
+          setViendo(null)
           onCerrar()
         }
       }}
     >
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className={`max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-3xl"}`}>
         <DialogHeader>
           <DialogTitle>{detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipo(detalle.tipo)}` : "Solicitud de contrato"}</DialogTitle>
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        {!detalle && !error ? (
+        {viendo ? (
+          <VisorDocumento
+            titulo={viendo.titulo}
+            nombreArchivo={viendo.nombreArchivo}
+            mime={viendo.mime}
+            cargarUrl={() => enlaceDocumentoContrato(viendo.id)}
+            onVolver={() => setViendo(null)}
+          />
+        ) : !detalle && !error ? (
           <div className="flex items-center justify-center py-10 text-muted-foreground">
             <Loader2 className="mr-2 size-4 animate-spin" /> Cargando...
           </div>
@@ -322,15 +320,9 @@ function DetalleSolicitud({ id, onCerrar }: { id: string | null; onCerrar: () =>
                           <Button
                             size="sm"
                             variant="outline"
-                            disabled={abriendo === doc.id}
-                            onClick={async () => {
-                              setError(null)
-                              setAbriendo(doc.id)
-                              await abrirDocumento(doc.id, setError)
-                              setAbriendo(null)
-                            }}
+                            onClick={() => setViendo({ id: doc.id, titulo: req.titulo, nombreArchivo: doc.nombreArchivo, mime: doc.mime })}
                           >
-                            {abriendo === doc.id ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+                            <Eye className="size-4" />
                             Ver
                           </Button>
                         ) : (

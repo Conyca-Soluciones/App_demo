@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, ExternalLink, FileUp, Loader2, Plus, Search, X } from "lucide-react"
+import { CheckCircle2, Eye, FileUp, Loader2, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
+import { VisorDocumento } from "@/components/visor-documento"
 import { TablaExcel, PaginacionExcel, type ColumnaExcel, type OrdenExcel } from "@/components/tabla-excel"
 import { createClient } from "@/lib/supabase/client"
 import { ZONA_HORARIA } from "@/lib/fechas"
@@ -53,19 +54,6 @@ const fechaCreacion = (iso: string) =>
 // Texto normalizado para buscar sin tildes ni mayúsculas.
 const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
 
-// Abre un documento en otra pestaña. La pestaña se abre ANTES de pedir el
-// enlace (dentro del clic), si no el navegador la bloquea como ventana emergente.
-async function abrirDocumento(documentoId: string, onError: (m: string) => void) {
-  const ventana = window.open("", "_blank")
-  try {
-    const url = await enlaceDocumentoContratista(documentoId)
-    if (ventana) ventana.location.href = url
-    else window.location.href = url
-  } catch (e) {
-    ventana?.close()
-    onError(e instanceof Error ? e.message : "No se pudo abrir el documento.")
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Página
@@ -295,8 +283,8 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
 // ---------------------------------------------------------------------------
 
 function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: Contratista | null; onCerrar: () => void }) {
-  const [error, setError] = useState<string | null>(null)
-  const [abriendo, setAbriendo] = useState<string | null>(null)
+  // Documento abierto en el visor (dentro del mismo diálogo).
+  const [viendo, setViendo] = useState<{ id: string; titulo: string; nombreArchivo: string; mime: string } | null>(null)
 
   const campos: [string, string][] = c
     ? [
@@ -325,16 +313,25 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
       open={c !== null}
       onOpenChange={(abierto) => {
         if (!abierto) {
-          setError(null)
+          setViendo(null)
           onCerrar()
         }
       }}
     >
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className={`max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-2xl"}`}>
         <DialogHeader>
           <DialogTitle>{c?.nombre}</DialogTitle>
         </DialogHeader>
-        {c && (
+        {c && viendo && (
+          <VisorDocumento
+            titulo={viendo.titulo}
+            nombreArchivo={viendo.nombreArchivo}
+            mime={viendo.mime}
+            cargarUrl={() => enlaceDocumentoContratista(viendo.id)}
+            onVolver={() => setViendo(null)}
+          />
+        )}
+        {c && !viendo && (
           <div className="space-y-5">
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               {campos.map(([etiqueta, valor]) => (
@@ -360,15 +357,9 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={abriendo === doc.id}
-                          onClick={async () => {
-                            setError(null)
-                            setAbriendo(doc.id)
-                            await abrirDocumento(doc.id, setError)
-                            setAbriendo(null)
-                          }}
+                          onClick={() => setViendo({ id: doc.id, titulo: req.titulo, nombreArchivo: doc.nombreArchivo, mime: doc.mime })}
                         >
-                          {abriendo === doc.id ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+                          <Eye className="size-4" />
                           Ver
                         </Button>
                       ) : (
@@ -378,7 +369,6 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
                   )
                 })}
               </ul>
-              {error && <p className="text-sm text-destructive">{error}</p>}
             </section>
           </div>
         )}
