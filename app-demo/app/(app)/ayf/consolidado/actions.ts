@@ -59,6 +59,31 @@ export async function listarConsolidado(
   return { pagos: filas.map(mapPago), hayMas }
 }
 
+// Avisos de la pantalla: órdenes aprobadas cuyos pagos no se pudieron crear, y
+// pagos aprobados que esperan su ITEM. Dos conteos baratos (índices parciales).
+export type AlertasConsolidado = { fallos: number; sinItem: number }
+
+export async function obtenerAlertasConsolidado(): Promise<AlertasConsolidado> {
+  await requerirPestana(PESTANA)
+  const supabase = await createClient()
+  const [fallos, sinItem] = await Promise.all([
+    supabase.from("pagos_fallos").select("id", { count: "exact", head: true }).is("resuelto_en", null),
+    supabase.from("pagos").select("id", { count: "exact", head: true }).eq("estado", "aprobado").is("item", null),
+  ])
+  if (fallos.error) throw new Error(fallos.error.message)
+  if (sinItem.error) throw new Error(sinItem.error.message)
+  return { fallos: fallos.count ?? 0, sinItem: sinItem.count ?? 0 }
+}
+
+export async function reintentarPagos(): Promise<{ fallosResueltos: number; itemsAsignados: number }> {
+  await requerirAccion("gestionar_pagos")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("reintentar_pagos")
+  if (error) throw new Error(error.message)
+  const fila = (Array.isArray(data) ? data[0] : data) as { fallos_resueltos?: number; items_asignados?: number } | null
+  return { fallosResueltos: fila?.fallos_resueltos ?? 0, itemsAsignados: fila?.items_asignados ?? 0 }
+}
+
 // ---------------------------------------------------- resolver una novedad
 
 export type TerceroOpcion = { id: string; nombre: string; documento: string }

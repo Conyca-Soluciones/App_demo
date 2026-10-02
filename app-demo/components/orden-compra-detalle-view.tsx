@@ -330,6 +330,41 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             )}
             <p className="text-lg font-semibold">{formatoMoneda.format(totalOrden)}</p>
           </div>
+          {orden.anticipoPorcentaje != null && (
+            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">
+              <p className="font-medium text-amber-800">
+                Orden con anticipo ({orden.anticipoPorcentaje.toLocaleString("es-CO")}%)
+              </p>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">Valor total de la orden</span>
+                <span className="font-medium tabular-nums">{formatoMoneda.format(Math.round(totalOrden))}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-foreground">
+                  {orden.estado === "pendiente_aprobacion" ? "A pagar hoy (anticipo)" : "Anticipo"}
+                </span>
+                <span className="text-base font-semibold tabular-nums">
+                  {formatoMoneda.format(Math.round((Math.round(totalOrden) * orden.anticipoPorcentaje) / 100))}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-muted-foreground">Saldo</span>
+                <span className="font-medium tabular-nums">
+                  {formatoMoneda.format(
+                    Math.round(totalOrden) - Math.round((Math.round(totalOrden) * orden.anticipoPorcentaje) / 100)
+                  )}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                El saldo se paga{" "}
+                {orden.saldoModo === "fecha" && orden.saldoFecha
+                  ? `el ${formatearFechaSinHora(orden.saldoFecha)}.`
+                  : "al ser entregada la orden por completo."}
+                {orden.estado === "pendiente_aprobacion" &&
+                  " Al aprobar la orden se aprueba el pago del anticipo; el saldo llega después a la aprobación de pagos."}
+              </p>
+            </div>
+          )}
           <div className="space-y-1 border-t pt-3">
             <p className="text-muted-foreground">Creada por</p>
             <p>

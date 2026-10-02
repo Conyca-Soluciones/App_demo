@@ -105,8 +105,6 @@ export function TablaPedidosCompra({
           </TableHeader>
           <TableBody>
             {ordenados.map((pedido) => {
-              const comprometido = pedido.cantidadPendiente < pedido.cantidad
-
               return (
                 <TableRow key={pedido.id} className={pedido.urgente ? "bg-amber-50" : undefined}>
                   <TableCell className="font-medium">{pedido.requisicionNumero ?? "—"}</TableCell>
@@ -119,17 +117,7 @@ export function TablaPedidosCompra({
                   </TableCell>
                   <TableCell>{pedido.um ?? "—"}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex flex-col items-end">
-                      <span>{pedido.cantidadPendiente.toLocaleString("es-CO")}</span>
-                      {comprometido ? (
-                        <span
-                          className="text-xs text-muted-foreground line-through"
-                          title="Cantidad originalmente pedida — parte ya se compró en otra orden"
-                        >
-                          {pedido.cantidad.toLocaleString("es-CO")}
-                        </span>
-                      ) : null}
-                    </div>
+                    {pedido.cantidadPendiente.toLocaleString("es-CO")}
                   </TableCell>
                   <TableCell className="text-right">
                     {pedido.valorUnitarioProyectado != null

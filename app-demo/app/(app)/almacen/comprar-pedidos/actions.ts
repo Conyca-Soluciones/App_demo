@@ -552,6 +552,10 @@ export type OrdenCompraDetalle = {
   motivoDesaprobacion: string | null
   motivoCancelacion: string | null
   canceladaAt: string | null
+  // Anticipo (A&F): null si la orden no tiene.
+  anticipoPorcentaje: number | null
+  saldoModo: "entrega" | "fecha" | null
+  saldoFecha: string | null
   lineas: LineaOrdenCompraDetalle[]
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
@@ -566,6 +570,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
+      anticipo_porcentaje, saldo_modo, saldo_fecha,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
@@ -627,6 +632,9 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     motivoDesaprobacion: d.motivo_desaprobacion,
     motivoCancelacion: d.motivo_cancelacion,
     canceladaAt: d.cancelada_at,
+    anticipoPorcentaje: d.anticipo_porcentaje != null ? Number(d.anticipo_porcentaje) : null,
+    saldoModo: d.saldo_modo ?? null,
+    saldoFecha: d.saldo_fecha ?? null,
     lineas: (d.lineas ?? []).map((l: any) => ({
       id: l.id,
       insumoCodigo: l.pedido?.insumo?.codigo,

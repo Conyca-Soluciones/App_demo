@@ -19,6 +19,9 @@ import {
   cuentasDeTercero,
   listarConsolidado,
   listarConsolidadosPago,
+  obtenerAlertasConsolidado,
+  reintentarPagos,
+  type AlertasConsolidado,
   type ConsolidadoOpcion,
   type CuentaOpcion,
 } from "@/app/(app)/ayf/consolidado/actions"
@@ -63,8 +66,18 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   const [sinItem, setSinItem] = useState(false)
 
   const [resolviendo, setResolviendo] = useState<Pago | null>(null)
+  const [alertas, setAlertas] = useState<AlertasConsolidado | null>(null)
+  const [reintentando, setReintentando] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
+
+  function cargarAlertas() {
+    obtenerAlertasConsolidado()
+      .then((a: AlertasConsolidado) => setAlertas(a))
+      .catch(() => setAlertas(null))
+  }
 
   useEffect(() => {
+    cargarAlertas()
     listarConsolidadosPago()
       .then((c: ConsolidadoOpcion[]) => setConsolidados(c))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los consolidados."))
@@ -127,6 +140,30 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   }
 
   const totalPagina = pagos ? pagos.reduce((acc, p) => acc + p.valor, 0) : 0
+
+  async function handleReintentar() {
+    setReintentando(true)
+    setError(null)
+    setAviso(null)
+    try {
+      const r = await reintentarPagos()
+      setAviso(
+        `Se resolvieron ${r.fallosResueltos} ${r.fallosResueltos === 1 ? "orden" : "órdenes"} y se asignó ITEM a ` +
+          `${r.itemsAsignados} ${r.itemsAsignados === 1 ? "pago" : "pagos"}.`
+      )
+      cargarAlertas()
+      if (pagos !== null) cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo reintentar.")
+    } finally {
+      setReintentando(false)
+    }
+  }
+
+  function verSinItem() {
+    setSinItem(true)
+    cargar({ sinItem: true }, 0)
+  }
 
   const columnas: ColumnaExcel<Pago>[] = [
     {
@@ -327,6 +364,40 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
           {error && (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error}
+            </div>
+          )}
+
+          {aviso && (
+            <div className="rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-800">{aviso}</div>
+          )}
+
+          {alertas && (alertas.fallos > 0 || alertas.sinItem > 0) && (
+            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {alertas.fallos > 0 && (
+                <p>
+                  <strong>{alertas.fallos}</strong> {alertas.fallos === 1 ? "orden aprobada no generó" : "órdenes aprobadas no generaron"} sus
+                  pagos.
+                </p>
+              )}
+              {alertas.sinItem > 0 && (
+                <p>
+                  <strong>{alertas.sinItem}</strong> {alertas.sinItem === 1 ? "pago aprobado no tiene" : "pagos aprobados no tienen"} ITEM
+                  todavía: su proyecto no tiene empresa, o su empresa no tiene consolidado (se asignan en Control
+                  administrativo).
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {alertas.sinItem > 0 && (
+                  <Button size="sm" variant="outline" onClick={verSinItem}>
+                    Ver los pagos sin ITEM
+                  </Button>
+                )}
+                {puedeGestionar && (
+                  <Button size="sm" disabled={reintentando} onClick={handleReintentar}>
+                    {reintentando ? "Reintentando..." : "Reintentar"}
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
