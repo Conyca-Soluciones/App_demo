@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Bell } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   listarNotificaciones,
   marcarNotificacionLeida,
@@ -34,7 +35,6 @@ export function CampanitaNotificaciones() {
   const [abierto, setAbierto] = useState(false)
   const [notificaciones, setNotificaciones] = useState<Notificacion[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const contenedorRef = useRef<HTMLDivElement>(null)
 
   function cargar() {
     listarNotificaciones()
@@ -53,16 +53,6 @@ export function CampanitaNotificaciones() {
     return () => clearInterval(t)
   }, [])
 
-  useEffect(() => {
-    function alHacerClicAfuera(e: MouseEvent) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
-        setAbierto(false)
-      }
-    }
-    document.addEventListener("mousedown", alHacerClicAfuera)
-    return () => document.removeEventListener("mousedown", alHacerClicAfuera)
-  }, [])
-
   function handleClicNotificacion(n: Notificacion) {
     setAbierto(false)
     if (!n.leida) {
@@ -77,14 +67,18 @@ export function CampanitaNotificaciones() {
 
   const noLeidas = notificaciones?.filter((n) => !n.leida).length ?? 0
 
+  // Popover de Base UI: el panel va en un portal sobre toda la página (dentro
+  // del menú lateral quedaba recortado y tapado por el contenido), se ubica
+  // solo para no salirse de la pantalla y se cierra con clic afuera o Escape.
   return (
-    <div ref={contenedorRef} className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          if (!abierto) cargar()
-          setAbierto((v) => !v)
-        }}
+    <Popover
+      open={abierto}
+      onOpenChange={(v) => {
+        if (v) cargar()
+        setAbierto(v)
+      }}
+    >
+      <PopoverTrigger
         aria-label={noLeidas > 0 ? `Notificaciones, ${noLeidas} sin leer` : "Notificaciones"}
         className="relative flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
       >
@@ -94,38 +88,35 @@ export function CampanitaNotificaciones() {
             {noLeidas > 9 ? "9+" : noLeidas}
           </span>
         )}
-      </button>
+      </PopoverTrigger>
 
-      {abierto && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-          <div className="max-h-96 overflow-auto">
-            {error && <div className="px-2 py-3 text-sm text-destructive">{error}</div>}
-            {!error && notificaciones === null && (
-              <div className="px-2 py-3 text-sm text-muted-foreground">Cargando...</div>
-            )}
-            {!error && notificaciones?.length === 0 && (
-              <div className="px-2 py-3 text-sm text-muted-foreground">No tienes notificaciones.</div>
-            )}
-            {notificaciones?.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => handleClicNotificacion(n)}
-                className={`flex w-full flex-col items-start gap-0.5 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent ${
-                  !n.leida ? "bg-accent/40" : ""
-                }`}
-              >
-                <div className="flex w-full items-center gap-1.5">
-                  {!n.leida && <span className="size-1.5 shrink-0 rounded-full bg-destructive" />}
-                  <span className="truncate font-medium">{n.titulo}</span>
-                </div>
-                <span className="line-clamp-2 text-xs text-muted-foreground">{n.mensaje}</span>
-                <span className="text-[10px] text-muted-foreground">{formatoFecha(n.createdAt)}</span>
-              </button>
-            ))}
-          </div>
+      <PopoverContent side="bottom" align="start" className="w-80 max-w-[calc(100vw-1rem)] gap-0 rounded-md p-1 shadow-lg">
+        <p className="px-2 pt-1.5 pb-1 text-xs font-semibold text-muted-foreground">Notificaciones</p>
+        <div className="max-h-96 overflow-auto">
+          {error && <div className="px-2 py-3 text-sm text-destructive">{error}</div>}
+          {!error && notificaciones === null && <div className="px-2 py-3 text-sm text-muted-foreground">Cargando...</div>}
+          {!error && notificaciones?.length === 0 && (
+            <div className="px-2 py-3 text-sm text-muted-foreground">No tienes notificaciones.</div>
+          )}
+          {notificaciones?.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => handleClicNotificacion(n)}
+              className={`flex w-full flex-col items-start gap-0.5 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent ${
+                !n.leida ? "bg-accent/40" : ""
+              }`}
+            >
+              <div className="flex w-full items-center gap-1.5">
+                {!n.leida && <span className="size-1.5 shrink-0 rounded-full bg-destructive" />}
+                <span className="truncate font-medium">{n.titulo}</span>
+              </div>
+              <span className="line-clamp-2 text-xs text-muted-foreground">{n.mensaje}</span>
+              <span className="text-[10px] text-muted-foreground">{formatoFecha(n.createdAt)}</span>
+            </button>
+          ))}
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }
