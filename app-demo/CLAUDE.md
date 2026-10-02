@@ -836,15 +836,32 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `proyecto_id in (select public.proyectos_visibles((select auth.uid())))`, no
   `usuario_puede_ver_proyecto(uid, proyecto_id)` (misma respuesta, verificado).
   Tablas hijas: `exists (select 1 from padre where padre.id = padre_id)` (la
-  subconsulta ya aplica la política del padre). Medido en Contratos: 2.000
-  solicitudes 2.122 ms -> 8 ms (`20261012100000_rendimiento_rls_contratos.sql`).
-  Las políticas viejas de otras tablas todavía usan el patrón por fila.
-- **Pruebas de volumen en transacción revertida: los contadores NO se
-  revierten.** Insertar filas de prueba avanza las secuencias/identity aunque
-  se haga rollback (pasó: `contratos.numero` saltó a 6001 y hubo que
-  renumerar). Antes de probar una tabla con número visible (`contratos`,
-  `requisiciones`, `ordenes_compra`, `entradas_almacen`...) guardar el valor de
-  su secuencia y restaurarlo después (`setval` / `restart with`).
+  subconsulta ya aplica la política del padre). "¿Puede editar el proyecto?":
+  `proyecto_id in (select public.proyectos_editables((select auth.uid())))`.
+  Si la columna admite null (`presupuestos.proyecto_id`), el caso null se
+  agrega con la función vieja envuelta: `(select f((select auth.uid()), null::uuid))`.
+  Ya no queda ninguna política por fila en `public` ni `storage`:
+  Contratos (`20261012100000_rendimiento_rls_contratos.sql`, 2.000 solicitudes
+  2.122 ms -> 8 ms) y todo lo demás (`20261012200000_rendimiento_rls_resto.sql`).
+  Medido con 2.000 requisiciones / 6.000 líneas, 1.000 OC, 3.000 salidas
+  (admin / usuario con rol de un solo proyecto): `requisiciones_vista` 500
+  filas 2,9 s / 12,5 s -> 52 / 70 ms; `pedidos_insumos` 2,3 s / 12 s -> 73 /
+  20 ms; órdenes de compra 0,9 s -> 22 / 6 ms; líneas de OC 2,1 s -> 5 ms;
+  salidas 1,4 s -> 3 ms. Las mismas filas antes y después, y 1.292
+  comparaciones de lectura, UPDATE e INSERT para 19 usuarios reales y
+  simulados sin diferencias. `usuario_tiene_acceso_a_item`,
+  `usuario_puede_ver_proyecto` y `usuario_puede_editar_proyecto` siguen
+  existiendo (las usan RPC como `crear_requisicion` o `inventario_proyecto`, y
+  el caso null de presupuestos), pero ninguna política las llama por fila.
+- **Pruebas de volumen en transacción revertida (`do $$ ... raise exception`
+  con los tiempos): los contadores NO se revierten.** Insertar filas de prueba
+  avanza las secuencias/identity aunque se haga rollback (pasó:
+  `contratos.numero` saltó a 6001 y hubo que renumerar). Mejor dar `numero` /
+  `codigo_consecutivo` explícitos (p. ej. desde 9.000.000) en `requisiciones`,
+  `ordenes_compra`, `pedidos_insumos`, `contratos`, `entradas_almacen`; si no,
+  guardar el valor de la secuencia y restaurarlo (`setval` / `restart with`).
+  Al terminar, revisar que `last_value` = `max(numero)`. Para insertar sin
+  disparar triggers ni FKs: `set local session_replication_role = replica`.
 - **Límites de la API que fallan en silencio o con listas largas**: cada
   respuesta se corta en 1000 filas (también las RPC que devuelven filas): lo
   que pueda crecer se trae con `traerTodo` (orden que termine en `id`). Y
