@@ -1,5 +1,7 @@
 "use server"
 
+import { traerTodo } from "@/lib/supabase/traer-todo"
+
 import { createClient } from "@/lib/supabase/server"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
 import { buscarSimilares } from "@/lib/similitud-texto"
@@ -3406,14 +3408,18 @@ export async function listarRevisionPorItems(presupuestoItemIds: string[]): Prom
  
   for (let i = 0; i < presupuestoItemIds.length; i += TAMANO_LOTE) {
     const lote = presupuestoItemIds.slice(i, i + TAMANO_LOTE)
-    const { data, error } = await supabase
-      .from("apu_import_revision")
-      .select(SELECT_REVISION_CON_MOTIVO)
-      .in("presupuesto_item_id", lote)
-      .order("created_at", { ascending: true })
- 
-    if (error) throw new Error(error.message)
-    todasLasFilas.push(...(data ?? []))
+    // Paginado: cada ítem tiene varias líneas de revisión y 200 ítems pueden
+    // pasar las 1000 filas que corta la API sin avisar.
+    const filas = await traerTodo<any>((desde, hasta) =>
+      supabase
+        .from("apu_import_revision")
+        .select(SELECT_REVISION_CON_MOTIVO)
+        .in("presupuesto_item_id", lote)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(desde, hasta)
+    )
+    todasLasFilas.push(...filas)
   }
  
   return mapearFilasConItems(supabase, todasLasFilas)
