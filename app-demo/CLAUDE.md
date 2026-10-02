@@ -1486,9 +1486,11 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   la misma).
 - **Historial** (`historial_eventos`, entidad `contrato`): creada, reenviada,
   aprobada, devuelta, rechazada; se ve en el detalle (`HistorialTimeline
-  tipo="contrato"`). **Notificaciones**: a quienes tienen `aprobar_contratos`
-  y ven el proyecto (incluye a los Administradores) cuando llega o vuelve una
-  solicitud; al solicitante cuando se resuelve. La campanita lleva a
+  tipo="contrato"`). **Notificaciones**: solo a usuarios con rol **Legal** o
+  **Líder Legal** (que además tengan `aprobar_contratos` y vean el proyecto)
+  cuando llega o vuelve una solicitud -- NO a los Administradores (decisión
+  del usuario, `20261014100000_notificar_solo_legal.sql`); al solicitante
+  cuando se resuelve. La campanita lleva a
   `?ver=<id>` en Pre-aprobación o en Solicitud de contratos.
 - **Detalle compartido**: `components/detalle-solicitud-contrato.tsx` (datos,
   anexo, documentos del contrato y documentos generales del contratista con el
@@ -1500,4 +1502,4 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   Gerencia) y acción `aprobar_contratos` (Legal, Líder Legal). Quien tiene la
   pestaña también ve contratistas y sus documentos.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos) y quizá no notificar a los Administradores si no lo quieren.
+  contratos).
