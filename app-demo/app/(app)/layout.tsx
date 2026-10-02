@@ -1,4 +1,5 @@
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { SidebarInset } from "@/components/ui/sidebar"
+import { ShellSidebar } from "@/components/app-shell"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ProyectoProvider } from "@/components/proyecto-provider"
 import { obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
@@ -40,11 +41,11 @@ export default async function Layout({
 
   return (
     <ProyectoProvider proyecto={proyectoActual} proyectos={proyectos}>
-      <SidebarProvider>
+      <ShellSidebar>
         <AppSidebar permisos={permisos} nombreUsuario={nombreUsuario} />
 
         <SidebarInset className="min-w-0">{children}</SidebarInset>
-      </SidebarProvider>
+      </ShellSidebar>
     </ProyectoProvider>
   )
 }

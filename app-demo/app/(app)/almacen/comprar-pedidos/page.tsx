@@ -1,11 +1,12 @@
 import { PedidosCompraView } from "@/components/pedidos-compras-view"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { MarcoPagina } from "@/components/encabezado-pagina"
+
 export default function ComprasPage() {
   return (
-    
-    <div className="h-full p-6">
-      <SidebarTrigger/>
+    <MarcoPagina
+      titulo="Comprar requisiciones"
+    >
       <PedidosCompraView />
-    </div>
+    </MarcoPagina>
   )
 }

@@ -3,7 +3,7 @@
 import { formatearFechaSinHora } from "@/lib/fechas"
 
 import { useState } from "react"
-import { FileText, Paperclip } from "lucide-react"
+import { FileText, X } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -38,7 +38,6 @@ type TablaPedidosCompraProps = {
   pedidos: PedidoParaComprar[]
   seleccionados: Set<string>
   onToggleSeleccion: (id: string) => void
-  onSeleccionarVarios: (ids: string[], seleccionar: boolean) => void
   onPedidoRechazado: (id: string) => void
 }
 
@@ -46,7 +45,6 @@ export function TablaPedidosCompra({
   pedidos,
   seleccionados,
   onToggleSeleccion,
-  onSeleccionarVarios,
   onPedidoRechazado,
 }: TablaPedidosCompraProps) {
   const [pedidoARechazar, setPedidoARechazar] = useState<PedidoParaComprar | null>(null)
@@ -70,25 +68,17 @@ export function TablaPedidosCompra({
     }
   }
 
-  // Agrupadas por requisición (Requisición 1: insumo A, B, C...), en el orden
-  // en que llegan (urgentes y más próximas primero). Compras elige los insumos
-  // que quiere, de una o de varias requisiciones, para cada orden de compra.
-  // Un Map por id: cada línea se ubica en O(1), el total es lineal.
-  const grupoPorId = new Map<string, { id: string; numero: number | null; lineas: PedidoParaComprar[] }>()
-  for (const p of pedidos) {
-    let g = grupoPorId.get(p.requisicionId)
-    if (!g) {
-      g = { id: p.requisicionId, numero: p.requisicionNumero, lineas: [] }
-      grupoPorId.set(p.requisicionId, g)
-    }
-    g.lineas.push(p)
-  }
-  const grupos = [...grupoPorId.values()]
+  // Lista plana, de la requisición más baja a la más alta (las del mismo número
+  // conservan el orden en que llegan). Un solo ordenamiento: O(n log n).
+  const SIN_NUMERO = Number.MAX_SAFE_INTEGER
+  const ordenados = [...pedidos].sort(
+    (x, y) => (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
+  )
 
   if (pedidos.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-        No hay requisiciones aprobadas pendientes de comprar con estos filtros.
+        No hay requisiciones aprobadas con estos filtros.
       </div>
     )
   }
@@ -99,6 +89,7 @@ export function TablaPedidosCompra({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="whitespace-nowrap"># Requisición</TableHead>
               <TableHead className="min-w-64">Insumo</TableHead>
               <TableHead>UM</TableHead>
               <TableHead className="text-right">Cantidad</TableHead>
@@ -106,7 +97,6 @@ export function TablaPedidosCompra({
               <TableHead>Solicitante</TableHead>
               <TableHead>Fecha Ped.</TableHead>
               <TableHead>Fecha Req.</TableHead>
-              <TableHead>Adjuntos</TableHead>
               <TableHead>Obs</TableHead>
               <TableHead className="text-center">Urgente</TableHead>
               <TableHead className="text-center">Rechazar</TableHead>
@@ -114,40 +104,12 @@ export function TablaPedidosCompra({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {grupos.flatMap((grupo) => {
-              const ids = grupo.lineas.map((l) => l.id)
-              const nMarcadas = ids.filter((id) => seleccionados.has(id)).length
-              const primera = grupo.lineas[0]
-              const encabezado = (
-                <TableRow key={`req-${grupo.id}`} className="bg-muted/60 hover:bg-muted/60">
-                  <TableCell colSpan={12} className="whitespace-normal py-2">
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-                      <span className="font-semibold">
-                        Requisición {grupo.numero ?? "—"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {grupo.lineas.length} {grupo.lineas.length === 1 ? "insumo" : "insumos"} pendientes de comprar
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {primera.solicitadoPorNombre ?? "—"} · {formatoFecha(primera.fechaPedido)}
-                      </span>
-                      <label className="ml-auto flex cursor-pointer items-center gap-2 text-xs">
-                        <Checkbox
-                          aria-label={`Comprar todos los insumos de la requisición ${grupo.numero ?? ""}`}
-                          checked={nMarcadas === ids.length}
-                          onCheckedChange={(v) => onSeleccionarVarios(ids, v === true)}
-                        />
-                        Seleccionar todos
-                      </label>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-              return [encabezado, ...grupo.lineas.map((pedido) => {
+            {ordenados.map((pedido) => {
               const comprometido = pedido.cantidadPendiente < pedido.cantidad
 
               return (
                 <TableRow key={pedido.id} className={pedido.urgente ? "bg-amber-50" : undefined}>
+                  <TableCell className="font-medium">{pedido.requisicionNumero ?? "—"}</TableCell>
                   {/* whitespace-normal: TableCell trae nowrap por defecto y los
                       nombres largos se salían de la columna encima de las
                       demás. Ahora bajan de línea dentro de su ancho. */}
@@ -178,21 +140,6 @@ export function TablaPedidosCompra({
                   <TableCell>{formatoFecha(pedido.fechaPedido)}</TableCell>
                   <TableCell>{formatearFechaSinHora(pedido.fechaRequerida)}</TableCell>
                   <TableCell>
-                    {pedido.soporteUrl ? (
-                      <a
-                        href={pedido.soporteUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:underline"
-                        aria-label="Ver adjunto"
-                      >
-                        <Paperclip className="h-4 w-4" />
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>
                     {pedido.observaciones ? (
                       <span title={pedido.observaciones}>
                         <FileText className="h-4 w-4 text-muted-foreground" />
@@ -209,26 +156,32 @@ export function TablaPedidosCompra({
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Checkbox
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      title="Rechazar"
+                      disabled={pedido.cantidadPendiente <= 0}
                       aria-label={`Rechazar requisición de ${pedido.insumoDescripcion}`}
-                      onCheckedChange={(v) => {
-                        if (v === true) {
-                          setError(null)
-                          setPedidoARechazar(pedido)
-                        }
+                      onClick={() => {
+                        setError(null)
+                        setPedidoARechazar(pedido)
                       }}
-                    />
+                    >
+                      <X className="h-5 w-5" strokeWidth={3} />
+                    </Button>
                   </TableCell>
                   <TableCell className="text-center">
                     <Checkbox
                       aria-label={`Comprar requisición de ${pedido.insumoDescripcion}`}
+                      disabled={pedido.cantidadPendiente <= 0}
                       checked={seleccionados.has(pedido.id)}
                       onCheckedChange={() => onToggleSeleccion(pedido.id)}
                     />
                   </TableCell>
                 </TableRow>
               )
-            })]
             })}
           </TableBody>
         </Table>

@@ -22,6 +22,7 @@ import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
+import { PaginacionSimple } from "@/components/paginacion-simple"
 import { buscarUsuarios } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -104,6 +105,8 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [ordenes, setOrdenes] = useState<OrdenEntradaFila[] | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
   const [ordenId, setOrdenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -120,12 +123,18 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
   const [desde, setDesde] = useState("")
   const [hasta, setHasta] = useState("")
 
-  function consultar(filtros: FiltrosEntradas) {
+  function consultar(filtros: FiltrosEntradas, pag = 0) {
     setUltimosFiltros(filtros)
     setCargando(true)
     setError(null)
-    listarOrdenesEntradas(filtros)
-      .then((lista: OrdenEntradaFila[]) => setOrdenes(lista))
+    listarOrdenesEntradas(filtros, pag)
+      .then((r: { filas: OrdenEntradaFila[]; hayMas: boolean }) => {
+        // Si la página quedó vacía (p. ej. ya no hay pendientes en ella), se retrocede.
+        if (r.filas.length === 0 && pag > 0) return consultar(filtros, pag - 1)
+        setOrdenes(r.filas)
+        setPagina(pag)
+        setHayMas(r.hayMas)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las órdenes."))
       .finally(() => setCargando(false))
   }
@@ -164,7 +173,7 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
         ordenId={ordenId}
         onVolver={() => {
           setOrdenId(null)
-          if (ultimosFiltros) consultar(ultimosFiltros)
+          if (ultimosFiltros) consultar(ultimosFiltros, pagina)
         }}
         onRegistrada={(estado) =>
           setAviso(
@@ -327,6 +336,14 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
                 </TableBody>
               </Table>
             </div>
+          )}
+          {ordenes !== null && ordenes.length > 0 && (
+            <PaginacionSimple
+              pagina={pagina}
+              hayMas={hayMas}
+              cargando={cargando}
+              onCambiar={(n) => ultimosFiltros && consultar(ultimosFiltros, n)}
+            />
           )}
         </div>
       </div>

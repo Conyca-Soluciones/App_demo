@@ -1,13 +1,14 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
-import { etiquetaProyecto } from "@/lib/proyecto-actual"
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, Search } from "lucide-react"
 import { PolarAngleAxis, RadialBar, RadialBarChart, ResponsiveContainer } from "recharts"
 import { Badge } from "@/components/ui/badge"
+import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -47,13 +48,6 @@ const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
-
-const ESTADO_BADGE: Record<OrdenCompraEstado, { label: string; variant: "default" | "destructive" | "secondary" }> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-  cancelada: { label: "Cancelada", variant: "destructive" },
-}
 
 function Tile({ etiqueta, valor, detalle }: { etiqueta: string; valor: string; detalle?: string }) {
   return (
@@ -188,23 +182,13 @@ export default function VisualizacionPage() {
   }, [insumosOrdenados, busquedaInsumo])
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Estado de obra</h1>
-          <p className="text-sm text-muted-foreground">
-            Presupuestado vs. comprado por proyecto, a partir de las órdenes de compra aprobadas.
-          </p>
-        </div>
-
-        {proyectoActual && (
-          <p className="text-sm text-muted-foreground">
-            Proyecto:{" "}
-            <span className="font-medium text-foreground">{etiquetaProyecto(proyectoActual)}</span>
-          </p>
-        )}
-      </div>
-
+    <>
+    <EncabezadoPagina
+      titulo="Estado de obra"
+      subtitulo="Presupuestado vs. comprado por proyecto, a partir de las órdenes de compra aprobadas."
+      conProyecto
+    />
+    <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
@@ -420,13 +404,13 @@ export default function VisualizacionPage() {
                   </TableHeader>
                   <TableBody>
                     {resumen.ordenes.map((o) => {
-                      const badge = ESTADO_BADGE[o.estado]
+                      const badge = ESTADO_VISIBLE_BADGE[o.estado]
                       return (
                         <TableRow key={o.id}>
                           <TableCell>{o.numero}</TableCell>
                           <TableCell>{o.proveedorNombre}</TableCell>
                           <TableCell>
-                            <Badge variant={badge.variant}>{badge.label}</Badge>
+                            <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
                           </TableCell>
                           <TableCell>{formatoFecha(o.createdAt)}</TableCell>
                         </TableRow>
@@ -440,5 +424,6 @@ export default function VisualizacionPage() {
         </>
       )}
     </main>
+    </>
   )
 }

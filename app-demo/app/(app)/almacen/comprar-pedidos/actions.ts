@@ -5,6 +5,7 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
@@ -77,6 +78,9 @@ export type FiltrosPedidosCompra = {
   fechaAprobacionInicio?: string | null
   fechaAprobacionFin?: string | null
   soloUrgentes?: boolean
+  // true (por defecto): solo lo que todavía falta comprar. false: también las
+  // líneas que ya quedaron completas en órdenes de compra.
+  soloPendientes?: boolean
 }
 
 export type PedidoParaComprar = {
@@ -179,7 +183,9 @@ export async function listarPedidosParaComprar(
   }
   const data = await traerTodo<any>(consulta)
 
-  return (data ?? []).map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
+  return (data ?? [])
+    .map(mapPedidoParaComprar)
+    .filter((p) => filtros.soloPendientes === false || p.cantidadPendiente > 0)
 }
 
 export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComprar[]> {
@@ -671,25 +677,82 @@ export type OrdenCompraListado = {
 // Sin requerirScope a propósito -- la RLS (ordenes_compra_select_proyecto +
 // ordenes_compra_select para rol_compras/admin) ya decide qué filas ve cada
 // quien. Un ingeniero ve las OC de sus proyectos, Compras/admin las ve todas.
-export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[]> {
+// Filtros del listado de órdenes de compra (todos opcionales). Se aplican en el
+// servidor, así que con mucho volumen no se trae todo para filtrar en el cliente.
+export type FiltrosOrdenesCompra = {
+  numero?: number
+  proyectoId?: string
+  proveedor?: string // parte del nombre
+  estado?: EstadoOrdenVisible
+  creadaPorId?: string
+  // false = no traer las canceladas (salvo que el filtro Estado sea Cancelada).
+  // Por defecto se traen todas.
+  incluirCanceladas?: boolean
+  desde?: string // YYYY-MM-DD, fecha de creación
+  hasta?: string // YYYY-MM-DD, inclusive
+}
+
+export async function listarTodasLasOrdenesCompra(
+  filtros: FiltrosOrdenesCompra = {},
+  pagina = 0
+): Promise<{ ordenes: OrdenCompraListado[]; hayMas: boolean }> {
   const supabase = await createClient()
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
 
-  const { data, error } = await supabase
-    .from("ordenes_compra")
-    .select(
-      `
-      id, numero, estado, estado_entrega, created_at, proyecto_id,
-      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
-      proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
-      created_by,
-      creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
-    `
-    )
-    .order("created_at", { ascending: false })
+  // Proveedor por nombre: se filtra con un join (!inner) dentro de la misma
+  // consulta. Antes se traían sus ids y se mandaban en un IN dentro de la URL,
+  // que falla con muchos proveedores o corta el resultado.
+  const proveedor = filtros.proveedor?.trim()
 
+  const consulta = () => {
+    // Dos formas del select (literales, para que el cliente infiera bien): con
+    // el join !inner a proveedores solo cuando se filtra por proveedor.
+    let query = (proveedor
+      ? supabase
+          .from("ordenes_compra")
+          .select(
+            `
+        id, numero, estado, estado_entrega, created_at, proyecto_id,
+        proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
+        proveedor:proveedores!ordenes_compra_proveedor_id_fkey!inner(nombre),
+        created_by,
+        creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
+      `
+          )
+          .ilike("proveedor.nombre", `%${proveedor}%`)
+      : supabase
+          .from("ordenes_compra")
+          .select(
+            `
+        id, numero, estado, estado_entrega, created_at, proyecto_id,
+        proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
+        proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+        created_by,
+        creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
+      `
+          )
+    )
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+
+    if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
+    if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
+    if (filtros.creadaPorId) query = query.eq("created_by", filtros.creadaPorId)
+    // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+    if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+    if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+
+    // El estado visible de una orden es solo el de aprobación (ver
+    // lib/ordenes-compra-estado.ts).
+    if (filtros.estado) query = query.eq("estado", filtros.estado)
+    else if (filtros.incluirCanceladas === false) query = query.neq("estado", "cancelada")
+    return query.range(...rangoPagina(pagina))
+  }
+
+  const { data: filasPagina, error } = await consulta()
   if (error) throw new Error(error.message)
+  const { filas: data, hayMas } = cortarPagina((filasPagina ?? []) as any[])
 
   const ordenes = (data ?? []).map((o: any) => ({
     id: o.id,
@@ -706,7 +769,7 @@ export async function listarTodasLasOrdenesCompra(): Promise<OrdenCompraListado[
     createdAt: o.created_at,
   }))
 
-  return await conSobrecostoPrecio(ordenes)
+  return { ordenes: await conSobrecostoPrecio(ordenes), hayMas }
 }
 
 // Marca, para cada orden, si alguna de sus líneas tiene precio_unitario por

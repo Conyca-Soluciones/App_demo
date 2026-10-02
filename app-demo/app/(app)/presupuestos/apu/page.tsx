@@ -1,5 +1,6 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { FileUpload } from "@/components/file-upload"
 import { PresupuestoTable } from "@/components/presupuesto-table"
 import { useState } from "react"
@@ -23,13 +24,9 @@ export default function Apu() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">APU</h1>
-        <p className="text-sm text-muted-foreground">
-          Plantillas de análisis de precios unitarios.
-        </p>
-      </div>
+    <>
+    <EncabezadoPagina titulo="APU" subtitulo="Plantillas de análisis de precios unitarios." />
+    <div className="space-y-6 p-4 sm:p-6">
 
       {apu.length === 0 ? (
         <div className="rounded-xl border bg-card p-8 shadow-sm">
@@ -65,5 +62,6 @@ export default function Apu() {
         </>
       )}
     </div>
+    </>
   )
 }

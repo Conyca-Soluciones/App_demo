@@ -1,5 +1,5 @@
 import { GenerarOCView } from "@/components/generar-oc-view"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { MarcoPagina } from "@/components/encabezado-pagina"
 import { obtenerPermisosRol } from "@/lib/permisos"
 
 export default async function GenerarOCPage() {
@@ -11,11 +11,8 @@ export default async function GenerarOCPage() {
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      <SidebarTrigger />
-      <div className="min-h-0 flex-1">
-        <GenerarOCView puedeEditarProveedor={puedeEditarProveedor} />
-      </div>
-    </div>
+    <MarcoPagina titulo="Generar orden de compra">
+      <GenerarOCView puedeEditarProveedor={puedeEditarProveedor} />
+    </MarcoPagina>
   )
 }
