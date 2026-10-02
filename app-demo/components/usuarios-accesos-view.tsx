@@ -198,14 +198,6 @@ export function UsuariosAccesosView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Usuarios y accesos</h1>
-        <p className="text-sm text-muted-foreground">
-          Elige el rol general de cada persona y los proyectos a los que puede entrar. Quien no tiene
-          rol sigue con los permisos que tenía antes hasta que le asignes uno.
-        </p>
-      </div>
-
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-80">
           <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

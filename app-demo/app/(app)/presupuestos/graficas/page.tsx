@@ -1,5 +1,6 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ComposicionChart } from "@/components/composicion-chart"
@@ -64,7 +65,9 @@ function GraficasPresupuestoContent() {
 
   if (!presupuestoId) {
     return (
-      <main className="mx-auto max-w-3xl space-y-3 p-6">
+      <>
+      <EncabezadoPagina titulo="Gráficas del presupuesto" />
+      <main className="mx-auto max-w-3xl space-y-3 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">
           Falta el presupuesto -- entra desde el botón "Ver gráficas" dentro de un
           presupuesto.
@@ -73,11 +76,14 @@ function GraficasPresupuestoContent() {
           ← Volver a presupuestos
         </a>
       </main>
+      </>
     )
   }
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <>
+    <EncabezadoPagina titulo="Gráficas del presupuesto" />
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <div>
           <a
@@ -86,7 +92,6 @@ function GraficasPresupuestoContent() {
           >
             ← Volver al presupuesto
           </a>
-          <h1 className="text-xl font-semibold">Gráficas del presupuesto</h1>
         </div>
 
         {versiones.length > 0 && (
@@ -123,6 +128,7 @@ function GraficasPresupuestoContent() {
       {/* Acá es donde entraría "presupuesto actual vs ejecución" cuando
           exista una fuente de gasto real -- ver nota en CLAUDE.md. */}
     </main>
+    </>
   )
 }
 

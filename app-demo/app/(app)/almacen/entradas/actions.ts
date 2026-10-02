@@ -3,6 +3,7 @@
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { requerirAccion } from "@/lib/permisos"
 
 // ---------------------------------------------------------------------------
@@ -31,13 +32,16 @@ export type OrdenParaEntrada = {
 
 // incluirEntregadas = true también trae las OC ya entregadas, para poder
 // abrirlas y corregir una entrada.
+// proyectoId = solo las órdenes de ese proyecto (la base valida el acceso).
 export async function listarOrdenesParaEntrada(
-  incluirEntregadas = false
+  incluirEntregadas = false,
+  proyectoId: string | null = null
 ): Promise<OrdenParaEntrada[]> {
   await requerirAccion("gestionar_almacen")
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("listar_ordenes_para_entrada", {
     p_incluir_entregadas: incluirEntregadas,
+    p_proyecto_id: proyectoId,
   })
   if (error) throw new Error(error.message)
 
@@ -63,6 +67,7 @@ export async function listarOrdenesParaEntrada(
 // ---------------------------------------------------------------------------
 
 export type FiltrosEntradas = {
+  proyectoId: string // proyecto actual (selector del encabezado)
   numero?: number // N° de la orden de compra
   proveedor?: string // parte del nombre
   usuarioId?: string // quien hizo la entrada
@@ -72,56 +77,57 @@ export type FiltrosEntradas = {
   hasta?: string // YYYY-MM-DD, inclusive
 }
 
-export type OrdenEntradaFila = OrdenParaEntrada & {
+export type OrdenEntradaFila = {
+  id: string
+  numero: number
+  estadoEntrega: EstadoEntrega
+  proyectoCodigo: string | null
+  proyectoNombre: string | null
+  proveedorNombre: string
   entradaFecha: string | null
   entradaPersona: string | null
 }
 
-export async function listarOrdenesEntradas(filtros: FiltrosEntradas): Promise<OrdenEntradaFila[]> {
+// Una página de la lista de Entradas. El filtro, el orden y el corte de página
+// los hace la función SQL listar_ordenes_entradas (20261012050000, con el proyecto en 20261014200000): no se trae todo
+// el historial a la aplicación para filtrarlo acá.
+export async function listarOrdenesEntradas(
+  filtros: FiltrosEntradas,
+  pagina = 0
+): Promise<{ filas: OrdenEntradaFila[]; hayMas: boolean }> {
   await requerirAccion("gestionar_almacen")
 
-  // Las órdenes ya entregadas solo se piden si el filtro las puede incluir.
-  const incluirEntregadas = filtros.estado === undefined || filtros.estado === "entregada"
-  let ordenes = await listarOrdenesParaEntrada(incluirEntregadas)
-
-  if (filtros.numero !== undefined) ordenes = ordenes.filter((o) => o.numero === filtros.numero)
-  const proveedor = filtros.proveedor?.trim().toLowerCase()
-  if (proveedor) ordenes = ordenes.filter((o) => o.proveedorNombre.toLowerCase().includes(proveedor))
-  if (filtros.estado === "por_recibir") {
-    ordenes = ordenes.filter((o) => o.estadoEntrega !== "entregada")
-  } else if (filtros.estado) {
-    ordenes = ordenes.filter((o) => o.estadoEntrega === filtros.estado)
-  }
-  if (ordenes.length === 0) return []
-
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("entradas_por_orden", {
-    p_orden_ids: ordenes.map((o) => o.id),
+  const [desdeFila, hastaFila] = rangoPagina(pagina)
+  const { data, error } = await supabase.rpc("listar_ordenes_entradas", {
+    // Proyecto actual (selector del encabezado); la base valida el acceso.
+    p_proyecto_id: filtros.proyectoId,
+    p_numero: filtros.numero ?? null,
+    p_proveedor: filtros.proveedor?.trim() || null,
+    p_usuario: filtros.usuarioId ?? null,
+    p_estado: filtros.estado ?? null,
+    // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+    p_desde: filtros.desde ? `${filtros.desde}T00:00:00-05:00` : null,
+    p_hasta: filtros.hasta ? `${filtros.hasta}T23:59:59.999-05:00` : null,
+    p_limite: hastaFila - desdeFila + 1, // una fila de más: así se sabe si hay otra página
+    p_offset: desdeFila,
   })
   if (error) throw new Error(error.message)
 
-  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
-  const desde = filtros.desde ? new Date(`${filtros.desde}T00:00:00-05:00`).getTime() : null
-  const hasta = filtros.hasta ? new Date(`${filtros.hasta}T23:59:59.999-05:00`).getTime() : null
-
-  const ultimaPorOrden = new Map<string, { fecha: string; persona: string | null }>()
-  for (const e of (data ?? []) as any[]) {
-    const t = new Date(e.created_at).getTime()
-    if (filtros.usuarioId && e.recibido_por !== filtros.usuarioId) continue
-    if (desde !== null && t < desde) continue
-    if (hasta !== null && t > hasta) continue
-    // Vienen ordenadas de la más antigua a la más reciente: la última pisa.
-    ultimaPorOrden.set(e.orden_id, { fecha: e.created_at, persona: e.recibido_por_nombre ?? null })
+  const { filas, hayMas } = cortarPagina((data ?? []) as any[])
+  return {
+    filas: filas.map((o) => ({
+      id: o.id,
+      numero: o.numero,
+      estadoEntrega: o.estado_entrega,
+      proyectoCodigo: o.proyecto_codigo,
+      proyectoNombre: o.proyecto_nombre,
+      proveedorNombre: o.proveedor_nombre ?? "(proveedor eliminado)",
+      entradaFecha: o.entrada_at,
+      entradaPersona: o.entrada_por,
+    })),
+    hayMas,
   }
-
-  const filtraPorEntrada = Boolean(filtros.usuarioId || filtros.desde || filtros.hasta)
-  return ordenes
-    .filter((o) => !filtraPorEntrada || ultimaPorOrden.has(o.id))
-    .map((o) => ({
-      ...o,
-      entradaFecha: ultimaPorOrden.get(o.id)?.fecha ?? null,
-      entradaPersona: ultimaPorOrden.get(o.id)?.persona ?? null,
-    }))
 }
 
 export type LineaEntrada = {

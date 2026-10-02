@@ -1,5 +1,5 @@
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { MarcoPagina } from "@/components/encabezado-pagina"
 
 export default async function RequisicionDetallePage({
   params,
@@ -8,11 +8,8 @@ export default async function RequisicionDetallePage({
 }) {
   const { id } = await params
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-6">
-      <SidebarTrigger />
-      <div className="min-h-0 flex-1">
-        <RequisicionDetalleView requisicionId={id} />
-      </div>
-    </div>
+    <MarcoPagina titulo="Detalle de requisición">
+      <RequisicionDetalleView requisicionId={id} />
+    </MarcoPagina>
   )
 }

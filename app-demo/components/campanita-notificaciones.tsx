@@ -17,6 +17,13 @@ const formatoFecha = (iso: string) =>
 function rutaDestino(n: Notificacion): string {
   if (n.entidadTipo === "orden_compra") return `/almacen/ordenes-compra/${n.entidadId}`
   if (n.entidadTipo === "requisicion") return `/almacen/registro-requisiciones/${n.entidadId}`
+  // Contratos: a quien aprueba, a Pre-aprobación; a quien solicitó, a su
+  // lista. ?ver= abre el detalle de esa solicitud.
+  if (n.entidadTipo === "contrato") {
+    return n.tipo === "contrato_por_revisar"
+      ? `/contratos/pre-aprobacion?ver=${n.entidadId}`
+      : `/contratos/solicitar?ver=${n.entidadId}`
+  }
   return "/almacen/registro-requisiciones"
 }
 

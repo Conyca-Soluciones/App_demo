@@ -1,11 +1,24 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2, Download, Ban } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Loader2, Download, Ban, Eye } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
+import { PanelFiltros } from "@/components/panel-filtros"
+import { PaginacionSimple } from "@/components/paginacion-simple"
+import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
 import {
   Dialog,
   DialogContent,
@@ -25,12 +38,14 @@ import {
   listarTodasLasOrdenesCompra,
   obtenerPermisosOrdenCompra,
   cancelarOrdenCompra,
+  buscarUsuarios,
+  type FiltrosOrdenesCompra,
   type OrdenCompraListado,
   type PermisosOrdenCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { verProyectos } from "@/app/(app)/almacen/actions"
 import {
   ESTADO_VISIBLE_BADGE,
-  FILTROS_ESTADO_VISIBLE,
   muestraCancelar,
   type EstadoOrdenVisible,
 } from "@/lib/ordenes-compra-estado"
@@ -38,27 +53,99 @@ import {
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
 
+const ESTADOS_FILTRO = Object.entries(ESTADO_VISIBLE_BADGE).map(([valor, b]) => ({
+  valor: valor as EstadoOrdenVisible,
+  etiqueta: b.label,
+}))
+
+async function buscarUsuariosAdaptado(termino: string): Promise<OpcionBuscador[]> {
+  const usuarios = await buscarUsuarios(termino)
+  return usuarios.map((u) => ({ id: u.id, etiqueta: u.nombre }))
+}
+
 export function TodasLasOrdenesView() {
-  const router = useRouter()
+  // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [ordenes, setOrdenes] = useState<OrdenCompraListado[] | null>(null)
+  const [cargando, setCargando] = useState(false)
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filtroEstado, setFiltroEstado] = useState<EstadoOrdenVisible | "todas">("todas")
+  // Últimos filtros consultados (para refrescar tras cancelar una orden).
+  const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosOrdenesCompra>({})
+
+  // Filtros del panel (todos opcionales)
+  const [proyectos, setProyectos] = useState<{ id: string; codigo: string | null; nombre: string }[]>([])
+  const [numero, setNumero] = useState("")
+  const [proyectoId, setProyectoId] = useState("todos")
+  const [proveedor, setProveedor] = useState("")
+  const [estado, setEstado] = useState<EstadoOrdenVisible | "todos">("todos")
+  // Las canceladas no se muestran salvo que se pida (o se filtre por ese estado).
+  const [mostrarCanceladas, setMostrarCanceladas] = useState(false)
+  const [creadaPor, setCreadaPor] = useState<OpcionBuscador | null>(null)
+  const [desde, setDesde] = useState("")
+  const [hasta, setHasta] = useState("")
 
   const [permisos, setPermisos] = useState<PermisosOrdenCompra | null>(null)
+  // Orden abierta con el botón Ver (detalle encima de la lista).
+  const [abiertaId, setAbiertaId] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState<OrdenCompraListado | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
 
-  function cargar() {
-    Promise.all([listarTodasLasOrdenesCompra(), obtenerPermisosOrdenCompra()])
-      .then(([o, p]: [OrdenCompraListado[], PermisosOrdenCompra]) => {
-        setOrdenes(o)
-        setPermisos(p)
+  function cargar(filtros: FiltrosOrdenesCompra = ultimosFiltros, pag: number = pagina) {
+    setUltimosFiltros(filtros)
+    setCargando(true)
+    setError(null)
+    listarTodasLasOrdenesCompra(filtros, pag)
+      .then((r: { ordenes: OrdenCompraListado[]; hayMas: boolean }) => {
+        // Si la página quedó vacía (p. ej. se canceló la última de la página), se retrocede.
+        if (r.ordenes.length === 0 && pag > 0) return cargar(filtros, pag - 1)
+        setOrdenes(r.ordenes)
+        setPagina(pag)
+        setHayMas(r.hayMas)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las órdenes."))
+      .finally(() => setCargando(false))
   }
 
-  useEffect(cargar, [])
+  useEffect(() => {
+    obtenerPermisosOrdenCompra()
+      .then(setPermisos)
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los permisos."))
+    verProyectos()
+      .then(setProyectos)
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos."))
+  }, [])
+
+  function handleConsultar(): boolean {
+    const n = numero.trim() === "" ? undefined : Number(numero)
+    if (n !== undefined && (!Number.isInteger(n) || n <= 0)) {
+      setError("El número de orden debe ser un número entero mayor que cero.")
+      return false
+    }
+    cargar({
+      numero: n,
+      proyectoId: proyectoId === "todos" ? undefined : proyectoId,
+      proveedor: proveedor.trim() || undefined,
+      estado: estado === "todos" ? undefined : estado,
+      incluirCanceladas: mostrarCanceladas,
+      creadaPorId: creadaPor?.id,
+      desde: desde || undefined,
+      hasta: hasta || undefined,
+    }, 0)
+    return true
+  }
+
+  function limpiar() {
+    setNumero("")
+    setProyectoId("todos")
+    setProveedor("")
+    setEstado("todos")
+    setMostrarCanceladas(false)
+    setCreadaPor(null)
+    setDesde("")
+    setHasta("")
+  }
 
   async function confirmarCancelacion() {
     if (!cancelando || !motivo.trim()) return
@@ -77,46 +164,127 @@ export function TodasLasOrdenesView() {
     }
   }
 
-  const ordenesFiltradas = useMemo(() => {
-    if (!ordenes) return []
-    if (filtroEstado === "todas") return ordenes
-    return ordenes.filter((o) => o.estadoVisible === filtroEstado)
-  }, [ordenes, filtroEstado])
-
-  // La columna de acciones aparece si el usuario puede cancelar órdenes, o si
-  // tiene alguna orden propia pendiente que puede retirar.
-  const hayAcciones = !!permisos && (permisos.puedeCancelar || ordenesFiltradas.some((o) => muestraCancelar(o, permisos)))
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
+      <div className="flex min-h-0 flex-1 gap-4">
+        <PanelFiltros
+          cargando={cargando}
+          onConsultar={handleConsultar}
+          onLimpiar={limpiar}
+          ayuda="Ningún filtro es obligatorio: sin filtros se consultan todas."
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="numero-oc">N°</Label>
+            <Input
+              id="numero-oc"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              placeholder="Ej. 34"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
 
-      <div className="flex gap-2">
-        {FILTROS_ESTADO_VISIBLE.map((f) => (
-          <Button
-            key={f.valor}
-            size="sm"
-            variant={filtroEstado === f.valor ? "default" : "outline"}
-            onClick={() => setFiltroEstado(f.valor)}
-          >
-            {f.etiqueta}
-          </Button>
-        ))}
-      </div>
+          <div className="space-y-1.5">
+            <Label>Proyecto</Label>
+            <Select value={proyectoId} onValueChange={(v) => setProyectoId(v ?? "todos")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos mis proyectos</SelectItem>
+                {proyectos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.codigo ? `${p.codigo} · ${p.nombre}` : p.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="proveedor-oc">Proveedor</Label>
+            <Input
+              id="proveedor-oc"
+              placeholder="Nombre del proveedor"
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Estado</Label>
+            <Select
+              value={estado}
+              onValueChange={(v) => setEstado((v ?? "todos") as EstadoOrdenVisible | "todos")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {ESTADOS_FILTRO.map((e) => (
+                  <SelectItem key={e.valor} value={e.valor}>
+                    {e.etiqueta}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={mostrarCanceladas}
+              onCheckedChange={(v) => setMostrarCanceladas(v === true)}
+            />
+            Mostrar órdenes canceladas
+          </label>
+
+          <div className="space-y-1.5">
+            <Label>Creada por</Label>
+            <BuscadorAsync
+              placeholder="Buscar usuario"
+              valorSeleccionado={creadaPor}
+              onSeleccionar={setCreadaPor}
+              buscar={buscarUsuariosAdaptado}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Rango de fechas</Label>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-xs text-muted-foreground">Inicial</span>
+              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-xs text-muted-foreground">Final</span>
+              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+          </div>
+        </PanelFiltros>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      {ordenes === null ? (
+      {ordenes === null && !cargando ? (
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+          Elige los filtros que quieras y presiona Consultar para ver las órdenes de compra.
+        </div>
+      ) : ordenes === null ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando órdenes...
         </div>
-      ) : ordenesFiltradas.length === 0 ? (
+      ) : ordenes.length === 0 ? (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          No hay órdenes de compra con este filtro.
+          Ninguna orden de compra coincide con los filtros.
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
@@ -130,18 +298,14 @@ export function TodasLasOrdenesView() {
                 <TableHead>Creada por</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="text-center">PDF</TableHead>
-                {hayAcciones && <TableHead className="text-center">Acciones</TableHead>}
+                <TableHead className="w-[290px]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {ordenesFiltradas.map((orden) => {
+              {ordenes.map((orden) => {
                 const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
                 return (
-                  <TableRow
-                    key={orden.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/almacen/ordenes-compra/${orden.id}`)}
-                  >
+                  <TableRow key={orden.id}>
                     <TableCell>{orden.numero}</TableCell>
                     <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
                     <TableCell>{orden.proveedorNombre}</TableCell>
@@ -149,7 +313,7 @@ export function TodasLasOrdenesView() {
                       {/* El flex va en un div: una celda con display:flex deja de ser
                           celda de tabla y se descuadra respecto al resto de la fila. */}
                       <div className="flex items-center gap-2">
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
                       </div>
                     </TableCell>
                     <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
@@ -160,7 +324,6 @@ export function TodasLasOrdenesView() {
                           href={`/almacen/ordenes-compra/${orden.id}/pdf`}
                           target="_blank"
                           rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
                           className="inline-flex text-primary hover:underline"
                           aria-label={`Descargar PDF de la orden ${orden.numero}`}
                         >
@@ -170,28 +333,39 @@ export function TodasLasOrdenesView() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    {hayAcciones && (
-                      <TableCell className="text-center">
-                        {permisos && muestraCancelar(orden, permisos) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setCancelando(orden)
-                              setMotivo("")
-                            }}
-                            aria-label={`Cancelar orden ${orden.numero}`}
-                          >
-                            <Ban className="mr-1.5 h-4 w-4" />
-                            {orden.estado === "pendiente_aprobacion" ? "Retirar" : "Cancelar"}
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
+                          lado, Cancelar / Retirar cuando aplica. */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-20 shrink-0"
+                          onClick={() => setAbiertaId(orden.id)}
+                          aria-label={`Ver orden ${orden.numero}`}
+                        >
+                          <Eye className="mr-1.5 h-4 w-4" />
+                          Ver
+                        </Button>
+                        <div className="flex h-8 w-44 shrink-0 items-center">
+                          {permisos && muestraCancelar(orden, permisos) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => {
+                                setCancelando(orden)
+                                setMotivo("")
+                              }}
+                              aria-label={`Cancelar orden ${orden.numero}`}
+                            >
+                              <Ban className="mr-1.5 h-4 w-4" />
+                              {orden.estado === "pendiente_aprobacion" ? "Retirar" : "Cancelar"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 )
               })}
@@ -199,6 +373,16 @@ export function TodasLasOrdenesView() {
           </Table>
         </div>
       )}
+          {ordenes !== null && ordenes.length > 0 && (
+            <PaginacionSimple
+              pagina={pagina}
+              hayMas={hayMas}
+              cargando={cargando}
+              onCambiar={(n) => cargar(ultimosFiltros, n)}
+            />
+          )}
+        </div>
+      </div>
 
       <Dialog
         open={cancelando !== null}
@@ -238,6 +422,30 @@ export function TodasLasOrdenesView() {
               {procesando ? "Cancelando..." : "Cancelar orden"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detalle encima de la lista (igual que en Aprobación de órdenes de compra). */}
+      <Dialog
+        open={abiertaId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAbiertaId(null)
+            if (ordenes !== null) cargar()
+          }
+        }}
+      >
+        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de orden de compra</DialogTitle>
+          {abiertaId && (
+            <OrdenCompraDetalleView
+              ordenId={abiertaId}
+              onCerrar={() => {
+                setAbiertaId(null)
+                if (ordenes !== null) cargar()
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

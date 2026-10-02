@@ -1,5 +1,6 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { Suspense, useEffect, useState } from "react"
 import {
   listarSolicitudesInsumos,
@@ -112,13 +113,9 @@ function AdminInsumosContent() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Solicitudes de insumos</h1>
-        <p className="text-sm text-muted-foreground">
-          Insumos nuevos pedidos por ingenieros 
-        </p>
-      </div>
+    <>
+    <EncabezadoPagina titulo="Solicitudes de insumos" subtitulo="Insumos nuevos pedidos por ingenieros" />
+    <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-4 sm:p-6">
 
           {mostrarNoAutorizado && (
       <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -174,6 +171,7 @@ function AdminInsumosContent() {
         <TablaResueltas solicitudes={solicitudes} estado={estadoFiltro} />
       )}
     </main>
+    </>
   )
 }
 

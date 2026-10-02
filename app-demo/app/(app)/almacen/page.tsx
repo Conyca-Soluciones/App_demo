@@ -1,10 +1,9 @@
 "use client"
 // app/(app)/almacen/page.tsx
 import Link from "next/link"
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { useEffect, useState } from "react"
 
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SelectorProyecto } from "@/components/selector-proyecto"
 import { FormularioRequisicion } from "@/components/dialogue-nuevo-pedido"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
@@ -41,16 +40,11 @@ export default function Almacen() {
 
   return (
     <>
-      <header className="flex h-16 items-center gap-4 border-b px-6">
-        <SidebarTrigger />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Elaboración de requisiciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Haz requisiciones de insumos de almacén para el proyecto en el que estás trabajando.
-          </p>
-        </div>
-        <SelectorProyecto className="ml-auto" />
-      </header>
+      <EncabezadoPagina
+        titulo="Elaboración de requisiciones"
+        subtitulo="Haz requisiciones de insumos de almacén para el proyecto en el que estás trabajando."
+        conProyecto
+      />
 
       {!proyectoActual && <SinProyecto />}
 

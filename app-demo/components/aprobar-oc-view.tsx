@@ -1,8 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { Loader2, ClipboardCheck, Eye, Check, X, RefreshCw, Undo2 } from "lucide-react"
+// Aprobación de órdenes de compra, con el mismo formato que Aprobación de
+// requisiciones: panel de filtros a la izquierda (se minimiza al consultar) y,
+// a la derecha, una fila por orden con Ver / Aprobar / Rechazar / Desaprobar.
+// No muestra nada hasta consultar; "Solo por aprobar" viene marcado.
+
+import { useEffect, useState } from "react"
+import { Loader2, ClipboardCheck, Eye, Check, X, Undo2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +19,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
@@ -22,17 +36,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { OrdenCompraDetalleView } from "./orden-compra-detalle-view"
-import { sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
+import { PanelFiltros } from "@/components/panel-filtros"
+import { PaginacionSimple } from "@/components/paginacion-simple"
+import { ESTADO_VISIBLE_BADGE, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import {
   listarTodasLasOrdenesCompra,
   obtenerPermisosOrdenCompra,
   aprobarOrdenCompra,
   rechazarOrdenCompra,
   desaprobarOrdenCompra,
+  type FiltrosOrdenesCompra,
   type OrdenCompraListado,
   type OrdenCompraEstado,
   type PermisosOrdenCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { verProyectos } from "@/app/(app)/almacen/actions"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
@@ -43,113 +61,93 @@ const formatoFecha = (iso: string) =>
     minute: "2-digit",
   })
 
-const ESTADO_BADGE: Record<
-  OrdenCompraEstado,
-  { label: string; variant: "default" | "destructive" | "secondary" }
-> = {
-  pendiente_aprobacion: { label: "Pendiente", variant: "secondary" },
-  aprobada: { label: "Aprobada", variant: "default" },
-  rechazada: { label: "Rechazada", variant: "destructive" },
-  cancelada: { label: "Cancelada", variant: "destructive" },
-}
-
-const FILTROS_ESTADO: { valor: OrdenCompraEstado | "todas"; etiqueta: string }[] = [
-  { valor: "todas", etiqueta: "Todas" },
-  { valor: "pendiente_aprobacion", etiqueta: "Pendientes" },
-  { valor: "aprobada", etiqueta: "Aprobadas" },
-  { valor: "rechazada", etiqueta: "Rechazadas" },
-  { valor: "cancelada", etiqueta: "Canceladas" },
-]
-
-// Fecha local (YYYY-MM-DD) de una marca de tiempo, para compararla con los
-// <input type="date"> del filtro (que también son fecha local).
-const fechaLocal = (iso: string) => new Date(iso).toLocaleDateString("en-CA")
-
-function Tile({ etiqueta, valor, color }: { etiqueta: string; valor: number; color?: string }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{etiqueta}</p>
-      <p className={`mt-1 text-3xl font-semibold ${color ?? ""}`}>{valor}</p>
-    </div>
-  )
-}
+const ESTADOS_FILTRO = Object.entries(ESTADO_VISIBLE_BADGE).map(([valor, b]) => ({
+  valor: valor as OrdenCompraEstado,
+  etiqueta: b.label,
+}))
 
 export function AprobarOCView() {
+  // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [ordenes, setOrdenes] = useState<OrdenCompraListado[] | null>(null)
   const [ordenAbiertaId, setOrdenAbiertaId] = useState<string | null>(null)
   const [permisos, setPermisos] = useState<PermisosOrdenCompra | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
-  const [filtroEstado, setFiltroEstado] = useState<OrdenCompraEstado | "todas">("todas")
-  // Filtro por proyecto y rango de fechas de creación (ambas inclusivas).
-  const [filtroProyecto, setFiltroProyecto] = useState("todos")
-  const [fechaDesde, setFechaDesde] = useState("")
-  const [fechaHasta, setFechaHasta] = useState("")
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
+  // Últimos filtros consultados (para refrescar tras aprobar, rechazar, etc.).
+  const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosOrdenesCompra>({})
+
+  // Filtros del panel (todos opcionales)
+  const [proyectos, setProyectos] = useState<{ id: string; codigo: string | null; nombre: string }[]>([])
+  const [numero, setNumero] = useState("")
+  const [proyectoId, setProyectoId] = useState("todos")
+  const [proveedor, setProveedor] = useState("")
+  // "Solo por aprobar" (marcado de entrada): solo las pendientes de aprobación.
+  const [soloPorAprobar, setSoloPorAprobar] = useState(true)
+  const [estado, setEstado] = useState<OrdenCompraEstado | "todos">("todos")
+  const [desde, setDesde] = useState("")
+  const [hasta, setHasta] = useState("")
+
   const [procesandoId, setProcesandoId] = useState<string | null>(null)
   const [rechazandoId, setRechazandoId] = useState<string | null>(null)
   const [motivoRechazo, setMotivoRechazo] = useState("")
   const [desaprobando, setDesaprobando] = useState<OrdenCompraListado | null>(null)
   const [motivoDesaprobacion, setMotivoDesaprobacion] = useState("")
 
-  function cargar() {
+  function cargar(filtros: FiltrosOrdenesCompra = ultimosFiltros, pag: number = pagina) {
+    setUltimosFiltros(filtros)
     setCargando(true)
     setError(null)
-    Promise.all([listarTodasLasOrdenesCompra(), obtenerPermisosOrdenCompra()])
-      .then(([o, p]) => {
-        setOrdenes(o)
-        setPermisos(p)
+    listarTodasLasOrdenesCompra(filtros, pag)
+      .then((r: { ordenes: OrdenCompraListado[]; hayMas: boolean }) => {
+        // Si la página quedó vacía (se resolvió la última de la página), se retrocede.
+        if (r.ordenes.length === 0 && pag > 0) return cargar(filtros, pag - 1)
+        setOrdenes(r.ordenes)
+        setPagina(pag)
+        setHayMas(r.hayMas)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las órdenes."))
       .finally(() => setCargando(false))
   }
 
   useEffect(() => {
-    cargar()
+    obtenerPermisosOrdenCompra()
+      .then(setPermisos)
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los permisos."))
+    verProyectos()
+      .then(setProyectos)
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los proyectos."))
   }, [])
 
-  // Proyectos que aparecen en las órdenes (no todos los del sistema): solo
-  // tiene sentido filtrar por los que tienen alguna orden.
-  const proyectosConOrdenes = useMemo(() => {
-    const porId = new Map<string, string>()
-    for (const o of ordenes ?? []) {
-      if (o.proyectoId && !porId.has(o.proyectoId)) {
-        porId.set(
-          o.proyectoId,
-          o.proyectoCodigo ? `${o.proyectoCodigo} — ${o.proyectoNombre ?? ""}` : o.proyectoNombre ?? "(sin nombre)"
-        )
-      }
+  function handleConsultar(): boolean {
+    const n = numero.trim() === "" ? undefined : Number(numero)
+    if (n !== undefined && (!Number.isInteger(n) || n <= 0)) {
+      setError("El número de orden debe ser un número entero mayor que cero.")
+      return false
     }
-    return [...porId.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"))
-  }, [ordenes])
+    cargar({
+      numero: n,
+      proyectoId: proyectoId === "todos" ? undefined : proyectoId,
+      proveedor: proveedor.trim() || undefined,
+      estado: soloPorAprobar ? "pendiente_aprobacion" : estado === "todos" ? undefined : estado,
+      // Sin un estado concreto, las canceladas no se mezclan en la cola.
+      incluirCanceladas: false,
+      desde: desde || undefined,
+      hasta: hasta || undefined,
+    }, 0)
+    return true
+  }
 
-  const rangoInvalido = fechaDesde !== "" && fechaHasta !== "" && fechaDesde > fechaHasta
-
-  // Órdenes que pasan proyecto + fechas. Los contadores y las pestañas de
-  // estado se calculan sobre esto, así reflejan el filtro.
-  const ordenesBase = useMemo(() => {
-    if (!ordenes) return []
-    return ordenes.filter((o) => {
-      if (filtroProyecto !== "todos" && o.proyectoId !== filtroProyecto) return false
-      const dia = fechaLocal(o.createdAt)
-      if (fechaDesde && dia < fechaDesde) return false
-      if (fechaHasta && dia > fechaHasta) return false
-      return true
-    })
-  }, [ordenes, filtroProyecto, fechaDesde, fechaHasta])
-
-  const conteos = useMemo(() => {
-    const base = { total: 0, pendiente_aprobacion: 0, aprobada: 0, rechazada: 0, cancelada: 0 }
-    base.total = ordenesBase.length
-    for (const o of ordenesBase) base[o.estado] += 1
-    return base
-  }, [ordenesBase])
-
-  const ordenesFiltradas = useMemo(() => {
-    if (filtroEstado === "todas") return ordenesBase
-    return ordenesBase.filter((o) => o.estado === filtroEstado)
-  }, [ordenesBase, filtroEstado])
-
-  const hayFiltros = filtroProyecto !== "todos" || fechaDesde !== "" || fechaHasta !== ""
+  function limpiar() {
+    setNumero("")
+    setProyectoId("todos")
+    setProveedor("")
+    setSoloPorAprobar(true)
+    setEstado("todos")
+    setDesde("")
+    setHasta("")
+  }
 
   async function handleAprobar(id: string) {
     setProcesandoId(id)
@@ -199,220 +197,236 @@ export function AprobarOCView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Órdenes de compra</h1>
-          {conteos.pendiente_aprobacion > 0 && (
-            <Badge className="rounded-full px-2.5">{conteos.pendiente_aprobacion}</Badge>
+      <div className="flex min-h-0 flex-1 gap-4">
+        <PanelFiltros
+          cargando={cargando}
+          onConsultar={handleConsultar}
+          onLimpiar={limpiar}
+          ayuda="Ningún filtro es obligatorio: sin filtros se consultan todas."
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="numero-oc-aprobacion">Número</Label>
+            <Input
+              id="numero-oc-aprobacion"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              placeholder="Ej. 34"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Proyecto</Label>
+            <Select value={proyectoId} onValueChange={(v) => setProyectoId(v ?? "todos")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos mis proyectos</SelectItem>
+                {proyectos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.codigo ? `${p.codigo} · ${p.nombre}` : p.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="proveedor-oc-aprobacion">Proveedor</Label>
+            <Input
+              id="proveedor-oc-aprobacion"
+              placeholder="Nombre del proveedor"
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox checked={soloPorAprobar} onCheckedChange={(v) => setSoloPorAprobar(v === true)} />
+            Solo por Aprobar
+          </label>
+
+          <div className="space-y-1.5">
+            <Label>Estado</Label>
+            <Select
+              disabled={soloPorAprobar}
+              value={soloPorAprobar ? "pendiente_aprobacion" : estado}
+              onValueChange={(v) => setEstado((v ?? "todos") as OrdenCompraEstado | "todos")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {ESTADOS_FILTRO.map((e) => (
+                  <SelectItem key={e.valor} value={e.valor}>
+                    {e.etiqueta}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Rango de fechas</Label>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-xs text-muted-foreground">Inicial</span>
+              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-xs text-muted-foreground">Final</span>
+              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+          </div>
+        </PanelFiltros>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {ordenes === null && !cargando ? (
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              Elige los filtros que quieras y presiona Consultar. Con &quot;Solo por Aprobar&quot; ves
+              únicamente las órdenes que están esperando aprobación.
+            </div>
+          ) : ordenes === null ? (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando órdenes...
+            </div>
+          ) : ordenes.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              <ClipboardCheck className="h-8 w-8" />
+              Ninguna orden de compra coincide con los filtros.
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N°</TableHead>
+                    <TableHead>Proyecto</TableHead>
+                    <TableHead>Proveedor</TableHead>
+                    <TableHead>Creada por</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="w-[300px]">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordenes.map((orden) => {
+                    const badge = ESTADO_VISIBLE_BADGE[orden.estado]
+                    const puedeGestionar = permisos?.esAdmin && orden.estado === "pendiente_aprobacion"
+                    const puedeDesaprobar = permisos?.puedeDesaprobar && sePuedeDesaprobar(orden)
+                    const procesando = procesandoId === orden.id
+                    return (
+                      <TableRow
+                        key={orden.id}
+                        className={orden.tieneSobrecostoPrecio ? "bg-destructive/10 hover:bg-destructive/15" : undefined}
+                      >
+                        <TableCell className="font-medium">{orden.numero}</TableCell>
+                        <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
+                        <TableCell>{orden.proveedorNombre}</TableCell>
+                        <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatoFecha(orden.createdAt)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
+                            {orden.tieneSobrecostoPrecio && (
+                              <Badge
+                                variant="destructive"
+                                title="Alguna línea tiene un precio por encima del +10% del precio unitario vigente"
+                              >
+                                Precio +10%
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
+                              lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto). */}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-20 shrink-0"
+                              onClick={() => setOrdenAbiertaId(orden.id)}
+                            >
+                              <Eye className="mr-1.5 h-4 w-4" />
+                              Ver
+                            </Button>
+                            <div className="flex h-8 w-44 shrink-0 items-center gap-2">
+                              {puedeDesaprobar && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                                  disabled={procesando}
+                                  onClick={() => {
+                                    setDesaprobando(orden)
+                                    setMotivoDesaprobacion("")
+                                  }}
+                                  aria-label={`Desaprobar orden ${orden.numero}`}
+                                >
+                                  <Undo2 className="mr-1.5 h-4 w-4" />
+                                  Desaprobar
+                                </Button>
+                              )}
+                              {puedeGestionar && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                    disabled={procesando}
+                                    onClick={() => handleAprobar(orden.id)}
+                                    aria-label={`Aprobar orden ${orden.numero}`}
+                                  >
+                                    {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                    disabled={procesando}
+                                    onClick={() => {
+                                      setRechazandoId(orden.id)
+                                      setMotivoRechazo("")
+                                    }}
+                                    aria-label={`Rechazar orden ${orden.numero}`}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {ordenes !== null && ordenes.length > 0 && (
+            <PaginacionSimple
+              pagina={pagina}
+              hayMas={hayMas}
+              cargando={cargando}
+              onCambiar={(n) => cargar(ultimosFiltros, n)}
+            />
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={cargar} disabled={cargando}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${cargando ? "animate-spin" : ""}`} />
-          Actualizar
-        </Button>
       </div>
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile etiqueta="Total" valor={conteos.total} />
-        <Tile etiqueta="Pendientes" valor={conteos.pendiente_aprobacion} color="text-amber-600" />
-        <Tile etiqueta="Aprobadas" valor={conteos.aprobada} color="text-emerald-600" />
-        <Tile etiqueta="Rechazadas" valor={conteos.rechazada} color="text-red-600" />
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label htmlFor="filtro-proyecto-oc" className="text-xs font-medium text-muted-foreground">
-            Proyecto
-          </label>
-          <select
-            id="filtro-proyecto-oc"
-            value={filtroProyecto}
-            onChange={(e) => setFiltroProyecto(e.target.value)}
-            className="h-9 w-64 max-w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="todos">Todos los proyectos</option>
-            {proyectosConOrdenes.map(([id, etiqueta]) => (
-              <option key={id} value={id}>
-                {etiqueta}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="filtro-desde-oc" className="text-xs font-medium text-muted-foreground">
-            Desde
-          </label>
-          <Input
-            id="filtro-desde-oc"
-            type="date"
-            value={fechaDesde}
-            max={fechaHasta || undefined}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            className="h-9 w-40"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="filtro-hasta-oc" className="text-xs font-medium text-muted-foreground">
-            Hasta
-          </label>
-          <Input
-            id="filtro-hasta-oc"
-            type="date"
-            value={fechaHasta}
-            min={fechaDesde || undefined}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            className="h-9 w-40"
-          />
-        </div>
-        {hayFiltros && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9"
-            onClick={() => {
-              setFiltroProyecto("todos")
-              setFechaDesde("")
-              setFechaHasta("")
-            }}
-          >
-            Quitar filtros
-          </Button>
-        )}
-        {rangoInvalido && (
-          <p className="pb-2 text-xs text-destructive">La fecha &ldquo;desde&rdquo; es posterior a &ldquo;hasta&rdquo;.</p>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {FILTROS_ESTADO.map((f) => (
-          <Button
-            key={f.valor}
-            size="sm"
-            variant={filtroEstado === f.valor ? "default" : "outline"}
-            className="rounded-full"
-            onClick={() => setFiltroEstado(f.valor)}
-          >
-            {f.etiqueta}
-          </Button>
-        ))}
-      </div>
-
-      {error && (
-        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {ordenes === null ? (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando órdenes...
-        </div>
-      ) : ordenesFiltradas.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          <ClipboardCheck className="h-8 w-8" />
-          No hay órdenes de compra con este filtro.
-        </div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>N°</TableHead>
-                <TableHead>Proyecto</TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Creada por</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordenesFiltradas.map((orden) => {
-                const badge = ESTADO_BADGE[orden.estado]
-                const puedeGestionar = permisos?.esAdmin && orden.estado === "pendiente_aprobacion"
-                const puedeDesaprobar = permisos?.puedeDesaprobar && sePuedeDesaprobar(orden)
-                const procesando = procesandoId === orden.id
-                return (
-                  <TableRow
-                    key={orden.id}
-                    className={orden.tieneSobrecostoPrecio ? "bg-destructive/10 hover:bg-destructive/15" : undefined}
-                  >
-                    <TableCell>{orden.numero}</TableCell>
-                    <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
-                    <TableCell>{orden.proveedorNombre}</TableCell>
-                    <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatoFecha(orden.createdAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                        {orden.tieneSobrecostoPrecio && (
-                          <Badge
-                            variant="destructive"
-                            title="Alguna línea tiene un precio por encima del +10% del precio unitario vigente"
-                          >
-                            Precio +10%
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button size="sm" variant="outline" onClick={() => setOrdenAbiertaId(orden.id)}>
-                          <Eye className="mr-1.5 h-4 w-4" />
-                          Ver
-                        </Button>
-                        {puedeDesaprobar && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-                            disabled={procesando}
-                            onClick={() => {
-                              setDesaprobando(orden)
-                              setMotivoDesaprobacion("")
-                            }}
-                            aria-label={`Desaprobar orden ${orden.numero}`}
-                          >
-                            <Undo2 className="mr-1.5 h-4 w-4" />
-                            Desaprobar
-                          </Button>
-                        )}
-                        {puedeGestionar && (
-                          <>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                              disabled={procesando}
-                              onClick={() => handleAprobar(orden.id)}
-                              aria-label={`Aprobar orden ${orden.numero}`}
-                            >
-                              {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              disabled={procesando}
-                              onClick={() => {
-                                setRechazandoId(orden.id)
-                                setMotivoRechazo("")
-                              }}
-                              aria-label={`Rechazar orden ${orden.numero}`}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
 
       <Dialog
         open={rechazandoId !== null}
@@ -495,7 +509,7 @@ export function AprobarOCView() {
         onOpenChange={(open) => {
           if (!open) {
             setOrdenAbiertaId(null)
-            cargar()
+            if (ordenes !== null) cargar()
           }
         }}
       >
@@ -506,7 +520,7 @@ export function AprobarOCView() {
               ordenId={ordenAbiertaId}
               onCerrar={() => {
                 setOrdenAbiertaId(null)
-                cargar()
+                if (ordenes !== null) cargar()
               }}
             />
           )}

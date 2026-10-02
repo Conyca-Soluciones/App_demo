@@ -8,23 +8,18 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, obtenerPermisosRol } from "@/lib/permisos"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import type { FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import {
-  cargarLineas,
   mapResumen,
   SELECT_REQUISICIONES,
   SELECT_REQUISICIONES_CON_INSUMO,
-  type LineaRequisicion,
   type RequisicionResumen,
 } from "@/lib/requisiciones-lineas"
 
-export type RequisicionParaAprobar = RequisicionResumen & {
-  lineas: LineaRequisicion[]
-  // Solo rechazadas: el motivo y quién rechazó.
-  motivoRechazo: string | null
-  resueltoPorNombre: string | null
-  resueltoAt: string | null
-}
+// Una fila de la lista de aprobación. Los insumos, el motivo de rechazo y quién
+// resolvió están en el detalle (botón Ver), no se cargan para la lista.
+export type RequisicionParaAprobar = RequisicionResumen
 
 // Consulta de requisiciones para aprobar. Sin filtro de estado trae las
 // pendientes, aprobadas y rechazadas (no las canceladas); cada una se muestra
@@ -32,8 +27,9 @@ export type RequisicionParaAprobar = RequisicionResumen & {
 // aprobada: desaprobar mientras ningún insumo esté en una orden de compra).
 // Ve todos los proyectos (quien aprueba no está limitado a los suyos).
 export async function verRequisicionesAprobacion(
-  filtros: FiltrosRequisiciones = {}
-): Promise<RequisicionParaAprobar[]> {
+  filtros: FiltrosRequisiciones = {},
+  pagina = 0
+): Promise<{ filas: RequisicionParaAprobar[]; hayMas: boolean }> {
   await requerirAccion("aprobar_pedidos")
   const supabase = await createClient()
 
@@ -52,34 +48,24 @@ export async function verRequisicionesAprobacion(
   if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
   if (filtros.insumoId) query = query.eq("filtro_insumo.insumo_id", filtros.insumoId)
 
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(500)
+  // Orden estable y pensado para paginar (se ordena en la base, no en la
+  // aplicación): lo "por aprobar" va con las urgentes primero y las más antiguas
+  // arriba; cualquier otra consulta, de la más reciente a la más antigua.
+  const ordenada =
+    filtros.estado === "pendiente"
+      ? query
+          .order("urgente", { ascending: false })
+          .order("created_at", { ascending: true })
+          .order("numero", { ascending: true })
+      : query.order("created_at", { ascending: false }).order("numero", { ascending: false })
+
+  const { data, error } = await ordenada.range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
-  const filas = (data ?? []) as any[]
-  if (filas.length === 0) return []
 
-  const lineas = await cargarLineas(supabase, filas.map((f) => f.id))
-
-  const lista = filas.map((f) => {
-    const ls = lineas.get(f.id) ?? []
-    const resuelta = ls.find((l) => l._resueltoAt)
-    const resumen = mapResumen(f)
-    return {
-      ...resumen,
-      lineas: ls.map(({ _resolutor, _resueltoAt, _comentario, _motivoCancelacion, ...l }) => l),
-      motivoRechazo:
-        resumen.estado === "rechazada" ? ls.find((l) => l._comentario)?._comentario ?? null : null,
-      resueltoPorNombre: resuelta?._resolutor ?? null,
-      resueltoAt: resuelta?._resueltoAt ?? null,
-    }
-  })
-
-  // Primero lo que falta por aprobar (urgentes y más antiguas arriba); después
-  // el resto, de la más reciente a la más antigua.
-  const pendientes = lista
-    .filter((r) => r.estado === "pendiente")
-    .sort((x, y) => Number(y.urgente) - Number(x.urgente) || x.createdAt.localeCompare(y.createdAt))
-  const resto = lista.filter((r) => r.estado !== "pendiente")
-  return [...pendientes, ...resto]
+  // La lista no muestra los insumos de cada requisición (están en el detalle),
+  // así que no se cargan: es una consulta menos y miles de filas menos.
+  const { filas, hayMas } = cortarPagina((data ?? []) as any[])
+  return { filas: filas.map((f) => mapResumen(f)), hayMas }
 }
 
 // Aprueba o rechaza la requisición completa (todas sus líneas pendientes).

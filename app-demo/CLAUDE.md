@@ -758,7 +758,7 @@ Rediseño con tono azul de marca (extraído del logo real de CONYCA,
 
 La landing, la cookie y el provider son los de "Landing de proyecto y menú
 reorganizado" (más abajo). Además del botón del sidebar, las páginas que
-trabajan sobre un proyecto (Presupuestos, Requisiciones, Inventario, Salidas)
+trabajan sobre un proyecto (Presupuestos, Requisiciones, Inventario, Salidas, Entradas)
 tienen `SelectorProyecto` en su encabezado (`components/selector-proyecto.tsx`,
 también dentro de `components/encabezado-pagina.tsx`): usa el mismo
 mecanismo (`seleccionarProyecto` + `router.refresh()`), es solo un atajo.
@@ -830,6 +830,38 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
   `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
+- **Políticas RLS: nada de funciones de permiso por fila.** Lo que no depende
+  de la fila va envuelto en `(select f(...))` (se evalúa una vez por consulta)
+  y "¿puede ver el proyecto?" se escribe
+  `proyecto_id in (select public.proyectos_visibles((select auth.uid())))`, no
+  `usuario_puede_ver_proyecto(uid, proyecto_id)` (misma respuesta, verificado).
+  Tablas hijas: `exists (select 1 from padre where padre.id = padre_id)` (la
+  subconsulta ya aplica la política del padre). "¿Puede editar el proyecto?":
+  `proyecto_id in (select public.proyectos_editables((select auth.uid())))`.
+  Si la columna admite null (`presupuestos.proyecto_id`), el caso null se
+  agrega con la función vieja envuelta: `(select f((select auth.uid()), null::uuid))`.
+  Ya no queda ninguna política por fila en `public` ni `storage`:
+  Contratos (`20261012100000_rendimiento_rls_contratos.sql`, 2.000 solicitudes
+  2.122 ms -> 8 ms) y todo lo demás (`20261012200000_rendimiento_rls_resto.sql`).
+  Medido con 2.000 requisiciones / 6.000 líneas, 1.000 OC, 3.000 salidas
+  (admin / usuario con rol de un solo proyecto): `requisiciones_vista` 500
+  filas 2,9 s / 12,5 s -> 52 / 70 ms; `pedidos_insumos` 2,3 s / 12 s -> 73 /
+  20 ms; órdenes de compra 0,9 s -> 22 / 6 ms; líneas de OC 2,1 s -> 5 ms;
+  salidas 1,4 s -> 3 ms. Las mismas filas antes y después, y 1.292
+  comparaciones de lectura, UPDATE e INSERT para 19 usuarios reales y
+  simulados sin diferencias. `usuario_tiene_acceso_a_item`,
+  `usuario_puede_ver_proyecto` y `usuario_puede_editar_proyecto` siguen
+  existiendo (las usan RPC como `crear_requisicion` o `inventario_proyecto`, y
+  el caso null de presupuestos), pero ninguna política las llama por fila.
+- **Pruebas de volumen en transacción revertida (`do $$ ... raise exception`
+  con los tiempos): los contadores NO se revierten.** Insertar filas de prueba
+  avanza las secuencias/identity aunque se haga rollback (pasó:
+  `contratos.numero` saltó a 6001 y hubo que renumerar). Mejor dar `numero` /
+  `codigo_consecutivo` explícitos (p. ej. desde 9.000.000) en `requisiciones`,
+  `ordenes_compra`, `pedidos_insumos`, `contratos`, `entradas_almacen`; si no,
+  guardar el valor de la secuencia y restaurarlo (`setval` / `restart with`).
+  Al terminar, revisar que `last_value` = `max(numero)`. Para insertar sin
+  disparar triggers ni FKs: `set local session_replication_role = replica`.
 - **Límites de la API que fallan en silencio o con listas largas**: cada
   respuesta se corta en 1000 filas (también las RPC que devuelven filas): lo
   que pueda crecer se trae con `traerTodo` (orden que termine en `id`). Y
@@ -1242,13 +1274,18 @@ Migración `20261003000000_historial_y_pedidos.sql`.
   dependen de `proyecto.id` se recargan solas. Sin proyecto elegido, las
   pantallas muestran `components/sin-proyecto.tsx` (enlace al landing).
 - **Ya no hay selector de proyecto** en: Elaboración de requisiciones
-  (`almacen/page.tsx`), Inventario, Salidas, Compras > Requisiciones (panel de
+  (`almacen/page.tsx`), Inventario, Salidas, Entradas, Compras > Requisiciones (panel de
   filtros), Elaboración de presupuestos y Visualización. El cambio se hace
   desde el botón "Cambiar proyecto" del menú lateral o, como atajo, desde el
   `SelectorProyecto` del encabezado de esas páginas.
 - **No filtran por proyecto actual** (siguen viendo todos los proyectos que el
   usuario tiene): Aprobación de requisiciones, Órdenes de compra, Aprobación
-  de órdenes de compra, Entradas (van por orden de compra).
+  de órdenes de compra.
+- **Entradas sí filtra por el proyecto actual** (selector en el encabezado,
+  como Inventario y Salidas): `listar_ordenes_para_entrada(p_incluir_entregadas,
+  p_proyecto_id)` filtra en la base y valida el acceso al proyecto
+  (`20261010200000_entradas_por_proyecto.sql`). La vista se remonta con
+  `key={proyectoId}` al cambiar de proyecto.
 - **Menú** (`lib/pestanas.ts`): Presupuestos / Requisiciones / Almacén /
   Compras / Contratos / Control / Administrador. "Pedidos" pasó a llamarse
   **Requisiciones** en pantalla; las rutas (`/almacen`, `/admin-tecnico`,
@@ -1331,3 +1368,138 @@ indexar con `Map`/`Set` antes de recorrer (nada de `.find()`/`.filter()`/
 sola pasada, y en la base usar consultas por lotes (`in`, joins, RPC) en vez de
 una consulta por fila; acotar los listados con filtros y `limit` del lado del
 servidor.
+
+
+## Contratistas `/contratos/contratistas` (implementado)
+
+Primera pieza del módulo de Contratos (plan revisado con Jurídica). Directorio
+de personas naturales y jurídicas con los **documentos generales** que exige
+Jurídica para todo contrato; los que dependen del tipo de contrato (planilla de
+seguridad social, SOAT, cotización...) van con el contrato, después.
+
+- **Tablas** (`20261011000000_contratistas.sql`): `contratistas` (tipo de
+  persona, documento + DV, nombre/razón social, representante legal si es
+  jurídica, contacto, datos bancarios; `created_by` -> `perfiles`) y
+  `contratista_documentos` (un documento vigente por tipo, con su ruta en
+  Storage). Documento único por (tipo, número). Jurídica = NIT; el DV se valida
+  con el algoritmo de la DIAN (`dv_nit` en la base, `calcularDvNit` en
+  `lib/contratistas.ts`; probado contra 380 NIT de proveedores, 379 cuadran).
+- **Obligatorio para crear**: todos los datos y los documentos obligatorios
+  (catálogo en `DOCUMENTOS_POR_PERSONA`; hoja de vida es opcional). No hay
+  contratista "a medias": `crear_contratista` (SECURITY DEFINER) valida todo,
+  comprueba que cada archivo exista en Storage e inserta datos + documentos en
+  una transacción.
+- **Archivos**: primer uso de Supabase Storage en el proyecto. Bucket PRIVADO
+  `contratistas` (PDF/JPG/PNG, 10 MB), ruta `<contratista_id>/<tipo>-<n>.<ext>`.
+  El navegador sube con la sesión del usuario (políticas de `storage.objects`
+  exigen la acción) y luego llama la Server Action; si algo falla, borra lo que
+  subió (la política de DELETE solo deja borrar archivos que todavía no son
+  documento de nadie). Para ver un documento: enlace firmado de 2 minutos
+  (`enlaceDocumentoContratista`).
+- **Permisos**: pestaña `contratos.contratistas` (ver) y acción
+  `gestionar_contratistas` (crear). `tiene_pestana(uid, clave)` es nueva (la
+  usan las políticas, igual que `tiene_accion`). Por defecto ven Gerencia,
+  Legal, Líder Legal y Director de obra; crean Legal, Líder Legal y Director
+  de obra.
+- **Rol "Director de obra"** (`director_obra`, de sistema,
+  `20261011100000_rol_director_obra.sql`): arranca solo con ver y crear
+  contratistas; el resto se asigna en la matriz. El aviso de contrato vencido
+  sin acta de liquidación lo va a buscar por esta clave.
+- **Ver documentos**: se abren dentro del mismo diálogo de detalle
+  (`components/visor-documento.tsx`: PDF en iframe, imagen en img, con "Abrir
+  aparte"), igual en Solicitud de contratos. Funciona porque los enlaces
+  firmados de Storage no traen X-Frame-Options ni `Content-Disposition:
+  attachment` (revisado).
+- **Pendiente**: editar datos, reemplazar o agregar documentos, y vencimientos
+  (p. ej. certificación bancaria o cámara de comercio con más de 30 días).
+
+
+## Solicitud de contratos `/contratos/solicitar` (implementado)
+
+El director de obra arma la solicitud para el proyecto actual (selector del
+encabezado) y la manda a **pre-aprobación**; la minuta se hará en "Elaboración
+de contratos" (pestaña `contratos.contratos`, todavía sin página).
+
+- **Formulario** (`components/solicitud-contrato-form.tsx`): tipo de contrato
+  (define los documentos que se piden), contratista (buscador sobre el
+  directorio; muestra sus datos y documentos generales y llena el correo de
+  notificación, editable), objeto (debe empezar por verbo en infinitivo:
+  `empiezaConVerbo` / CHECK en la base), valor y anexo (valor global, o tabla de
+  valores unitarios cuyo total ES el valor), anticipo (casilla + %), forma y
+  plazo de pago (texto libre por ahora), plazo (por fechas o por duración en
+  días/meses con inicio estimado opcional), obligaciones específicas,
+  entregables, observaciones y documentos del tipo.
+- **Tipos y documentos** (tabla de Jurídica): `TIPOS_CONTRATO` en
+  `lib/contratos.ts` y `documentos_tipo_contrato()` en la base -- cambiar los
+  dos a la vez. Son 6 tipos (la imagen de Jurídica); "si aplica" = opcional.
+- **Tablas** (`20261012000000_solicitud_contratos.sql`): `contratos`
+  (`numero` identity, `estado` solo 'pre_aprobacion' por ahora),
+  `contrato_obligaciones`, `contrato_entregables`, `contrato_anexo_items`,
+  `contrato_documentos`. Bucket privado `contratos`, ruta
+  `<contrato_id>/<tipo>.<ext>`. `crear_solicitud_contrato` guarda todo en una
+  transacción, verifica archivos y documentos obligatorios, y con valores
+  unitarios CALCULA el valor desde el anexo (no confía en la suma del navegador).
+- **Valores unitarios = ítems del presupuesto vigente**
+  (`20261013000000_contratos_anexo_presupuesto.sql`): cada actividad del anexo
+  es un `presupuesto_item` (`contrato_anexo_items.presupuesto_item_id`); la
+  descripción y la unidad se copian del presupuesto. Topes, revisados en el
+  formulario y otra vez en `crear_solicitud_contrato` (con bloqueo de los
+  ítems para que dos solicitudes simultáneas no pasen juntas): cantidad <=
+  presupuestada menos lo ya contratado, y valor unitario <= el del
+  presupuesto. Lo contratado se suma por presupuesto + código (como las
+  requisiciones), así sigue contando en versiones nuevas. Hoy cuentan TODOS
+  los contratos; cuando existan estados rechazado/anulado, excluirlos en
+  `_contratado_item` e `items_presupuesto_para_contrato`. Un ítem del
+  presupuesto con contratos no se puede borrar (FK).
+- **Números** en formato colombiano con `leerNumero` (`lib/contratos.ts`):
+  "1.250,5" = 1250,5; "38.500" = 38500; "2.5" = 2,5.
+- **Permisos**: pestaña `contratos.solicitar` (ver las del proyecto) y acción
+  `solicitar_contratos` (mandar). Ver = esa pestaña o la de Elaboración, y
+  acceso al proyecto (`puede_ver_contrato`). Quien solicita también puede leer
+  contratistas (para elegir uno). Por defecto: Director de obra solicita;
+  Gerencia, Legal y Líder Legal ven.
+- **Pendiente**: borradores (hoy el formulario se pierde si se sale), pantalla
+  de pre-aprobación/minutas, opciones fijas de forma/plazo de pago cuando
+  Jurídica las defina, y el 7.º tipo de contrato si existe.
+
+
+## Pre-aprobación de contratos `/contratos/pre-aprobacion` (implementado)
+
+Jurídica revisa las solicitudes de TODOS los proyectos que puede ver (no usa el
+proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
+**devuelve** con motivo o **rechaza** con motivo
+(`20261014000000_preaprobacion_contratos.sql`).
+
+- **Estados** de `contratos`: `pre_aprobacion` -> `aprobada` | `devuelta` |
+  `rechazada`. Una **devuelta** la corrige el director: "Corregir y reenviar"
+  abre el mismo formulario lleno (`edicion`), con los documentos actuales
+  (se conservan o se cambian), y vuelve a `pre_aprobacion` con el MISMO número
+  (`reenviar_solicitud_contrato`). Rechazada es definitiva.
+- **Presupuesto**: devuelta sigue reservando su cantidad; rechazada deja de
+  contar (`_contratado_item` e `items_presupuesto_para_contrato` excluyen
+  `rechazada`). Al reenviar, la base borra las líneas propias ANTES de revisar
+  topes, y el formulario suma lo propio al disponible (si no, la solicitud
+  competiría contra sí misma).
+- **Lógica común**: `_guardar_solicitud_contrato(..., p_existente)` hace crear
+  y reenviar; `resolver_solicitud_contrato(id, accion, motivo)` resuelve
+  (bloquea la fila y exige estado `pre_aprobacion`: dos personas no resuelven
+  la misma).
+- **Historial** (`historial_eventos`, entidad `contrato`): creada, reenviada,
+  aprobada, devuelta, rechazada; se ve en el detalle (`HistorialTimeline
+  tipo="contrato"`). **Notificaciones**: solo a usuarios con rol **Legal** o
+  **Líder Legal** (que además tengan `aprobar_contratos` y vean el proyecto)
+  cuando llega o vuelve una solicitud -- NO a los Administradores (decisión
+  del usuario, `20261014100000_notificar_solo_legal.sql`); al solicitante
+  cuando se resuelve. La campanita lleva a
+  `?ver=<id>` en Pre-aprobación o en Solicitud de contratos.
+- **Detalle compartido**: `components/detalle-solicitud-contrato.tsx` (datos,
+  anexo, documentos del contrato y documentos generales del contratista con el
+  visor, motivo y historial); cada pantalla pone sus botones. Consultas
+  compartidas en `lib/contratos-db.ts` (servidor); los tipos van en
+  `lib/contratos.ts` para que los componentes no importen nada que toque el
+  servidor.
+- **Permisos**: pestaña `contratos.preaprobacion` (Legal, Líder Legal,
+  Gerencia) y acción `aprobar_contratos` (Legal, Líder Legal). Quien tiene la
+  pestaña también ve contratistas y sus documentos.
+- **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
+  contratos).

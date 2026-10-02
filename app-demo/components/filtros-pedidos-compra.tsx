@@ -57,6 +57,8 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
   const [fechaAprobInicio, setFechaAprobInicio] = useState("")
   const [fechaAprobFin, setFechaAprobFin] = useState("")
   const [soloUrgentes, setSoloUrgentes] = useState(false)
+  // Marcado de entrada: solo lo que todavía falta comprar.
+  const [soloPendientes, setSoloPendientes] = useState(true)
 
   const puedeConsultar = proyecto !== null && !cargando
 
@@ -74,7 +76,10 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
       fechaAprobacionInicio: fechaAprobInicio || null,
       fechaAprobacionFin: fechaAprobFin || null,
       soloUrgentes,
+      soloPendientes,
     })
+    // Al consultar, el panel se minimiza para dejar el ancho a los resultados.
+    setAbierto(false)
   }
 
   // Colapsado: franja angosta con un botón para reabrir. Se mantiene el
@@ -203,6 +208,16 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
 
         <div className="space-y-2">
           <Label>Opcionales</Label>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="solo-pendientes"
+              checked={soloPendientes}
+              onCheckedChange={(v) => setSoloPendientes(v === true)}
+            />
+            <Label htmlFor="solo-pendientes" className="cursor-pointer font-normal">
+              Solo pendientes por comprar
+            </Label>
+          </div>
           <div className="flex items-center gap-2">
             <Checkbox
               id="solo-urgentes"

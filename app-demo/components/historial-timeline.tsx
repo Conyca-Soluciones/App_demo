@@ -49,6 +49,15 @@ const EVENTOS_REQUISICION: Record<string, { etiqueta: string; tono: "ok" | "malo
   rechazado_por_compras: { etiqueta: "Insumo rechazado por Compras", tono: "malo" },
 }
 
+// Eventos de una SOLICITUD DE CONTRATO (pre-aprobación).
+const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creada: { etiqueta: "Solicitud enviada a pre-aprobación", tono: "neutro" },
+  reenviada: { etiqueta: "Solicitud corregida y reenviada", tono: "neutro" },
+  aprobada: { etiqueta: "Pre-aprobada por Jurídica", tono: "ok" },
+  devuelta: { etiqueta: "Devuelta para corregir", tono: "aviso" },
+  rechazada: { etiqueta: "Rechazada", tono: "malo" },
+}
+
 const COLOR_PUNTO = {
   ok: "bg-emerald-500",
   malo: "bg-red-500",
@@ -146,6 +155,7 @@ export function HistorialTimeline({ tipo, id }: { tipo: TipoHistorial; id: strin
       {eventos.map((e) => {
         const def =
           (tipo === "requisicion" ? EVENTOS_REQUISICION[e.evento] : undefined) ??
+          (tipo === "contrato" ? EVENTOS_CONTRATO[e.evento] : undefined) ??
           EVENTOS[e.evento] ?? { etiqueta: e.evento, tono: "neutro" as const }
         const detalle = detalleEvento(e, tipo)
         return (

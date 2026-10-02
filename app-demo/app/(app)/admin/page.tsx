@@ -1,5 +1,6 @@
 "use client"
 
+import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { useEffect, useState } from "react"
 import {
   listarProyectosAdmin,
@@ -545,8 +546,9 @@ export default function AdminPage() {
   }, [])
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Control administrativo</h1>
+    <>
+    <EncabezadoPagina titulo="Control administrativo" />
+    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
 
       <div className="flex gap-1 border-b">
         <button
@@ -581,5 +583,6 @@ export default function AdminPage() {
         />
       )}
     </main>
+    </>
   )
 }

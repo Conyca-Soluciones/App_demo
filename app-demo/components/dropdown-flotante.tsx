@@ -17,10 +17,14 @@ import { createPortal } from "react-dom"
 export function DropdownFlotante({
   anchorRef,
   abierto,
+  anchoMinimo,
   children,
 }: {
   anchorRef: RefObject<HTMLElement | null>
   abierto: boolean
+  // Ancho mínimo en px (el ancla puede ser una celda angosta). Si no cabe a
+  // la derecha, se corre a la izquierda para no salirse de la pantalla.
+  anchoMinimo?: number
   children: React.ReactNode
 }) {
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -35,7 +39,10 @@ export function DropdownFlotante({
       const el = anchorRef.current
       if (!el) return
       const rect = el.getBoundingClientRect()
-      setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+      const margen = 8
+      const width = Math.min(Math.max(rect.width, anchoMinimo ?? 0), window.innerWidth - margen * 2)
+      const left = Math.max(margen, Math.min(rect.left, window.innerWidth - width - margen))
+      setPos({ top: rect.bottom + 4, left, width })
     }
 
     recalcular()
@@ -49,7 +56,7 @@ export function DropdownFlotante({
       window.removeEventListener("scroll", recalcular, true)
       window.removeEventListener("resize", recalcular)
     }
-  }, [abierto, anchorRef])
+  }, [abierto, anchorRef, anchoMinimo])
 
   if (!abierto || !pos || typeof document === "undefined") return null
 
