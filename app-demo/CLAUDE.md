@@ -1375,3 +1375,40 @@ seguridad social, SOAT, cotización...) van con el contrato, después.
   sin acta de liquidación lo va a buscar por esta clave.
 - **Pendiente**: editar datos, reemplazar o agregar documentos, y vencimientos
   (p. ej. certificación bancaria o cámara de comercio con más de 30 días).
+
+
+## Solicitud de contratos `/contratos/solicitar` (implementado)
+
+El director de obra arma la solicitud para el proyecto actual (selector del
+encabezado) y la manda a **pre-aprobación**; la minuta se hará en "Elaboración
+de contratos" (pestaña `contratos.contratos`, todavía sin página).
+
+- **Formulario** (`components/solicitud-contrato-form.tsx`): tipo de contrato
+  (define los documentos que se piden), contratista (buscador sobre el
+  directorio; muestra sus datos y documentos generales y llena el correo de
+  notificación, editable), objeto (debe empezar por verbo en infinitivo:
+  `empiezaConVerbo` / CHECK en la base), valor y anexo (valor global, o tabla de
+  valores unitarios cuyo total ES el valor), anticipo (casilla + %), forma y
+  plazo de pago (texto libre por ahora), plazo (por fechas o por duración en
+  días/meses con inicio estimado opcional), obligaciones específicas,
+  entregables, observaciones y documentos del tipo.
+- **Tipos y documentos** (tabla de Jurídica): `TIPOS_CONTRATO` en
+  `lib/contratos.ts` y `documentos_tipo_contrato()` en la base -- cambiar los
+  dos a la vez. Son 6 tipos (la imagen de Jurídica); "si aplica" = opcional.
+- **Tablas** (`20261012000000_solicitud_contratos.sql`): `contratos`
+  (`numero` identity, `estado` solo 'pre_aprobacion' por ahora),
+  `contrato_obligaciones`, `contrato_entregables`, `contrato_anexo_items`,
+  `contrato_documentos`. Bucket privado `contratos`, ruta
+  `<contrato_id>/<tipo>.<ext>`. `crear_solicitud_contrato` guarda todo en una
+  transacción, verifica archivos y documentos obligatorios, y con valores
+  unitarios CALCULA el valor desde el anexo (no confía en la suma del navegador).
+- **Números** en formato colombiano con `leerNumero` (`lib/contratos.ts`):
+  "1.250,5" = 1250,5; "38.500" = 38500; "2.5" = 2,5.
+- **Permisos**: pestaña `contratos.solicitar` (ver las del proyecto) y acción
+  `solicitar_contratos` (mandar). Ver = esa pestaña o la de Elaboración, y
+  acceso al proyecto (`puede_ver_contrato`). Quien solicita también puede leer
+  contratistas (para elegir uno). Por defecto: Director de obra solicita;
+  Gerencia, Legal y Líder Legal ven.
+- **Pendiente**: borradores (hoy el formulario se pierde si se sale), pantalla
+  de pre-aprobación/minutas, opciones fijas de forma/plazo de pago cuando
+  Jurídica las defina, y el 7.º tipo de contrato si existe.

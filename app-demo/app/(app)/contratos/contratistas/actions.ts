@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import {
   DOCUMENTOS_POR_PERSONA,
   MIME_PERMITIDOS,
@@ -51,8 +51,21 @@ function mapContratista(f: any): Contratista {
   }
 }
 
+// También lo usa Solicitud de contratos para elegir el contratista: basta con
+// la pestaña Contratistas o con poder solicitar contratos (igual que la
+// política contratistas_select).
 export async function listarContratistas(): Promise<Contratista[]> {
-  await requerirPestana("contratos.contratistas")
+  const permisos = await obtenerPermisosRol()
+  if (
+    !permisos ||
+    !(
+      permisos.esAdministrador ||
+      permisos.pestanas.includes("contratos.contratistas") ||
+      permisos.acciones.includes("solicitar_contratos")
+    )
+  ) {
+    throw new Error("No tienes permiso para ver los contratistas.")
+  }
   const supabase = await createClient()
   const filas = await traerTodo<any>((desde, hasta) =>
     supabase

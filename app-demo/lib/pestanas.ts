@@ -61,6 +61,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
 
   { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
+  { clave: "contratos.solicitar", titulo: "Solicitud de contratos", seccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
   { clave: "contratos.contratos", titulo: "Elaboración de contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.cortes", titulo: "Elaboración de actas", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
@@ -94,6 +95,7 @@ export const ACCIONES: Accion[] = [
   { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
+  { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
 ]
 
