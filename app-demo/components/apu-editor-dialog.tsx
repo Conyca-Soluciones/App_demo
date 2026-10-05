@@ -38,6 +38,7 @@ import {
 import type { CategoriaManoObra, CategoriaEquipo } from "@/lib/apu-import-types"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
+import { describirPresentacion, nombreUnidad } from "@/lib/unidades"
 
 // Qué "recurso" real corresponde a cada sección visual de CATEGORIAS_APU
 // -- determina qué buscador se muestra en el "+ Agregar" de cada
@@ -530,7 +531,14 @@ function SeccionCategoria({
             {items.map((it) => (
               <tr key={it.id} className="border-t">
                 <td className="px-4 py-2.5">{it.descripcion}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{it.uM ?? "—"}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">
+                  {it.uM ?? "—"}
+                  {it.presentacion && (
+                    <span className="block text-[11px] text-emerald-700" title="El precio del insumo se dividió por su contenido">
+                      {it.presentacion}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-right">
                   {/* Antes era editable con doble click (CantidadEditable) --
                       la cantidad de cada línea del APU ahora viene siempre del
@@ -643,6 +651,10 @@ function BuscadorInsumoCategoria({
   const [seleccionado, setSeleccionado] = useState<InsumoSugerido | null>(null)
   const [similares, setSimilares] = useState<InsumoSimilar[] | null>(null)
   const [cantidad, setCantidad] = useState("")
+  // Insumo con presentación (bulto de 50 kg): la cantidad puede ir en la
+  // unidad de compra o en la de uso. Por defecto la de uso, que es como se
+  // escriben los APU.
+  const [enUnidadDeUso, setEnUnidadDeUso] = useState(true)
   const [rendimiento, setRendimiento] = useState("1")
   const [precioNuevo, setPrecioNuevo] = useState("")
   const [verificando, setVerificando] = useState(false)
@@ -674,6 +686,7 @@ function BuscadorInsumoCategoria({
   }, [busqueda, seleccionado, tipos])
 
   function elegirSugerencia(insumo: InsumoSugerido) {
+    setEnUnidadDeUso(true)
     setSeleccionado(insumo)
     setBusqueda(insumo.descripcion)
     setSugerencias([])
@@ -696,6 +709,7 @@ function BuscadorInsumoCategoria({
         insumoId: seleccionado.id,
         cantidad: Number(cantidad),
         rendimiento: rendimiento ? Number(rendimiento) : 1,
+        unidadLinea: seleccionado.unidad_uso && enUnidadDeUso ? seleccionado.unidad_uso : seleccionado.u_m,
       })
 
       onAgregado()
@@ -806,6 +820,26 @@ function BuscadorInsumoCategoria({
               className="h-10"
             />
           </div>
+
+          {seleccionado.unidad_uso && seleccionado.contenido != null && (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                En ({describirPresentacion({
+                  u_m: seleccionado.u_m,
+                  unidad_uso: seleccionado.unidad_uso,
+                  contenido: Number(seleccionado.contenido),
+                })})
+              </label>
+              <select
+                value={enUnidadDeUso ? "uso" : "compra"}
+                onChange={(e) => setEnUnidadDeUso(e.target.value === "uso")}
+                className="h-10 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="uso">{nombreUnidad(seleccionado.unidad_uso)}</option>
+                <option value="compra">{nombreUnidad(seleccionado.u_m) || "unidad"}</option>
+              </select>
+            </div>
+          )}
 
           <div className="w-32 space-y-1.5">
             <label className="text-xs text-muted-foreground" title="Multiplicador libre, default 1 -- ej. factor de productividad de mano de obra">

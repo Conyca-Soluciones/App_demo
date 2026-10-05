@@ -321,6 +321,7 @@ export function PresupuestoTable({
   soloLectura,
   estadosApu,
   motivosRechazo,
+  diferenciasLineas,
   onRevisarItem,
 }: {
   data: ItemPresupuesto[]
@@ -350,6 +351,8 @@ export function PresupuestoTable({
   // cada fila. Opcional: si no se pasa, ninguna fila se pinta.
   estadosApu?: Record<string, EstadoApuItem>
   motivosRechazo?: Record<string, MotivoRechazoPorItem[]>
+  // APU con más o menos líneas que el Excel oficial (solo aviso)
+  diferenciasLineas?: Record<string, { oficial: number; actual: number }>
   // abre el diálogo de revisión ACOTADO a este ítem puntual -- se llama
   // al hacer click en la etiqueta de estado (pendiente/rechazado).
   onRevisarItem?: (itemId: string) => void
@@ -557,6 +560,14 @@ export function PresupuestoTable({
                     motivos={motivosRechazo?.[item.id]}
                     onRevisar={() => onRevisarItem?.(item.id)}
                   />
+                  {diferenciasLineas?.[item.id] && (
+                    <span
+                      title={`El APU guardado tiene ${diferenciasLineas[item.id].actual} línea(s) y el Excel oficial ${diferenciasLineas[item.id].oficial}. Revisa que no falte ni sobre nada.`}
+                      className="rounded-full bg-amber-100 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-amber-800"
+                    >
+                      {diferenciasLineas[item.id].actual} de {diferenciasLineas[item.id].oficial} líneas
+                    </span>
+                  )}
                   {excedePresupuesto && (
                     <span
                       title="El valor unitario calculado supera el precio unitario oficial del Excel en más de $1.000"

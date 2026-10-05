@@ -49,6 +49,7 @@ import type {
   CategoriaEquipo,
   FilaImportTransporte,
 } from "@/lib/apu-import-types"
+import { nombreUnidad } from "@/lib/unidades"
 
 // Estilo "tipo Excel" -- mismo tratamiento que ya usa el resto de la app
 // (presupuesto-table.tsx, admin-insumos/page.tsx): encabezado azul de
@@ -66,6 +67,51 @@ type FilaCandidatoInsumo = {
   u_m: string | null
   vr_unitario: number | null
   similitud: number
+  // solo en los candidatos guardados de la revisión (ver anotarUnidadesCandidatos)
+  compatUnidad?: "igual" | "conversion" | "distinta" | "sin_dato"
+  factorUnidad?: number | null
+  presentacion?: string | null
+}
+
+const formatoPesos = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`
+
+// El candidato elegido no cuadra en unidad con la línea (kg contra un
+// insumo que se vende por unidad y no tiene presentación): no se puede
+// guardar sin confirmar.
+function candidatoNoCuadra(fila: FilaRevisionImport, insumoId: string | undefined | null): boolean {
+  if (!insumoId) return false
+  const c = (fila.candidatos as CandidatoInsumo[]).find((x) => x.id === insumoId)
+  return c?.compatUnidad === "distinta"
+}
+
+function AvisoUnidad({
+  fila,
+  insumoId,
+  confirmado,
+  onConfirmar,
+}: {
+  fila: FilaRevisionImport
+  insumoId: string | undefined | null
+  confirmado: boolean
+  onConfirmar: (v: boolean) => void
+}) {
+  if (!candidatoNoCuadra(fila, insumoId)) return null
+  const c = (fila.candidatos as CandidatoInsumo[]).find((x) => x.id === insumoId)!
+  const compra = nombreUnidad(c.u_m) || "su unidad"
+  return (
+    <div className="space-y-1.5 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
+      <p>
+        La línea está en <strong>{nombreUnidad(fila.unidad)}</strong> y este insumo se vende por{" "}
+        <strong>{compra}</strong>
+        {c.presentacion ? ` (${c.presentacion})` : " sin presentación definida"}: el precio quedaría mal. Elige otro
+        insumo, pide a quien aprueba insumos que defina su presentación en la Maestra, o confirma la cantidad.
+      </p>
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={confirmado} onChange={(e) => onConfirmar(e.target.checked)} />
+        La cantidad {fila.cantidad} ya está en {compra}
+      </label>
+    </div>
+  )
 }
 
 /**
@@ -79,11 +125,14 @@ function TablaCandidatos({
   seleccionado,
   onSeleccionar,
   titulo = "Las recomendaciones de insumo son:",
+  unidadLinea,
 }: {
   candidatos: FilaCandidatoInsumo[]
   seleccionado?: string | null
   onSeleccionar: (insumoId: string) => void
   titulo?: string
+  // unidad en que viene la línea del Excel, para mostrar el precio en esa unidad
+  unidadLinea?: string | null
 }) {
   if (candidatos.length === 0) return null
 
@@ -95,7 +144,7 @@ function TablaCandidatos({
           <thead>
             <tr>
               <th className={headClasesCandidatos}>Nombre</th>
-              <th className={`${headClasesCandidatos} w-20`}>Unidad</th>
+              <th className={`${headClasesCandidatos} w-36`}>Unidad</th>
               <th className={`${headClasesCandidatos} w-28 text-right`}>Valor</th>
               <th className={`${headClasesCandidatos} w-24 text-right`}>% Similitud</th>
             </tr>
@@ -113,9 +162,30 @@ function TablaCandidatos({
                     {sel && <span className="mr-1 text-primary">✓</span>}
                     {c.descripcion}
                   </td>
-                  <td className={`${celdaCandidato} text-muted-foreground`}>{c.u_m ?? "—"}</td>
+                  <td className={`${celdaCandidato} text-muted-foreground`}>
+                    <span>{c.u_m ?? "—"}</span>
+                    {c.compatUnidad === "conversion" && c.presentacion && (
+                      <span className="block text-[11px] text-emerald-700">{c.presentacion}</span>
+                    )}
+                    {c.compatUnidad === "distinta" && (
+                      <span className="block text-[11px] font-medium text-red-700">
+                        no cuadra con {nombreUnidad(unidadLinea) || "la línea"}
+                      </span>
+                    )}
+                  </td>
                   <td className={`${celdaCandidato} text-right`}>
-                    ${(c.vr_unitario ?? 0).toLocaleString()}
+                    {c.compatUnidad === "conversion" && c.factorUnidad ? (
+                      <>
+                        <span>
+                          {formatoPesos((c.vr_unitario ?? 0) / c.factorUnidad)} / {nombreUnidad(unidadLinea)}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {formatoPesos(c.vr_unitario ?? 0)} / {nombreUnidad(c.u_m) || "und"}
+                        </span>
+                      </>
+                    ) : (
+                      formatoPesos(c.vr_unitario ?? 0)
+                    )}
                   </td>
                   <td className={`${celdaCandidato} text-right text-muted-foreground`}>
                     {Math.round(c.similitud * 100)}%
@@ -497,6 +567,19 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   const [pidiendoConfirmacionCierre, setPidiendoConfirmacionCierre] = useState(false)
   const [elecciones, setElecciones] = useState<Record<string, Eleccion>>({})
   const [correcciones, setCorrecciones] = useState<Record<string, string>>({}) // revisionId -> nuevoInsumoId
+  // Líneas cuya unidad no cuadra con el insumo elegido y el usuario confirmó
+  // que la cantidad ya está en la unidad del insumo (ver AvisoUnidad).
+  const [confirmadasUnidad, setConfirmadasUnidad] = useState<Set<string>>(new Set())
+  function confirmarUnidad(ids: string[], valor: boolean) {
+    setConfirmadasUnidad((prev) => {
+      const copia = new Set(prev)
+      for (const id of ids) {
+        if (valor) copia.add(id)
+        else copia.delete(id)
+      }
+      return copia
+    })
+  }
   const [guardandoIds, setGuardandoIds] = useState<Set<string>>(new Set())
   // Guard síncrono contra doble-submit -- guardandoIds (arriba) es
   // estado de React, así que el botón solo queda "disabled" DESPUÉS de
@@ -711,6 +794,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   )
 
   function elegirCandidatoGrupo(filasGrupo: FilaRevisionImport[], insumoId: string) {
+    confirmarUnidad(filasGrupo.map((f) => f.id), false)
     setElecciones((prev) => {
       const nuevo = { ...prev }
       for (const f of filasGrupo) nuevo[f.id] = { tipo: "maestro", insumoId }
@@ -743,6 +827,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // deduplicación de solicitudes evita que se repita el mismo rechazo
   // muchas veces).
   function elegirCandidato(revisionId: string, insumoId: string) {
+    confirmarUnidad([revisionId], false)
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "maestro", insumoId } }))
   }
   function marcarSolicitud(revisionId: string) {
@@ -761,6 +846,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "solicitud_equipo" } }))
   }
   function corregirAutoMatch(revisionId: string, nuevoInsumoId: string) {
+    confirmarUnidad([revisionId], false)
     setCorrecciones((prev) => ({ ...prev, [revisionId]: nuevoInsumoId }))
   }
   // Reusa el mismo mapa `correcciones` (revisionId -> nuevo id) que
@@ -829,7 +915,12 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setError(null)
     try {
       if (eleccion.tipo === "maestro") {
-        await resolverLineaRevision({ revisionId, accion: "maestro", insumoId: eleccion.insumoId })
+        await resolverLineaRevision({
+          revisionId,
+          accion: "maestro",
+          insumoId: eleccion.insumoId,
+          confirmarUnidad: confirmadasUnidad.has(revisionId),
+        })
       } else if (eleccion.tipo === "mano_obra") {
         await resolverLineaRevision({ revisionId, accion: "mano_obra", manoObraCategoriaId: eleccion.categoriaId })
       } else if (eleccion.tipo === "solicitud_mano_obra") {
@@ -879,7 +970,12 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
           const eleccion = elecciones[id]
           if (!eleccion) return null
           if (eleccion.tipo === "maestro") {
-            return { revisionId: id, accion: "maestro" as const, insumoId: eleccion.insumoId }
+            return {
+              revisionId: id,
+              accion: "maestro" as const,
+              insumoId: eleccion.insumoId,
+              confirmarUnidad: confirmadasUnidad.has(id),
+            }
           }
           if (eleccion.tipo === "mano_obra") {
             return { revisionId: id, accion: "mano_obra" as const, manoObraCategoriaId: eleccion.categoriaId }
@@ -959,7 +1055,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setGuardandoIds((prev) => new Set(prev).add(revisionId))
     setError(null)
     try {
-      await editarLineaAutoMatch({ revisionId, nuevoInsumoId })
+      await editarLineaAutoMatch({ revisionId, nuevoInsumoId, confirmarUnidad: confirmadasUnidad.has(revisionId) })
       await cargar()
       onCambio?.()
     } catch (e) {
@@ -1313,6 +1409,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             onElegirCandidato={(insumoId) => elegirCandidatoGrupo(filasGrupo, insumoId)}
                             onMarcarSolicitud={() => marcarSolicitudGrupo(filasGrupo)}
                             onGuardarGrupo={() => guardarGrupo(filasGrupo)}
+                            confirmado={confirmadasUnidad.has(filasGrupo[0].id)}
+                            onConfirmarUnidad={(v) => confirmarUnidad(filasGrupo.map((f) => f.id), v)}
                           />
                         ))}
                       </div>
@@ -1418,6 +1516,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         onElegirCandidato={elegirCandidato}
                         onMarcarSolicitud={marcarSolicitud}
                         onGuardarLinea={guardarLinea}
+                        confirmadasUnidad={confirmadasUnidad}
+                        onConfirmarUnidad={(id, v) => confirmarUnidad([id], v)}
                         mostrarMotivoRechazo
                       />
                     ))}
@@ -1516,6 +1616,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                 </div>
                                 <TablaCandidatos
                                   candidatos={fila.candidatos as CandidatoInsumo[]}
+                                  unidadLinea={fila.unidad}
                                   seleccionado={correcciones[fila.id] ?? fila.insumoIdAsignado}
                                   onSeleccionar={(insumoId) => {
                                     // Click de nuevo sobre la fila ya seleccionada no es una
@@ -1525,11 +1626,20 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                     corregirAutoMatch(fila.id, insumoId)
                                   }}
                                 />
+                                <AvisoUnidad
+                                  fila={fila}
+                                  insumoId={correcciones[fila.id]}
+                                  confirmado={confirmadasUnidad.has(fila.id)}
+                                  onConfirmar={(v) => confirmarUnidad([fila.id], v)}
+                                />
                                 {tieneCorreccionSinGuardar && (
                                   <Button
                                     size="sm"
                                     onClick={() => guardarCorreccion(fila.id)}
-                                    disabled={guardandoIds.has(fila.id)}
+                                    disabled={
+                                      guardandoIds.has(fila.id) ||
+                                      (candidatoNoCuadra(fila, correcciones[fila.id]) && !confirmadasUnidad.has(fila.id))
+                                    }
                                   >
                                     {guardandoIds.has(fila.id) ? "Guardando…" : "Guardar cambio"}
                                   </Button>
@@ -1841,6 +1951,8 @@ function GrupoInsumoPendiente({
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarGrupo,
+  confirmado,
+  onConfirmarUnidad,
 }: {
   clave: string
   filasGrupo: FilaRevisionImport[]
@@ -1850,6 +1962,8 @@ function GrupoInsumoPendiente({
   onElegirCandidato: (insumoId: string) => void
   onMarcarSolicitud: () => void
   onGuardarGrupo: () => void
+  confirmado: boolean
+  onConfirmarUnidad: (v: boolean) => void
 }) {
   const primera = filasGrupo[0]
   const eleccion = elecciones[primera.id] // todas las filas del grupo comparten la misma elección
@@ -1885,8 +1999,16 @@ function GrupoInsumoPendiente({
 
       <TablaCandidatos
         candidatos={primera.candidatos as CandidatoInsumo[]}
+        unidadLinea={primera.unidad}
         seleccionado={eleccion?.tipo === "maestro" ? eleccion.insumoId : undefined}
         onSeleccionar={onElegirCandidato}
+      />
+
+      <AvisoUnidad
+        fila={primera}
+        insumoId={eleccion?.tipo === "maestro" ? eleccion.insumoId : undefined}
+        confirmado={confirmado}
+        onConfirmar={onConfirmarUnidad}
       />
 
       <div className="flex items-center gap-2">
@@ -1898,7 +2020,14 @@ function GrupoInsumoPendiente({
           No existe — crear solicitud de aprobación
         </button>
         {eleccion && (
-          <Button size="sm" onClick={onGuardarGrupo} disabled={guardandoAlgo}>
+          <Button
+            size="sm"
+            onClick={onGuardarGrupo}
+            disabled={
+              guardandoAlgo ||
+              (eleccion.tipo === "maestro" && candidatoNoCuadra(primera, eleccion.insumoId) && !confirmado)
+            }
+          >
             {guardandoAlgo ? "Guardando…" : filasGrupo.length > 1 ? `Guardar (${filasGrupo.length} ítems)` : "Guardar"}
           </Button>
         )}
@@ -1924,6 +2053,8 @@ function FilaGrupoItem({
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarLinea,
+  confirmadasUnidad,
+  onConfirmarUnidad,
   mostrarMotivoRechazo,
 }: {
   item: { codigo: string; descripcion: string } | undefined
@@ -1933,6 +2064,8 @@ function FilaGrupoItem({
   onElegirCandidato: (revisionId: string, insumoId: string) => void
   onMarcarSolicitud: (revisionId: string) => void
   onGuardarLinea: (revisionId: string) => void
+  confirmadasUnidad: Set<string>
+  onConfirmarUnidad: (revisionId: string, v: boolean) => void
   mostrarMotivoRechazo?: boolean
 }) {
   return (
@@ -1977,8 +2110,16 @@ function FilaGrupoItem({
 
             <TablaCandidatos
               candidatos={fila.candidatos as CandidatoInsumo[]}
+              unidadLinea={fila.unidad}
               seleccionado={insumoElegido}
               onSeleccionar={(insumoId) => onElegirCandidato(fila.id, insumoId)}
+            />
+
+            <AvisoUnidad
+              fila={fila}
+              insumoId={insumoElegido}
+              confirmado={confirmadasUnidad.has(fila.id)}
+              onConfirmar={(v) => onConfirmarUnidad(fila.id, v)}
             />
 
             {mostrarMotivoRechazo && (
@@ -1998,7 +2139,11 @@ function FilaGrupoItem({
                 No existe — crear solicitud de aprobación
               </button>
               {eleccion && (
-                <Button size="sm" onClick={() => onGuardarLinea(fila.id)} disabled={guardando}>
+                <Button
+                  size="sm"
+                  onClick={() => onGuardarLinea(fila.id)}
+                  disabled={guardando || (candidatoNoCuadra(fila, insumoElegido) && !confirmadasUnidad.has(fila.id))}
+                >
                   {guardando ? "Guardando…" : "Guardar"}
                 </Button>
               )}

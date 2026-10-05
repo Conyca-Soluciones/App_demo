@@ -2,6 +2,7 @@
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { Suspense, useEffect, useState } from "react"
+import { sugerirPresentacion, UNIDADES_DE_USO } from "@/lib/unidades"
 import {
   listarSolicitudesInsumos,
   aprobarSolicitudInsumo,
@@ -77,7 +78,13 @@ function AdminInsumosContent() {
     })
   }
 
-  async function handleAprobar(solicitud: SolicitudInsumo, precio: number, tipo: string, uM: string) {
+  async function handleAprobar(
+    solicitud: SolicitudInsumo,
+    precio: number,
+    tipo: string,
+    uM: string,
+    presentacion: { unidadUso: string; contenido: string }
+  ) {
     marcarProcesando(solicitud.id, true)
     setError(null)
     try {
@@ -86,6 +93,8 @@ function AdminInsumosContent() {
         vrUnitario: precio,
         tipo,
         uM: uM || null,
+        unidadUso: presentacion.unidadUso || null,
+        contenido: presentacion.contenido.trim() ? Number(presentacion.contenido.replace(",", ".")) : null,
       })
       setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
     } catch (e) {
@@ -206,7 +215,13 @@ function TablaPendientes({
 }: {
   solicitudes: SolicitudInsumo[]
   idsEnProceso: Set<string>
-  onAprobar: (s: SolicitudInsumo, precio: number, tipo: string, uM: string) => void
+  onAprobar: (
+    s: SolicitudInsumo,
+    precio: number,
+    tipo: string,
+    uM: string,
+    presentacion: { unidadUso: string; contenido: string }
+  ) => void
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   return (
@@ -246,12 +261,23 @@ function FilaPendiente({
 }: {
   solicitud: SolicitudInsumo
   procesando: boolean
-  onAprobar: (s: SolicitudInsumo, precio: number, tipo: string, uM: string) => void
+  onAprobar: (
+    s: SolicitudInsumo,
+    precio: number,
+    tipo: string,
+    uM: string,
+    presentacion: { unidadUso: string; contenido: string }
+  ) => void
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   const [precio, setPrecio] = useState("")
   const [tipo, setTipo] = useState(solicitud.tipo ?? TODOS_LOS_TIPOS[0])
   const [uM, setUM] = useState(solicitud.uM ?? "")
+  // Presentación: cuánto trae cada U.M. (1 bulto = 50 kg). Se propone la que
+  // se lee del nombre ("CEMENTO X 50 KG").
+  const sugerida = sugerirPresentacion(solicitud.descripcion, solicitud.uM)
+  const [contenido, setContenido] = useState(sugerida ? String(sugerida.contenido) : "")
+  const [unidadUso, setUnidadUso] = useState(sugerida?.unidadUso ?? "")
   const [error, setError] = useState<string | null>(null)
 
   // Caja de observaciones para el rechazo -- se abre solo cuando le dan
@@ -271,8 +297,12 @@ function FilaPendiente({
       setError("Elige un tipo.")
       return
     }
+    if (!!contenido.trim() !== !!unidadUso) {
+      setError("La presentación necesita las dos cosas: cuánto trae y en qué unidad (o ninguna).")
+      return
+    }
     setError(null)
-    onAprobar(solicitud, precioNum, tipo, uM)
+    onAprobar(solicitud, precioNum, tipo, uM, { unidadUso, contenido })
   }
 
   function confirmarRechazo() {
@@ -320,6 +350,32 @@ function FilaPendiente({
           disabled={mostrandoRechazo}
           className="h-8 text-xs"
         />
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground" title="Presentación: cuánto trae cada unidad de compra (opcional)">
+          <span className="shrink-0">trae</span>
+          <Input
+            value={contenido}
+            onChange={(e) => setContenido(e.target.value)}
+            disabled={mostrandoRechazo}
+            inputMode="decimal"
+            placeholder="—"
+            className="h-7 w-14 px-1.5 text-xs"
+            aria-label="Contenido de la presentación"
+          />
+          <select
+            value={unidadUso}
+            onChange={(e) => setUnidadUso(e.target.value)}
+            disabled={mostrandoRechazo}
+            className="h-7 min-w-0 flex-1 rounded-md border bg-background px-1 text-xs"
+            aria-label="Unidad de uso"
+          >
+            <option value="">—</option>
+            {UNIDADES_DE_USO.map((u) => (
+              <option key={u.codigo} value={u.codigo}>
+                {u.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
       </td>
       <td className={celda}>
         <Input

@@ -7,6 +7,7 @@ import { buscarSimilares } from "@/lib/similitud-texto"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { requerirScope } from "@/lib/permisos"
 import { combinarBloquesConResoluciones } from "@/lib/apu-import-types"
+import { compararUnidad, describirPresentacion, nombreUnidad, validarPresentacion, type PresentacionInsumo } from "@/lib/unidades"
 import type {
   BloqueApuInput,
   ResolucionInsumo,
@@ -320,7 +321,7 @@ export async function crearVersionVacia(
 // líneas de mano de obra, equipo, transporte y herramienta menor: el APU
 // copiado valía menos en cuanto se recalculaba.
 const COLUMNAS_COPIA_ITEM_APU =
-  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado"
+  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad"
 
 function copiaLineaApu(linea: any, apuId: string) {
   return {
@@ -334,6 +335,8 @@ function copiaLineaApu(linea: any, apuId: string) {
     rendimiento: linea.rendimiento ?? 1,
     tipo: linea.tipo,
     precio_unitario_congelado: linea.precio_unitario_congelado,
+    unidad: linea.unidad ?? null,
+    factor_unidad: linea.factor_unidad ?? 1,
   }
 }
 
@@ -350,7 +353,7 @@ export async function crearNuevaVersion(
   const itemsActuales = await traerTodo<any>((desde, hasta) =>
     supabase
       .from("presupuesto_items")
-      .select("id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original")
+      .select("id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original, lineas_apu_oficial")
       .eq("presupuesto_id", presupuestoId)
       .eq("version_id", versionActualId)
       .order("id")
@@ -451,6 +454,7 @@ export async function crearNuevaVersion(
     valor_total: item.valor_total,
     apu_id: item.apu_id ? apuNuevoDe.get(item.apu_id) ?? null : null,
     precio_original: item.precio_original,
+    lineas_apu_oficial: item.lineas_apu_oficial,
   }))
 
   if (filasNuevas.length > 0) {
@@ -647,6 +651,9 @@ export type InsumoSugerido = {
   u_m: string | null
   tipo: string | null
   vr_unitario: number | null
+  // presentación (1 u_m = contenido unidad_uso), si la tiene
+  unidad_uso?: string | null
+  contenido?: number | null
 }
 
 export async function buscarInsumos(
@@ -659,7 +666,7 @@ export async function buscarInsumos(
 
   let query = supabase
     .from("maestro_insumos")
-    .select("id, codigo, descripcion, u_m, tipo, vr_unitario")
+    .select("id, codigo, descripcion, u_m, tipo, vr_unitario, unidad_uso, contenido")
     .ilike("descripcion", `%${termino.trim()}%`)
     .order("descripcion")
     .limit(limiteBusqueda(termino))
@@ -1042,6 +1049,10 @@ export type AprobarSolicitudInput = {
   tipo?: string
   uM?: string | null
   agrupacion?: string | null
+  // Presentación (opcional): 1 u_m trae `contenido` de `unidadUso`
+  // (1 bulto = 50 KG). Los dos o ninguno.
+  unidadUso?: string | null
+  contenido?: number | null
 }
 
 export async function aprobarSolicitudInsumo(
@@ -1075,6 +1086,32 @@ export async function aprobarSolicitudInsumo(
     throw new Error("Falta el tipo del insumo -- elígelo antes de aprobar.")
   }
 
+  const presentacion = validarPresentacion(input.unidadUso, input.contenido)
+  const uMFinal = input.uM ?? solicitud.u_m
+
+  // Las líneas del APU que pidieron este insumo tienen que quedar en una
+  // unidad que cuadre (la misma del precio, o la de uso de su presentación).
+  const { data: lineasSolicitud, error: errorLineas } = await supabase
+    .from("apu_import_revision")
+    .select("unidad")
+    .eq("solicitud_id", input.solicitudId)
+  if (errorLineas) throw new Error(errorLineas.message)
+  const presentacionFinal: PresentacionInsumo = {
+    u_m: uMFinal,
+    unidad_uso: presentacion?.unidadUso ?? null,
+    contenido: presentacion?.contenido ?? null,
+  }
+  const lineaQueNoCuadra = (lineasSolicitud ?? []).find(
+    (l) => compararUnidad(l.unidad, presentacionFinal).estado === "distinta"
+  )
+  if (lineaQueNoCuadra) {
+    throw new Error(
+      `El APU pidió este insumo en ${nombreUnidad(lineaQueNoCuadra.unidad)} y quedaría en ` +
+        `${nombreUnidad(uMFinal) || "otra unidad"}. Deja la unidad en ${nombreUnidad(lineaQueNoCuadra.unidad)} ` +
+        `o define la presentación (cuánto ${nombreUnidad(lineaQueNoCuadra.unidad)} trae cada ${nombreUnidad(uMFinal) || "unidad"}).`
+    )
+  }
+
   const { data: insumoNuevo, error: errorInsumo } = await supabase
     .from("maestro_insumos")
     .insert({
@@ -1082,8 +1119,10 @@ export async function aprobarSolicitudInsumo(
       tipo: tipoFinal,
       vr_unitario: input.vrUnitario,
       vr_neto: input.vrUnitario,
-      u_m: input.uM ?? solicitud.u_m,
+      u_m: uMFinal,
       agrupacion: input.agrupacion ?? solicitud.agrupacion,
+      unidad_uso: presentacion?.unidadUso ?? null,
+      contenido: presentacion?.contenido ?? null,
     })
     .select("id, codigo, descripcion, u_m, tipo, vr_unitario")
     .single()
@@ -1120,6 +1159,32 @@ export async function aprobarSolicitudInsumo(
     .limit(1)
 
   const vieneDeImport = (filasDeImport?.length ?? 0) > 0
+
+  // El trigger dejó las líneas con la unidad del Excel y factor 1; si la
+  // línea está en la unidad de uso, el precio se divide por el contenido.
+  if (vieneDeImport && presentacion) {
+    const { data: revisadas, error: errorRevisadas } = await supabase
+      .from("apu_import_revision")
+      .select("item_apu_id, apu_id, unidad")
+      .eq("solicitud_id", input.solicitudId)
+      .not("item_apu_id", "is", null)
+    if (errorRevisadas) throw new Error(errorRevisadas.message)
+    const apusAfectados = new Set<string>()
+    for (const r of revisadas ?? []) {
+      const comp = compararUnidad(r.unidad, presentacionFinal)
+      if (comp.estado !== "conversion") continue
+      const { error } = await supabase
+        .from("item_apu")
+        .update({ factor_unidad: comp.factor, unidad: presentacionFinal.unidad_uso })
+        .eq("id", r.item_apu_id)
+      if (error) throw new Error(error.message)
+      apusAfectados.add(r.apu_id)
+    }
+    if (apusAfectados.size > 0) {
+      const { error } = await supabase.rpc("recalcular_valor_apus", { p_apu_ids: Array.from(apusAfectados) })
+      if (error) throw new Error(error.message)
+    }
+  }
 
   if (!vieneDeImport && solicitud.presupuesto_item_id) {
     const { data: item, error: errorItem } = await supabase
@@ -1204,6 +1269,9 @@ export type ItemApu = {
   cantidad: number
   rendimiento: number
   tipo: string | null
+  // Solo insumos en unidad de uso: "bulto de 50 kg" (la línea está en kg y
+  // el precio se dividió por 50).
+  presentacion?: string | null
 }
 
 export type ApuDeItem = {
@@ -1287,7 +1355,9 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
         descripcion:
           insumo?.descripcion ?? manoObra?.categoria ?? equipo?.categoria ??
           transportePrecio?.descripcion_original ?? "",
-        uM: insumo?.u_m ?? manoObra?.unidad ?? equipo?.unidad ?? transportePrecio?.unidad ?? null,
+        uM: (insumo ? it.unidad ?? insumo.u_m : null) ?? manoObra?.unidad ?? equipo?.unidad ?? transportePrecio?.unidad ?? null,
+        presentacion:
+          insumo && Number(it.factor_unidad ?? 1) !== 1 ? describirPresentacion(insumo) : null,
         // Para insumo, el precio a mostrar es el CONGELADO en la línea
         // (ver migración congelar_precio_insumo_en_item_apu), no
         // maestro_insumos.vr_unitario en vivo -- si no, la vista previa
@@ -1296,7 +1366,7 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
         // por si alguna línea vieja quedó sin congelar.
         vrUnitario:
           insumo != null
-            ? it.precio_unitario_congelado ?? insumo.vr_unitario
+            ? it.precio_unitario_congelado ?? insumo.vr_unitario / Number(it.factor_unidad ?? 1)
             : manoObra?.valor_unitario ?? equipo?.valor_unitario ?? transportePrecio?.valor_unitario ?? null,
         // Para mano de obra y transporte, cantidad/rendimiento se
         // muestran en 1 -- igual que arriba con herramienta menor, el
@@ -1317,7 +1387,7 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
 }
 
 const SELECT_APU =
-  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
+  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
 
 async function contarUsosDeApu(apuId: string): Promise<number> {
   const supabase = await createClient()
@@ -1395,6 +1465,8 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
         equipo_categoria_id,
         transporte_precio_id,
         precio_unitario_congelado,
+        unidad,
+        factor_unidad,
         maestro_insumos(codigo, descripcion, u_m, vr_unitario, tipo),
         mano_obra_categorias(categoria, grupo, unidad, valor_unitario),
         equipo_categorias(categoria, grupo, unidad, valor_unitario),
@@ -1455,7 +1527,7 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
       // calcular, no el precio actual de maestro_insumos.
       const valorUnitario =
         insumo != null
-          ? Number(item.precio_unitario_congelado ?? insumo.vr_unitario ?? 0)
+          ? Number(item.precio_unitario_congelado ?? Number(insumo.vr_unitario ?? 0) / Number(item.factor_unidad ?? 1))
           : manoObra?.valor_unitario != null
             ? Number(manoObra.valor_unitario)
             : equipo?.valor_unitario != null
@@ -1471,7 +1543,7 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
         descripcionInsumo:
           insumo?.descripcion ?? manoObra?.categoria ?? equipo?.categoria ??
           transportePrecio?.descripcion_original ?? "",
-        unidad: insumo?.u_m ?? manoObra?.unidad ?? equipo?.unidad ?? transportePrecio?.unidad ?? null,
+        unidad: (insumo ? item.unidad ?? insumo.u_m : null) ?? manoObra?.unidad ?? equipo?.unidad ?? transportePrecio?.unidad ?? null,
         cantidad,
         rendimiento,
         valorUnitario,
@@ -1665,11 +1737,63 @@ export async function copiarApuStandalone(
   return previsualizarApu(nuevoApu.id)
 }
 
+// Presentación (u_m, unidad_uso, contenido) de varios insumos, en tandas
+// de 200 ids (ver seleccionarEnLotesPorIds).
+async function presentacionesInsumos(insumoIds: string[]): Promise<Map<string, PresentacionInsumo>> {
+  const supabase = await createClient()
+  const filas = await seleccionarEnLotesPorIds(Array.from(new Set(insumoIds)), 200, async (lote) => {
+    const { data, error } = await supabase
+      .from("maestro_insumos")
+      .select("id, u_m, unidad_uso, contenido")
+      .in("id", lote)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+  return new Map(
+    filas.map((f: any) => [
+      f.id,
+      { u_m: f.u_m, unidad_uso: f.unidad_uso, contenido: f.contenido == null ? null : Number(f.contenido) },
+    ])
+  )
+}
+
+/**
+ * Unidad y factor con que se guarda una línea de insumo: el precio del
+ * insumo (que está en su u_m) se divide por el factor para quedar en la
+ * unidad de la línea. Si la unidad de la línea no cuadra con el insumo ni
+ * con su presentación, falla -- salvo que el usuario confirme que la
+ * cantidad ya está en la unidad del insumo (`confirmarUnidad`).
+ */
+function unidadDeLinea(
+  unidadLinea: string | null | undefined,
+  presentacion: PresentacionInsumo,
+  confirmarUnidad: boolean
+): { unidad: string | null; factor: number } {
+  const comp = compararUnidad(unidadLinea, presentacion)
+  if (comp.estado === "conversion") return { unidad: presentacion.unidad_uso, factor: comp.factor }
+  if (comp.estado === "distinta" && !confirmarUnidad) {
+    const pres = describirPresentacion(presentacion)
+    throw new Error(
+      `La línea está en ${nombreUnidad(unidadLinea)} y este insumo se vende por ${nombreUnidad(presentacion.u_m) || "su unidad"}` +
+        (pres ? ` (${pres})` : " y no tiene presentación definida") +
+        ". Elige otro insumo, pide que le definan la presentación, o confirma que la cantidad ya está en " +
+        `${nombreUnidad(presentacion.u_m) || "la unidad del insumo"}.`
+    )
+  }
+  return { unidad: presentacion.u_m, factor: 1 }
+}
+
 export async function agregarInsumoApu(input: {
   apuId: string
   insumoId: string
   cantidad: number
   rendimiento?: number
+  // Unidad en que viene la cantidad (la del Excel o la elegida en el
+  // editor). Sin unidad, la línea queda en la unidad del insumo.
+  unidadLinea?: string | null
+  // La línea no cuadra en unidad, pero el usuario confirma que la cantidad
+  // ya está en la unidad del insumo.
+  confirmarUnidad?: boolean
 }): Promise<{ id: string }> {
   const supabase = await createClient()
 
@@ -1694,6 +1818,10 @@ export async function agregarInsumoApu(input: {
     )
   }
 
+  const presentacion = (await presentacionesInsumos([input.insumoId])).get(input.insumoId)
+  if (!presentacion) throw new Error("No se encontró el insumo.")
+  const { unidad, factor } = unidadDeLinea(input.unidadLinea, presentacion, !!input.confirmarUnidad)
+
   const { data, error } = await supabase
     .from("item_apu")
     .insert({
@@ -1702,7 +1830,10 @@ export async function agregarInsumoApu(input: {
       cantidad: input.cantidad,
       rendimiento: input.rendimiento ?? 1,
       tipo: info.tipo,
-      precio_unitario_congelado: info.precio_efectivo,
+      unidad,
+      factor_unidad: factor,
+      // congelado en la unidad de la línea (precio del insumo / factor)
+      precio_unitario_congelado: info.precio_efectivo / factor,
     })
     .select("id")
     .single()
@@ -2943,18 +3074,43 @@ async function guardarImportApuConRevision(
   const { error: errorVinculo } = await supabase.rpc("vincular_apus_masivo", { vinculos })
   if (errorVinculo) throw new Error(errorVinculo.message)
 
+  // ---- 2b. Cuántas líneas trae cada APU en el Excel (para avisar si el APU
+  // guardado termina con más o menos). Una consulta por cantidad distinta de
+  // líneas, no una por ítem.
+  const itemsPorNumeroLineas = new Map<number, string[]>()
+  for (const b of bloquesValidos) {
+    const ids = itemsPorNumeroLineas.get(b.lineas.length) ?? []
+    ids.push(presupuestoItemIdPorCodigo[b.codigoItem])
+    itemsPorNumeroLineas.set(b.lineas.length, ids)
+  }
+  for (const [numero, ids] of itemsPorNumeroLineas) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await supabase
+        .from("presupuesto_items")
+        .update({ lineas_apu_oficial: numero })
+        .in("id", ids.slice(i, i + 200))
+      if (error) throw new Error(error.message)
+    }
+  }
+
   // ---- 3. Insertar TODAS las líneas auto_match de una sola vez ----
   type LineaCandidata = {
     apuId: string
     insumoId: string
     cantidad: number
+    unidad: string | null
   }
   const candidatasAutoMatch: LineaCandidata[] = []
   for (const b of bloquesValidos) {
     const apuId = apuIdPorCodigoItem.get(b.codigoItem)!
     for (const linea of b.lineas) {
       if (linea.estado === "auto_match" && linea.insumoIdAsignado) {
-        candidatasAutoMatch.push({ apuId, insumoId: linea.insumoIdAsignado, cantidad: linea.cantidad })
+        candidatasAutoMatch.push({
+          apuId,
+          insumoId: linea.insumoIdAsignado,
+          cantidad: linea.cantidad,
+          unidad: linea.unidad ?? null,
+        })
       }
     }
   }
@@ -2976,18 +3132,35 @@ async function guardarImportApuConRevision(
   }
 
   const clave = (apuId: string, insumoId: string) => `${apuId}::${insumoId}`
-  const candidatasValidas: (LineaCandidata & { tipoReal: string | null; precioEfectivo: number })[] = []
-  const clavesConPrecioPlaceholder = new Set<string>() // esas líneas caen a "pendiente" en vez de auto_match
+  const candidatasValidas: (LineaCandidata & {
+    tipoReal: string | null
+    precioEfectivo: number
+    unidadGuardada: string | null
+    factor: number
+  })[] = []
+  // Estas líneas caen a "pendiente" en vez de auto_match: insumo sin precio
+  // real, o unidad del Excel que no cuadra con el insumo (kg contra un
+  // insumo que se vende por unidad y no tiene presentación).
+  const clavesConPrecioPlaceholder = new Set<string>()
+  const presentacionPorInsumo = await presentacionesInsumos(insumoIdsUnicos)
 
   for (const c of candidatasAutoMatch) {
     const info = infoInsumoPorId.get(c.insumoId)
     const tienePlaceholder =
       !info || info.precio_efectivo == null || PRECIOS_PLACEHOLDER.includes(info.precio_efectivo)
-    if (tienePlaceholder) {
+    const presentacion = presentacionPorInsumo.get(c.insumoId)
+    const comp = presentacion ? compararUnidad(c.unidad, presentacion) : null
+    if (tienePlaceholder || !presentacion || !comp || comp.estado === "distinta") {
       clavesConPrecioPlaceholder.add(clave(c.apuId, c.insumoId))
       continue
     }
-    candidatasValidas.push({ ...c, tipoReal: info!.tipo, precioEfectivo: info!.precio_efectivo! })
+    candidatasValidas.push({
+      ...c,
+      tipoReal: info!.tipo,
+      precioEfectivo: info!.precio_efectivo!,
+      unidadGuardada: comp.estado === "conversion" ? presentacion.unidad_uso : presentacion.u_m,
+      factor: comp.factor,
+    })
   }
 
   // Insert masivo de item_apu, en tandas de 500 filas (margen prudente
@@ -3007,7 +3180,9 @@ async function guardarImportApuConRevision(
       cantidad: c.cantidad,
       rendimiento: 1,
       tipo: c.tipoReal,
-      precio_unitario_congelado: c.precioEfectivo,
+      unidad: c.unidadGuardada,
+      factor_unidad: c.factor,
+      precio_unitario_congelado: c.precioEfectivo / c.factor,
     }))
     const { data: insertadas, error } = await supabase
       .from("item_apu")
@@ -3439,11 +3614,42 @@ type NodoPresupuestoItem = {
   descripcion: string
 }
  
+const TIPOS_REVISION_SIN_INSUMO = new Set(["MO", "EQUIPO", "TRANSPORTE"])
+
+// Marca en cada candidato de insumo si la unidad de la línea cuadra con él
+// (misma unidad, convertible por su presentación, o distinta). Se calcula
+// al leer, no al importar: así refleja una presentación definida después.
+async function anotarUnidadesCandidatos(filas: FilaRevisionImport[]): Promise<void> {
+  const ids = new Set<string>()
+  for (const f of filas) {
+    if (TIPOS_REVISION_SIN_INSUMO.has(f.tipo ?? "")) continue
+    for (const c of f.candidatos as CandidatoInsumo[]) ids.add(c.id)
+  }
+  if (ids.size === 0) return
+  const presentaciones = await presentacionesInsumos(Array.from(ids))
+  for (const f of filas) {
+    if (TIPOS_REVISION_SIN_INSUMO.has(f.tipo ?? "")) continue
+    f.candidatos = (f.candidatos as CandidatoInsumo[]).map((c) => {
+      const pres = presentaciones.get(c.id)
+      if (!pres) return c
+      const comp = compararUnidad(f.unidad, pres)
+      return {
+        ...c,
+        u_m: pres.u_m,
+        compatUnidad: comp.estado,
+        factorUnidad: comp.factor,
+        presentacion: describirPresentacion(pres),
+      }
+    })
+  }
+}
+
 async function mapearFilasConItems(
   supabase: Awaited<ReturnType<typeof createClient>>,
   data: any[]
 ): Promise<LoteRevisionInfo> {
   const filas = data.map(mapearFilaRevision)
+  await anotarUnidadesCandidatos(filas)
  
   const itemsPorId: Record<string, { codigo: string; descripcion: string }> = {}
   // Nodos que ya trajo el select principal (sin round trip extra) --
@@ -3508,6 +3714,9 @@ export async function resolverLineaRevision(input: {
   insumoId?: string
   manoObraCategoriaId?: string
   equipoCategoriaId?: string
+  // la unidad del Excel no cuadra con el insumo y el usuario confirma que
+  // la cantidad ya está en la unidad del insumo
+  confirmarUnidad?: boolean
 }): Promise<void> {
   const supabase = await createClient()
 
@@ -3598,6 +3807,8 @@ export async function resolverLineaRevision(input: {
       apuId: fila.apu_id,
       insumoId: input.insumoId,
       cantidad: Number(fila.cantidad),
+      unidadLinea: fila.unidad,
+      confirmarUnidad: input.confirmarUnidad,
     })
 
     const { error: errorUpdate } = await supabase
@@ -3651,6 +3862,7 @@ export async function resolverLineasRevisionEnLote(
     insumoId?: string
     manoObraCategoriaId?: string
     equipoCategoriaId?: string
+    confirmarUnidad?: boolean
   }[]
 ): Promise<{ errores: { revisionId: string; mensaje: string }[] }> {
   if (resoluciones.length === 0) return { errores: [] }
@@ -3689,7 +3901,13 @@ export async function resolverLineasRevisionEnLote(
     try {
       if (!r.insumoId) throw new Error("Falta el insumo elegido.")
 
-      const { id: idNuevo } = await agregarInsumoApu({ apuId: fila.apu_id, insumoId: r.insumoId, cantidad: Number(fila.cantidad) })
+      const { id: idNuevo } = await agregarInsumoApu({
+        apuId: fila.apu_id,
+        insumoId: r.insumoId,
+        cantidad: Number(fila.cantidad),
+        unidadLinea: fila.unidad,
+        confirmarUnidad: r.confirmarUnidad,
+      })
 
       const { error: errorUpdate } = await supabase
         .from("apu_import_revision")
@@ -3935,12 +4153,13 @@ export async function resolverLineasRevisionEnLote(
 export async function editarLineaAutoMatch(input: {
   revisionId: string
   nuevoInsumoId: string
+  confirmarUnidad?: boolean
 }): Promise<void> {
   const supabase = await createClient()
 
   const { data: fila, error: errorLectura } = await supabase
     .from("apu_import_revision")
-    .select("apu_id, presupuesto_item_id, cantidad, item_apu_id, insumo_id_asignado")
+    .select("apu_id, presupuesto_item_id, cantidad, unidad, item_apu_id, insumo_id_asignado")
     .eq("id", input.revisionId)
     .single()
 
@@ -3970,6 +4189,8 @@ export async function editarLineaAutoMatch(input: {
     apuId: fila.apu_id,
     insumoId: input.nuevoInsumoId,
     cantidad: Number(fila.cantidad),
+    unidadLinea: fila.unidad,
+    confirmarUnidad: input.confirmarUnidad,
   })
 
   // 2. Mover la referencia de apu_import_revision a la línea nueva ANTES
@@ -4351,10 +4572,18 @@ export async function obtenerValoresItems(
   return resultado
 }
 
+// Ítem cuyo APU guardado no tiene el mismo número de líneas que su bloque
+// en la hoja APU del Excel oficial. Solo se avisa (no bloquea).
+export type DiferenciaLineasApu = { oficial: number; actual: number }
+
 export async function obtenerEstadoApuPorItem(
   presupuestoItemIds: string[]
-): Promise<{ estados: Record<string, EstadoApuItem>; motivosRechazo: Record<string, MotivoRechazoPorItem[]> }> {
-  if (presupuestoItemIds.length === 0) return { estados: {}, motivosRechazo: {} }
+): Promise<{
+  estados: Record<string, EstadoApuItem>
+  motivosRechazo: Record<string, MotivoRechazoPorItem[]>
+  diferenciasLineas: Record<string, DiferenciaLineasApu>
+}> {
+  if (presupuestoItemIds.length === 0) return { estados: {}, motivosRechazo: {}, diferenciasLineas: {} }
 
   const supabase = await createClient()
 
@@ -4414,7 +4643,47 @@ export async function obtenerEstadoApuPorItem(
     estados[itemId] = sinResolver ? "pendiente" : "listo"
   }
 
-  return { estados, motivosRechazo }
+  const diferenciasLineas = await diferenciasLineasApu(
+    presupuestoItemIds.filter((id) => estados[id] === undefined || estados[id] === "listo")
+  )
+
+  return { estados, motivosRechazo, diferenciasLineas }
+}
+
+// Compara las líneas del APU guardado con las del bloque del Excel
+// (presupuesto_items.lineas_apu_oficial). Solo ítems sin nada pendiente:
+// mientras hay líneas por resolver, la diferencia es esperada. Una consulta
+// de ítems y una de líneas por tanda de 200, contadas con un Map.
+async function diferenciasLineasApu(itemIds: string[]): Promise<Record<string, DiferenciaLineasApu>> {
+  const supabase = await createClient()
+  const items = await seleccionarEnLotesPorIds(itemIds, 200, async (lote) => {
+    const { data, error } = await supabase
+      .from("presupuesto_items")
+      .select("id, apu_id, lineas_apu_oficial")
+      .in("id", lote)
+      .not("lineas_apu_oficial", "is", null)
+      .not("apu_id", "is", null)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+  if (items.length === 0) return {}
+
+  const apuIds = Array.from(new Set(items.map((i: any) => i.apu_id as string)))
+  const lineasPorApu = new Map<string, number>()
+  await seleccionarEnLotesPorIds(apuIds, 200, async (lote) => {
+    const filas = await traerTodo<any>((desde, hasta) =>
+      supabase.from("item_apu").select("id, apu_id").in("apu_id", lote).order("id").range(desde, hasta)
+    )
+    for (const f of filas) lineasPorApu.set(f.apu_id, (lineasPorApu.get(f.apu_id) ?? 0) + 1)
+    return []
+  })
+
+  const diferencias: Record<string, DiferenciaLineasApu> = {}
+  for (const i of items as any[]) {
+    const actual = lineasPorApu.get(i.apu_id) ?? 0
+    if (actual !== i.lineas_apu_oficial) diferencias[i.id] = { oficial: i.lineas_apu_oficial, actual }
+  }
+  return diferencias
 }
 
 // ---------------------------------------------------------------------------
@@ -4431,6 +4700,7 @@ export type ItemsConEstadoApu = {
   items: ItemPresupuesto[]
   estados: Record<string, EstadoApuItem>
   motivosRechazo: Record<string, MotivoRechazoPorItem[]>
+  diferenciasLineas: Record<string, DiferenciaLineasApu>
   // Ítems con al menos una línea de transporte sin precio -- se trae acá
   // junto con lo demás (no como llamada aparte) para que el banner de
   // transporte pinte bien desde el primer render, mismo motivo por el
@@ -4441,19 +4711,19 @@ export type ItemsConEstadoApu = {
 export async function cargarItemsConEstadoApu(presupuestoId: string): Promise<ItemsConEstadoApu> {
   const items = await cargarItemsDePresupuesto(presupuestoId)
   const idsItems = items.map((i) => i.id)
-  const [{ estados, motivosRechazo }, itemIdsTransportePendiente] = await Promise.all([
+  const [{ estados, motivosRechazo, diferenciasLineas }, itemIdsTransportePendiente] = await Promise.all([
     obtenerEstadoApuPorItem(idsItems),
     obtenerItemsConTransportePendiente(idsItems),
   ])
-  return { items, estados, motivosRechazo, itemIdsTransportePendiente }
+  return { items, estados, motivosRechazo, diferenciasLineas, itemIdsTransportePendiente }
 }
 
 export async function cargarVersionConEstadoApu(versionId: string): Promise<ItemsConEstadoApu> {
   const items = await cargarVersion(versionId)
   const idsItems = items.map((i) => i.id)
-  const [{ estados, motivosRechazo }, itemIdsTransportePendiente] = await Promise.all([
+  const [{ estados, motivosRechazo, diferenciasLineas }, itemIdsTransportePendiente] = await Promise.all([
     obtenerEstadoApuPorItem(idsItems),
     obtenerItemsConTransportePendiente(idsItems),
   ])
-  return { items, estados, motivosRechazo, itemIdsTransportePendiente }
+  return { items, estados, motivosRechazo, diferenciasLineas, itemIdsTransportePendiente }
 }
