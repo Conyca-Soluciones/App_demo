@@ -1000,6 +1000,14 @@ no podía distinguir 50 m de 50 rollos.
   Completa = comprado ≥ pedido. Sin ampliación de cupo por ahora: si el
   redondeo agota el cupo, se usa lo de bodega o una versión nueva.
   `_resumen_ejecucion_proyecto_base` reporta todo en unidad de compra.
+- **Maestro estandarizado al aprobar** (`aprobarSolicitudInsumo`): tipo del
+  catálogo (`CATEGORIAS_APU`), u_m con el texto estándar (`unidadMaestro` /
+  `UNIDADES_MAESTRO`: "m³" -> "METRO CUBICO - M3"), agrupación obligatoria
+  (de las que ya existen, `listarAgrupacionesInsumos`) e IVA 0/5/19
+  (`vr_neto` = precio × (1 + IVA)); `vr_unitario` es SIN IVA. Antes entraban
+  "INSUMO", "m³", sin agrupación y $1.000 de prueba (19 insumos usados en 283
+  líneas de APU). `sugerirPresentacion` ya no toma medidas ("1.22 X 2.44 M",
+  "30 X 60 CM") ni días/horas como contenido.
 - **Corregido de paso**: la versión de `crear_orden_compra` con anticipo
   (lcpr) volvía a contar órdenes RECHAZADAS como ya compradas (regresión de
   20261006100000); ahora no.

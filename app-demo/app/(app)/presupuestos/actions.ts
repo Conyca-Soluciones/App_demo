@@ -13,9 +13,11 @@ import {
   describirPresentacion,
   nombreUnidad,
   normalizarUnidad,
+  unidadMaestro,
   validarPresentacion,
   type PresentacionInsumo,
 } from "@/lib/unidades"
+import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import type {
   BloqueApuInput,
   ResolucionInsumo,
@@ -1057,10 +1059,29 @@ export type AprobarSolicitudInput = {
   tipo?: string
   uM?: string | null
   agrupacion?: string | null
+  // IVA del insumo en % (0, 5 o 19); el precio se guarda sin IVA y vr_neto con él
+  ivaPorcentaje?: number | null
   // Presentación (opcional): 1 u_m trae `contenido` de `unidadUso`
   // (1 bulto = 50 KG). Los dos o ninguno.
   unidadUso?: string | null
   contenido?: number | null
+}
+
+const TIPOS_MAESTRO = new Set<string>(CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string[]))
+const IVAS_PERMITIDOS = [0, 5, 19]
+
+/** Agrupaciones que ya usa el maestro ("020 - 020 - FERRETERIA MENOR"), para elegir al aprobar. */
+export async function listarAgrupacionesInsumos(): Promise<string[]> {
+  const supabase = await createClient()
+  const filas = await traerTodo<{ agrupacion: string | null; id: string }>((desde, hasta) =>
+    supabase.from("maestro_insumos").select("id, agrupacion").not("agrupacion", "is", null).order("id").range(desde, hasta)
+  )
+  const unicas = new Set<string>()
+  for (const f of filas) {
+    const a = f.agrupacion?.trim()
+    if (a && !a.toLowerCase().startsWith("null")) unicas.add(a)
+  }
+  return Array.from(unicas).sort()
 }
 
 export async function aprobarSolicitudInsumo(
@@ -1089,13 +1110,27 @@ export async function aprobarSolicitudInsumo(
     throw new Error("Esta solicitud ya fue resuelta.")
   }
 
+  // El maestro tiene que quedar estandarizado: tipo del catálogo, unidad con
+  // el texto "NOMBRE - CÓDIGO", agrupación de las que ya existen e IVA. Antes
+  // se guardaba lo que viniera del Excel ("INSUMO", "m³", sin agrupación).
   const tipoFinal = input.tipo ?? solicitud.tipo
-  if (!tipoFinal) {
-    throw new Error("Falta el tipo del insumo -- elígelo antes de aprobar.")
+  if (!tipoFinal || !TIPOS_MAESTRO.has(tipoFinal)) {
+    throw new Error("Elige el tipo del insumo de la lista antes de aprobar.")
+  }
+  const uMFinal = unidadMaestro(input.uM ?? solicitud.u_m)
+  if (!uMFinal) {
+    throw new Error("Elige la unidad de compra de la lista antes de aprobar.")
+  }
+  const agrupacionFinal = (input.agrupacion ?? solicitud.agrupacion)?.trim()
+  if (!agrupacionFinal) {
+    throw new Error("Elige la agrupación del insumo antes de aprobar.")
+  }
+  const iva = input.ivaPorcentaje ?? 19
+  if (!IVAS_PERMITIDOS.includes(iva)) {
+    throw new Error("El IVA tiene que ser 0, 5 o 19 %.")
   }
 
   const presentacion = validarPresentacion(input.unidadUso, input.contenido)
-  const uMFinal = input.uM ?? solicitud.u_m
 
   // Las líneas del APU que pidieron este insumo tienen que quedar en una
   // unidad que cuadre (la misma del precio, o la de uso de su presentación).
@@ -1123,12 +1158,13 @@ export async function aprobarSolicitudInsumo(
   const { data: insumoNuevo, error: errorInsumo } = await supabase
     .from("maestro_insumos")
     .insert({
-      descripcion: solicitud.descripcion,
+      descripcion: solicitud.descripcion.trim().replace(/\s+/g, " ").toUpperCase(),
       tipo: tipoFinal,
       vr_unitario: input.vrUnitario,
-      vr_neto: input.vrUnitario,
+      iva_porcentaje: iva,
+      vr_neto: Math.round(input.vrUnitario * (1 + iva / 100) * 100) / 100,
       u_m: uMFinal,
-      agrupacion: input.agrupacion ?? solicitud.agrupacion,
+      agrupacion: agrupacionFinal,
       unidad_uso: presentacion?.unidadUso ?? null,
       contenido: presentacion?.contenido ?? null,
     })
@@ -3832,6 +3868,15 @@ export async function resolverLineaRevision(input: {
   conversion?: number | null
   guardarConversionEnMaestro?: boolean
 }): Promise<void> {
+  // Elegir insumo, categoría o equipo: mismo camino que "Guardar todos"
+  // (precio, unidad, insert y marca de resuelto, con la misma protección
+  // contra guardar dos veces la misma línea).
+  if (input.accion === "maestro" || input.accion === "mano_obra" || input.accion === "equipo") {
+    const { errores } = await resolverLineasRevisionEnLote([input])
+    if (errores.length > 0) throw new Error(errores[0].mensaje)
+    return
+  }
+
   const supabase = await createClient()
 
   const { data: fila, error: errorLectura } = await supabase
@@ -3845,25 +3890,7 @@ export async function resolverLineaRevision(input: {
   if (errorLectura) throw new Error(errorLectura.message)
   if (fila.estado === "resuelto") return // ya se resolvió, no repetir
 
-  if (input.accion === "mano_obra") {
-    if (!input.manoObraCategoriaId) throw new Error("Falta la categoría elegida.")
-
-    const { id: idNuevo } = await agregarManoObraApu({
-      apuId: fila.apu_id,
-      manoObraCategoriaId: input.manoObraCategoriaId,
-      cantidad: Number(fila.cantidad),
-    })
-
-    const { error: errorUpdate } = await supabase
-      .from("apu_import_revision")
-      .update({
-        estado: "resuelto",
-        mano_obra_categoria_id_asignado: input.manoObraCategoriaId,
-        item_apu_id: idNuevo,
-      })
-      .eq("id", input.revisionId)
-    if (errorUpdate) throw new Error(errorUpdate.message)
-  } else if (input.accion === "solicitud_mano_obra") {
+  if (input.accion === "solicitud_mano_obra") {
     // La descripción de la solicitud es el nombre del ÍTEM (lo que de
     // verdad define la categoría de actividad), no descripcion_original
     // (que para mano de obra es el texto de la línea del Excel, ej.
@@ -3880,25 +3907,6 @@ export async function resolverLineaRevision(input: {
       .update({ estado: "solicitud_pendiente", solicitud_mano_obra_id: solicitud.id })
       .eq("id", input.revisionId)
     if (errorUpdate) throw new Error(errorUpdate.message)
-  } else if (input.accion === "equipo") {
-    if (!input.equipoCategoriaId) throw new Error("Falta el equipo elegido.")
-
-    const { id: idNuevo } = await agregarEquipoApu({
-      apuId: fila.apu_id,
-      equipoCategoriaId: input.equipoCategoriaId,
-      cantidad: Number(fila.cantidad),
-      rendimiento: fila.rendimiento != null ? Number(fila.rendimiento) : 1,
-    })
-
-    const { error: errorUpdate } = await supabase
-      .from("apu_import_revision")
-      .update({
-        estado: "resuelto",
-        equipo_categoria_id_asignado: input.equipoCategoriaId,
-        item_apu_id: idNuevo,
-      })
-      .eq("id", input.revisionId)
-    if (errorUpdate) throw new Error(errorUpdate.message)
   } else if (input.accion === "solicitud_equipo") {
     // A diferencia de mano de obra, la descripción de la solicitud SÍ es
     // descripcion_original (el texto de la línea, ej. "Retroexcavadora
@@ -3912,24 +3920,6 @@ export async function resolverLineaRevision(input: {
     const { error: errorUpdate } = await supabase
       .from("apu_import_revision")
       .update({ estado: "solicitud_pendiente", solicitud_equipo_id: solicitud.id })
-      .eq("id", input.revisionId)
-    if (errorUpdate) throw new Error(errorUpdate.message)
-  } else if (input.accion === "maestro") {
-    if (!input.insumoId) throw new Error("Falta el insumo elegido.")
-
-    const { id: idNuevo } = await agregarInsumoApu({
-      apuId: fila.apu_id,
-      insumoId: input.insumoId,
-      cantidad: Number(fila.cantidad),
-      unidadLinea: fila.unidad,
-      confirmarUnidad: input.confirmarUnidad,
-      conversion: input.conversion,
-      guardarConversionEnMaestro: input.guardarConversionEnMaestro,
-    })
-
-    const { error: errorUpdate } = await supabase
-      .from("apu_import_revision")
-      .update({ estado: "resuelto", insumo_id_asignado: input.insumoId, item_apu_id: idNuevo })
       .eq("id", input.revisionId)
     if (errorUpdate) throw new Error(errorUpdate.message)
   } else {
@@ -3955,22 +3945,6 @@ export async function resolverLineaRevision(input: {
   await recalcularValorItemDesdeApu(fila.presupuesto_item_id)
 }
 
-/**
- * Versión en LOTE de resolverLineaRevision -- resuelve varias líneas de
- * una sola llamada al servidor, en vez de una llamada por línea desde el
- * cliente. Esto era el cuello de botella real del botón "Guardar
- * seleccionados" (~40s con 30-40 líneas): cada resolverLineaRevision ya
- * son 4-5 idas y vueltas a Supabase, y encima el cliente las disparaba
- * una por una, secuenciales. Acá:
- *   1. Una sola lectura inicial (.in) para TODAS las filas.
- *   2. El trabajo por línea corre en paralelo (procesarEnLotes, 15 a la
- *      vez) en vez de secuencial.
- *   3. recalcularValorItemDesdeApu se llama UNA VEZ POR APU AFECTADO, no
- *      una vez por línea -- si 5 insumos pendientes son del mismo ítem,
- *      antes se recalculaba el mismo APU 5 veces seguidas.
- * "Mejor esfuerzo": si una línea falla, no aborta las demás -- se
- * devuelven los errores puntuales para que el diálogo los muestre.
- */
 function trocear<T>(lista: T[], tamano: number): T[][] {
   const lotes: T[][] = []
   for (let i = 0; i < lista.length; i += tamano) lotes.push(lista.slice(i, i + tamano))
@@ -3991,6 +3965,22 @@ async function valoresCategorias(
   return new Map((data ?? []).map((c: any) => [c.id, c.valor_unitario == null ? null : Number(c.valor_unitario)]))
 }
 
+/**
+ * Versión en LOTE de resolverLineaRevision -- resuelve varias líneas de
+ * una sola llamada al servidor, en vez de una llamada por línea desde el
+ * cliente. Esto era el cuello de botella real del botón "Guardar
+ * seleccionados" (~40s con 30-40 líneas): cada resolverLineaRevision ya
+ * son 4-5 idas y vueltas a Supabase, y encima el cliente las disparaba
+ * una por una, secuenciales. Acá:
+ *   1. Una sola lectura inicial (.in) para TODAS las filas.
+ *   2. El trabajo por línea corre en paralelo (procesarEnLotes, 15 a la
+ *      vez) en vez de secuencial.
+ *   3. recalcularValorItemDesdeApu se llama UNA VEZ POR APU AFECTADO, no
+ *      una vez por línea -- si 5 insumos pendientes son del mismo ítem,
+ *      antes se recalculaba el mismo APU 5 veces seguidas.
+ * "Mejor esfuerzo": si una línea falla, no aborta las demás -- se
+ * devuelven los errores puntuales para que el diálogo los muestre.
+ */
 export async function resolverLineasRevisionEnLote(
   resoluciones: {
     revisionId: string
@@ -4212,14 +4202,18 @@ export async function resolverLineasRevisionEnLote(
   })
 
   await procesarEnLotes(insertadas, 25, async (p) => {
-    const { error } = await supabase
+    // Solo si sigue abierta: si otra pestaña o persona la resolvió mientras
+    // tanto, no vuelve nada y la línea que se acaba de insertar sobra.
+    const { data, error } = await supabase
       .from("apu_import_revision")
       .update({ estado: "resuelto", item_apu_id: p.itemApuId, ...p.asignado })
       .eq("id", p.revisionId)
-    if (error) {
-      // la línea ya quedó en el APU: se quita para que un reintento no la duplique
+      .neq("estado", "resuelto")
+      .select("id")
+    if (error || !data || data.length === 0) {
+      // la línea ya quedó en el APU: se quita para que no quede duplicada
       await supabase.from("item_apu").delete().eq("id", p.itemApuId)
-      errores.push({ revisionId: p.revisionId, mensaje: error.message })
+      if (error) errores.push({ revisionId: p.revisionId, mensaje: error.message })
       return
     }
     itemsAfectados.add(p.presupuestoItemId)

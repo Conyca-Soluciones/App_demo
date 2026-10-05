@@ -6,6 +6,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 type Llamada = { tabla: string; op: string; inIds: number; filas?: number }
 const llamadas: Llamada[] = []
 let revisiones: Map<string, any>
+// se llama justo después de insertar en item_apu: simula a otra persona
+// resolviendo la misma línea en ese momento
+let antesDeMarcar: (() => void) | null = null
 const itemApu = new Map<string, any>()
 
 function builder(tabla: string) {
@@ -15,6 +18,7 @@ function builder(tabla: string) {
     order: () => b,
     range: () => b,
     eq: (col: string, v: any) => (estado.filtros.push([col, v]), b),
+    neq: (col: string, v: any) => (estado.filtros.push([col, { distinto: v }]), b),
     is: () => b,
     in: (col: string, vs: any[]) => ((estado.inIds = vs.length), estado.filtros.push([col, new Set(vs)]), b),
     update: (valores: any) => ((estado.op = "update"), (estado.valores = valores), b),
@@ -26,7 +30,9 @@ function builder(tabla: string) {
 }
 
 function coincide(fila: any, filtros: [string, any][]) {
-  return filtros.every(([col, v]) => (v instanceof Set ? v.has(fila[col]) : fila[col] === v))
+  return filtros.every(([col, v]) =>
+    v instanceof Set ? v.has(fila[col]) : v && typeof v === "object" && "distinto" in v ? fila[col] !== v.distinto : fila[col] === v
+  )
 }
 
 function ejecutar(e: any) {
@@ -34,15 +40,20 @@ function ejecutar(e: any) {
   llamadas.push({ tabla: e.tabla, op: e.op, inIds: e.inIds, filas })
   if (e.tabla === "apu_import_revision") {
     const todas = Array.from(revisiones.values()).filter((f) => coincide(f, e.filtros))
-    if (e.op === "update") for (const f of todas) Object.assign(f, e.valores)
-    return { data: e.op === "select" ? todas.map((f) => ({ ...f, presupuesto_items: { descripcion: "x" } })) : null, error: null }
+    if (e.op === "update") {
+      for (const f of todas) Object.assign(f, e.valores)
+      return { data: todas.map((f) => ({ id: f.id })), error: null }
+    }
+    return { data: todas.map((f) => ({ ...f, presupuesto_items: { descripcion: "x" } })), error: null }
   }
   if (e.tabla === "item_apu") {
     if (e.op === "insert") {
       const lista = Array.isArray(e.valores) ? e.valores : [e.valores]
       if (lista.some((f: any) => f.factor_unidad == null)) return { data: null, error: { message: "factor null" } }
       for (const f of lista) itemApu.set(f.id, f)
+      if (antesDeMarcar) antesDeMarcar()
     }
+    if (e.op === "delete") for (const id of itemApu.keys()) if (coincide({ id }, e.filtros)) itemApu.delete(id)
     return { data: null, error: null }
   }
   if (e.tabla === "maestro_insumos") {
@@ -106,6 +117,7 @@ describe("resolverLineasRevisionEnLote", () => {
     llamadas.length = 0
     itemApu.clear()
     revisiones = new Map()
+    antesDeMarcar = null
   })
 
   it("guarda 650 insumos sin URLs gigantes y con pocas consultas por insumo", async () => {
@@ -164,5 +176,16 @@ describe("resolverLineasRevisionEnLote", () => {
       Array.from(revisiones.keys()).map((id) => ({ revisionId: id, accion: "maestro" as const, insumoId: "ins-1" }))
     )
     expect(itemApu.size).toBe(1)
+  })
+
+  it("si otra persona la resolvió mientras tanto, no deja la línea duplicada", async () => {
+    crearRevisiones(1, "INSUMO")
+    const [a] = Array.from(revisiones.keys())
+    antesDeMarcar = () => {
+      revisiones.get(a).estado = "resuelto"
+    }
+    const { errores } = await resolverLineasRevisionEnLote([{ revisionId: a, accion: "maestro", insumoId: "ins-1" }])
+    expect(errores).toEqual([])
+    expect(itemApu.size).toBe(0)
   })
 })

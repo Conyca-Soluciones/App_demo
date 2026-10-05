@@ -8,6 +8,8 @@ import {
   unidadesDeCompra,
   validarPresentacion,
   textoConversionCompra,
+  unidadMaestro,
+  UNIDADES_MAESTRO,
 } from "@/lib/unidades"
 
 describe("normalizarUnidad", () => {
@@ -36,6 +38,9 @@ describe("normalizarUnidad", () => {
     expect(normalizarUnidad("HR")).toBe("HORA")
     expect(normalizarUnidad("gal")).toBe("GAL")
     expect(normalizarUnidad("gl")).toBe("GLOBAL")
+    expect(normalizarUnidad("bt")).toBe("BULTO")
+    expect(normalizarUnidad("jg")).toBe("JUEGO")
+    expect(normalizarUnidad("undd")).toBe("UND")
   })
 
   it("vacío o 'null' es null; lo desconocido vuelve limpio", () => {
@@ -105,6 +110,20 @@ describe("sugerirPresentacion", () => {
     expect(sugerirPresentacion("TUBO HIERRO 100X100 2MM X6MT", "UNIDAD - UND")).toEqual({ unidadUso: "M", contenido: 6 })
   })
 
+  it("largo x ancho y medidas en cm/mm no son contenido", () => {
+    expect(sugerirPresentacion("FIBRA DE VIDRIO TIPO BLACK THEATER DE 1\" 1.22 X 2.44 M", "METRO CUADRADO - M2")).toBeNull()
+    expect(sugerirPresentacion("CARPA PLASTICA 7.00M X 6.00M", "UNIDAD - UND")).toBeNull()
+    expect(sugerirPresentacion("ENCHAPE DE PARED (30 X 60 CM) COLORES CLAROS", "METRO CUADRADO - M2")).toBeNull()
+    expect(sugerirPresentacion("ESPEJO BANO 40CM X 30CM", "UNIDAD - UND")).toBeNull()
+    expect(sugerirPresentacion("PERFIL RECTANGULAR 80MM X 40MM CALIBRE 18", "UNIDAD - UND")).toBeNull()
+    expect(sugerirPresentacion("ALIMENTADOR EN CABLE DE CU (2 X 8 DIAS)", "METRO LINEAL - ML")).toBeNull()
+    expect(sugerirPresentacion("LUBRICANTE PVC X 500 GR", "UNIDAD - UND")).toEqual({ unidadUso: "G", contenido: 500 })
+    expect(sugerirPresentacion("ALUMANTO TEXSA AUTOADHESIVO 1 X 10 MTS - ROLLO EN FRIO", "ROLLO - ROLL")).toEqual({
+      unidadUso: "M",
+      contenido: 10,
+    })
+  })
+
   it("mililitros y casos sin sentido no se sugieren", () => {
     expect(sugerirPresentacion("SILICONA X 300ML TRANSPARENTE", "UNIDAD - UND")).toBeNull()
     expect(sugerirPresentacion("CEMENTO GRIS", "UNIDAD - UND")).toBeNull()
@@ -140,5 +159,23 @@ describe("textoConversionCompra", () => {
     expect(textoConversionCompra(120, "M", 100, "ROLLO - ROLL")).toBe("pedido: 120 m · 1 rollo = 100 m")
     expect(textoConversionCompra(85, "KG", 42.5, "BULTO - BE")).toBe("pedido: 85 kg · 1 bulto = 42,5 kg")
     expect(textoConversionCompra(10, "UNIDAD - UND", 1, "UNIDAD - UND")).toBeNull()
+  })
+})
+
+describe("unidadMaestro", () => {
+  it("lleva lo del Excel al texto estándar del maestro", () => {
+    expect(unidadMaestro("m³")).toBe("METRO CUBICO - M3")
+    expect(unidadMaestro("und")).toBe("UNIDAD - UND")
+    expect(unidadMaestro("ML")).toBe("METRO - M")
+    expect(unidadMaestro("METRO LINEAL - ML")).toBe("METRO - M")
+    expect(unidadMaestro("lt")).toBe("LITRO - LT")
+    expect(unidadMaestro("sm")).toBe("SEMANA - SM")
+    expect(unidadMaestro("bt")).toBe("BULTO - BE")
+    expect(unidadMaestro("xyz")).toBeNull()
+    expect(unidadMaestro(null)).toBeNull()
+  })
+
+  it("cada texto estándar se lee como su propio código", () => {
+    for (const u of UNIDADES_MAESTRO) expect(unidadMaestro(u.texto)).toBe(u.texto)
   })
 })

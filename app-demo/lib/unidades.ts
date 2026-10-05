@@ -10,7 +10,7 @@
 // insumo solo se puede usar en su u_m.
 
 const SINONIMOS: Record<string, string> = {
-  UND: "UND", UN: "UND", U: "UND", UNID: "UND", UNIDAD: "UND", UNIDADES: "UND", UNDS: "UND", PZA: "UND", PIEZA: "UND",
+  UND: "UND", UN: "UND", U: "UND", UNID: "UND", UNIDAD: "UND", UNIDADES: "UND", UNDS: "UND", UNDD: "UND", PZA: "UND", PIEZA: "UND",
   KG: "KG", KGS: "KG", KILO: "KG", KILOS: "KG", KILOGRAMO: "KG", KILOGRAMOS: "KG",
   G: "G", GR: "G", GRS: "G", GRAMO: "G", GRAMOS: "G",
   T: "TON", TON: "TON", TONELADA: "TON", TONELADAS: "TON",
@@ -25,14 +25,14 @@ const SINONIMOS: Record<string, string> = {
   QT: "QT", CUARTO: "QT", CUARTODEGALON: "QT",
   LB: "LB", LBS: "LB", LIBRA: "LB", LIBRAS: "LB",
   ROLL: "ROLLO", ROLLO: "ROLLO", ROLLOS: "ROLLO", RLL: "ROLLO",
-  BE: "BULTO", BULTO: "BULTO", BULTOS: "BULTO", BTO: "BULTO",
+  BE: "BULTO", BULTO: "BULTO", BULTOS: "BULTO", BTO: "BULTO", BT: "BULTO",
   CNT: "CUNETE", CUNETE: "CUNETE", CUNETES: "CUNETE",
   DIA: "DIA", DIAS: "DIA", D: "DIA",
   HR: "HORA", HRS: "HORA", H: "HORA", HORA: "HORA", HORAS: "HORA",
   MES: "MES", MESES: "MES", MS: "MES",
   VJ: "VIAJE", VIAJE: "VIAJE", VIAJES: "VIAJE",
   KM: "KM", KILOMETRO: "KM", KILOMETROS: "KM",
-  JGO: "JUEGO", JUEGO: "JUEGO", JUEGOS: "JUEGO",
+  JGO: "JUEGO", JG: "JUEGO", JUEGO: "JUEGO", JUEGOS: "JUEGO",
   GL: "GLOBAL", GLB: "GLOBAL", GLOBAL: "GLOBAL",
   SM: "SEMANA", SEMANA: "SEMANA", SEMANAS: "SEMANA",
   PAR: "PAR", PARES: "PAR",
@@ -134,6 +134,10 @@ function formatearCantidad(n: number): string {
 // de un espacio (o al inicio): "15X15", "1X4,60 MTS" y "100X100" son medidas,
 // no contenido.
 const RE_PRESENTACION = /(?:^|\s)[xX]\s*(\d+(?:[.,]\d+)?)\s*([A-Za-zÁÉÍÓÚáéíóú³²23]+)\b/g
+// Número con decimales, o con unidad de longitud, justo antes de la "X".
+const RE_MEDIDA_ANTES = /(?:\d+[.,]\d+|\d+\s*(?:M|MT|MTS|MTR|CM|CMS))\s*$/i
+// Unidades en que tiene sentido decir cuánto trae un insumo.
+const UNIDADES_CONTENIDO = new Set(["KG", "G", "TON", "LB", "M", "M2", "M3", "L", "CC", "GAL", "UND"])
 
 /**
  * Sugerencia de presentación leída del nombre del insumo, para que quien
@@ -146,16 +150,22 @@ export function sugerirPresentacion(
   descripcion: string,
   uM: string | null
 ): { unidadUso: string; contenido: number } | null {
-  let ultima: { numero: number; unidadCruda: string } | null = null
+  let ultima: { numero: number; unidadCruda: string; antes: string } | null = null
   for (const m of descripcion.matchAll(RE_PRESENTACION)) {
     const numero = Number(m[1].replace(",", "."))
-    if (Number.isFinite(numero) && numero > 0) ultima = { numero, unidadCruda: m[2] }
+    if (Number.isFinite(numero) && numero > 0) {
+      ultima = { numero, unidadCruda: m[2], antes: descripcion.slice(0, m.index) }
+    }
   }
   if (!ultima) return null
+  // "1.22 X 2.44 M", "7.00M X 6.00M", "40CM X 30CM": es una medida (largo x
+  // ancho), no lo que trae. Un diámetro en pulgadas antes (2" X 6 MTS) sí vale.
+  if (RE_MEDIDA_ANTES.test(ultima.antes)) return null
   const cruda = limpiar(ultima.unidadCruda)
   if (cruda === "ML" && ultima.numero > 20) return null
   const unidad = SINONIMOS[cruda]
-  if (!unidad || unidad === "%") return null
+  // cm, mm, días, horas... son medidas o tiempos, no contenido
+  if (!unidad || !UNIDADES_CONTENIDO.has(unidad)) return null
   if (unidad === normalizarUnidad(uM)) return null
   if (ultima.numero === 1) return null // "X 1 UND" no dice nada
   return { unidadUso: unidad, contenido: ultima.numero }
@@ -210,4 +220,42 @@ export function textoConversionCompra(
   const uso = nombreUnidad(unidadUso) || "unidad"
   const compra = nombreUnidad(unidadCompra) || "unidad"
   return `pedido: ${formatearCantidad(cantidadUso)} ${uso} · 1 ${compra} = ${formatearCantidad(factor)} ${uso}`
+}
+
+/**
+ * Unidades de compra del maestro, con el texto estándar "NOMBRE - CÓDIGO"
+ * que ya usa la mayoría de insumos. Lo que se aprueba como insumo nuevo se
+ * guarda con este texto (no "m³" o "und" tal cual vienen del Excel).
+ */
+export const UNIDADES_MAESTRO: { codigo: string; texto: string }[] = [
+  { codigo: "UND", texto: "UNIDAD - UND" },
+  { codigo: "M", texto: "METRO - M" },
+  { codigo: "M2", texto: "METRO CUADRADO - M2" },
+  { codigo: "M3", texto: "METRO CUBICO - M3" },
+  { codigo: "KG", texto: "KILOGRAMO - KG" },
+  { codigo: "TON", texto: "TONELADA - TON" },
+  { codigo: "LB", texto: "LIBRA - LB" },
+  { codigo: "L", texto: "LITRO - LT" },
+  { codigo: "GAL", texto: "GALON - GAL" },
+  { codigo: "QT", texto: "CUARTO DE GALON - QT" },
+  { codigo: "CUNETE", texto: "CUÑETE - CÑT" },
+  { codigo: "BULTO", texto: "BULTO - BE" },
+  { codigo: "ROLLO", texto: "ROLLO - ROLL" },
+  { codigo: "JUEGO", texto: "JUEGO - JGO" },
+  { codigo: "PAR", texto: "PAR - PAR" },
+  { codigo: "DIA", texto: "DIA - DIA" },
+  { codigo: "SEMANA", texto: "SEMANA - SM" },
+  { codigo: "MES", texto: "MES - MS" },
+  { codigo: "HORA", texto: "HORA - HR" },
+  { codigo: "VIAJE", texto: "VIAJE - VJ" },
+  { codigo: "KM", texto: "KILOMETRO - KM" },
+  { codigo: "GLOBAL", texto: "GLOBAL - GL" },
+]
+
+const TEXTO_MAESTRO_POR_CODIGO = new Map(UNIDADES_MAESTRO.map((u) => [u.codigo, u.texto]))
+
+/** Texto estándar del maestro para cualquier forma de escribir la unidad ("m³" -> "METRO CUBICO - M3"). */
+export function unidadMaestro(unidad: string | null | undefined): string | null {
+  const codigo = normalizarUnidad(unidad)
+  return codigo ? TEXTO_MAESTRO_POR_CODIGO.get(codigo) ?? null : null
 }
