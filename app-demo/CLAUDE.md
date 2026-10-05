@@ -886,6 +886,13 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   de ~100, o mejor filtrar en la misma consulta (embed `!inner`, como el
   filtro por insumo de requisiciones, `SELECT_REQUISICIONES_CON_INSUMO`).
   Revisión de requisiciones agrupadas: `20261010100000_rendimiento_requisiciones.sql`.
+- **Guardar en lote la revisión de APU** (`resolverLineasRevisionEnLote`):
+  lecturas en tandas de 150 ids (con 650 en un `.in()` daba 400 y no se
+  guardaba nada), precios y presentaciones una vez por insumo, `item_apu` en
+  inserts de 300 con el id generado en el servidor (todas las filas con las
+  mismas columnas: en un insert en bloque la clave que falta queda NULL y
+  `factor_unidad` es NOT NULL), y el update de cada línea de revisión 25 a la
+  vez. Prueba con cliente falso en `tests/resolver-revision-lote.test.ts`.
 
 ## Reglas transversales (auditoría de casos borde, 2026-10-01)
 

@@ -1,5 +1,6 @@
 "use server"
 
+import { randomUUID } from "crypto"
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
@@ -2827,12 +2828,10 @@ async function seleccionarEnLotesPorIds<T>(
   tamanoLote: number,
   fn: (loteIds: string[]) => Promise<T[]>
 ): Promise<T[]> {
-  const resultados: T[] = []
-  for (let i = 0; i < ids.length; i += tamanoLote) {
-    const lote = ids.slice(i, i + tamanoLote)
-    resultados.push(...(await fn(lote)))
-  }
-  return resultados
+  // Hasta 4 tandas a la vez (antes una tras otra): con 700 ítems eran 4
+  // idas seguidas a la base por cada consulta.
+  const porLote = await procesarEnLotes(trocear(ids, tamanoLote), 4, fn)
+  return porLote.flat()
 }
 
 const UMBRAL_AUTO_MATCH = 80 // 0-100, sobre el score de buscarInsumosSimilares
@@ -3972,6 +3971,26 @@ export async function resolverLineaRevision(input: {
  * "Mejor esfuerzo": si una línea falla, no aborta las demás -- se
  * devuelven los errores puntuales para que el diálogo los muestre.
  */
+function trocear<T>(lista: T[], tamano: number): T[][] {
+  const lotes: T[][] = []
+  for (let i = 0; i < lista.length; i += tamano) lotes.push(lista.slice(i, i + tamano))
+  return lotes
+}
+
+// valor_unitario de las categorías (mano de obra o equipo) elegidas, en una
+// sola consulta por tabla.
+async function valoresCategorias(
+  tabla: "mano_obra_categorias" | "equipo_categorias",
+  ids: (string | undefined)[]
+): Promise<Map<string, number | null>> {
+  const unicos = Array.from(new Set(ids.filter((x): x is string => !!x)))
+  if (unicos.length === 0) return new Map()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from(tabla).select("id, valor_unitario").in("id", unicos)
+  if (error) throw new Error(error.message)
+  return new Map((data ?? []).map((c: any) => [c.id, c.valor_unitario == null ? null : Number(c.valor_unitario)]))
+}
+
 export async function resolverLineasRevisionEnLote(
   resoluciones: {
     revisionId: string
@@ -3988,153 +4007,222 @@ export async function resolverLineasRevisionEnLote(
 
   const supabase = await createClient()
 
-  const ids = resoluciones.map((r) => r.revisionId)
-  const { data: filas, error: errorLectura } = await supabase
-    .from("apu_import_revision")
-    .select(
-      "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion)"
+  // Lectura en tandas de 150 ids, en paralelo: con un solo .in() de todo,
+  // "Guardar todos" sobre 650 líneas armaba una URL de 25 KB y Supabase
+  // respondía 400 -- no se guardaba nada.
+  const ids = Array.from(new Set(resoluciones.map((r) => r.revisionId)))
+  const filas = (
+    await Promise.all(
+      trocear(ids, 150).map(async (lote) => {
+        const { data, error } = await supabase
+          .from("apu_import_revision")
+          .select(
+            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion)"
+          )
+          .in("id", lote)
+        if (error) throw new Error(error.message)
+        return data ?? []
+      })
     )
-    .in("id", ids)
+  ).flat()
 
-  if (errorLectura) throw new Error(errorLectura.message)
-
-  const filaPorId = new Map((filas ?? []).map((f) => [f.id, f]))
+  const filaPorId = new Map(filas.map((f) => [f.id, f]))
   const errores: { revisionId: string; mensaje: string }[] = []
   // presupuesto_item_id afectado por resolución exitosa -- clave del
   // dedup para el recalculo (un mismo ítem puede tener varias líneas).
   const itemsAfectados = new Set<string>()
 
+  // Líneas listas para insertar en item_apu, de los tres tipos (insumo,
+  // mano de obra, equipo). Antes cada una costaba 4 idas a la base (precio,
+  // presentación, insert, update) de 15 en 15; ahora los precios se leen
+  // UNA vez por insumo/categoría y los inserts van en bloque.
+  const porInsertar: { revisionId: string; presupuestoItemId: string; linea: Record<string, unknown>; asignado: Record<string, unknown> }[] = []
+
+  function filaAbierta(revisionId: string) {
+    const fila = filaPorId.get(revisionId)
+    if (!fila) {
+      errores.push({ revisionId, mensaje: "No se encontró esa línea de revisión." })
+      return null
+    }
+    if (fila.estado === "resuelto") return null // ya resuelta, no repetir
+    return fila
+  }
+
   // ---- resoluciones "maestro" (elegir un insumo existente) ----
-  // cada una es independiente -- cada línea pertenece a un apu distinto,
-  // necesita su propia fila en item_apu.
   const resolucionesMaestro = resoluciones.filter((r) => r.accion === "maestro")
+  if (resolucionesMaestro.length > 0) {
+    const insumoIds = Array.from(new Set(resolucionesMaestro.map((r) => r.insumoId).filter((x): x is string => !!x)))
+    const [{ data: precios, error: errorPrecios }, presentaciones] = await Promise.all([
+      supabase.rpc("precios_efectivos_insumos", { p_insumo_ids: insumoIds }),
+      presentacionesInsumos(insumoIds),
+    ])
+    if (errorPrecios) throw new Error(errorPrecios.message)
+    const precioPorInsumo = new Map(
+      ((precios ?? []) as { insumo_id: string; precio_efectivo: number | null; tipo: string | null }[]).map((p) => [
+        p.insumo_id,
+        p,
+      ])
+    )
+    // la conversión al maestro se guarda una sola vez por insumo
+    const conversionesAlMaestro = new Map<string, { unidad: string | null; conversion: number }>()
 
-  await procesarEnLotes(resolucionesMaestro, 15, async (r) => {
-    const fila = filaPorId.get(r.revisionId)
-    if (!fila) {
-      errores.push({ revisionId: r.revisionId, mensaje: "No se encontró esa línea de revisión." })
-      return
-    }
-    if (fila.estado === "resuelto") return // ya resuelta, no repetir
-
-    try {
-      if (!r.insumoId) throw new Error("Falta el insumo elegido.")
-
-      const { id: idNuevo } = await agregarInsumoApu({
-        apuId: fila.apu_id,
-        insumoId: r.insumoId,
-        cantidad: Number(fila.cantidad),
-        unidadLinea: fila.unidad,
-        confirmarUnidad: r.confirmarUnidad,
-        conversion: r.conversion,
-        guardarConversionEnMaestro: r.guardarConversionEnMaestro,
-      })
-
-      const { error: errorUpdate } = await supabase
-        .from("apu_import_revision")
-        .update({ estado: "resuelto", insumo_id_asignado: r.insumoId, item_apu_id: idNuevo })
-        .eq("id", r.revisionId)
-      if (errorUpdate) throw new Error(errorUpdate.message)
-
-      itemsAfectados.add(fila.presupuesto_item_id)
-    } catch (e) {
-      errores.push({
-        revisionId: r.revisionId,
-        mensaje: e instanceof Error ? e.message : "No se pudo guardar esta línea.",
-      })
-    }
-  })
-
-  // ---- resoluciones "mano_obra" (elegir categoría) ----
-  // Igual que "maestro" -- cada línea es independiente, un apu distinto
-  // cada una. OJO: a diferencia de lo que decía este comentario antes,
-  // SÍ puede haber más de una línea "MO" por bloque en la práctica (ver
-  // el fix de "Herramienta menor X% M.O." más arriba en
-  // guardarImportApuConRevision -- antes de ese fix, una línea de
-  // herramienta menor tipeada MO se colaba acá como si fuera una
-  // cuadrilla real). Por eso el id del insert se captura directo en vez
-  // de volver a buscarlo por (apu_id, categoría): esa búsqueda es
-  // ambigua en cuanto hay 2 líneas con la misma categoría en el mismo
-  // apu, y .maybeSingle() fallaba en silencio dejando item_apu_id en
-  // null.
-  const resolucionesManoObra = resoluciones.filter((r) => r.accion === "mano_obra")
-
-  await procesarEnLotes(resolucionesManoObra, 15, async (r) => {
-    const fila = filaPorId.get(r.revisionId)
-    if (!fila) {
-      errores.push({ revisionId: r.revisionId, mensaje: "No se encontró esa línea de revisión." })
-      return
-    }
-    if (fila.estado === "resuelto") return
-
-    try {
-      if (!r.manoObraCategoriaId) throw new Error("Falta la categoría elegida.")
-
-      const { id: idNuevo } = await agregarManoObraApu({
-        apuId: fila.apu_id,
-        manoObraCategoriaId: r.manoObraCategoriaId,
-        cantidad: Number(fila.cantidad),
-      })
-
-      const { error: errorUpdate } = await supabase
-        .from("apu_import_revision")
-        .update({
-          estado: "resuelto",
-          mano_obra_categoria_id_asignado: r.manoObraCategoriaId,
-          item_apu_id: idNuevo,
+    for (const r of resolucionesMaestro) {
+      const fila = filaAbierta(r.revisionId)
+      if (!fila) continue
+      try {
+        if (!r.insumoId) throw new Error("Falta el insumo elegido.")
+        const info = precioPorInsumo.get(r.insumoId)
+        if (!info || info.precio_efectivo == null || PRECIOS_PLACEHOLDER.includes(Number(info.precio_efectivo))) {
+          throw new Error("Este insumo todavía no tiene precio real -- ingresa el precio antes de agregarlo.")
+        }
+        const presentacion = presentaciones.get(r.insumoId)
+        if (!presentacion) throw new Error("No se encontró el insumo.")
+        const { unidad, factor } = unidadDeLinea(fila.unidad, presentacion, !!r.confirmarUnidad, r.conversion)
+        if (r.conversion != null && r.guardarConversionEnMaestro && !conversionesAlMaestro.has(r.insumoId)) {
+          conversionesAlMaestro.set(r.insumoId, { unidad: fila.unidad, conversion: r.conversion })
+        }
+        porInsertar.push({
+          revisionId: r.revisionId,
+          presupuestoItemId: fila.presupuesto_item_id,
+          linea: {
+            apu_id: fila.apu_id,
+            insumo_id: r.insumoId,
+            cantidad: Number(fila.cantidad),
+            rendimiento: 1,
+            tipo: info.tipo,
+            unidad,
+            factor_unidad: factor,
+            // congelado en la unidad de la línea (precio del insumo / factor)
+            precio_unitario_congelado: Number(info.precio_efectivo) / factor,
+          },
+          asignado: { insumo_id_asignado: r.insumoId },
         })
-        .eq("id", r.revisionId)
-      if (errorUpdate) throw new Error(errorUpdate.message)
+      } catch (e) {
+        errores.push({ revisionId: r.revisionId, mensaje: e instanceof Error ? e.message : "No se pudo guardar esta línea." })
+      }
+    }
 
-      itemsAfectados.add(fila.presupuesto_item_id)
-    } catch (e) {
+    for (const [insumoId, c] of conversionesAlMaestro) {
+      try {
+        await guardarConversionEnMaestroSiSePuede(insumoId, c.unidad, c.conversion)
+      } catch (e) {
+        console.error("No se pudo guardar la conversión en el maestro:", e)
+      }
+    }
+  }
+
+  // ---- resoluciones "mano_obra" y "equipo" (elegir categoría) ----
+  // OJO: SÍ puede haber más de una línea "MO" por bloque (ver el fix de
+  // "Herramienta menor X% M.O." en guardarImportApuConRevision), por eso
+  // cada línea guarda el id de SU fila de item_apu, generado acá.
+  const resolucionesManoObra = resoluciones.filter((r) => r.accion === "mano_obra")
+  const resolucionesEquipo = resoluciones.filter((r) => r.accion === "equipo")
+  const [precioManoObra, precioEquipo] = await Promise.all([
+    valoresCategorias("mano_obra_categorias", resolucionesManoObra.map((r) => r.manoObraCategoriaId)),
+    valoresCategorias("equipo_categorias", resolucionesEquipo.map((r) => r.equipoCategoriaId)),
+  ])
+
+  for (const r of resolucionesManoObra) {
+    const fila = filaAbierta(r.revisionId)
+    if (!fila) continue
+    if (!r.manoObraCategoriaId) {
+      errores.push({ revisionId: r.revisionId, mensaje: "Falta la categoría elegida." })
+      continue
+    }
+    if (precioManoObra.get(r.manoObraCategoriaId) == null) {
       errores.push({
         revisionId: r.revisionId,
-        mensaje: e instanceof Error ? e.message : "No se pudo guardar esta línea.",
+        mensaje:
+          "Esta categoría de mano de obra todavía no tiene precio definido -- ingresa el valor en el catálogo antes de asignarla.",
       })
+      continue
     }
-  })
+    porInsertar.push({
+      revisionId: r.revisionId,
+      presupuestoItemId: fila.presupuesto_item_id,
+      linea: {
+        apu_id: fila.apu_id,
+        mano_obra_categoria_id: r.manoObraCategoriaId,
+        cantidad: Number(fila.cantidad),
+        rendimiento: 1,
+        tipo: "MO",
+      },
+      asignado: { mano_obra_categoria_id_asignado: r.manoObraCategoriaId },
+    })
+  }
 
-  // ---- resoluciones "equipo" (elegir categoría de equipo existente) ----
-  // Igual que "maestro" -- cada línea es independiente, un apu distinto
-  // cada una.
-  const resolucionesEquipo = resoluciones.filter((r) => r.accion === "equipo")
-
-  await procesarEnLotes(resolucionesEquipo, 15, async (r) => {
-    const fila = filaPorId.get(r.revisionId)
-    if (!fila) {
-      errores.push({ revisionId: r.revisionId, mensaje: "No se encontró esa línea de revisión." })
-      return
+  for (const r of resolucionesEquipo) {
+    const fila = filaAbierta(r.revisionId)
+    if (!fila) continue
+    if (!r.equipoCategoriaId) {
+      errores.push({ revisionId: r.revisionId, mensaje: "Falta el equipo elegido." })
+      continue
     }
-    if (fila.estado === "resuelto") return
-
-    try {
-      if (!r.equipoCategoriaId) throw new Error("Falta el equipo elegido.")
-
-      const { id: idNuevo } = await agregarEquipoApu({
-        apuId: fila.apu_id,
-        equipoCategoriaId: r.equipoCategoriaId,
+    if (precioEquipo.get(r.equipoCategoriaId) == null) {
+      errores.push({
+        revisionId: r.revisionId,
+        mensaje: "Este equipo todavía no tiene precio definido -- ingresa el valor en el catálogo antes de asignarlo.",
+      })
+      continue
+    }
+    porInsertar.push({
+      revisionId: r.revisionId,
+      presupuestoItemId: fila.presupuesto_item_id,
+      linea: {
+        apu_id: fila.apu_id,
+        equipo_categoria_id: r.equipoCategoriaId,
         cantidad: Number(fila.cantidad),
         rendimiento: fila.rendimiento != null ? Number(fila.rendimiento) : 1,
-      })
+        tipo: "EQUIPO",
+      },
+      asignado: { equipo_categoria_id_asignado: r.equipoCategoriaId },
+    })
+  }
 
-      const { error: errorUpdate } = await supabase
-        .from("apu_import_revision")
-        .update({
-          estado: "resuelto",
-          equipo_categoria_id_asignado: r.equipoCategoriaId,
-          item_apu_id: idNuevo,
-        })
-        .eq("id", r.revisionId)
-      if (errorUpdate) throw new Error(errorUpdate.message)
-
-      itemsAfectados.add(fila.presupuesto_item_id)
-    } catch (e) {
-      errores.push({
-        revisionId: r.revisionId,
-        mensaje: e instanceof Error ? e.message : "No se pudo guardar esta línea.",
-      })
+  // Inserts en bloques de 300 con el id ya generado (así cada línea de
+  // revisión sabe cuál es su fila sin depender del orden de la respuesta),
+  // y después el update de cada línea de revisión, 25 a la vez.
+  const insertadas: { revisionId: string; presupuestoItemId: string; itemApuId: string; asignado: Record<string, unknown> }[] = []
+  const filaItemApu = (p: (typeof porInsertar)[number], id: string) => ({
+    // todas las filas con las mismas columnas: en un insert en bloque, una
+    // clave que falta queda NULL (no toma el default) y factor_unidad es NOT NULL
+    id,
+    insumo_id: null,
+    mano_obra_categoria_id: null,
+    equipo_categoria_id: null,
+    unidad: null,
+    factor_unidad: 1,
+    precio_unitario_congelado: null,
+    ...p.linea,
+  })
+  await procesarEnLotes(trocear(porInsertar, 300), 4, async (bloque) => {
+    const conId = bloque.map((p) => ({ ...p, itemApuId: randomUUID() }))
+    const { error } = await supabase.from("item_apu").insert(conId.map((p) => filaItemApu(p, p.itemApuId)))
+    if (!error) {
+      insertadas.push(...conId)
+      return
     }
+    // una sola fila mala tumba el bloque entero: se reintenta una por una
+    // para que solo esa quede con error
+    await procesarEnLotes(conId, 25, async (p) => {
+      const { error: errorFila } = await supabase.from("item_apu").insert(filaItemApu(p, p.itemApuId))
+      if (errorFila) errores.push({ revisionId: p.revisionId, mensaje: errorFila.message })
+      else insertadas.push(p)
+    })
+  })
+
+  await procesarEnLotes(insertadas, 25, async (p) => {
+    const { error } = await supabase
+      .from("apu_import_revision")
+      .update({ estado: "resuelto", item_apu_id: p.itemApuId, ...p.asignado })
+      .eq("id", p.revisionId)
+    if (error) {
+      // la línea ya quedó en el APU: se quita para que un reintento no la duplique
+      await supabase.from("item_apu").delete().eq("id", p.itemApuId)
+      errores.push({ revisionId: p.revisionId, mensaje: error.message })
+      return
+    }
+    itemsAfectados.add(p.presupuestoItemId)
   })
 
   // ---- resoluciones "solicitud_equipo" (pedir categoría de equipo nueva) ----
@@ -4413,18 +4501,17 @@ export async function obtenerItemsConTransportePendiente(presupuestoItemIds: str
   const supabase = await createClient()
   const idsConPendiente = new Set<string>()
 
-  for (let i = 0; i < presupuestoItemIds.length; i += 200) {
-    const lote = presupuestoItemIds.slice(i, i + 200)
+  const filas = await seleccionarEnLotesPorIds(presupuestoItemIds, 200, async (lote) => {
     const { data, error } = await supabase
       .from("apu_import_revision")
       .select("presupuesto_item_id")
       .eq("tipo", "TRANSPORTE")
       .eq("estado", "pendiente")
       .in("presupuesto_item_id", lote)
-
     if (error) throw new Error(error.message)
-    for (const row of data ?? []) idsConPendiente.add(row.presupuesto_item_id)
-  }
+    return data ?? []
+  })
+  for (const row of filas) idsConPendiente.add(row.presupuesto_item_id)
 
   return Array.from(idsConPendiente)
 }
@@ -4681,17 +4768,16 @@ export async function obtenerValoresItems(
   const supabase = await createClient()
   const resultado: Record<string, { valorUnitario: number | null; valorTotal: number | null; apuId: string | null }> = {}
 
-  const TAMANO_LOTE = 200
-  for (let i = 0; i < presupuestoItemIds.length; i += TAMANO_LOTE) {
-    const lote = presupuestoItemIds.slice(i, i + TAMANO_LOTE)
+  const filas = await seleccionarEnLotesPorIds(presupuestoItemIds, 200, async (lote) => {
     const { data, error } = await supabase
       .from("presupuesto_items")
       .select("id, valor_unitario, valor_total, apu_id")
       .in("id", lote)
     if (error) throw new Error(error.message)
-    for (const fila of data ?? []) {
-      resultado[fila.id] = { valorUnitario: fila.valor_unitario, valorTotal: fila.valor_total, apuId: fila.apu_id }
-    }
+    return data ?? []
+  })
+  for (const fila of filas) {
+    resultado[fila.id] = { valorUnitario: fila.valor_unitario, valorTotal: fila.valor_total, apuId: fila.apu_id }
   }
 
   return resultado
@@ -4718,20 +4804,22 @@ export async function obtenerEstadoApuPorItem(
   const TAMANO_LOTE = 200
   const filasPorItem = new Map<string, { estado: string; descripcion: string; solicitudId: string | null }[]>()
 
-  for (let i = 0; i < presupuestoItemIds.length; i += TAMANO_LOTE) {
-    const lote = presupuestoItemIds.slice(i, i + TAMANO_LOTE)
-    const { data, error } = await supabase
-      .from("apu_import_revision")
-      .select("presupuesto_item_id, estado, descripcion_original, solicitud_id")
-      .in("presupuesto_item_id", lote)
-
-    if (error) throw new Error(error.message)
-
-    for (const fila of data ?? []) {
-      const lista = filasPorItem.get(fila.presupuesto_item_id) ?? []
-      lista.push({ estado: fila.estado, descripcion: fila.descripcion_original, solicitudId: fila.solicitud_id })
-      filasPorItem.set(fila.presupuesto_item_id, lista)
-    }
+  // traerTodo: 200 ítems pueden tener más de 1000 líneas (el tope de
+  // PostgREST), y lo que no llegaba se pintaba como "listo".
+  const filasRevision = await seleccionarEnLotesPorIds(presupuestoItemIds, TAMANO_LOTE, (lote) =>
+    traerTodo<any>((desde, hasta) =>
+      supabase
+        .from("apu_import_revision")
+        .select("id, presupuesto_item_id, estado, descripcion_original, solicitud_id")
+        .in("presupuesto_item_id", lote)
+        .order("id")
+        .range(desde, hasta)
+    )
+  )
+  for (const fila of filasRevision) {
+    const lista = filasPorItem.get(fila.presupuesto_item_id) ?? []
+    lista.push({ estado: fila.estado, descripcion: fila.descripcion_original, solicitudId: fila.solicitud_id })
+    filasPorItem.set(fila.presupuesto_item_id, lista)
   }
 
   // Motivos de rechazo -- se traen aparte porque viven en
@@ -4743,12 +4831,16 @@ export async function obtenerEstadoApuPorItem(
 
   const motivoPorSolicitud = new Map<string, string | null>()
   if (solicitudIdsRechazadas.length > 0) {
-    const { data: solicitudes, error: errorSolicitudes } = await supabase
-      .from("solicitudes_insumos")
-      .select("id, motivo_rechazo")
-      .in("id", solicitudIdsRechazadas)
-    if (errorSolicitudes) throw new Error(errorSolicitudes.message)
-    for (const s of solicitudes ?? []) motivoPorSolicitud.set(s.id, s.motivo_rechazo)
+    const solicitudes = await seleccionarEnLotesPorIds(
+      Array.from(new Set(solicitudIdsRechazadas)),
+      150,
+      async (lote) => {
+        const { data, error } = await supabase.from("solicitudes_insumos").select("id, motivo_rechazo").in("id", lote)
+        if (error) throw new Error(error.message)
+        return data ?? []
+      }
+    )
+    for (const s of solicitudes) motivoPorSolicitud.set(s.id, s.motivo_rechazo)
   }
 
   const estados: Record<string, EstadoApuItem> = {}
