@@ -1756,14 +1756,22 @@ export async function copiarApuStandalone(
 // de 200 ids (ver seleccionarEnLotesPorIds).
 async function presentacionesInsumos(insumoIds: string[]): Promise<Map<string, PresentacionInsumo>> {
   const supabase = await createClient()
-  const filas = await seleccionarEnLotesPorIds(Array.from(new Set(insumoIds)), 200, async (lote) => {
-    const { data, error } = await supabase
-      .from("maestro_insumos")
-      .select("id, u_m, unidad_uso, contenido")
-      .in("id", lote)
-    if (error) throw new Error(error.message)
-    return data ?? []
-  })
+  const unicos = Array.from(new Set(insumoIds))
+  const lotes: string[][] = []
+  for (let i = 0; i < unicos.length; i += 200) lotes.push(unicos.slice(i, i + 200))
+  // En paralelo: una revisión grande trae más de mil candidatos distintos.
+  const filas = (
+    await Promise.all(
+      lotes.map(async (lote) => {
+        const { data, error } = await supabase
+          .from("maestro_insumos")
+          .select("id, u_m, unidad_uso, contenido")
+          .in("id", lote)
+        if (error) throw new Error(error.message)
+        return data ?? []
+      })
+    )
+  ).flat()
   return new Map(
     filas.map((f: any) => [
       f.id,
@@ -3673,30 +3681,41 @@ export async function listarRevisionLote(loteImportId: string): Promise<LoteRevi
  * pendiente/rechazado (ya no depende de recordar un loteImportId de una
  * sesión anterior).
  */
-export async function listarRevisionPorItems(presupuestoItemIds: string[]): Promise<LoteRevisionInfo> {
+export async function listarRevisionPorItems(
+  presupuestoItemIds: string[],
+  // Solo estos estados (ej. las abiertas primero: pendiente / rechazado /
+  // solicitud_pendiente). Sin filtro trae todas.
+  estados?: FilaRevisionImport["estado"][]
+): Promise<LoteRevisionInfo> {
   if (presupuestoItemIds.length === 0) return { filas: [], itemsPorId: {}, capitulosPorItemId: {} }
  
   const supabase = await createClient()
  
+  // Tandas de 200 ítems (la URL tiene límite) EN PARALELO: antes iban una
+  // tras otra y con presupuestos de 700 ítems eran 4 esperas seguidas.
   const TAMANO_LOTE = 200
-  const todasLasFilas: any[] = []
- 
+  const lotes: string[][] = []
   for (let i = 0; i < presupuestoItemIds.length; i += TAMANO_LOTE) {
-    const lote = presupuestoItemIds.slice(i, i + TAMANO_LOTE)
-    // 200 ítems con varias líneas cada uno pasan de 1000 filas: paginado.
-    const data = await traerTodo<any>((desde, hasta) =>
-      supabase
-        .from("apu_import_revision")
-        .select(SELECT_REVISION_CON_MOTIVO)
-        .in("presupuesto_item_id", lote)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true })
-        .range(desde, hasta)
-    )
-    todasLasFilas.push(...data)
+    lotes.push(presupuestoItemIds.slice(i, i + TAMANO_LOTE))
   }
+  const porLote = await Promise.all(
+    lotes.map((lote) =>
+      // 200 ítems con varias líneas cada uno pasan de 1000 filas: paginado.
+      traerTodo<any>((desde, hasta) => {
+        let consulta = supabase
+          .from("apu_import_revision")
+          .select(SELECT_REVISION_CON_MOTIVO)
+          .in("presupuesto_item_id", lote)
+        if (estados && estados.length > 0) consulta = consulta.in("estado", estados)
+        return consulta
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(desde, hasta)
+      })
+    )
+  )
  
-  return mapearFilasConItems(supabase, todasLasFilas)
+  return mapearFilasConItems(supabase, porLote.flat())
 }
  
 type NodoPresupuestoItem = {

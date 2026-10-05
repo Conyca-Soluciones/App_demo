@@ -667,9 +667,10 @@ export default function Presupuestos() {
     setDialogoRevisionAbierto(true)
   }
 
+  // Cada Guardar del diálogo ya refrescó sus ítems (onCambio): al cerrar
+  // no hace falta volver a consultar todo el presupuesto.
   function handleCerrarDialogoRevision() {
     setDialogoRevisionAbierto(false)
-    refrescarEstadosYValores(itemIdsParaRevisar)
   }
 
   useEffect(() => {
@@ -1892,7 +1893,7 @@ export default function Presupuestos() {
         itemIds={itemIdsParaRevisar}
         tabInicial={tabInicialRevision}
         onCerrar={handleCerrarDialogoRevision}
-        onCambio={() => refrescarEstadosYValores(itemIdsParaRevisar)}
+        onCambio={(itemIds) => refrescarEstadosYValores(itemIds)}
       />
     </>
   )

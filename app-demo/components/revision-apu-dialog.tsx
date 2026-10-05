@@ -555,6 +555,45 @@ function agruparFilasPorCapitulo<T extends FilaRevisionImport>(
 
 // Encabezado de capítulo -- mismo tratamiento en las 3 pestañas de
 // Pendientes (Insumos, Mano de obra, Equipo).
+// Cuántos grupos se dibujan de entrada y cuántos más con cada "Ver más".
+// Con presupuestos de 700 ítems se dibujaban miles de tarjetas a la vez y
+// cada clic (elegir un candidato) volvía a dibujarlas todas.
+const PASO_LISTA = 40
+
+// Recorta una lista agrupada por capítulo a los primeros `limite` elementos
+// (contando dentro de cada capítulo), sin partir el orden.
+function recortarCapitulos<C extends { capitulo: CapituloInfo }>(
+  capitulos: C[],
+  clave: keyof C,
+  limite: number
+): { visibles: C[]; total: number } {
+  let total = 0
+  for (const c of capitulos) total += (c[clave] as unknown as unknown[]).length
+  const visibles: C[] = []
+  let restantes = limite
+  for (const c of capitulos) {
+    if (restantes <= 0) break
+    const lista = c[clave] as unknown as unknown[]
+    visibles.push({ ...c, [clave]: lista.slice(0, restantes) })
+    restantes -= lista.length
+  }
+  return { visibles, total }
+}
+
+function VerMas({ mostrados, total, onClick }: { mostrados: number; total: number; onClick: () => void }) {
+  if (mostrados >= total) return null
+  return (
+    <div className="flex items-center justify-center gap-3 py-2">
+      <span className="text-xs text-muted-foreground">
+        Mostrando {mostrados} de {total}
+      </span>
+      <Button size="sm" variant="outline" onClick={onClick}>
+        Ver {Math.min(PASO_LISTA, total - mostrados)} más
+      </Button>
+    </div>
+  )
+}
+
 function EncabezadoCapitulo({ capitulo }: { capitulo: CapituloInfo }) {
   return (
     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b pb-1 pt-1 first:pt-0">
@@ -571,10 +610,10 @@ interface Props {
   // para que el usuario no tenga que buscar la pestaña a mano.
   tabInicial?: "insumos" | "mano_obra" | "equipo" | "transporte"
   onCerrar: () => void
-  // se llama cada vez que algo se resuelve (para que page.tsx pueda
-  // refrescar los colores de la tabla sin esperar a que se cierre todo
-  // el diálogo)
-  onCambio?: () => void
+  // se llama cada vez que algo se resuelve, con los ítems afectados (para
+  // que page.tsx refresque SOLO esos colores y valores, no todo el
+  // presupuesto)
+  onCambio?: (itemIds: string[]) => void
 }
 
 type Eleccion =
@@ -611,6 +650,15 @@ function textoItem(prefijo: string, item: { codigo: string; descripcion: string 
 export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCerrar, onCambio }: Props) {
   const [datos, setDatos] = useState<LoteRevisionInfo | null>(null)
   const [cargando, setCargando] = useState(false)
+  // segunda tanda de la carga (automáticos y resueltos), en segundo plano
+  const [cargandoResto, setCargandoResto] = useState(false)
+  // cuántos grupos se muestran por sección (ver PASO_LISTA)
+  const [limites, setLimites] = useState<Record<string, number>>({})
+  const limite = (clave: string) => limites[clave] ?? PASO_LISTA
+  const verMas = (clave: string) => setLimites((prev) => ({ ...prev, [clave]: (prev[clave] ?? PASO_LISTA) + PASO_LISTA }))
+  // los automáticos se pliegan: son la mayoría de las líneas y solo se
+  // revisan si el ingeniero quiere confirmarlos
+  const [verAutomaticos, setVerAutomaticos] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pidiendoConfirmacionCierre, setPidiendoConfirmacionCierre] = useState(false)
   const [elecciones, setElecciones] = useState<Record<string, Eleccion>>({})
@@ -668,42 +716,97 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     errores: { revisionId: string; mensaje: string }[]
   } | null>(null)
 
+  // Une una recarga parcial con lo que ya está en pantalla. Con
+  // `reemplazar`, las filas de esos ítems se cambian por las nuevas (las
+  // que se resolvieron desaparecen de "Pendientes"); sin él, se agregan
+  // (la segunda tanda de la carga inicial).
+  function combinarDatos(
+    prev: LoteRevisionInfo | null,
+    nuevo: LoteRevisionInfo,
+    reemplazar: Set<string> | null
+  ): LoteRevisionInfo {
+    if (!prev) return nuevo
+    const idsNuevas = new Set(nuevo.filas.map((f) => f.id))
+    const conservadas = prev.filas.filter(
+      (f) => !idsNuevas.has(f.id) && !(reemplazar && reemplazar.has(f.presupuestoItemId))
+    )
+    return {
+      filas: [...conservadas, ...nuevo.filas],
+      itemsPorId: { ...prev.itemsPorId, ...nuevo.itemsPorId },
+      capitulosPorItemId: { ...prev.capitulosPorItemId, ...nuevo.capitulosPorItemId },
+    }
+  }
+
+  function limpiarElecciones(ids: string[]) {
+    setElecciones((prev) => {
+      const nuevo = { ...prev }
+      for (const id of ids) delete nuevo[id]
+      return nuevo
+    })
+    setCorrecciones((prev) => {
+      const nuevo = { ...prev }
+      for (const id of ids) delete nuevo[id]
+      return nuevo
+    })
+    cambiarUnidad(ids, null)
+  }
+
+  // Ítems del presupuesto a los que pertenecen unas líneas de revisión.
+  function itemsDeLineas(revisionIds: string[]): string[] {
+    const ids = new Set(revisionIds)
+    return Array.from(new Set((datos?.filas ?? []).filter((f) => ids.has(f.id)).map((f) => f.presupuestoItemId)))
+  }
+
+  // Cada carga lleva un número: si el diálogo se cerró o empezó otra carga
+  // mientras tanto, el resultado viejo se descarta.
+  const generacionCarga = useRef(0)
+
+  // Carga completa en dos tandas: primero lo ABIERTO (pendientes,
+  // rechazados, en solicitud), que es lo que se trabaja -- el diálogo se
+  // puede usar apenas llega --, y después, en segundo plano, lo ya
+  // resuelto (automáticos y el historial de transporte).
   async function cargar() {
-    // Solo se muestra el "Cargando revisión…" de pantalla completa la
-    // PRIMERA vez (cuando todavía no hay nada que mostrar) -- las
-    // recargas posteriores (después de guardar algo) pasan calladas,
-    // sin tapar lo que ya está en pantalla. Antes esto no se distinguía,
-    // y guardarSeleccionados() -- que llamaba cargar() una vez POR CADA
-    // línea del lote -- hacía que el diálogo completo parpadeara entre
-    // "Cargando…" y el contenido, una vez por línea.
-    const esPrimeraCarga = datos === null
-    if (esPrimeraCarga) setCargando(true)
+    const generacion = ++generacionCarga.current
+    setCargando(true)
     setError(null)
     try {
-      const resultado = await listarRevisionPorItems(itemIds)
-      setDatos(resultado)
+      const abiertas = await listarRevisionPorItems(itemIds, ["pendiente", "rechazado", "solicitud_pendiente"])
+      if (generacion !== generacionCarga.current) return
+      setDatos(abiertas)
+      setCargando(false)
 
-      // Limpia elecciones/correcciones de líneas que YA NO EXISTEN en la
-      // recarga (porque se resolvieron) -- sin esto, después de guardar
-      // el diálogo seguía pensando "hay trabajo sin guardar" con ids
-      // viejos, y el aviso de "¿cerrar sin terminar?" decía "quedan 0
-      // insumos" (bug real: preguntaba igual aunque ya no quedara nada).
-      const idsVigentes = new Set(resultado.filas.map((f) => f.id))
-      setElecciones((prev) => {
-        const nuevo: typeof prev = {}
-        for (const [id, val] of Object.entries(prev)) if (idsVigentes.has(id)) nuevo[id] = val
-        return nuevo
-      })
-      setCorrecciones((prev) => {
-        const nuevo: typeof prev = {}
-        for (const [id, val] of Object.entries(prev)) if (idsVigentes.has(id)) nuevo[id] = val
-        return nuevo
-      })
+      setCargandoResto(true)
+      const resto = await listarRevisionPorItems(itemIds, ["auto_match", "resuelto"])
+      if (generacion !== generacionCarga.current) return
+      setDatos((prev) => combinarDatos(prev, resto, null))
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar la revisión.")
+      if (generacion === generacionCarga.current) {
+        setError(e instanceof Error ? e.message : "No se pudo cargar la revisión.")
+      }
     } finally {
-      if (esPrimeraCarga) setCargando(false)
+      if (generacion === generacionCarga.current) {
+        setCargando(false)
+        setCargandoResto(false)
+      }
     }
+  }
+
+  // Recarga SOLO estos ítems (después de guardar, o cuando llegan ítems
+  // nuevos de una tanda en el fondo). Antes se recargaba todo el
+  // presupuesto: con 700 ítems eran ~3.000 líneas por cada Guardar.
+  async function refrescarItems(ids: string[]) {
+    if (ids.length === 0) return
+    const generacion = generacionCarga.current
+    const nuevo = await listarRevisionPorItems(ids)
+    if (generacion !== generacionCarga.current) return
+    const reemplazar = new Set(ids)
+    setDatos((prev) => combinarDatos(prev, nuevo, reemplazar))
+    // las que quedaron resueltas ya no tienen elección pendiente
+    limpiarElecciones(
+      nuevo.filas
+        .filter((f) => f.estado !== "pendiente" && f.estado !== "rechazado" && f.estado !== "auto_match")
+        .map((f) => f.id)
+    )
   }
 
   // Recuerda si el diálogo YA estaba abierto en el render anterior --
@@ -711,25 +814,35 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // "sigue abierto pero itemIds creció" (recargar SIN perder las
   // elecciones que ya hizo el usuario -- ver el useEffect de abajo).
   const yaEstabaAbierto = useRef(false)
+  const idsCargados = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!open) {
       yaEstabaAbierto.current = false
+      generacionCarga.current++ // descarta cargas en vuelo
       return
     }
     if (!yaEstabaAbierto.current) {
       // Apertura nueva -- reset completo.
       setElecciones({})
       setCorrecciones({})
-      setDatos(null) // fuerza que la próxima cargar() cuente como "primera carga" otra vez
+      setUnidadesLinea({})
+      setLimites({})
+      setVerAutomaticos(false)
+      setDatos(null)
       setTabActiva(tabInicial)
       yaEstabaAbierto.current = true
+      idsCargados.current = new Set(itemIds)
+      cargar()
+      return
     }
-    // Si ya estaba abierto y esto corrió de nuevo, es porque `itemIds`
-    // cambió (llegaron ítems nuevos con pendientes de una tanda que
-    // terminó en el fondo) -- se recarga, pero SIN tocar elecciones ni
-    // correcciones, para no perder lo que el usuario ya había elegido.
-    cargar()
+    // Ya estaba abierto y `itemIds` cambió. Si solo SALIERON ítems (se
+    // terminaron de resolver), no hay nada que cargar. Si llegaron ítems
+    // nuevos (una tanda que terminó en el fondo), se cargan solo esos, sin
+    // tocar las elecciones ya hechas.
+    const nuevos = itemIds.filter((id) => !idsCargados.current.has(id))
+    for (const id of nuevos) idsCargados.current.add(id)
+    if (nuevos.length > 0) refrescarItems(nuevos).catch((e) => console.error(e))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, itemIds.join(",")])
 
@@ -856,6 +969,31 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   const capitulosPendientesManoObra = useMemo(
     () => agruparFilasPorCapitulo(pendientesManoObra, datos?.capitulosPorItemId),
     [pendientesManoObra, datos?.capitulosPorItemId]
+  )
+  const pendInsumosVisibles = useMemo(
+    () => recortarCapitulos(capitulosGruposPendientes, "entradas", limite("pend-insumos")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capitulosGruposPendientes, limites]
+  )
+  const pendEquipoVisibles = useMemo(
+    () => recortarCapitulos(capitulosGruposPendientesEquipo, "entradas", limite("pend-equipo")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capitulosGruposPendientesEquipo, limites]
+  )
+  const pendManoObraVisibles = useMemo(
+    () => recortarCapitulos(capitulosPendientesManoObra, "filas", limite("pend-mo")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capitulosPendientesManoObra, limites]
+  )
+  const autoMatchVisibles = useMemo(
+    () => Array.from(autoMatchPorItem.entries()).slice(0, limite("auto-insumos")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [autoMatchPorItem, limites]
+  )
+  const autoMatchEquipoVisibles = useMemo(
+    () => Array.from(autoMatchEquipoPorItem.entries()).slice(0, limite("auto-equipo")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [autoMatchEquipoPorItem, limites]
   )
 
   function elegirCandidatoGrupo(filasGrupo: FilaRevisionImport[], insumoId: string) {
@@ -997,8 +1135,12 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
       } else {
         await resolverLineaRevision({ revisionId, accion: "solicitud" })
       }
-      await cargar()
-      onCambio?.()
+      // El botón sigue en "Guardando…" hasta que la línea sale de la
+      // lista: antes volvía a "Guardar" mientras se recargaba todo.
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar esa línea.")
     } finally {
@@ -1060,19 +1202,27 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
       const { errores } = await resolverLineasRevisionEnLote(resoluciones)
       if (errores.length > 0) setError(errores.map((e) => e.mensaje).join(" · "))
+      const conError = new Set(errores.map((e) => e.revisionId))
+      limpiarElecciones(idsNuevos.filter((id) => !conError.has(id)))
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron guardar los seleccionados.")
     }
 
+    // Se recargan solo los ítems tocados, y el "Guardando…" se quita
+    // DESPUÉS: así la tarjeta no vuelve a mostrar "Guardar" mientras tanto.
+    const items = itemsDeLineas(idsNuevos)
+    try {
+      await refrescarItems(items)
+    } catch (e) {
+      console.error("No se pudo refrescar la revisión:", e)
+    }
     idsNuevos.forEach((id) => enVueloRef.current.delete(id))
     setGuardandoIds((prev) => {
       const copia = new Set(prev)
       idsNuevos.forEach((id) => copia.delete(id))
       return copia
     })
-
-    await cargar()
-    onCambio?.()
+    onCambio?.(items)
   }
 
   async function guardarSeleccionados() {
@@ -1121,8 +1271,10 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setError(null)
     try {
       await editarLineaAutoMatch({ revisionId, nuevoInsumoId, ...datosUnidad(revisionId) })
-      await cargar()
-      onCambio?.()
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo corregir esa línea.")
     } finally {
@@ -1144,8 +1296,10 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setError(null)
     try {
       await editarLineaAutoMatchEquipo({ revisionId, nuevoEquipoId })
-      await cargar()
-      onCambio?.()
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo corregir esa línea.")
     } finally {
@@ -1284,8 +1438,9 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
       const resultado = await importarPreciosTransporte(filasImport)
       setResultadoImportTransporte(resultado)
-      await cargar()
-      onCambio?.()
+      const items = itemsDeLineas(filasImport.map((f) => f.revisionId))
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setErrorTransporte(e instanceof Error ? e.message : "No se pudo procesar el Excel.")
     } finally {
@@ -1428,16 +1583,22 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                   </button>
                 </div>
 
-                {tabActiva === "insumos" && sinNadaEnTabInsumos && (
+                {cargandoResto && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="animate-spin inline-block h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                    Cargando insumos automáticos e historial…
+                  </p>
+                )}
+                {tabActiva === "insumos" && sinNadaEnTabInsumos && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Insumos.</p>
                 )}
-                {tabActiva === "mano_obra" && sinNadaEnTabManoObra && (
+                {tabActiva === "mano_obra" && sinNadaEnTabManoObra && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Mano de obra.</p>
                 )}
-                {tabActiva === "equipo" && sinNadaEnTabEquipo && (
+                {tabActiva === "equipo" && sinNadaEnTabEquipo && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Equipo.</p>
                 )}
-                {tabActiva === "transporte" && sinNadaEnTabTransporte && (
+                {tabActiva === "transporte" && sinNadaEnTabTransporte && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Transporte.</p>
                 )}
 
@@ -1461,7 +1622,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       </div>
                     )}
 
-                    {capitulosGruposPendientes.map(({ capitulo, entradas }) => (
+                    {pendInsumosVisibles.visibles.map(({ capitulo, entradas }) => (
                       <div key={capitulo.id} className="space-y-2">
                         <EncabezadoCapitulo capitulo={capitulo} />
                         {entradas.map(([clave, filasGrupo]) => (
@@ -1481,6 +1642,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         ))}
                       </div>
                     ))}
+                  <VerMas
+                      mostrados={Math.min(limite("pend-insumos"), pendInsumosVisibles.total)}
+                      total={pendInsumosVisibles.total}
+                      onClick={() => verMas("pend-insumos")}
+                    />
                   </section>
                 )}
 
@@ -1507,7 +1673,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       </div>
                     )}
 
-                    {capitulosPendientesManoObra.map(({ capitulo, filas: filasCapitulo }) => (
+                    {pendManoObraVisibles.visibles.map(({ capitulo, filas: filasCapitulo }) => (
                       <div key={capitulo.id} className="space-y-2">
                         <EncabezadoCapitulo capitulo={capitulo} />
                         {filasCapitulo.map((fila) => {
@@ -1548,6 +1714,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         })}
                       </div>
                     ))}
+                  <VerMas
+                      mostrados={Math.min(limite("pend-mo"), pendManoObraVisibles.total)}
+                      total={pendManoObraVisibles.total}
+                      onClick={() => verMas("pend-mo")}
+                    />
                   </section>
                 )}
 
@@ -1664,8 +1835,15 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
                 {tabActiva === "insumos" && autoMatch.length > 0 && (
                   <section className="space-y-3">
-                    <h3 className="text-sm font-semibold">Automáticos -- confirma que estén bien</h3>
-                    {Array.from(autoMatchPorItem.entries()).map(([itemId, filasItem]) => {
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">
+                        Automáticos -- confirma que estén bien ({autoMatch.length})
+                      </h3>
+                      <Button size="sm" variant="outline" onClick={() => setVerAutomaticos((v) => !v)}>
+                        {verAutomaticos ? "Ocultar" : "Revisar automáticos"}
+                      </Button>
+                    </div>
+                    {verAutomaticos && autoMatchVisibles.map(([itemId, filasItem]) => {
                       const item = datos.itemsPorId[itemId]
                       return (
                         <div key={itemId} className="space-y-2">
@@ -1716,6 +1894,13 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         </div>
                       )
                     })}
+                  {verAutomaticos && (
+                      <VerMas
+                        mostrados={Math.min(limite("auto-insumos"), autoMatchPorItem.size)}
+                        total={autoMatchPorItem.size}
+                        onClick={() => verMas("auto-insumos")}
+                      />
+                    )}
                   </section>
                 )}
 
@@ -1738,7 +1923,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       </div>
                     )}
 
-                    {capitulosGruposPendientesEquipo.map(({ capitulo, entradas }) => (
+                    {pendEquipoVisibles.visibles.map(({ capitulo, entradas }) => (
                       <div key={capitulo.id} className="space-y-2">
                         <EncabezadoCapitulo capitulo={capitulo} />
                         {entradas.map(([clave, filasGrupo]) => (
@@ -1756,6 +1941,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         ))}
                       </div>
                     ))}
+                  <VerMas
+                      mostrados={Math.min(limite("pend-equipo"), pendEquipoVisibles.total)}
+                      total={pendEquipoVisibles.total}
+                      onClick={() => verMas("pend-equipo")}
+                    />
                   </section>
                 )}
 
@@ -1799,7 +1989,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                 {tabActiva === "equipo" && autoMatchEquipo.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold">Automáticos -- confirma que estén bien</h3>
-                    {Array.from(autoMatchEquipoPorItem.entries()).map(([itemId, filasItem]) => {
+                    {autoMatchEquipoVisibles.map(([itemId, filasItem]) => {
                       const item = datos.itemsPorId[itemId]
                       return (
                         <div key={itemId} className="space-y-2">
@@ -1839,6 +2029,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         </div>
                       )
                     })}
+                  <VerMas
+                      mostrados={Math.min(limite("auto-equipo"), autoMatchEquipoPorItem.size)}
+                      total={autoMatchEquipoPorItem.size}
+                      onClick={() => verMas("auto-equipo")}
+                    />
                   </section>
                 )}
 
