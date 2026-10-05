@@ -65,5 +65,14 @@ select * from (
   select '20261024000000_requisiciones_y_almacen_por_proyecto (aplicar junto con el deploy)',
          exists (select 1 from pg_proc where proname = 'rechazar_pedido_compras')
          and exists (select 1 from pg_proc where proname = '_inventario_proyecto')
+  union all
+  select '20261025000000_unidades_presentacion',
+         exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'item_apu' and column_name = 'factor_unidad')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'maestro_insumos' and column_name = 'contenido')
+  union all
+  select '20261026000000_unidades_compras',
+         exists (select 1 from pg_trigger where tgname = 'trg_pedido_unidad_desde_apu')
 ) t
 order by 1;

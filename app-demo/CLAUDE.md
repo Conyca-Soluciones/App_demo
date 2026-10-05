@@ -946,6 +946,45 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   mueve los topes de requisiciones). `crearNuevaVersion` no es
   transaccional (si falla a mitad deja una versión vacía y APUs huérfanos).
 
+## Unidades: presentación de insumos y conversión (2026-10-05)
+
+Problema: el maestro tiene "CEMENTO X 50 KG" con u_m UND y precio del bulto;
+un APU con "cemento 8,5 kg" enlazado a ese insumo costaba 8,5 bultos. Y Compras
+no podía distinguir 50 m de 50 rollos.
+
+- **Presentación** (`maestro_insumos.unidad_uso` + `contenido`): 1 u_m trae
+  `contenido` de `unidad_uso` (1 bulto = 50 KG). u_m sigue siendo la unidad de
+  compra y del precio. La define quien aprueba insumos: Maestra de insumos
+  (columna, filtro, editor, "Revisar sugerencias" leídas del nombre con
+  `sugerirPresentacion`) y Aprobación de insumos (campos "trae").
+- **`lib/unidades.ts`**: `normalizarUnidad` ("UNIDAD - UND", "und", "ML",
+  "m²"...), `compararUnidad(unidadLinea, insumo)` -> igual / conversion
+  (factor = contenido) / distinta / sin_dato, `unidadesDeCompra` (redondea
+  hacia arriba). Con pruebas en `tests/unidades.test.ts`.
+- **Línea de APU** (`item_apu.unidad`, `factor_unidad`): el precio del insumo
+  se divide por el factor; `precio_unitario_congelado` ya se guarda dividido
+  (en la unidad de la línea). Todo insumo entra por `agregarInsumoApu`
+  (`unidadLinea`, `confirmarUnidad`) o por el insert masivo del import; los
+  dos usan `compararUnidad`. Unidad **distinta** = no se guarda: el automático
+  queda pendiente y en la revisión el candidato sale "no cuadra" con casilla de
+  confirmación ("la cantidad ya está en <u_m>", factor 1). Cambiar la
+  presentación después NO toca líneas existentes (como el precio congelado).
+- **Aviso de líneas** (`presupuesto_items.lineas_apu_oficial`): cuántas líneas
+  traía el bloque del ítem en la hoja APU. Si el APU guardado (sin pendientes)
+  tiene otra cantidad: banner ámbar + etiqueta "N de M líneas". No bloquea.
+- **Requisiciones y compras** (`20261026000000_unidades_compras.sql`): la
+  requisición va en la unidad del APU (ahí vive el tope); de la OC en adelante
+  (precio, entradas, inventario, salidas, pagos) todo en unidad de compra.
+  `pedidos_insumos.unidad`/`factor_unidad` los llena un trigger desde la línea
+  del APU. `_comprado_pedido` devuelve en unidad de la requisición
+  (oci.cantidad × factor); `crear_orden_compra` deja comprar hasta
+  `ceil(cantidad / factor)` unidades de compra. Compras ve "2 rollos" con
+  "pedido: 120 m · 1 rollo = 100 m" (`textoConversionCompra`).
+  `_resumen_ejecucion_proyecto_base` reporta todo en unidad de compra.
+- **Corregido de paso**: la versión de `crear_orden_compra` con anticipo
+  (lcpr) volvía a contar órdenes RECHAZADAS como ya compradas (regresión de
+  20261006100000); ahora no.
+
 ## Pendientes generales
 
 - **Seguridad APU** (auditoría 2026-10-02): `apu`, `item_apu`,

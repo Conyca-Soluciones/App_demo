@@ -195,3 +195,19 @@ export function validarPresentacion(
 export const UNIDADES_DE_USO: { codigo: string; nombre: string }[] = [
   "KG", "G", "TON", "LB", "M", "CM", "M2", "M3", "L", "CC", "GAL", "UND",
 ].map((codigo) => ({ codigo, nombre: NOMBRES[codigo] ?? codigo.toLowerCase() }))
+
+/**
+ * Texto para Compras cuando la requisición está en otra unidad que la de
+ * compra: "pedido: 120 m · 1 rollo = 100 m". Null si es la misma unidad.
+ */
+export function textoConversionCompra(
+  cantidadUso: number,
+  unidadUso: string | null,
+  factor: number,
+  unidadCompra: string | null
+): string | null {
+  if (!(factor > 0) || factor === 1) return null
+  const uso = nombreUnidad(unidadUso) || "unidad"
+  const compra = nombreUnidad(unidadCompra) || "unidad"
+  return `pedido: ${formatearCantidad(cantidadUso)} ${uso} · 1 ${compra} = ${formatearCantidad(factor)} ${uso}`
+}

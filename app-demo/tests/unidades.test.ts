@@ -7,6 +7,7 @@ import {
   sugerirPresentacion,
   unidadesDeCompra,
   validarPresentacion,
+  textoConversionCompra,
 } from "@/lib/unidades"
 
 describe("normalizarUnidad", () => {
@@ -131,5 +132,13 @@ describe("validarPresentacion", () => {
     expect(() => validarPresentacion(null, 50)).toThrow()
     expect(() => validarPresentacion("kg", 0)).toThrow()
     expect(() => validarPresentacion("kg", "abc")).toThrow()
+  })
+})
+
+describe("textoConversionCompra", () => {
+  it("solo cuando la unidad cambia", () => {
+    expect(textoConversionCompra(120, "M", 100, "ROLLO - ROLL")).toBe("pedido: 120 m · 1 rollo = 100 m")
+    expect(textoConversionCompra(85, "KG", 42.5, "BULTO - BE")).toBe("pedido: 85 kg · 1 bulto = 42,5 kg")
+    expect(textoConversionCompra(10, "UNIDAD - UND", 1, "UNIDAD - UND")).toBeNull()
   })
 })

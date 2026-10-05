@@ -1,5 +1,6 @@
 "use server"
 
+import { unidadesDeCompra } from "@/lib/unidades"
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
@@ -91,9 +92,16 @@ export type PedidoParaComprar = {
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
+  // Unidad de COMPRA (la u_m del insumo): en esta unidad van `cantidad`,
+  // `cantidadPendiente`, la orden de compra y su precio.
   um: string | null
   cantidad: number
   cantidadPendiente: number
+  // Lo que pidió el ingeniero, en la unidad del APU (120 m). `factor` = cuánto
+  // de esa unidad trae una unidad de compra (1 rollo = 100 m); 1 si es la misma.
+  cantidadUso: number
+  unidadUso: string | null
+  factor: number
   valorUnitarioProyectado: number | null
   fechaPedido: string
   fechaRequerida: string
@@ -105,7 +113,7 @@ export type PedidoParaComprar = {
 }
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
-  id, grupo_pedido_id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  id, grupo_pedido_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
   requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
@@ -124,9 +132,14 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
   // desaprobar_pedido y cancelar_pedido en la base, migración
   // 20261006100000_liberar_ordenes_rechazadas.sql). Antes las rechazadas
   // seguían contando y la cantidad quedaba bloqueada para siempre.
+  // En unidades de compra (las de la orden).
   const yaComprado = (f.compras ?? [])
     .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado))
     .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
+  // Lo pedido pasa a unidades de compra completas (120 m con rollos de 100 m
+  // = 2 rollos): mismo tope que crear_orden_compra en la base.
+  const factor = Number(f.factor_unidad ?? 1) || 1
+  const cantidadCompra = unidadesDeCompra(Number(f.cantidad), factor)
   return {
     id: f.id,
     requisicionId: f.grupo_pedido_id,
@@ -135,8 +148,11 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
     um: f.insumo?.u_m ?? null,
-    cantidad: Number(f.cantidad),
-    cantidadPendiente: Number(f.cantidad) - yaComprado,
+    cantidad: cantidadCompra,
+    cantidadPendiente: Math.max(cantidadCompra - yaComprado, 0),
+    cantidadUso: Number(f.cantidad),
+    unidadUso: f.unidad ?? f.insumo?.u_m ?? null,
+    factor,
     valorUnitarioProyectado: f.insumo?.vr_unitario ?? null,
     fechaPedido: f.created_at,
     fechaRequerida: f.fecha_requerida,

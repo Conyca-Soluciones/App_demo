@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { rechazarPedidoCompras, type PedidoParaComprar } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { textoConversionCompra } from "@/lib/unidades"
 
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -118,6 +119,11 @@ export function TablaPedidosCompra({
                   <TableCell>{pedido.um ?? "—"}</TableCell>
                   <TableCell className="text-right">
                     {pedido.cantidadPendiente.toLocaleString("es-CO")}
+                    {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um) && (
+                      <span className="block whitespace-nowrap text-[11px] text-muted-foreground">
+                        {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {pedido.valorUnitarioProyectado != null

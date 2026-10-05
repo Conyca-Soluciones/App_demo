@@ -28,6 +28,7 @@ import {
   type PedidoParaComprar,
   type ProveedorDetalle,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { textoConversionCompra } from "@/lib/unidades"
 
 const CLAVE_SELECCION = "compras:seleccion"
 
@@ -327,6 +328,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                         <TableCell>{pedido.um ?? "—"}</TableCell>
                         <TableCell className="text-right">
                           {pedido.cantidadPendiente.toLocaleString("es-CO")}
+                          {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um) && (
+                            <span className="block whitespace-nowrap text-[11px] text-muted-foreground">
+                              {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um)}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
