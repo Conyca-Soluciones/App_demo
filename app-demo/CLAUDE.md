@@ -972,14 +972,26 @@ no podía distinguir 50 m de 50 rollos.
 - **Aviso de líneas** (`presupuesto_items.lineas_apu_oficial`): cuántas líneas
   traía el bloque del ítem en la hoja APU. Si el APU guardado (sin pendientes)
   tiene otra cantidad: banner ámbar + etiqueta "N de M líneas". No bloquea.
+- **Conversión manual en el APU**: si la unidad no cuadra y el maestro no
+  tiene presentación, en la revisión se escribe "1 caja = 1,44 m²"
+  (`conversion` en `agregarInsumoApu` y resolvedores) y, si quien la escribe
+  aprueba insumos, se puede guardar también en el maestro. En el editor de
+  APU, "conversión" en cada línea de insumo (`actualizarConversionLineaApu`,
+  recalcula el precio congelado con el factor nuevo).
 - **Requisiciones y compras** (`20261026000000_unidades_compras.sql`): la
-  requisición va en la unidad del APU (ahí vive el tope); de la OC en adelante
-  (precio, entradas, inventario, salidas, pagos) todo en unidad de compra.
-  `pedidos_insumos.unidad`/`factor_unidad` los llena un trigger desde la línea
-  del APU. `_comprado_pedido` devuelve en unidad de la requisición
-  (oci.cantidad × factor); `crear_orden_compra` deja comprar hasta
-  `ceil(cantidad / factor)` unidades de compra. Compras ve "2 rollos" con
-  "pedido: 120 m · 1 rollo = 100 m" (`textoConversionCompra`).
+  requisición va en la unidad del presupuesto (ahí vive el cupo); de la OC en
+  adelante (proveedor, precio, entradas, inventario, salidas, pagos) todo en
+  unidad de compra. `pedidos_insumos.factor_unidad` (trigger, desde la línea
+  del APU) es la conversión SUGERIDA; `ordenes_compra_items.factor_unidad` es
+  la conversión REAL de cada compra, que Compras puede cambiar en Generar OC
+  (columnas Solicitado / Conversión / Cantidad / UM / Equivale a).
+  `_comprado_pedido` = Σ cantidad × factor de cada línea de orden (en la
+  unidad de la requisición). Del presupuesto se descuenta
+  `greatest(pedido, comprado)` (`_comprometido_insumo_item`): se piden 20 kg,
+  se compra 1 bulto de 50, cuentan 50 kg. `crear_orden_compra` deja comprar
+  hasta `ceil(pendiente / factor)` unidades y rechaza una línea ya completa.
+  Completa = comprado ≥ pedido. Sin ampliación de cupo por ahora: si el
+  redondeo agota el cupo, se usa lo de bodega o una versión nueva.
   `_resumen_ejecucion_proyecto_base` reporta todo en unidad de compra.
 - **Corregido de paso**: la versión de `crear_orden_compra` con anticipo
   (lcpr) volvía a contar órdenes RECHAZADAS como ya compradas (regresión de

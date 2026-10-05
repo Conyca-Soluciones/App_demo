@@ -28,13 +28,23 @@ import {
   type PedidoParaComprar,
   type ProveedorDetalle,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
-import { textoConversionCompra } from "@/lib/unidades"
+import { nombreUnidad, unidadesDeCompra } from "@/lib/unidades"
+
+// Conversión escrita en pantalla ("1,44" o "50"): número mayor que cero, o null.
+function numeroConversion(texto: string): number | null {
+  const n = Number(texto.trim().replace(",", "."))
+  return texto.trim() && Number.isFinite(n) && n > 0 ? n : null
+}
+
+const formatoCantidad = (n: number) => n.toLocaleString("es-CO", { maximumFractionDigits: 2 })
 
 const CLAVE_SELECCION = "compras:seleccion"
 
 type SeleccionGuardada = { proyectoId: string; pedidoIds: string[] }
 
 type LineaForm = {
+  // conversión: 1 unidad de compra = conversion unidades de la requisición
+  conversion: string
   cantidad: string
   precioUnitario: string
   porcentajeDescuento: string
@@ -129,6 +139,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             data.map((p) => [
               p.id,
               {
+                conversion: String(p.factor),
                 cantidad: String(p.cantidadPendiente),
                 precioUnitario: "",
                 porcentajeDescuento: "0",
@@ -158,11 +169,27 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     setLineas((prev) => ({ ...prev, [pedidoId]: { ...prev[pedidoId], [campo]: valor } }))
   }
 
+  // Al cambiar la conversión, la cantidad sugerida pasa a las unidades
+  // completas que cubren lo pendiente con esa conversión.
+  function actualizarConversion(pedido: PedidoParaComprar, valor: string) {
+    const conv = numeroConversion(valor)
+    setLineas((prev) => ({
+      ...prev,
+      [pedido.id]: {
+        ...prev[pedido.id],
+        conversion: valor,
+        ...(conv != null ? { cantidad: String(unidadesDeCompra(pedido.pendienteUso, conv)) } : {}),
+      },
+    }))
+  }
+
   // Devuelve los números parseados de una línea, o null si algo es inválido
   // (cantidad vacía/0/negativa/mayor a lo pendiente, o precio vacío/negativo).
   function lineaValida(pedido: PedidoParaComprar) {
     const l = lineas[pedido.id]
     if (!l) return null
+    const factor = numeroConversion(l.conversion)
+    if (factor == null) return null
     const cantidad = Number(l.cantidad)
     const precioUnitario = Number(l.precioUnitario)
     const porcentajeDescuento = Number(l.porcentajeDescuento || "0")
@@ -170,13 +197,19 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
     // Cantidad: solo enteros (Entradas solo recibe enteros; una línea de 2,5
     // dejaría 0,5 imposible de recibir). Precio y porcentajes sí decimales.
-    if (!l.cantidad.trim() || !Number.isInteger(cantidad) || cantidad <= 0 || cantidad > pedido.cantidadPendiente)
+    // Hasta las unidades completas que cubren lo pendiente con esta conversión.
+    if (
+      !l.cantidad.trim() ||
+      !Number.isInteger(cantidad) ||
+      cantidad <= 0 ||
+      cantidad > unidadesDeCompra(pedido.pendienteUso, factor)
+    )
       return null
     if (!l.precioUnitario.trim() || Number.isNaN(precioUnitario) || precioUnitario < 0) return null
     if (Number.isNaN(porcentajeDescuento) || porcentajeDescuento < 0 || porcentajeDescuento > 100) return null
     if (Number.isNaN(porcentajeIva) || porcentajeIva < 0 || porcentajeIva > 100) return null
 
-    return { cantidad, precioUnitario, porcentajeDescuento, porcentajeIva }
+    return { cantidad, factor, precioUnitario, porcentajeDescuento, porcentajeIva }
   }
 
   const todasLasLineasValidas = pedidos.length > 0 && pedidos.every((p) => lineaValida(p) !== null)
@@ -239,6 +272,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
           return {
             pedidoId: p.id,
             cantidadComprar: l.cantidad,
+            factor: l.factor,
             precioUnitario: l.precioUnitario,
             porcentajeDescuento: l.porcentajeDescuento,
             porcentajeIva: l.porcentajeIva,
@@ -302,9 +336,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                   <TableRow>
                     <TableHead>Cod</TableHead>
                     <TableHead>Insumo</TableHead>
-                    <TableHead>UM</TableHead>
-                    <TableHead className="text-right">Pendiente</TableHead>
+                    <TableHead className="text-right">Solicitado</TableHead>
+                    <TableHead className="w-44">Conversión</TableHead>
                     <TableHead className="w-28 text-right">Cantidad</TableHead>
+                    <TableHead>UM</TableHead>
+                    <TableHead className="text-right">Equivale a</TableHead>
                     <TableHead className="w-28 text-right">Vr. Unitario</TableHead>
                     <TableHead className="w-20 text-right">% Dto.</TableHead>
                     <TableHead className="w-20 text-right">% IVA</TableHead>
@@ -314,6 +350,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                 <TableBody>
                   {pedidos.map((pedido) => {
                     const l = lineas[pedido.id] ?? {
+                      conversion: "1",
                       cantidad: "",
                       precioUnitario: "",
                       porcentajeDescuento: "0",
@@ -325,26 +362,59 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                       <TableRow key={pedido.id}>
                         <TableCell className="text-muted-foreground">{pedido.insumoCodigo}</TableCell>
                         <TableCell className="max-w-[200px]">{pedido.insumoDescripcion}</TableCell>
-                        <TableCell>{pedido.um ?? "—"}</TableCell>
-                        <TableCell className="text-right">
-                          {pedido.cantidadPendiente.toLocaleString("es-CO")}
-                          {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um) && (
-                            <span className="block whitespace-nowrap text-[11px] text-muted-foreground">
-                              {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um)}
+                        <TableCell className="whitespace-nowrap text-right">
+                          {formatoCantidad(pedido.pendienteUso)} {nombreUnidad(pedido.unidadUso)}
+                          {pedido.pendienteUso < pedido.cantidadUso && (
+                            <span className="block text-[11px] text-muted-foreground">
+                              de {formatoCantidad(pedido.cantidadUso)} pedidos
                             </span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 whitespace-nowrap text-xs">
+                            <span>1 {nombreUnidad(pedido.um) || "und"} =</span>
+                            <Input
+                              inputMode="decimal"
+                              value={l.conversion}
+                              onChange={(e) => actualizarConversion(pedido, e.target.value)}
+                              className={`h-8 w-16 text-right ${numeroConversion(l.conversion) == null ? "border-destructive" : ""}`}
+                              aria-label="Conversión"
+                            />
+                            <span>{nombreUnidad(pedido.unidadUso)}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number"
                             min={0}
-                            max={pedido.cantidadPendiente}
                             step="1"
                             inputMode="numeric"
                             value={l.cantidad}
                             onChange={(e) => actualizarLinea(pedido.id, "cantidad", e.target.value)}
                             className={`text-right ${!valida ? "border-destructive" : ""}`}
                           />
+                        </TableCell>
+                        <TableCell>{pedido.um ?? "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {(() => {
+                            const conv = numeroConversion(l.conversion)
+                            const cant = Number(l.cantidad)
+                            if (conv == null || !(cant > 0)) return "—"
+                            const equivale = cant * conv
+                            const cubre = equivale >= pedido.pendienteUso - 1e-9
+                            return (
+                              <>
+                                {formatoCantidad(equivale)} {nombreUnidad(pedido.unidadUso)}
+                                <span className={`block text-[11px] ${cubre ? "text-emerald-700" : "text-amber-700"}`}>
+                                  {cubre
+                                    ? equivale > pedido.pendienteUso + 1e-9
+                                      ? `cubre; ${formatoCantidad(equivale - pedido.pendienteUso)} de más`
+                                      : "cubre lo solicitado"
+                                    : `faltan ${formatoCantidad(pedido.pendienteUso - equivale)}`}
+                                </span>
+                              </>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <Input

@@ -22,7 +22,7 @@
  * match esté bien, con opción de cambiarlo).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,6 +50,7 @@ import type {
   FilaImportTransporte,
 } from "@/lib/apu-import-types"
 import { nombreUnidad } from "@/lib/unidades"
+import { puedeEditarPresentacion } from "@/app/(app)/presupuestos/insumos/actions"
 
 // Estilo "tipo Excel" -- mismo tratamiento que ya usa el resto de la app
 // (presupuesto-table.tsx, admin-insumos/page.tsx): encabezado azul de
@@ -84,31 +85,78 @@ function candidatoNoCuadra(fila: FilaRevisionImport, insumoId: string | undefine
   return c?.compatUnidad === "distinta"
 }
 
+// Cómo resolvió el usuario una línea cuya unidad no cuadra con el insumo:
+// escribiendo la conversión (1 caja = 1,44 m²), o confirmando que la cantidad
+// ya está en la unidad del insumo.
+type EstadoUnidad = { confirmado: boolean; conversion: string; guardar: boolean }
+const ESTADO_UNIDAD_VACIO: EstadoUnidad = { confirmado: false, conversion: "", guardar: false }
+
+function numeroConversion(texto: string): number | null {
+  const n = Number(texto.trim().replace(",", "."))
+  return texto.trim() && Number.isFinite(n) && n > 0 ? n : null
+}
+
+function unidadResuelta(e: EstadoUnidad | undefined): boolean {
+  return !!e && (e.confirmado || numeroConversion(e.conversion) != null)
+}
+
+// Si quien revisa puede editar el maestro (aprobar insumos), se ofrece
+// guardar la conversión también como presentación del insumo.
+const PuedeGuardarEnMaestro = createContext(false)
+
 function AvisoUnidad({
   fila,
   insumoId,
-  confirmado,
-  onConfirmar,
+  estado = ESTADO_UNIDAD_VACIO,
+  onCambiar,
 }: {
   fila: FilaRevisionImport
   insumoId: string | undefined | null
-  confirmado: boolean
-  onConfirmar: (v: boolean) => void
+  estado?: EstadoUnidad
+  onCambiar: (patch: Partial<EstadoUnidad>) => void
 }) {
+  const puedeGuardar = useContext(PuedeGuardarEnMaestro)
   if (!candidatoNoCuadra(fila, insumoId)) return null
   const c = (fila.candidatos as CandidatoInsumo[]).find((x) => x.id === insumoId)!
-  const compra = nombreUnidad(c.u_m) || "su unidad"
+  const compra = nombreUnidad(c.u_m) || "unidad"
+  const linea = nombreUnidad(fila.unidad) || "unidad"
+  const n = numeroConversion(estado.conversion)
   return (
-    <div className="space-y-1.5 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
+    <div className="space-y-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
       <p>
-        La línea está en <strong>{nombreUnidad(fila.unidad)}</strong> y este insumo se vende por{" "}
-        <strong>{compra}</strong>
-        {c.presentacion ? ` (${c.presentacion})` : " sin presentación definida"}: el precio quedaría mal. Elige otro
-        insumo, pide a quien aprueba insumos que defina su presentación en la Maestra, o confirma la cantidad.
+        La línea está en <strong>{linea}</strong> y este insumo se vende por <strong>{compra}</strong>
+        {c.presentacion ? ` (${c.presentacion})` : ""}. Escribe la conversión para que el precio quede por {linea}:
       </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span>1 {compra} =</span>
+        <input
+          value={estado.conversion}
+          onChange={(e) => onCambiar({ conversion: e.target.value, confirmado: false })}
+          inputMode="decimal"
+          placeholder="—"
+          className="h-7 w-20 rounded-md border border-red-300 bg-background px-2 text-xs text-foreground"
+          aria-label={`Cuántos ${linea} trae 1 ${compra}`}
+        />
+        <span>{linea}</span>
+        {n != null && c.vr_unitario != null && (
+          <span className="text-red-800">
+            → {formatoPesos(c.vr_unitario / n)} / {linea}
+          </span>
+        )}
+      </div>
+      {puedeGuardar && n != null && (
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={estado.guardar} onChange={(e) => onCambiar({ guardar: e.target.checked })} />
+          Guardar también en el maestro (para los próximos presupuestos)
+        </label>
+      )}
       <label className="flex items-center gap-2">
-        <input type="checkbox" checked={confirmado} onChange={(e) => onConfirmar(e.target.checked)} />
-        La cantidad {fila.cantidad} ya está en {compra}
+        <input
+          type="checkbox"
+          checked={estado.confirmado}
+          onChange={(e) => onCambiar({ confirmado: e.target.checked, conversion: "" })}
+        />
+        O: la cantidad {fila.cantidad} ya está en {compra} (sin conversión)
       </label>
     </div>
   )
@@ -567,19 +615,36 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   const [pidiendoConfirmacionCierre, setPidiendoConfirmacionCierre] = useState(false)
   const [elecciones, setElecciones] = useState<Record<string, Eleccion>>({})
   const [correcciones, setCorrecciones] = useState<Record<string, string>>({}) // revisionId -> nuevoInsumoId
-  // Líneas cuya unidad no cuadra con el insumo elegido y el usuario confirmó
-  // que la cantidad ya está en la unidad del insumo (ver AvisoUnidad).
-  const [confirmadasUnidad, setConfirmadasUnidad] = useState<Set<string>>(new Set())
-  function confirmarUnidad(ids: string[], valor: boolean) {
-    setConfirmadasUnidad((prev) => {
-      const copia = new Set(prev)
+  // Líneas cuya unidad no cuadra con el insumo elegido: conversión escrita
+  // o confirmación (ver AvisoUnidad). null = limpiar (al cambiar de insumo).
+  const [unidadesLinea, setUnidadesLinea] = useState<Record<string, EstadoUnidad>>({})
+  function cambiarUnidad(ids: string[], patch: Partial<EstadoUnidad> | null) {
+    setUnidadesLinea((prev) => {
+      const copia = { ...prev }
       for (const id of ids) {
-        if (valor) copia.add(id)
-        else copia.delete(id)
+        if (patch === null) delete copia[id]
+        else copia[id] = { ...(copia[id] ?? ESTADO_UNIDAD_VACIO), ...patch }
       }
       return copia
     })
   }
+  // Lo que viaja al servidor para resolver la unidad de una línea.
+  function datosUnidad(id: string) {
+    const e = unidadesLinea[id]
+    const conversion = e ? numeroConversion(e.conversion) : null
+    return {
+      confirmarUnidad: !!e?.confirmado,
+      conversion,
+      guardarConversionEnMaestro: !!e?.guardar && conversion != null,
+    }
+  }
+  const [puedeGuardarEnMaestro, setPuedeGuardarEnMaestro] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    puedeEditarPresentacion()
+      .then((v: boolean) => setPuedeGuardarEnMaestro(v))
+      .catch(() => setPuedeGuardarEnMaestro(false))
+  }, [open])
   const [guardandoIds, setGuardandoIds] = useState<Set<string>>(new Set())
   // Guard síncrono contra doble-submit -- guardandoIds (arriba) es
   // estado de React, así que el botón solo queda "disabled" DESPUÉS de
@@ -794,7 +859,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   )
 
   function elegirCandidatoGrupo(filasGrupo: FilaRevisionImport[], insumoId: string) {
-    confirmarUnidad(filasGrupo.map((f) => f.id), false)
+    cambiarUnidad(filasGrupo.map((f) => f.id), null)
     setElecciones((prev) => {
       const nuevo = { ...prev }
       for (const f of filasGrupo) nuevo[f.id] = { tipo: "maestro", insumoId }
@@ -827,7 +892,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // deduplicación de solicitudes evita que se repita el mismo rechazo
   // muchas veces).
   function elegirCandidato(revisionId: string, insumoId: string) {
-    confirmarUnidad([revisionId], false)
+    cambiarUnidad([revisionId], null)
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "maestro", insumoId } }))
   }
   function marcarSolicitud(revisionId: string) {
@@ -846,7 +911,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "solicitud_equipo" } }))
   }
   function corregirAutoMatch(revisionId: string, nuevoInsumoId: string) {
-    confirmarUnidad([revisionId], false)
+    cambiarUnidad([revisionId], null)
     setCorrecciones((prev) => ({ ...prev, [revisionId]: nuevoInsumoId }))
   }
   // Reusa el mismo mapa `correcciones` (revisionId -> nuevo id) que
@@ -919,7 +984,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
           revisionId,
           accion: "maestro",
           insumoId: eleccion.insumoId,
-          confirmarUnidad: confirmadasUnidad.has(revisionId),
+          ...datosUnidad(revisionId),
         })
       } else if (eleccion.tipo === "mano_obra") {
         await resolverLineaRevision({ revisionId, accion: "mano_obra", manoObraCategoriaId: eleccion.categoriaId })
@@ -974,7 +1039,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
               revisionId: id,
               accion: "maestro" as const,
               insumoId: eleccion.insumoId,
-              confirmarUnidad: confirmadasUnidad.has(id),
+              ...datosUnidad(id),
             }
           }
           if (eleccion.tipo === "mano_obra") {
@@ -1055,7 +1120,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setGuardandoIds((prev) => new Set(prev).add(revisionId))
     setError(null)
     try {
-      await editarLineaAutoMatch({ revisionId, nuevoInsumoId, confirmarUnidad: confirmadasUnidad.has(revisionId) })
+      await editarLineaAutoMatch({ revisionId, nuevoInsumoId, ...datosUnidad(revisionId) })
       await cargar()
       onCambio?.()
     } catch (e) {
@@ -1247,6 +1312,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   }
 
   return (
+    <PuedeGuardarEnMaestro.Provider value={puedeGuardarEnMaestro}>
     <Dialog open={open} onOpenChange={handleIntentoCerrar}>
       <DialogContent
         className="max-w-7xl w-[95vw] max-h-[92vh] overflow-y-auto"
@@ -1409,8 +1475,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             onElegirCandidato={(insumoId) => elegirCandidatoGrupo(filasGrupo, insumoId)}
                             onMarcarSolicitud={() => marcarSolicitudGrupo(filasGrupo)}
                             onGuardarGrupo={() => guardarGrupo(filasGrupo)}
-                            confirmado={confirmadasUnidad.has(filasGrupo[0].id)}
-                            onConfirmarUnidad={(v) => confirmarUnidad(filasGrupo.map((f) => f.id), v)}
+                            estadoUnidad={unidadesLinea[filasGrupo[0].id]}
+                            onCambiarUnidad={(patch) => cambiarUnidad(filasGrupo.map((f) => f.id), patch)}
                           />
                         ))}
                       </div>
@@ -1516,8 +1582,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         onElegirCandidato={elegirCandidato}
                         onMarcarSolicitud={marcarSolicitud}
                         onGuardarLinea={guardarLinea}
-                        confirmadasUnidad={confirmadasUnidad}
-                        onConfirmarUnidad={(id, v) => confirmarUnidad([id], v)}
+                        unidadesLinea={unidadesLinea}
+                        onCambiarUnidad={(id, patch) => cambiarUnidad([id], patch)}
                         mostrarMotivoRechazo
                       />
                     ))}
@@ -1629,8 +1695,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                 <AvisoUnidad
                                   fila={fila}
                                   insumoId={correcciones[fila.id]}
-                                  confirmado={confirmadasUnidad.has(fila.id)}
-                                  onConfirmar={(v) => confirmarUnidad([fila.id], v)}
+                                  estado={unidadesLinea[fila.id]}
+                                  onCambiar={(patch) => cambiarUnidad([fila.id], patch)}
                                 />
                                 {tieneCorreccionSinGuardar && (
                                   <Button
@@ -1638,7 +1704,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                     onClick={() => guardarCorreccion(fila.id)}
                                     disabled={
                                       guardandoIds.has(fila.id) ||
-                                      (candidatoNoCuadra(fila, correcciones[fila.id]) && !confirmadasUnidad.has(fila.id))
+                                      (candidatoNoCuadra(fila, correcciones[fila.id]) && !unidadResuelta(unidadesLinea[fila.id]))
                                     }
                                   >
                                     {guardandoIds.has(fila.id) ? "Guardando…" : "Guardar cambio"}
@@ -1932,6 +1998,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
         )}
       </DialogContent>
     </Dialog>
+    </PuedeGuardarEnMaestro.Provider>
   )
 }
 
@@ -1951,8 +2018,8 @@ function GrupoInsumoPendiente({
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarGrupo,
-  confirmado,
-  onConfirmarUnidad,
+  estadoUnidad,
+  onCambiarUnidad,
 }: {
   clave: string
   filasGrupo: FilaRevisionImport[]
@@ -1962,8 +2029,8 @@ function GrupoInsumoPendiente({
   onElegirCandidato: (insumoId: string) => void
   onMarcarSolicitud: () => void
   onGuardarGrupo: () => void
-  confirmado: boolean
-  onConfirmarUnidad: (v: boolean) => void
+  estadoUnidad: EstadoUnidad | undefined
+  onCambiarUnidad: (patch: Partial<EstadoUnidad>) => void
 }) {
   const primera = filasGrupo[0]
   const eleccion = elecciones[primera.id] // todas las filas del grupo comparten la misma elección
@@ -2007,8 +2074,8 @@ function GrupoInsumoPendiente({
       <AvisoUnidad
         fila={primera}
         insumoId={eleccion?.tipo === "maestro" ? eleccion.insumoId : undefined}
-        confirmado={confirmado}
-        onConfirmar={onConfirmarUnidad}
+        estado={estadoUnidad}
+        onCambiar={onCambiarUnidad}
       />
 
       <div className="flex items-center gap-2">
@@ -2025,7 +2092,7 @@ function GrupoInsumoPendiente({
             onClick={onGuardarGrupo}
             disabled={
               guardandoAlgo ||
-              (eleccion.tipo === "maestro" && candidatoNoCuadra(primera, eleccion.insumoId) && !confirmado)
+              (eleccion.tipo === "maestro" && candidatoNoCuadra(primera, eleccion.insumoId) && !unidadResuelta(estadoUnidad))
             }
           >
             {guardandoAlgo ? "Guardando…" : filasGrupo.length > 1 ? `Guardar (${filasGrupo.length} ítems)` : "Guardar"}
@@ -2053,8 +2120,8 @@ function FilaGrupoItem({
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarLinea,
-  confirmadasUnidad,
-  onConfirmarUnidad,
+  unidadesLinea,
+  onCambiarUnidad,
   mostrarMotivoRechazo,
 }: {
   item: { codigo: string; descripcion: string } | undefined
@@ -2064,8 +2131,8 @@ function FilaGrupoItem({
   onElegirCandidato: (revisionId: string, insumoId: string) => void
   onMarcarSolicitud: (revisionId: string) => void
   onGuardarLinea: (revisionId: string) => void
-  confirmadasUnidad: Set<string>
-  onConfirmarUnidad: (revisionId: string, v: boolean) => void
+  unidadesLinea: Record<string, EstadoUnidad>
+  onCambiarUnidad: (revisionId: string, patch: Partial<EstadoUnidad>) => void
   mostrarMotivoRechazo?: boolean
 }) {
   return (
@@ -2118,8 +2185,8 @@ function FilaGrupoItem({
             <AvisoUnidad
               fila={fila}
               insumoId={insumoElegido}
-              confirmado={confirmadasUnidad.has(fila.id)}
-              onConfirmar={(v) => onConfirmarUnidad(fila.id, v)}
+              estado={unidadesLinea[fila.id]}
+              onCambiar={(patch) => onCambiarUnidad(fila.id, patch)}
             />
 
             {mostrarMotivoRechazo && (
@@ -2142,7 +2209,7 @@ function FilaGrupoItem({
                 <Button
                   size="sm"
                   onClick={() => onGuardarLinea(fila.id)}
-                  disabled={guardando || (candidatoNoCuadra(fila, insumoElegido) && !confirmadasUnidad.has(fila.id))}
+                  disabled={guardando || (candidatoNoCuadra(fila, insumoElegido) && !unidadResuelta(unidadesLinea[fila.id]))}
                 >
                   {guardando ? "Guardando…" : "Guardar"}
                 </Button>

@@ -97,9 +97,11 @@ export type PedidoParaComprar = {
   um: string | null
   cantidad: number
   cantidadPendiente: number
-  // Lo que pidió el ingeniero, en la unidad del APU (120 m). `factor` = cuánto
-  // de esa unidad trae una unidad de compra (1 rollo = 100 m); 1 si es la misma.
+  // Lo que pidió el ingeniero, en la unidad del APU (120 m), y lo que falta
+  // por comprar en esa unidad. `factor` = conversión sugerida, la de la línea
+  // del APU (1 rollo = 100 m); Compras la puede cambiar en la orden.
   cantidadUso: number
+  pendienteUso: number
   unidadUso: string | null
   factor: number
   valorUnitarioProyectado: number | null
@@ -119,6 +121,7 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
     cantidad,
+    factor_unidad,
     orden:ordenes_compra!ordenes_compra_items_orden_compra_id_fkey(estado)
   )
 `
@@ -132,12 +135,14 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
   // desaprobar_pedido y cancelar_pedido en la base, migración
   // 20261006100000_liberar_ordenes_rechazadas.sql). Antes las rechazadas
   // seguían contando y la cantidad quedaba bloqueada para siempre.
-  // En unidades de compra (las de la orden).
-  const yaComprado = (f.compras ?? [])
+  // Ya comprado, en la unidad de la requisición: cada línea de orden con su
+  // propia conversión (mismo cálculo que _comprado_pedido en la base).
+  const yaCompradoUso = (f.compras ?? [])
     .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado))
-    .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
-  // Lo pedido pasa a unidades de compra completas (120 m con rollos de 100 m
-  // = 2 rollos): mismo tope que crear_orden_compra en la base.
+    .reduce((acc: number, c: any) => acc + Number(c.cantidad) * (Number(c.factor_unidad ?? 1) || 1), 0)
+  const pendienteUso = Math.max(Number(f.cantidad) - yaCompradoUso, 0)
+  // Unidades de compra completas que cubren lo que falta, con la conversión
+  // sugerida (20 kg con bultos de 50 kg = 1): mismo tope que crear_orden_compra.
   const factor = Number(f.factor_unidad ?? 1) || 1
   const cantidadCompra = unidadesDeCompra(Number(f.cantidad), factor)
   return {
@@ -149,8 +154,9 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
     um: f.insumo?.u_m ?? null,
     cantidad: cantidadCompra,
-    cantidadPendiente: Math.max(cantidadCompra - yaComprado, 0),
+    cantidadPendiente: pendienteUso > 0 ? unidadesDeCompra(pendienteUso, factor) : 0,
     cantidadUso: Number(f.cantidad),
+    pendienteUso,
     unidadUso: f.unidad ?? f.insumo?.u_m ?? null,
     factor,
     valorUnitarioProyectado: f.insumo?.vr_unitario ?? null,
@@ -343,6 +349,9 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
 export type LineaOrdenCompra = {
   pedidoId: string
   cantidadComprar: number
+  // conversión de esta compra: 1 unidad de compra = factor unidades de la
+  // requisición (la sugerida, o la que escribió Compras)
+  factor: number
   precioUnitario: number
   porcentajeDescuento: number
   porcentajeIva: number
@@ -374,6 +383,9 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     throw new Error("Selecciona al menos un insumo para la orden de compra.")
   }
   // Cantidades solo enteras (precio y porcentajes pueden tener decimales).
+  if (!datos.lineas.every((l) => Number.isFinite(l.factor) && l.factor > 0)) {
+    throw new Error("La conversión de cada línea tiene que ser un número mayor que cero.")
+  }
   if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidadComprar))) {
     throw new Error("Las cantidades de la orden deben ser números enteros mayores que cero.")
   }
@@ -417,6 +429,7 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     p_lineas: datos.lineas.map((l) => ({
       pedido_id: l.pedidoId,
       cantidad_comprar: l.cantidadComprar,
+      factor: l.factor,
       precio_unitario: l.precioUnitario,
       porcentaje_descuento: l.porcentajeDescuento,
       porcentaje_iva: l.porcentajeIva,

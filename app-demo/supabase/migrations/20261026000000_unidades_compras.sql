@@ -9,12 +9,18 @@
 -- línea de requisición copia al crearse.
 --
 -- * pedidos_insumos.unidad / factor_unidad: se llenan solos al insertar
---   (trigger), desde la línea del APU.
--- * _comprado_pedido y _comprometido_insumo_item: lo comprado (en unidades de
---   compra) se pasa a la unidad de la requisición antes de compararlo.
+--   (trigger), desde la línea del APU. Es la conversión sugerida a Compras.
+-- * ordenes_compra_items.factor_unidad: la conversión con que de verdad se
+--   compró esa línea (Compras la puede cambiar si el proveedor vende otra
+--   presentación: bultos de 42,5 kg en vez de 50).
+-- * _comprado_pedido: lo comprado pasado a la unidad de la requisición
+--   (cantidad de la orden × su conversión).
+-- * _comprometido_insumo_item: del presupuesto se descuenta lo que sea MAYOR
+--   entre lo pedido y lo comprado (se piden 20 kg, se compra 1 bulto de 50:
+--   cuentan 50 kg). Si Compras rechazó la línea, solo lo ya comprado.
 -- * crear_orden_compra: la cantidad es en unidades de compra; se puede
---   comprar hasta las unidades completas que cubren lo pedido (120 m con
---   rollos de 100 m = hasta 2 rollos). Además vuelve a no contar las órdenes
+--   comprar hasta las unidades completas que cubren lo que falta (20 kg con
+--   bultos de 50 kg = 1 bulto). Además vuelve a no contar las órdenes
 --   RECHAZADAS como ya compradas (la versión con anticipo las contaba otra
 --   vez, al contrario de 20261006100000_liberar_ordenes_rechazadas.sql).
 -- * _resumen_ejecucion_proyecto_base: cantidades y valores en unidad de
@@ -64,20 +70,26 @@ $$;
 
 revoke all on function public._pedido_unidad_desde_apu() from public, anon, authenticated;
 
+alter table public.ordenes_compra_items
+  add column if not exists factor_unidad numeric(14,4) not null default 1;
+
+alter table public.ordenes_compra_items drop constraint if exists ordenes_compra_items_factor_unidad_check;
+alter table public.ordenes_compra_items add constraint ordenes_compra_items_factor_unidad_check check (factor_unidad > 0);
+
 drop trigger if exists trg_pedido_unidad_desde_apu on public.pedidos_insumos;
 create trigger trg_pedido_unidad_desde_apu
   before insert on public.pedidos_insumos
   for each row execute function public._pedido_unidad_desde_apu();
 
--- Lo comprado de una línea de requisición, en la unidad de la requisición.
+-- Lo comprado de una línea de requisición, en la unidad de la requisición
+-- (cada línea de orden con su propia conversión).
 create or replace function public._comprado_pedido(p_pedido_id uuid)
 returns numeric
 language sql
 stable security definer
 set search_path to 'public'
 as $function$
-  select coalesce(sum(oci.cantidad), 0)
-         * coalesce((select factor_unidad from pedidos_insumos where id = p_pedido_id), 1)
+  select coalesce(sum(oci.cantidad * oci.factor_unidad), 0)
   from ordenes_compra_items oci
   join ordenes_compra oc on oc.id = oci.orden_compra_id
   where oci.pedido_insumo_id = p_pedido_id
@@ -90,16 +102,12 @@ language sql
 stable security definer
 set search_path to 'public'
 as $function$
+  -- Lo pedido o lo comprado, lo que sea mayor: comprar unidades completas
+  -- (1 bulto de 50 kg para 20 kg pedidos) gasta presupuesto de verdad.
   select coalesce(sum(
     case
-      when p.rechazado_compras_at is null then p.cantidad
-      else coalesce((
-        select sum(oci.cantidad)
-        from ordenes_compra_items oci
-        join ordenes_compra oc on oc.id = oci.orden_compra_id
-        where oci.pedido_insumo_id = p.id
-          and oc.estado not in ('cancelada', 'rechazada')
-      ), 0) * p.factor_unidad
+      when p.rechazado_compras_at is null then greatest(p.cantidad, public._comprado_pedido(p.id))
+      else public._comprado_pedido(p.id)
     end
   ), 0)
   from presupuesto_items este
@@ -114,7 +122,7 @@ as $function$
 $function$;
 
 -- Igual a la versión con anticipo (20261018000000_ayf_oc_pagos.sql); cambia
--- solo el tope de cantidad por línea.
+-- el tope de cantidad por línea y guarda la conversión de cada línea.
 create or replace function public.crear_orden_compra(
   p_proyecto_id uuid, p_proveedor_id uuid, p_sitio_entrega text, p_fecha_entrega date,
   p_contacto_nombre text, p_telefono text, p_ciudad text, p_email text, p_condiciones_pago text,
@@ -132,6 +140,7 @@ declare
   v_pedido record;
   v_ya_comprado numeric;
   v_maximo numeric;
+  v_factor numeric;
   v_cantidad_solicitada numeric;
   v_anticipo numeric(5,2) := nullif(p_anticipo_porcentaje, 0);
   v_modo text := null;
@@ -196,30 +205,40 @@ begin
       raise exception 'Pedido % no pertenece al proyecto de esta orden.', v_linea->>'pedido_id';
     end if;
 
-    -- En unidades de compra. Las órdenes canceladas o rechazadas no cuentan.
-    select coalesce(sum(oci.cantidad), 0) into v_ya_comprado
+    -- Conversión de esta compra: la que mandó Compras, o la del APU.
+    v_factor := coalesce(nullif(v_linea->>'factor', '')::numeric, v_pedido.factor_unidad);
+    if v_factor is null or v_factor <= 0 then
+      raise exception 'La conversión del pedido % tiene que ser mayor que cero.', v_linea->>'pedido_id';
+    end if;
+
+    -- Ya comprado, en la unidad de la requisición. Las órdenes canceladas o
+    -- rechazadas no cuentan.
+    select coalesce(sum(oci.cantidad * oci.factor_unidad), 0) into v_ya_comprado
       from ordenes_compra_items oci
       join ordenes_compra oc on oc.id = oci.orden_compra_id
       where oci.pedido_insumo_id = v_pedido.id
         and oc.estado not in ('cancelada', 'rechazada');
 
-    -- Unidades de compra completas que cubren lo pedido (120 m con rollos de
-    -- 100 m -> 2). El margen evita que el ruido de los decimales sume una.
-    v_maximo := ceil(v_pedido.cantidad / v_pedido.factor_unidad - 0.000001);
+    if v_ya_comprado >= v_pedido.cantidad then
+      raise exception 'El pedido % ya está comprado completo.', v_linea->>'pedido_id';
+    end if;
+
+    -- Unidades de compra completas que cubren lo que falta (20 kg con bultos
+    -- de 50 kg -> 1). El margen evita que el ruido de los decimales sume una.
+    v_maximo := ceil((v_pedido.cantidad - v_ya_comprado) / v_factor - 0.000001);
 
     v_cantidad_solicitada := (v_linea->>'cantidad_comprar')::numeric;
 
-    if v_cantidad_solicitada <= 0
-       or v_ya_comprado + v_cantidad_solicitada > v_maximo then
-      raise exception 'Cantidad inválida para el pedido % (se pueden comprar: %, ya comprada: %, intentas: %).',
-        v_linea->>'pedido_id', v_maximo, v_ya_comprado, v_cantidad_solicitada;
+    if v_cantidad_solicitada <= 0 or v_cantidad_solicitada > v_maximo then
+      raise exception 'Cantidad inválida para el pedido % (se pueden comprar hasta %, intentas: %).',
+        v_linea->>'pedido_id', v_maximo, v_cantidad_solicitada;
     end if;
 
     insert into ordenes_compra_items (
-      orden_compra_id, pedido_insumo_id, cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva
+      orden_compra_id, pedido_insumo_id, cantidad, factor_unidad, precio_unitario, porcentaje_descuento, porcentaje_iva
     )
     values (
-      v_orden_id, v_pedido.id, v_cantidad_solicitada,
+      v_orden_id, v_pedido.id, v_cantidad_solicitada, v_factor,
       coalesce((v_linea->>'precio_unitario')::numeric, 0),
       coalesce((v_linea->>'porcentaje_descuento')::numeric, 0),
       coalesce((v_linea->>'porcentaje_iva')::numeric, 0)
