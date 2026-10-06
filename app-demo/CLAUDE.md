@@ -1019,9 +1019,16 @@ Hecho: limpieza del maestro aplicada en producción (unidades estándar, 18
 insumos de $1.000 borrados, sus líneas volvieron a "Revisar pendientes");
 `20261027000000_redondeo_valor_total.sql` (total = unitario redondeado ×
 cantidad; había 31 ítems descuadrados). Pendiente:
-- **Migraciones por correr**: `20261023000000_ayf_rls_initplan.sql` (A&F,
-  solo reescribe políticas) y `20261027000000_redondeo_valor_total.sql`.
-  `verificar_migraciones.sql` ya las revisa.
+- **Migraciones por correr**, en orden: `20261023000000_ayf_rls_initplan.sql`
+  (A&F, solo reescribe políticas), `20261027000000_redondeo_valor_total.sql`,
+  `20261028000000_contratos_rls_initplan.sql` y
+  `20261028100000_pg_trgm_esquema_extensions.sql` (las dos últimas vienen de
+  lcpr, renumeradas al mezclar: chocaban con 20261024/20261025 de esta rama).
+  **No correr la versión de lcpr de la de pg_trgm**: mueve la extensión sin
+  ajustar el search_path de las `buscar_*_candidatos`, que usan `<->` con
+  `search_path = public`, y el import de APU falla ("operator does not exist").
+  La de esta rama les agrega `extensions` al search_path en la misma corrida.
+  `verificar_migraciones.sql` revisa todas.
 - **Región**: Supabase está en us-west-2 (Oregón); cada consulta tarda ~180 ms
   (p50 medido en edge_logs) aunque sea trivial. Si la app está en Vercel,
   poner las funciones en `pdx1`. Es la mejora más grande y no es código.

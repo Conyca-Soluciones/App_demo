@@ -82,5 +82,15 @@ select * from (
   select '20261027000000_redondeo_valor_total',
          exists (select 1 from pg_proc where proname = 'recalcular_valor_apus'
                  and pg_get_functiondef(oid) like '%round(t.total * pi.cantidad, 2)%')
+  union all
+  select '20261028000000_contratos_rls_initplan',
+         exists (select 1 from pg_policies where tablename = 'contratistas' and policyname = 'contratistas_select'
+                 and qual like '%( SELECT auth.uid() AS uid)%')
+  union all
+  select '20261028100000_pg_trgm_esquema_extensions (y las búsquedas con extensions en el search_path)',
+         exists (select 1 from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+                 where e.extname = 'pg_trgm' and n.nspname = 'extensions')
+         and exists (select 1 from pg_proc where proname = 'buscar_insumos_candidatos_lote'
+                     and array_to_string(proconfig, ',') like '%extensions%')
 ) t
 order by 1;
