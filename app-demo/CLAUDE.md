@@ -20,6 +20,23 @@ sitio de la llamada (`.then((lista: VersionPresupuesto[]) => ...)`,
 inferencia viaje sola -- no hace daño dejarlo anotado incluso después de
 confirmar que `actions.ts` está completo.
 
+## Pruebas y CI
+
+- **Vitest** (`npm test`, `npm run test:watch`): pruebas de la lógica pura en
+  `tests/*.test.ts` (sin base de datos ni navegador). Cubren `lib/contratos`,
+  `minuta-mano-obra`, `numero-a-letras`, `calcular-nivel`, `numeros`,
+  `ordenes-compra-calculos`, `similitud-texto`, `parse-apu-excel`, fechas,
+  búsqueda y paginación. Al tocar una regla de esos archivos, agregar o
+  ajustar su prueba. `npm run typecheck` también revisa las pruebas.
+- **CI** (`.github/workflows/ci.yml`, en la raíz del repo): en cada push y PR
+  corre tipos, pruebas y build (con variables de Supabase de relleno). El
+  lint corre pero NO bloquea: hay ~140 errores heredados (sobre todo `any`);
+  quitar `continue-on-error` cuando se limpien.
+- **Falta**: pruebas de la base (pgTAP: RLS, funciones SECURITY DEFINER,
+  topes) -- primero hace falta un volcado del esquema real, porque las
+  migraciones no construyen la base desde cero; y pruebas de punta a punta
+  (Playwright) contra un Supabase de pruebas.
+
 ## Estructura de archivos
 
 ```
@@ -869,6 +886,13 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   de ~100, o mejor filtrar en la misma consulta (embed `!inner`, como el
   filtro por insumo de requisiciones, `SELECT_REQUISICIONES_CON_INSUMO`).
   Revisión de requisiciones agrupadas: `20261010100000_rendimiento_requisiciones.sql`.
+- **Guardar en lote la revisión de APU** (`resolverLineasRevisionEnLote`):
+  lecturas en tandas de 150 ids (con 650 en un `.in()` daba 400 y no se
+  guardaba nada), precios y presentaciones una vez por insumo, `item_apu` en
+  inserts de 300 con el id generado en el servidor (todas las filas con las
+  mismas columnas: en un insert en bloque la clave que falta queda NULL y
+  `factor_unidad` es NOT NULL), y el update de cada línea de revisión 25 a la
+  vez. Prueba con cliente falso en `tests/resolver-revision-lote.test.ts`.
 
 ## Reglas transversales (auditoría de casos borde, 2026-10-01)
 
@@ -905,7 +929,147 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   pide confirmación, espera el resultado, y `EliminarPresupuesto` se niega si
   hay requisiciones.
 
+## Auditoría de producción (2026-10-02)
+
+- **Corregido**: `cargarVersion` y `crearNuevaVersion` traían solo 1000 ítems
+  (presupuestos grandes se veían incompletos y la versión nueva perdía
+  ítems); ahora usan `traerTodo`. Igual `listarRevisionLote` y
+  `listarRevisionPorItems`.
+- **Corregido**: copiar un APU (`crearNuevaVersion`, `copiarApuParaItem`,
+  `copiarApuStandalone`) solo copiaba las columnas de insumo: se perdían las
+  líneas de mano de obra, equipo, transporte y herramienta menor. Ahora
+  copian `COLUMNAS_COPIA_ITEM_APU`.
+- **Corregido** (lo encontraron las pruebas): valores en letras. "UNO PESO",
+  "VEINTIUNO MIL", "TREINTA Y UNO MILLONES" -> UN / VEINTIÚN / TREINTA Y UN;
+  "veintidos/veintitres/veintiseis" sin tilde; desde mil millones salía
+  "UNDEFINED MILLONES"; 1,996 daba "100 centavos".
+- **Corregido** (`20261017000001_acceso_proyecto_funciones.sql`):
+  `resumen_ejecucion_proyecto` y `registrar_salida_almacen` (SECURITY
+  DEFINER) no revisaban acceso al proyecto. Envoltura con el nombre de
+  siempre + original renombrada con "_" (sin EXECUTE para usuarios).
+- **Abierto**: `apu`, `item_apu`, `apu_import_revision` y
+  `transporte_precios` aceptan escritura de cualquier usuario con sesión
+  (cualquiera puede cambiar o borrar líneas de un APU por la API, y eso
+  mueve los topes de requisiciones). `crearNuevaVersion` no es
+  transaccional (si falla a mitad deja una versión vacía y APUs huérfanos).
+
+## Unidades: presentación de insumos y conversión (2026-10-05)
+
+Problema: el maestro tiene "CEMENTO X 50 KG" con u_m UND y precio del bulto;
+un APU con "cemento 8,5 kg" enlazado a ese insumo costaba 8,5 bultos. Y Compras
+no podía distinguir 50 m de 50 rollos.
+
+- **Presentación** (`maestro_insumos.unidad_uso` + `contenido`): 1 u_m trae
+  `contenido` de `unidad_uso` (1 bulto = 50 KG). u_m sigue siendo la unidad de
+  compra y del precio. La define quien aprueba insumos: Maestra de insumos
+  (columna, filtro, editor, "Revisar sugerencias" leídas del nombre con
+  `sugerirPresentacion`) y Aprobación de insumos (campos "trae").
+- **`lib/unidades.ts`**: `normalizarUnidad` ("UNIDAD - UND", "und", "ML",
+  "m²"...), `compararUnidad(unidadLinea, insumo)` -> igual / conversion
+  (factor = contenido) / distinta / sin_dato, `unidadesDeCompra` (redondea
+  hacia arriba). Con pruebas en `tests/unidades.test.ts`.
+- **Línea de APU** (`item_apu.unidad`, `factor_unidad`): el precio del insumo
+  se divide por el factor; `precio_unitario_congelado` ya se guarda dividido
+  (en la unidad de la línea). Todo insumo entra por `agregarInsumoApu`
+  (`unidadLinea`, `confirmarUnidad`) o por el insert masivo del import; los
+  dos usan `compararUnidad`. Unidad **distinta** = no se guarda: el automático
+  queda pendiente y en la revisión el candidato sale "no cuadra" con casilla de
+  confirmación ("la cantidad ya está en <u_m>", factor 1). Cambiar la
+  presentación después NO toca líneas existentes (como el precio congelado).
+- **Aviso de líneas** (`presupuesto_items.lineas_apu_oficial`): cuántas líneas
+  traía el bloque del ítem en la hoja APU. Si el APU guardado (sin pendientes)
+  tiene otra cantidad: banner ámbar + etiqueta "N de M líneas". No bloquea.
+- **Conversión manual en el APU**: si la unidad no cuadra y el maestro no
+  tiene presentación, en la revisión se escribe "1 caja = 1,44 m²"
+  (`conversion` en `agregarInsumoApu` y resolvedores) y, si quien la escribe
+  aprueba insumos, se puede guardar también en el maestro. En el editor de
+  APU, "conversión" en cada línea de insumo (`actualizarConversionLineaApu`,
+  recalcula el precio congelado con el factor nuevo).
+- **Requisiciones y compras** (`20261026000000_unidades_compras.sql`): la
+  requisición va en la unidad del presupuesto (ahí vive el cupo); de la OC en
+  adelante (proveedor, precio, entradas, inventario, salidas, pagos) todo en
+  unidad de compra. `pedidos_insumos.factor_unidad` (trigger, desde la línea
+  del APU) es la conversión SUGERIDA; `ordenes_compra_items.factor_unidad` es
+  la conversión REAL de cada compra, que Compras puede cambiar en Generar OC
+  (columnas Solicitado / Conversión / Cantidad / UM / Equivale a).
+  `_comprado_pedido` = Σ cantidad × factor de cada línea de orden (en la
+  unidad de la requisición). Del presupuesto se descuenta
+  `greatest(pedido, comprado)` (`_comprometido_insumo_item`): se piden 20 kg,
+  se compra 1 bulto de 50, cuentan 50 kg. `crear_orden_compra` deja comprar
+  hasta `ceil(pendiente / factor)` unidades y rechaza una línea ya completa.
+  Completa = comprado ≥ pedido. Sin ampliación de cupo por ahora: si el
+  redondeo agota el cupo, se usa lo de bodega o una versión nueva.
+  `_resumen_ejecucion_proyecto_base` reporta todo en unidad de compra.
+- **Maestro estandarizado al aprobar** (`aprobarSolicitudInsumo`): tipo del
+  catálogo (`CATEGORIAS_APU`), u_m con el texto estándar (`unidadMaestro` /
+  `UNIDADES_MAESTRO`: "m³" -> "METRO CUBICO - M3"), agrupación obligatoria
+  (de las que ya existen, `listarAgrupacionesInsumos`) e IVA 0/5/19
+  (`vr_neto` = precio × (1 + IVA)); `vr_unitario` es SIN IVA. Antes entraban
+  "INSUMO", "m³", sin agrupación y $1.000 de prueba (19 insumos usados en 283
+  líneas de APU). `sugerirPresentacion` ya no toma medidas ("1.22 X 2.44 M",
+  "30 X 60 CM") ni días/horas como contenido.
+- **Corregido de paso**: la versión de `crear_orden_compra` con anticipo
+  (lcpr) volvía a contar órdenes RECHAZADAS como ya compradas (regresión de
+  20261006100000); ahora no.
+
 ## Pendientes generales
+
+### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)
+Hecho: limpieza del maestro aplicada en producción (unidades estándar, 18
+insumos de $1.000 borrados, sus líneas volvieron a "Revisar pendientes");
+`20261027000000_redondeo_valor_total.sql` (total = unitario redondeado ×
+cantidad; había 31 ítems descuadrados). Pendiente:
+- **Migraciones por correr**, en orden: `20261023000000_ayf_rls_initplan.sql`
+  (A&F, solo reescribe políticas), `20261027000000_redondeo_valor_total.sql`,
+  `20261028000000_contratos_rls_initplan.sql` y
+  `20261028100000_pg_trgm_esquema_extensions.sql` (las dos últimas vienen de
+  lcpr, renumeradas al mezclar: chocaban con 20261024/20261025 de esta rama).
+  **No correr la versión de lcpr de la de pg_trgm**: mueve la extensión sin
+  ajustar el search_path de las `buscar_*_candidatos`, que usan `<->` con
+  `search_path = public`, y el import de APU falla ("operator does not exist").
+  La de esta rama les agrega `extensions` al search_path en la misma corrida.
+  `verificar_migraciones.sql` revisa todas.
+- **Región**: Supabase está en us-west-2 (Oregón); cada consulta tarda ~180 ms
+  (p50 medido en edge_logs) aunque sea trivial. Si la app está en Vercel,
+  poner las funciones en `pdx1`. Es la mejora más grande y no es código.
+- **Import de APU** (~3,5 min el Malecón, 18 tandas de ~6,5 s): mano de obra
+  hace un RPC por ítem (catálogo de 264: traerlo una vez y comparar en
+  memoria); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
+  presentaciones e inserts de insumo/equipo/herramienta van en serie;
+  `page.tsx` espera `refrescarEstadosApu` antes de la tanda siguiente.
+- **Decisiones del usuario**: seguridad de `apu`/`item_apu`/
+  `apu_import_revision`/`transporte_precios` (hoy cualquier sesión escribe);
+  quién pone el precio al aprobar un insumo; ampliación de cupo.
+- **Datos**: Guadua 6 m (código 5473) sigue a $1.000 (está en la requisición
+  27 y en una OC, no se pudo borrar); 25 ítems nivel ≥ 3 sin APU (valen $0);
+  4 pares de duplicados en el maestro (3104/4134, 4561/4564, 2367/3899,
+  1581/1582); 125 presentaciones sugeridas por revisar en la Maestra.
+- **Supabase**: activar "Leaked password protection" (Auth); políticas de
+  presupuestos/ítems/versiones evalúan "ver" y "editar" en cada lectura
+  (separar la de editar en insert/update/delete).
+- Import y "Crear versión nueva" no son todo-o-nada (ver más abajo).
+
+- **Seguridad APU** (auditoría 2026-10-02): `apu`, `item_apu`,
+  `apu_import_revision` y `transporte_precios` aceptan escritura de cualquier
+  usuario con sesión. Propuesta: exigir `editar_presupuestos` para escribir.
+- **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
+  mitad, deja una versión vacía y APUs huérfanos).
+- **Resuelto en `20261024000000_requisiciones_y_almacen_por_proyecto.sql`
+  (falta aplicarla en producción, junto con el deploy de la app)**:
+  (1) usuarios sin INSERT/UPDATE/DELETE en `pedidos_insumos`,
+  `ordenes_compra` y `ordenes_compra_items` (todo va por RPCs SECURITY
+  DEFINER); el rechazo de Compras pasa a `rechazar_pedido_compras()`.
+  (2) Almacén por proyecto: entradas, salidas, inventario y listados exigen
+  ver el proyecto (`usuario_puede_ver_proyecto`/`proyectos_visibles`); quien
+  tiene "todos los proyectos" los sigue viendo todos. Se borró el
+  `listar_ordenes_entradas` viejo. Probada sobre `supabase/esquema/`.
+- `crear_orden_compra` acepta líneas rechazadas por compras
+  (`rechazado_compras_at`). Tabla sobrante `_tmp_auditoria_buscar` en
+  producción. Las migraciones 15/16/17 están aplicadas pero no registradas
+  en `schema_migrations`.
+- **Esquema real**: `supabase/esquema/` tiene el volcado de producción
+  (solo lectura, validado en Postgres 16). Usarlo como referencia en vez de
+  las migraciones, que no cuadran con la base.
 
 - ~~Cerrar la race condition del tope de cantidad en Pedidos de
   insumos~~ -- **resuelto** (ver "Riesgos resueltos" en Pedidos de
@@ -1458,6 +1622,15 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   acceso al proyecto (`puede_ver_contrato`). Quien solicita también puede leer
   contratistas (para elegir uno). Por defecto: Director de obra solicita;
   Gerencia, Legal y Líder Legal ven.
+- **Obligatorios extra** (`20261016000001_solicitud_valor_mensual.sql`, que
+  recrea `_guardar_solicitud_contrato`; igual en `validarSolicitud`):
+  obligaciones específicas y entregables, al menos uno cada uno (si no hay, se
+  escribe "N/A" o "No aplica"; `esNoAplica` evita copiarlos a la minuta); y
+  **valor de pago mensual** (`contratos.valor_mensual`, <= valor) en
+  prestación de servicios, alquiler de vehículo y arrendamiento
+  (`TIPOS_CON_PAGO_MENSUAL`). Sin CHECK en la tabla, para no romper las
+  solicitudes viejas al aprobarlas. El anticipo y los valores se muestran
+  también en letras (`anticipoEnLetras`, `pesosEnLetras`).
 - **Pendiente**: borradores (hoy el formulario se pierde si se sale), pantalla
   de pre-aprobación/minutas, opciones fijas de forma/plazo de pago cuando
   Jurídica las defina, y el 7.º tipo de contrato si existe.
@@ -1501,5 +1674,110 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
 - **Permisos**: pestaña `contratos.preaprobacion` (Legal, Líder Legal,
   Gerencia) y acción `aprobar_contratos` (Legal, Líder Legal). Quien tiene la
   pestaña también ve contratistas y sus documentos.
+- **Minuta** (pestaña "Minuta" del detalle, que en Pre-aprobación es un
+  diálogo grande): plantilla GJ-F-003 de mano de obra. Todos los campos que la
+  plantilla deja en "XXX" (partes, objeto, obligaciones, plazos, valor y forma
+  de pago, domicilio, arbitramento, porcentajes, anexo N° 1) se editan en
+  `components/minuta-mano-obra-editor.tsx`; vienen prellenados de la
+  solicitud, el contratista y el proyecto (`minutaPorDefecto` en
+  `lib/minuta-mano-obra.ts`). El texto fijo de las cláusulas vive en
+  `components/minuta-mano-obra-pdf.tsx`. El PDF lo genera
+  `POST /contratos/pre-aprobacion/[id]/minuta` con la minuta en pantalla (la
+  vista previa y la descarga muestran cambios sin guardar). Guardar =
+  `guardar_minuta_contrato` -> `contratos.minuta_datos` (jsonb, acción
+  `aprobar_contratos`, no en rechazadas;
+  `20261015000000_minuta_contratos.sql`). Al leer, lo guardado gana campo por
+  campo sobre lo calculado (`mezclarMinuta`). Editar el anexo en la minuta NO
+  cambia lo reservado del presupuesto. Otros tipos de contrato: sin plantilla
+  todavía. El editor marca el origen de cada dato (`origenCampo` /
+  `origenRenglon`): Plantilla (texto de la GJ-F-003), Solicitud (solicitud,
+  contratista o proyecto), Falta (rojo); lo editado a mano queda sin color. Tiene vencimiento (sale en
+  la tercera) y cláusulas adicionales (`clausulasAdicionales`, numeradas
+  después de la décima octava con `ordinalClausula`).
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos).
+  contratos) y las plantillas de los demás tipos.
+
+---
+
+# TRASPASO DE SESIÓN (2026-10-02) — leer esto primero
+
+Resumen para quien (Claude o persona) retome el trabajo. Rama de trabajo: **`lcpr`**
+(Sofia trabaja en paralelo en `spr` y se mezcla por pull request: antes de empezar,
+`git fetch` y revisar si hay commits nuevos; las migraciones pueden chocar de número).
+
+## Preferencias del usuario (Luis)
+- **Español** en todo (UI, comentarios, mensajes de commit, respuestas).
+- **Rendimiento lineal siempre**: nada O(n²). Indexar con `Map`/`Set` antes de
+  recorrer, consultas por lotes (`in`, joins, RPC) en vez de una por fila, listados
+  con filtros y paginación **en el servidor**. La app va a manejar mucho volumen.
+- **Commit y push directos a `lcpr`** tras cada cambio (nunca a `main`). Las
+  migraciones SQL las ejecuta él a mano en Supabase: avisarle cuáles faltan.
+- Antes de dar por hecho un cambio: `npx tsc --noEmit`. No hay acceso a la base de
+  datos desde aquí: decir siempre que no se probó contra Supabase.
+- Quiere cambios **pedidos tal cual**, sin agregar extras; si hay una decisión de
+  producto dudosa, la deja anotada al final de la respuesta, no la decide sola.
+
+## Convenciones de interfaz (ya aplicadas en toda la app)
+- **Encabezado estándar** de página: `EncabezadoPagina` / `MarcoPagina`
+  (`components/encabezado-pagina.tsx`): botón del menú + título (+ subtítulo,
+  + selector de proyecto). Misma altura y margen (`px-4 sm:px-6`) en todas.
+- **Listados con panel de filtros a la izquierda** (`components/panel-filtros.tsx`;
+  para requisiciones `filtros-requisiciones.tsx`): ningún filtro es obligatorio,
+  **no se muestra nada hasta presionar Consultar**, el panel **se minimiza al
+  consultar**, "Limpiar filtros" lo vacía. Casillas por defecto marcadas donde
+  aplica ("Solo por Aprobar", "Solo por Recibir", "Solo pendientes por comprar").
+- **Paginación de 50** (`lib/paginacion.ts` + `components/paginacion-simple.tsx`):
+  se pide una fila de más para saber si hay página siguiente, sin conteo total.
+- **Acciones de tabla**: botón **Ver** que abre el detalle en un diálogo encima de
+  la lista (no al hacer clic en la fila); columna Acciones con dos casillas de
+  ancho fijo (Ver + Aprobar/Rechazar/Desaprobar/Cancelar) para que quede alineada.
+- **Buscadores**: `_` lista todas las opciones (`lib/busqueda.ts`), mínimo 2 letras.
+- **Etiquetas de estado**: tamaño `h-6 px-3 text-xs`, centradas en la fila.
+  Requisiciones: Pendiente (amarillo), Aprobada (verde), Rechazada (rojo),
+  Cancelada (gris). Órdenes de compra: igual. Entradas: Entrega Pendiente (rojo),
+  Entrega Parcial (amarillo), Entrega Completa (verde).
+- **`Select`** (`components/ui/select.tsx`) arma solo las etiquetas desde los
+  `SelectItem`: no mostrar el valor interno ("todos") en el botón.
+- **Menú lateral por módulos** (`lib/pestanas.ts`: `MODULOS`, `construirModulos`):
+  **AdPro** (todo lo existente) y **A&F** (nuevo, sin pestañas todavía). Tres
+  columnas que se abren a la derecha (módulos → secciones → pestañas), se minimiza
+  al elegir una pestaña, y una flecha en la orilla lo abre en la ruta actual.
+  Para una pestaña nueva de A&F: entrada en `PESTANAS` con `modulo: "ayf"`.
+- **Columnas de tablas en Aprobación**: sin columna de estado de compras.
+
+## Reglas de negocio vigentes (resumen; el detalle está arriba en este archivo)
+- Requisiciones agrupadas con número; aprobar/rechazar/cancelar/modificar actúan
+  sobre la requisición completa; el cupo del presupuesto sale de las líneas
+  (pendiente o aprobada = comprometida). Compras compra y rechaza **por línea**.
+- Cancelar una requisición: solo quien la creó y solo si está pendiente.
+- Órdenes de compra: estados visibles solo Pendiente/Aprobada/Rechazada/Cancelada;
+  **ya no existe "enviada"** (columna `enviada` queda sin usar). Desaprobar o
+  cancelar una orden: no se permite si ya hay entradas de almacén.
+- Entradas/salidas: no se puede editar ni anular una entrada si el inventario del
+  insumo quedaría negativo (lo valida la base, con candado por proyecto).
+- Cantidades siempre **enteras**.
+
+## Migraciones de la última sesión (orden de ejecución)
+`20261004050000` logo de empresas · `20261006050000` pestaña Registro de
+Requisiciones · `20261006150000` cancelar solo propio · `20261007000000`
+notificaciones · `20261007100000` quitar duplicadas · `20261008000000`
+requisiciones · `20261009000000` quitar enviada · `20261010000000` entradas por
+orden · `20261010100000` rendimiento (Sofia) · `20261011000000` revisión de
+seguridad/rendimiento · `20261012000000` lista de entradas en SQL.
+**Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
+Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
+
+## Pendientes conocidos (no hechos)
+- El estado de compra de las requisiciones se calcula con una función por línea;
+  con mucho volumen conviene guardarlo o calcularlo solo para la página.
+- Funciones por línea antiguas siguen en la base sin uso: `cancelar_pedido`,
+  `modificar_pedido`, `desaprobar_pedido` (decisión: dejarlas por ahora).
+- La matriz de Roles y permisos no agrupa por módulo todavía.
+- La sección "Administrador" quedó dentro de AdPro (administra toda la plataforma).
+- A&F es visible para todos los usuarios aunque esté vacío.
+
+## Notas de herramientas
+- Desde Windows/Git Bash, los scripts de edición largos con comillas fallan en
+  heredoc: escribir el script con el editor a un archivo `.py` y ejecutarlo.
+- Un archivo `"use server"` solo puede exportar funciones async (ni constantes ni
+  re-exportar tipos): los tipos/helpers compartidos van en `lib/`.

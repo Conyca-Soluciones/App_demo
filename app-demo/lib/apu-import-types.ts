@@ -26,6 +26,13 @@ export type CandidatoInsumo = {
   similitud: number
   medidaDistinta: boolean
   unidadDistinta: boolean
+  // Compatibilidad de la unidad de la LÍNEA del Excel con este insumo
+  // (lib/unidades.ts). La calcula el servidor al leer la revisión, así que
+  // refleja la presentación vigente del insumo. "distinta" = no se puede
+  // guardar sin confirmar.
+  compatUnidad?: "igual" | "conversion" | "distinta" | "sin_dato"
+  factorUnidad?: number | null // por cuánto se divide vr_unitario para la unidad de la línea
+  presentacion?: string | null // "bulto de 50 kg"
 }
 
 export type LineaApuExcelInput = {

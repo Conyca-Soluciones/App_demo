@@ -84,7 +84,7 @@ export async function cargarLineas(
           supabase
             .from("pedidos_insumos")
             .select(`
-              id, grupo_pedido_id, cantidad, estado, resuelto_at, comentario_resolucion, motivo_cancelacion,
+              id, grupo_pedido_id, cantidad, unidad, estado, resuelto_at, comentario_resolucion, motivo_cancelacion,
               rechazado_compras_at, observaciones_compras, presupuesto_item_id,
               insumo:maestro_insumos(id, codigo, descripcion, u_m),
               presupuesto_item:presupuesto_items(codigo, descripcion, presupuesto_id),
@@ -122,7 +122,8 @@ export async function cargarLineas(
       insumoId: l.insumo?.id,
       insumoCodigo: l.insumo?.codigo,
       insumoDescripcion: l.insumo?.descripcion ?? "(insumo eliminado)",
-      insumoUm: l.insumo?.u_m ?? null,
+      // unidad de la línea del APU (en la que se pidió), no la de compra
+      insumoUm: l.unidad ?? l.insumo?.u_m ?? null,
       presupuestoItemId: l.presupuesto_item_id,
       presupuestoId: l.presupuesto_item?.presupuesto_id ?? null,
       itemCodigo: l.presupuesto_item?.codigo ?? "",

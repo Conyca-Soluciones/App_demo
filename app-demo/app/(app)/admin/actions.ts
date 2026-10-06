@@ -18,6 +18,35 @@ export type Empresa = {
   nit: string
   razonSocial: string
   logoUrl: string | null
+  // A&F: consolidado de pagos al que pertenece (null = sin asignar todavía).
+  consolidadoId: string | null
+}
+
+export type Consolidado = { id: string; nombre: string }
+
+// Los 3 consolidados de pagos (A&F). Solo para elegir a cuál va cada empresa.
+export async function listarConsolidados(): Promise<Consolidado[]> {
+  await requerirAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("consolidados")
+    .select("id, nombre")
+    .order("orden", { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))
+}
+
+// null deja la empresa sin consolidado.
+export async function asignarConsolidadoEmpresa(empresaId: string, consolidadoId: string | null) {
+  await requerirAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("empresas")
+    .update({ consolidado_id: consolidadoId })
+    .eq("id", empresaId)
+    .select("id")
+  if (error) throw new Error(mensajeErrorEmpresa(error, "asignar el consolidado"))
+  if (!data || data.length === 0) throw new Error("No se pudo asignar el consolidado.")
 }
 
 export async function listarEmpresas(): Promise<Empresa[]> {
@@ -26,7 +55,7 @@ export async function listarEmpresas(): Promise<Empresa[]> {
 
   const { data, error } = await supabase
     .from("empresas")
-    .select("id, nit, razon_social, logo_url")
+    .select("id, nit, razon_social, logo_url, consolidado_id")
     .order("razon_social")
 
   if (error) {
@@ -38,6 +67,7 @@ export async function listarEmpresas(): Promise<Empresa[]> {
     nit: e.nit,
     razonSocial: e.razon_social,
     logoUrl: e.logo_url,
+    consolidadoId: e.consolidado_id,
   }))
 }
 
@@ -80,11 +110,17 @@ export async function crearEmpresa(input: {
   const { data, error } = await supabase
     .from("empresas")
     .insert({ nit, razon_social: razonSocial, logo_url: logoUrl })
-    .select("id, nit, razon_social, logo_url")
+    .select("id, nit, razon_social, logo_url, consolidado_id")
     .single()
 
   if (error) throw new Error(mensajeErrorEmpresa(error, "crear la empresa"))
-  return { id: data.id, nit: data.nit, razonSocial: data.razon_social, logoUrl: data.logo_url }
+  return {
+    id: data.id,
+    nit: data.nit,
+    razonSocial: data.razon_social,
+    logoUrl: data.logo_url,
+    consolidadoId: data.consolidado_id,
+  }
 }
 
 // null quita el logo.

@@ -40,6 +40,7 @@ import {
   type VersionPresupuesto,
   type EstadoApuItem,
   type MotivoRechazoPorItem,
+  type DiferenciaLineasApu,
 } from "./actions"
 import {
   Select,
@@ -508,6 +509,9 @@ export default function Presupuestos() {
 
   const [estadosApu, setEstadosApu] = useState<Record<string, EstadoApuItem>>({})
   const [motivosRechazo, setMotivosRechazo] = useState<Record<string, MotivoRechazoPorItem[]>>({})
+  // Ítems cuyo APU guardado tiene más o menos líneas que el Excel oficial
+  // (solo aviso, no bloquea).
+  const [diferenciasLineas, setDiferenciasLineas] = useState<Record<string, DiferenciaLineasApu>>({})
   const [dialogoRevisionAbierto, setDialogoRevisionAbierto] = useState(false)
   const [itemIdsParaRevisar, setItemIdsParaRevisar] = useState<string[]>([])
   const [modoGeneralRevision, setModoGeneralRevision] = useState(false)
@@ -527,7 +531,7 @@ export default function Presupuestos() {
   async function refrescarEstadosApu(idsAConsultar: string[]) {
     if (idsAConsultar.length === 0) return
     try {
-      const [{ estados, motivosRechazo: motivos }, idsTransporte] = await Promise.all([
+      const [{ estados, motivosRechazo: motivos, diferenciasLineas: diferencias }, idsTransporte] = await Promise.all([
         obtenerEstadoApuPorItem(idsAConsultar),
         obtenerItemsConTransportePendiente(idsAConsultar),
       ])
@@ -554,6 +558,14 @@ export default function Presupuestos() {
         const nuevo = { ...prev }
         for (const id of idsAConsultar) {
           if (id in motivos) nuevo[id] = motivos[id]
+          else delete nuevo[id]
+        }
+        return nuevo
+      })
+      setDiferenciasLineas((prev) => {
+        const nuevo = { ...prev }
+        for (const id of idsAConsultar) {
+          if (id in diferencias) nuevo[id] = diferencias[id]
           else delete nuevo[id]
         }
         return nuevo
@@ -655,9 +667,10 @@ export default function Presupuestos() {
     setDialogoRevisionAbierto(true)
   }
 
+  // Cada Guardar del diálogo ya refrescó sus ítems (onCambio): al cerrar
+  // no hace falta volver a consultar todo el presupuesto.
   function handleCerrarDialogoRevision() {
     setDialogoRevisionAbierto(false)
-    refrescarEstadosYValores(itemIdsParaRevisar)
   }
 
   useEffect(() => {
@@ -678,11 +691,12 @@ export default function Presupuestos() {
     setCargandoPresupuesto(true)
     setError(null)
     try {
-      const { items, estados, motivosRechazo: motivos, itemIdsTransportePendiente: transportePendiente } =
+      const { items, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente } =
         await cargarVersionConEstadoApu(versionId)
       setPresupuesto(items)
       setEstadosApu(estados)
       setMotivosRechazo(motivos)
+      setDiferenciasLineas(diferencias)
       setItemIdsTransportePendiente(transportePendiente)
       setVersionViendoId(versionId)
       setViendoVersionActual(versiones.find((v: VersionPresupuesto) => v.id === versionId)?.esActual ?? false)
@@ -698,11 +712,12 @@ export default function Presupuestos() {
     setCargandoPresupuesto(true)
     setError(null)
     try {
-      const { items, estados, motivosRechazo: motivos, itemIdsTransportePendiente: transportePendiente } =
+      const { items, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente } =
         await cargarItemsConEstadoApu(presupuestoDbId)
       setPresupuesto(items)
       setEstadosApu(estados)
       setMotivosRechazo(motivos)
+      setDiferenciasLineas(diferencias)
       setItemIdsTransportePendiente(transportePendiente)
       setVersionViendoId(versiones.find((v: VersionPresupuesto) => v.esActual)?.id ?? null)
       setViendoVersionActual(true)
@@ -720,11 +735,12 @@ export default function Presupuestos() {
     setError(null)
     try {
       const nueva = await crearNuevaVersion(presupuestoDbId, nombreNuevaVersion.trim())
-      const [{ items, estados, motivosRechazo: motivos, itemIdsTransportePendiente: transportePendiente }, listaVersiones] =
+      const [{ items, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente }, listaVersiones] =
         await Promise.all([cargarItemsConEstadoApu(presupuestoDbId), listarVersiones(presupuestoDbId)])
       setPresupuesto(items)
       setEstadosApu(estados)
       setMotivosRechazo(motivos)
+      setDiferenciasLineas(diferencias)
       setItemIdsTransportePendiente(transportePendiente)
       setVersiones(listaVersiones)
       setVersionViendoId(nueva.id)
@@ -772,11 +788,12 @@ export default function Presupuestos() {
     setCargandoPresupuesto(true)
     setError(null)
     try {
-      const { items, estados, motivosRechazo: motivos, itemIdsTransportePendiente: transportePendiente } =
+      const { items, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente } =
         await cargarItemsConEstadoApu(existente.id)
       setPresupuesto(items)
       setEstadosApu(estados)
       setMotivosRechazo(motivos)
+      setDiferenciasLineas(diferencias)
       setItemIdsTransportePendiente(transportePendiente)
       setPresupuestoDbId(existente.id)
       setViendoVersionActual(true)
@@ -1605,6 +1622,13 @@ export default function Presupuestos() {
           </div>
         )}
 
+        {Object.keys(diferenciasLineas).length > 0 && !dialogoRevisionAbierto && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {Object.keys(diferenciasLineas).length} ítem(s) tienen un APU con más o menos líneas que el Excel
+            oficial. Revísalos (etiqueta &ldquo;líneas&rdquo; en la columna APU) por si se perdió o se duplicó algo.
+          </div>
+        )}
+
         {itemIdsTransportePendiente.length > 0 && !dialogoRevisionAbierto && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50 px-4 py-3">
             <p className="text-sm text-sky-900">
@@ -1742,6 +1766,7 @@ export default function Presupuestos() {
                   soloLectura={!viendoVersionActual}
                   estadosApu={estadosApu}
                   motivosRechazo={motivosRechazo}
+                  diferenciasLineas={diferenciasLineas}
                   onRevisarItem={handleAbrirRevisionDeItem}
                 />
 
@@ -1868,7 +1893,7 @@ export default function Presupuestos() {
         itemIds={itemIdsParaRevisar}
         tabInicial={tabInicialRevision}
         onCerrar={handleCerrarDialogoRevision}
-        onCambio={() => refrescarEstadosYValores(itemIdsParaRevisar)}
+        onCambio={(itemIds) => refrescarEstadosYValores(itemIds)}
       />
     </>
   )

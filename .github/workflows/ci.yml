@@ -1,0 +1,52 @@
+# Revisión automática en cada push y pull request: tipos, pruebas y build.
+# Si algo falla, GitHub marca el commit en rojo y el PR muestra qué se rompió.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app-demo
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app-demo/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+
+      - name: Pruebas (Vitest)
+        run: npm test
+
+      # El build no se conecta a Supabase: basta con variables de relleno.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ejemplo.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: relleno
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: relleno
+          NEXT_TELEMETRY_DISABLED: 1
+
+      # Hoy hay errores de lint heredados (sobre todo `any`): se muestran pero
+      # no bloquean. Cuando se limpien, quitar continue-on-error.
+      - name: Lint (informativo)
+        run: npm run lint
+        continue-on-error: true

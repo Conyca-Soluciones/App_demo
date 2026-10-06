@@ -1,5 +1,6 @@
 "use server"
 
+import { unidadesDeCompra } from "@/lib/unidades"
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
@@ -91,9 +92,18 @@ export type PedidoParaComprar = {
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
+  // Unidad de COMPRA (la u_m del insumo): en esta unidad van `cantidad`,
+  // `cantidadPendiente`, la orden de compra y su precio.
   um: string | null
   cantidad: number
   cantidadPendiente: number
+  // Lo que pidió el ingeniero, en la unidad del APU (120 m), y lo que falta
+  // por comprar en esa unidad. `factor` = conversión sugerida, la de la línea
+  // del APU (1 rollo = 100 m); Compras la puede cambiar en la orden.
+  cantidadUso: number
+  pendienteUso: number
+  unidadUso: string | null
+  factor: number
   valorUnitarioProyectado: number | null
   fechaPedido: string
   fechaRequerida: string
@@ -105,12 +115,13 @@ export type PedidoParaComprar = {
 }
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
-  id, grupo_pedido_id, cantidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  id, grupo_pedido_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
   requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
     cantidad,
+    factor_unidad,
     orden:ordenes_compra!ordenes_compra_items_orden_compra_id_fkey(estado)
   )
 `
@@ -124,9 +135,16 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
   // desaprobar_pedido y cancelar_pedido en la base, migración
   // 20261006100000_liberar_ordenes_rechazadas.sql). Antes las rechazadas
   // seguían contando y la cantidad quedaba bloqueada para siempre.
-  const yaComprado = (f.compras ?? [])
+  // Ya comprado, en la unidad de la requisición: cada línea de orden con su
+  // propia conversión (mismo cálculo que _comprado_pedido en la base).
+  const yaCompradoUso = (f.compras ?? [])
     .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado))
-    .reduce((acc: number, c: any) => acc + Number(c.cantidad), 0)
+    .reduce((acc: number, c: any) => acc + Number(c.cantidad) * (Number(c.factor_unidad ?? 1) || 1), 0)
+  const pendienteUso = Math.max(Number(f.cantidad) - yaCompradoUso, 0)
+  // Unidades de compra completas que cubren lo que falta, con la conversión
+  // sugerida (20 kg con bultos de 50 kg = 1): mismo tope que crear_orden_compra.
+  const factor = Number(f.factor_unidad ?? 1) || 1
+  const cantidadCompra = unidadesDeCompra(Number(f.cantidad), factor)
   return {
     id: f.id,
     requisicionId: f.grupo_pedido_id,
@@ -135,8 +153,12 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
     um: f.insumo?.u_m ?? null,
-    cantidad: Number(f.cantidad),
-    cantidadPendiente: Number(f.cantidad) - yaComprado,
+    cantidad: cantidadCompra,
+    cantidadPendiente: pendienteUso > 0 ? unidadesDeCompra(pendienteUso, factor) : 0,
+    cantidadUso: Number(f.cantidad),
+    pendienteUso,
+    unidadUso: f.unidad ?? f.insumo?.u_m ?? null,
+    factor,
     valorUnitarioProyectado: f.insumo?.vr_unitario ?? null,
     fechaPedido: f.created_at,
     fechaRequerida: f.fecha_requerida,
@@ -217,27 +239,14 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
   await requerirScope("rol_compras")
   const supabase = await createClient()
 
-  const userId = await obtenerUsuarioId()
-
-  const { data, error } = await supabase
-    .from("pedidos_insumos")
-    .update({
-      rechazado_compras_at: new Date().toISOString(),
-      rechazado_compras_por: userId ?? null,
-      observaciones_compras: motivo,
-    })
-    .eq("id", pedidoId)
-    // Solo una vez y solo sobre requisiciones aprobadas: con la pantalla
-    // desactualizada se podía volver a rechazar (sobrescribiendo el motivo)
-    // o rechazar una que ya habían cancelado/desaprobado.
-    .eq("estado", "aprobado")
-    .is("rechazado_compras_at", null)
-    .select("id")
-
+  // La función solo rechaza una vez y solo requisiciones aprobadas (con la
+  // pantalla desactualizada se podía sobrescribir el motivo o rechazar una ya
+  // cancelada/desaprobada). Los usuarios no escriben pedidos_insumos directo.
+  const { error } = await supabase.rpc("rechazar_pedido_compras", {
+    p_pedido_id: pedidoId,
+    p_motivo: motivo,
+  })
   if (error) throw new Error(error.message)
-  if (!data || data.length === 0) {
-    throw new Error("Esta requisición ya no está disponible para Compras (ya fue rechazada o cambió de estado). Actualiza la página.")
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +349,9 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
 export type LineaOrdenCompra = {
   pedidoId: string
   cantidadComprar: number
+  // conversión de esta compra: 1 unidad de compra = factor unidades de la
+  // requisición (la sugerida, o la que escribió Compras)
+  factor: number
   precioUnitario: number
   porcentajeDescuento: number
   porcentajeIva: number
@@ -356,6 +368,11 @@ export type DatosOrdenCompra = {
   email?: string | null
   condicionesPago?: string | null
   observaciones?: string | null
+  // Anticipo (A&F): porcentaje del total que se paga al aprobar la orden, y
+  // cuándo se paga el saldo: al quedar entregada o en una fecha.
+  anticipoPorcentaje?: number | null
+  saldoModo?: "entrega" | "fecha" | null
+  saldoFecha?: string | null // YYYY-MM-DD
   lineas: LineaOrdenCompra[]
 }
 
@@ -366,8 +383,33 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     throw new Error("Selecciona al menos un insumo para la orden de compra.")
   }
   // Cantidades solo enteras (precio y porcentajes pueden tener decimales).
+  if (!datos.lineas.every((l) => Number.isFinite(l.factor) && l.factor > 0)) {
+    throw new Error("La conversión de cada línea tiene que ser un número mayor que cero.")
+  }
   if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidadComprar))) {
     throw new Error("Las cantidades de la orden deben ser números enteros mayores que cero.")
+  }
+
+  // Anticipo: se valida acá también (la base lo vuelve a validar). Los
+  // parámetros solo se mandan si hay anticipo, así una orden sin anticipo
+  // llama a la función exactamente como antes.
+  let anticipo: { p_anticipo_porcentaje: number; p_saldo_modo: string; p_saldo_fecha: string | null } | null = null
+  if (datos.anticipoPorcentaje != null && datos.anticipoPorcentaje !== 0) {
+    const pct = datos.anticipoPorcentaje
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+      throw new Error("El porcentaje del anticipo debe ser mayor que 0 y menor que 100.")
+    }
+    if (datos.saldoModo !== "entrega" && datos.saldoModo !== "fecha") {
+      throw new Error("Indica cuándo se paga el saldo: al ser entregado o en una fecha.")
+    }
+    if (datos.saldoModo === "fecha" && !/^\d{4}-\d{2}-\d{2}$/.test(datos.saldoFecha ?? "")) {
+      throw new Error("Indica la fecha en que se paga el saldo.")
+    }
+    anticipo = {
+      p_anticipo_porcentaje: Math.round(pct * 100) / 100,
+      p_saldo_modo: datos.saldoModo,
+      p_saldo_fecha: datos.saldoModo === "fecha" ? (datos.saldoFecha as string) : null,
+    }
   }
 
   const supabase = await createClient()
@@ -383,9 +425,11 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     p_email: datos.email ?? null,
     p_condiciones_pago: datos.condicionesPago ?? null,
     p_observaciones: datos.observaciones ?? null,
+    ...(anticipo ?? {}),
     p_lineas: datos.lineas.map((l) => ({
       pedido_id: l.pedidoId,
       cantidad_comprar: l.cantidadComprar,
+      factor: l.factor,
       precio_unitario: l.precioUnitario,
       porcentaje_descuento: l.porcentajeDescuento,
       porcentaje_iva: l.porcentajeIva,
@@ -524,6 +568,10 @@ export type OrdenCompraDetalle = {
   motivoDesaprobacion: string | null
   motivoCancelacion: string | null
   canceladaAt: string | null
+  // Anticipo (A&F): null si la orden no tiene.
+  anticipoPorcentaje: number | null
+  saldoModo: "entrega" | "fecha" | null
+  saldoFecha: string | null
   lineas: LineaOrdenCompraDetalle[]
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
@@ -538,6 +586,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
+      anticipo_porcentaje, saldo_modo, saldo_fecha,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
@@ -599,6 +648,9 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     motivoDesaprobacion: d.motivo_desaprobacion,
     motivoCancelacion: d.motivo_cancelacion,
     canceladaAt: d.cancelada_at,
+    anticipoPorcentaje: d.anticipo_porcentaje != null ? Number(d.anticipo_porcentaje) : null,
+    saldoModo: d.saldo_modo ?? null,
+    saldoFecha: d.saldo_fecha ?? null,
     lineas: (d.lineas ?? []).map((l: any) => ({
       id: l.id,
       insumoCodigo: l.pedido?.insumo?.codigo,

@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation"
 import {
   ArrowLeftRight,
   Building2,
+  ChevronLeft,
   ChevronRight,
   HardHat,
   Landmark,
@@ -106,12 +107,40 @@ export function AppSidebar({
     setSeccionAbierta(null)
   }
 
+  // Flecha de la orilla: con el menú minimizado lo abre completo siguiendo la
+  // ruta de la página actual (su módulo y su sección ya seleccionados); con el
+  // menú abierto lo vuelve a minimizar.
+  const abierto = moduloAbierto !== null
+  function alternarMenu() {
+    if (abierto) {
+      setModuloAbierto(null)
+      setSeccionAbierta(null)
+    } else if (ubicacionActual) {
+      setModuloAbierto(ubicacionActual.modulo)
+      setSeccionAbierta(ubicacionActual.seccion)
+    }
+  }
+  // Sin una página del menú abierta (p. ej. el inicio) no hay ruta que seguir.
+  const puedeAlternar = abierto || ubicacionActual !== null
+
   function elegirSeccion(titulo: string) {
     setSeccionAbierta((actual) => (actual === titulo ? null : titulo))
   }
 
   return (
     <Sidebar>
+      <div className="relative h-full min-h-0 w-full">
+      {puedeAlternar && (
+        <button
+          type="button"
+          onClick={alternarMenu}
+          aria-label={abierto ? "Minimizar el menú" : "Abrir el menú en la página actual"}
+          title={abierto ? "Minimizar el menú" : "Abrir el menú en la página actual"}
+          className="absolute top-1/2 -right-3 z-30 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+        >
+          {abierto ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
+        </button>
+      )}
       <div className="flex h-full min-h-0 w-full overflow-x-auto">
         {/* ------------------------------------------------ 1. Módulos */}
         <div
@@ -283,6 +312,7 @@ export function AppSidebar({
             </div>
           </div>
         )}
+      </div>
       </div>
     </Sidebar>
   )

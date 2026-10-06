@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { rechazarPedidoCompras, type PedidoParaComprar } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { textoConversionCompra } from "@/lib/unidades"
 
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -105,8 +106,6 @@ export function TablaPedidosCompra({
           </TableHeader>
           <TableBody>
             {ordenados.map((pedido) => {
-              const comprometido = pedido.cantidadPendiente < pedido.cantidad
-
               return (
                 <TableRow key={pedido.id} className={pedido.urgente ? "bg-amber-50" : undefined}>
                   <TableCell className="font-medium">{pedido.requisicionNumero ?? "—"}</TableCell>
@@ -119,17 +118,12 @@ export function TablaPedidosCompra({
                   </TableCell>
                   <TableCell>{pedido.um ?? "—"}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex flex-col items-end">
-                      <span>{pedido.cantidadPendiente.toLocaleString("es-CO")}</span>
-                      {comprometido ? (
-                        <span
-                          className="text-xs text-muted-foreground line-through"
-                          title="Cantidad originalmente pedida — parte ya se compró en otra orden"
-                        >
-                          {pedido.cantidad.toLocaleString("es-CO")}
-                        </span>
-                      ) : null}
-                    </div>
+                    {pedido.cantidadPendiente.toLocaleString("es-CO")}
+                    {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um) && (
+                      <span className="block whitespace-nowrap text-[11px] text-muted-foreground">
+                        {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {pedido.valorUnitarioProyectado != null

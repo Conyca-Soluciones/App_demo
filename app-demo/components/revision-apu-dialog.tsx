@@ -22,7 +22,7 @@
  * match esté bien, con opción de cambiarlo).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,6 +49,8 @@ import type {
   CategoriaEquipo,
   FilaImportTransporte,
 } from "@/lib/apu-import-types"
+import { nombreUnidad } from "@/lib/unidades"
+import { puedeEditarPresentacion } from "@/app/(app)/presupuestos/insumos/actions"
 
 // Estilo "tipo Excel" -- mismo tratamiento que ya usa el resto de la app
 // (presupuesto-table.tsx, admin-insumos/page.tsx): encabezado azul de
@@ -66,6 +68,98 @@ type FilaCandidatoInsumo = {
   u_m: string | null
   vr_unitario: number | null
   similitud: number
+  // solo en los candidatos guardados de la revisión (ver anotarUnidadesCandidatos)
+  compatUnidad?: "igual" | "conversion" | "distinta" | "sin_dato"
+  factorUnidad?: number | null
+  presentacion?: string | null
+}
+
+const formatoPesos = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`
+
+// El candidato elegido no cuadra en unidad con la línea (kg contra un
+// insumo que se vende por unidad y no tiene presentación): no se puede
+// guardar sin confirmar.
+function candidatoNoCuadra(fila: FilaRevisionImport, insumoId: string | undefined | null): boolean {
+  if (!insumoId) return false
+  const c = (fila.candidatos as CandidatoInsumo[]).find((x) => x.id === insumoId)
+  return c?.compatUnidad === "distinta"
+}
+
+// Cómo resolvió el usuario una línea cuya unidad no cuadra con el insumo:
+// escribiendo la conversión (1 caja = 1,44 m²), o confirmando que la cantidad
+// ya está en la unidad del insumo.
+type EstadoUnidad = { confirmado: boolean; conversion: string; guardar: boolean }
+const ESTADO_UNIDAD_VACIO: EstadoUnidad = { confirmado: false, conversion: "", guardar: false }
+
+function numeroConversion(texto: string): number | null {
+  const n = Number(texto.trim().replace(",", "."))
+  return texto.trim() && Number.isFinite(n) && n > 0 ? n : null
+}
+
+function unidadResuelta(e: EstadoUnidad | undefined): boolean {
+  return !!e && (e.confirmado || numeroConversion(e.conversion) != null)
+}
+
+// Si quien revisa puede editar el maestro (aprobar insumos), se ofrece
+// guardar la conversión también como presentación del insumo.
+const PuedeGuardarEnMaestro = createContext(false)
+
+function AvisoUnidad({
+  fila,
+  insumoId,
+  estado = ESTADO_UNIDAD_VACIO,
+  onCambiar,
+}: {
+  fila: FilaRevisionImport
+  insumoId: string | undefined | null
+  estado?: EstadoUnidad
+  onCambiar: (patch: Partial<EstadoUnidad>) => void
+}) {
+  const puedeGuardar = useContext(PuedeGuardarEnMaestro)
+  if (!candidatoNoCuadra(fila, insumoId)) return null
+  const c = (fila.candidatos as CandidatoInsumo[]).find((x) => x.id === insumoId)!
+  const compra = nombreUnidad(c.u_m) || "unidad"
+  const linea = nombreUnidad(fila.unidad) || "unidad"
+  const n = numeroConversion(estado.conversion)
+  return (
+    <div className="space-y-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
+      <p>
+        La línea está en <strong>{linea}</strong> y este insumo se vende por <strong>{compra}</strong>
+        {c.presentacion ? ` (${c.presentacion})` : ""}. Escribe la conversión para que el precio quede por {linea}:
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span>1 {compra} =</span>
+        <input
+          value={estado.conversion}
+          onChange={(e) => onCambiar({ conversion: e.target.value, confirmado: false })}
+          inputMode="decimal"
+          placeholder="—"
+          className="h-7 w-20 rounded-md border border-red-300 bg-background px-2 text-xs text-foreground"
+          aria-label={`Cuántos ${linea} trae 1 ${compra}`}
+        />
+        <span>{linea}</span>
+        {n != null && c.vr_unitario != null && (
+          <span className="text-red-800">
+            → {formatoPesos(c.vr_unitario / n)} / {linea}
+          </span>
+        )}
+      </div>
+      {puedeGuardar && n != null && (
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={estado.guardar} onChange={(e) => onCambiar({ guardar: e.target.checked })} />
+          Guardar también en el maestro (para los próximos presupuestos)
+        </label>
+      )}
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={estado.confirmado}
+          onChange={(e) => onCambiar({ confirmado: e.target.checked, conversion: "" })}
+        />
+        O: la cantidad {fila.cantidad} ya está en {compra} (sin conversión)
+      </label>
+    </div>
+  )
 }
 
 /**
@@ -79,11 +173,14 @@ function TablaCandidatos({
   seleccionado,
   onSeleccionar,
   titulo = "Las recomendaciones de insumo son:",
+  unidadLinea,
 }: {
   candidatos: FilaCandidatoInsumo[]
   seleccionado?: string | null
   onSeleccionar: (insumoId: string) => void
   titulo?: string
+  // unidad en que viene la línea del Excel, para mostrar el precio en esa unidad
+  unidadLinea?: string | null
 }) {
   if (candidatos.length === 0) return null
 
@@ -95,7 +192,7 @@ function TablaCandidatos({
           <thead>
             <tr>
               <th className={headClasesCandidatos}>Nombre</th>
-              <th className={`${headClasesCandidatos} w-20`}>Unidad</th>
+              <th className={`${headClasesCandidatos} w-36`}>Unidad</th>
               <th className={`${headClasesCandidatos} w-28 text-right`}>Valor</th>
               <th className={`${headClasesCandidatos} w-24 text-right`}>% Similitud</th>
             </tr>
@@ -113,9 +210,30 @@ function TablaCandidatos({
                     {sel && <span className="mr-1 text-primary">✓</span>}
                     {c.descripcion}
                   </td>
-                  <td className={`${celdaCandidato} text-muted-foreground`}>{c.u_m ?? "—"}</td>
+                  <td className={`${celdaCandidato} text-muted-foreground`}>
+                    <span>{c.u_m ?? "—"}</span>
+                    {c.compatUnidad === "conversion" && c.presentacion && (
+                      <span className="block text-[11px] text-emerald-700">{c.presentacion}</span>
+                    )}
+                    {c.compatUnidad === "distinta" && (
+                      <span className="block text-[11px] font-medium text-red-700">
+                        no cuadra con {nombreUnidad(unidadLinea) || "la línea"}
+                      </span>
+                    )}
+                  </td>
                   <td className={`${celdaCandidato} text-right`}>
-                    ${(c.vr_unitario ?? 0).toLocaleString()}
+                    {c.compatUnidad === "conversion" && c.factorUnidad ? (
+                      <>
+                        <span>
+                          {formatoPesos((c.vr_unitario ?? 0) / c.factorUnidad)} / {nombreUnidad(unidadLinea)}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {formatoPesos(c.vr_unitario ?? 0)} / {nombreUnidad(c.u_m) || "und"}
+                        </span>
+                      </>
+                    ) : (
+                      formatoPesos(c.vr_unitario ?? 0)
+                    )}
                   </td>
                   <td className={`${celdaCandidato} text-right text-muted-foreground`}>
                     {Math.round(c.similitud * 100)}%
@@ -437,6 +555,45 @@ function agruparFilasPorCapitulo<T extends FilaRevisionImport>(
 
 // Encabezado de capítulo -- mismo tratamiento en las 3 pestañas de
 // Pendientes (Insumos, Mano de obra, Equipo).
+// Cuántos grupos se dibujan de entrada y cuántos más con cada "Ver más".
+// Con presupuestos de 700 ítems se dibujaban miles de tarjetas a la vez y
+// cada clic (elegir un candidato) volvía a dibujarlas todas.
+const PASO_LISTA = 40
+
+// Recorta una lista agrupada por capítulo a los primeros `limite` elementos
+// (contando dentro de cada capítulo), sin partir el orden.
+function recortarCapitulos<C extends { capitulo: CapituloInfo }>(
+  capitulos: C[],
+  clave: keyof C,
+  limite: number
+): { visibles: C[]; total: number } {
+  let total = 0
+  for (const c of capitulos) total += (c[clave] as unknown as unknown[]).length
+  const visibles: C[] = []
+  let restantes = limite
+  for (const c of capitulos) {
+    if (restantes <= 0) break
+    const lista = c[clave] as unknown as unknown[]
+    visibles.push({ ...c, [clave]: lista.slice(0, restantes) })
+    restantes -= lista.length
+  }
+  return { visibles, total }
+}
+
+function VerMas({ mostrados, total, onClick }: { mostrados: number; total: number; onClick: () => void }) {
+  if (mostrados >= total) return null
+  return (
+    <div className="flex items-center justify-center gap-3 py-2">
+      <span className="text-xs text-muted-foreground">
+        Mostrando {mostrados} de {total}
+      </span>
+      <Button size="sm" variant="outline" onClick={onClick}>
+        Ver {Math.min(PASO_LISTA, total - mostrados)} más
+      </Button>
+    </div>
+  )
+}
+
 function EncabezadoCapitulo({ capitulo }: { capitulo: CapituloInfo }) {
   return (
     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b pb-1 pt-1 first:pt-0">
@@ -453,10 +610,10 @@ interface Props {
   // para que el usuario no tenga que buscar la pestaña a mano.
   tabInicial?: "insumos" | "mano_obra" | "equipo" | "transporte"
   onCerrar: () => void
-  // se llama cada vez que algo se resuelve (para que page.tsx pueda
-  // refrescar los colores de la tabla sin esperar a que se cierre todo
-  // el diálogo)
-  onCambio?: () => void
+  // se llama cada vez que algo se resuelve, con los ítems afectados (para
+  // que page.tsx refresque SOLO esos colores y valores, no todo el
+  // presupuesto)
+  onCambio?: (itemIds: string[]) => void
 }
 
 type Eleccion =
@@ -493,10 +650,49 @@ function textoItem(prefijo: string, item: { codigo: string; descripcion: string 
 export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCerrar, onCambio }: Props) {
   const [datos, setDatos] = useState<LoteRevisionInfo | null>(null)
   const [cargando, setCargando] = useState(false)
+  // segunda tanda de la carga (automáticos y resueltos), en segundo plano
+  const [cargandoResto, setCargandoResto] = useState(false)
+  // cuántos grupos se muestran por sección (ver PASO_LISTA)
+  const [limites, setLimites] = useState<Record<string, number>>({})
+  const limite = (clave: string) => limites[clave] ?? PASO_LISTA
+  const verMas = (clave: string) => setLimites((prev) => ({ ...prev, [clave]: (prev[clave] ?? PASO_LISTA) + PASO_LISTA }))
+  // los automáticos se pliegan: son la mayoría de las líneas y solo se
+  // revisan si el ingeniero quiere confirmarlos
+  const [verAutomaticos, setVerAutomaticos] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pidiendoConfirmacionCierre, setPidiendoConfirmacionCierre] = useState(false)
   const [elecciones, setElecciones] = useState<Record<string, Eleccion>>({})
   const [correcciones, setCorrecciones] = useState<Record<string, string>>({}) // revisionId -> nuevoInsumoId
+  // Líneas cuya unidad no cuadra con el insumo elegido: conversión escrita
+  // o confirmación (ver AvisoUnidad). null = limpiar (al cambiar de insumo).
+  const [unidadesLinea, setUnidadesLinea] = useState<Record<string, EstadoUnidad>>({})
+  function cambiarUnidad(ids: string[], patch: Partial<EstadoUnidad> | null) {
+    setUnidadesLinea((prev) => {
+      const copia = { ...prev }
+      for (const id of ids) {
+        if (patch === null) delete copia[id]
+        else copia[id] = { ...(copia[id] ?? ESTADO_UNIDAD_VACIO), ...patch }
+      }
+      return copia
+    })
+  }
+  // Lo que viaja al servidor para resolver la unidad de una línea.
+  function datosUnidad(id: string) {
+    const e = unidadesLinea[id]
+    const conversion = e ? numeroConversion(e.conversion) : null
+    return {
+      confirmarUnidad: !!e?.confirmado,
+      conversion,
+      guardarConversionEnMaestro: !!e?.guardar && conversion != null,
+    }
+  }
+  const [puedeGuardarEnMaestro, setPuedeGuardarEnMaestro] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    puedeEditarPresentacion()
+      .then((v: boolean) => setPuedeGuardarEnMaestro(v))
+      .catch(() => setPuedeGuardarEnMaestro(false))
+  }, [open])
   const [guardandoIds, setGuardandoIds] = useState<Set<string>>(new Set())
   // Guard síncrono contra doble-submit -- guardandoIds (arriba) es
   // estado de React, así que el botón solo queda "disabled" DESPUÉS de
@@ -520,42 +716,97 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     errores: { revisionId: string; mensaje: string }[]
   } | null>(null)
 
+  // Une una recarga parcial con lo que ya está en pantalla. Con
+  // `reemplazar`, las filas de esos ítems se cambian por las nuevas (las
+  // que se resolvieron desaparecen de "Pendientes"); sin él, se agregan
+  // (la segunda tanda de la carga inicial).
+  function combinarDatos(
+    prev: LoteRevisionInfo | null,
+    nuevo: LoteRevisionInfo,
+    reemplazar: Set<string> | null
+  ): LoteRevisionInfo {
+    if (!prev) return nuevo
+    const idsNuevas = new Set(nuevo.filas.map((f) => f.id))
+    const conservadas = prev.filas.filter(
+      (f) => !idsNuevas.has(f.id) && !(reemplazar && reemplazar.has(f.presupuestoItemId))
+    )
+    return {
+      filas: [...conservadas, ...nuevo.filas],
+      itemsPorId: { ...prev.itemsPorId, ...nuevo.itemsPorId },
+      capitulosPorItemId: { ...prev.capitulosPorItemId, ...nuevo.capitulosPorItemId },
+    }
+  }
+
+  function limpiarElecciones(ids: string[]) {
+    setElecciones((prev) => {
+      const nuevo = { ...prev }
+      for (const id of ids) delete nuevo[id]
+      return nuevo
+    })
+    setCorrecciones((prev) => {
+      const nuevo = { ...prev }
+      for (const id of ids) delete nuevo[id]
+      return nuevo
+    })
+    cambiarUnidad(ids, null)
+  }
+
+  // Ítems del presupuesto a los que pertenecen unas líneas de revisión.
+  function itemsDeLineas(revisionIds: string[]): string[] {
+    const ids = new Set(revisionIds)
+    return Array.from(new Set((datos?.filas ?? []).filter((f) => ids.has(f.id)).map((f) => f.presupuestoItemId)))
+  }
+
+  // Cada carga lleva un número: si el diálogo se cerró o empezó otra carga
+  // mientras tanto, el resultado viejo se descarta.
+  const generacionCarga = useRef(0)
+
+  // Carga completa en dos tandas: primero lo ABIERTO (pendientes,
+  // rechazados, en solicitud), que es lo que se trabaja -- el diálogo se
+  // puede usar apenas llega --, y después, en segundo plano, lo ya
+  // resuelto (automáticos y el historial de transporte).
   async function cargar() {
-    // Solo se muestra el "Cargando revisión…" de pantalla completa la
-    // PRIMERA vez (cuando todavía no hay nada que mostrar) -- las
-    // recargas posteriores (después de guardar algo) pasan calladas,
-    // sin tapar lo que ya está en pantalla. Antes esto no se distinguía,
-    // y guardarSeleccionados() -- que llamaba cargar() una vez POR CADA
-    // línea del lote -- hacía que el diálogo completo parpadeara entre
-    // "Cargando…" y el contenido, una vez por línea.
-    const esPrimeraCarga = datos === null
-    if (esPrimeraCarga) setCargando(true)
+    const generacion = ++generacionCarga.current
+    setCargando(true)
     setError(null)
     try {
-      const resultado = await listarRevisionPorItems(itemIds)
-      setDatos(resultado)
+      const abiertas = await listarRevisionPorItems(itemIds, ["pendiente", "rechazado", "solicitud_pendiente"])
+      if (generacion !== generacionCarga.current) return
+      setDatos(abiertas)
+      setCargando(false)
 
-      // Limpia elecciones/correcciones de líneas que YA NO EXISTEN en la
-      // recarga (porque se resolvieron) -- sin esto, después de guardar
-      // el diálogo seguía pensando "hay trabajo sin guardar" con ids
-      // viejos, y el aviso de "¿cerrar sin terminar?" decía "quedan 0
-      // insumos" (bug real: preguntaba igual aunque ya no quedara nada).
-      const idsVigentes = new Set(resultado.filas.map((f) => f.id))
-      setElecciones((prev) => {
-        const nuevo: typeof prev = {}
-        for (const [id, val] of Object.entries(prev)) if (idsVigentes.has(id)) nuevo[id] = val
-        return nuevo
-      })
-      setCorrecciones((prev) => {
-        const nuevo: typeof prev = {}
-        for (const [id, val] of Object.entries(prev)) if (idsVigentes.has(id)) nuevo[id] = val
-        return nuevo
-      })
+      setCargandoResto(true)
+      const resto = await listarRevisionPorItems(itemIds, ["auto_match", "resuelto"])
+      if (generacion !== generacionCarga.current) return
+      setDatos((prev) => combinarDatos(prev, resto, null))
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar la revisión.")
+      if (generacion === generacionCarga.current) {
+        setError(e instanceof Error ? e.message : "No se pudo cargar la revisión.")
+      }
     } finally {
-      if (esPrimeraCarga) setCargando(false)
+      if (generacion === generacionCarga.current) {
+        setCargando(false)
+        setCargandoResto(false)
+      }
     }
+  }
+
+  // Recarga SOLO estos ítems (después de guardar, o cuando llegan ítems
+  // nuevos de una tanda en el fondo). Antes se recargaba todo el
+  // presupuesto: con 700 ítems eran ~3.000 líneas por cada Guardar.
+  async function refrescarItems(ids: string[]) {
+    if (ids.length === 0) return
+    const generacion = generacionCarga.current
+    const nuevo = await listarRevisionPorItems(ids)
+    if (generacion !== generacionCarga.current) return
+    const reemplazar = new Set(ids)
+    setDatos((prev) => combinarDatos(prev, nuevo, reemplazar))
+    // las que quedaron resueltas ya no tienen elección pendiente
+    limpiarElecciones(
+      nuevo.filas
+        .filter((f) => f.estado !== "pendiente" && f.estado !== "rechazado" && f.estado !== "auto_match")
+        .map((f) => f.id)
+    )
   }
 
   // Recuerda si el diálogo YA estaba abierto en el render anterior --
@@ -563,25 +814,35 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // "sigue abierto pero itemIds creció" (recargar SIN perder las
   // elecciones que ya hizo el usuario -- ver el useEffect de abajo).
   const yaEstabaAbierto = useRef(false)
+  const idsCargados = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (!open) {
       yaEstabaAbierto.current = false
+      generacionCarga.current++ // descarta cargas en vuelo
       return
     }
     if (!yaEstabaAbierto.current) {
       // Apertura nueva -- reset completo.
       setElecciones({})
       setCorrecciones({})
-      setDatos(null) // fuerza que la próxima cargar() cuente como "primera carga" otra vez
+      setUnidadesLinea({})
+      setLimites({})
+      setVerAutomaticos(false)
+      setDatos(null)
       setTabActiva(tabInicial)
       yaEstabaAbierto.current = true
+      idsCargados.current = new Set(itemIds)
+      cargar()
+      return
     }
-    // Si ya estaba abierto y esto corrió de nuevo, es porque `itemIds`
-    // cambió (llegaron ítems nuevos con pendientes de una tanda que
-    // terminó en el fondo) -- se recarga, pero SIN tocar elecciones ni
-    // correcciones, para no perder lo que el usuario ya había elegido.
-    cargar()
+    // Ya estaba abierto y `itemIds` cambió. Si solo SALIERON ítems (se
+    // terminaron de resolver), no hay nada que cargar. Si llegaron ítems
+    // nuevos (una tanda que terminó en el fondo), se cargan solo esos, sin
+    // tocar las elecciones ya hechas.
+    const nuevos = itemIds.filter((id) => !idsCargados.current.has(id))
+    for (const id of nuevos) idsCargados.current.add(id)
+    if (nuevos.length > 0) refrescarItems(nuevos).catch((e) => console.error(e))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, itemIds.join(",")])
 
@@ -709,8 +970,34 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     () => agruparFilasPorCapitulo(pendientesManoObra, datos?.capitulosPorItemId),
     [pendientesManoObra, datos?.capitulosPorItemId]
   )
+  const pendInsumosVisibles = useMemo(
+    () => recortarCapitulos(capitulosGruposPendientes, "entradas", limite("pend-insumos")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capitulosGruposPendientes, limites]
+  )
+  const pendEquipoVisibles = useMemo(
+    () => recortarCapitulos(capitulosGruposPendientesEquipo, "entradas", limite("pend-equipo")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capitulosGruposPendientesEquipo, limites]
+  )
+  const pendManoObraVisibles = useMemo(
+    () => recortarCapitulos(capitulosPendientesManoObra, "filas", limite("pend-mo")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capitulosPendientesManoObra, limites]
+  )
+  const autoMatchVisibles = useMemo(
+    () => Array.from(autoMatchPorItem.entries()).slice(0, limite("auto-insumos")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [autoMatchPorItem, limites]
+  )
+  const autoMatchEquipoVisibles = useMemo(
+    () => Array.from(autoMatchEquipoPorItem.entries()).slice(0, limite("auto-equipo")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [autoMatchEquipoPorItem, limites]
+  )
 
   function elegirCandidatoGrupo(filasGrupo: FilaRevisionImport[], insumoId: string) {
+    cambiarUnidad(filasGrupo.map((f) => f.id), null)
     setElecciones((prev) => {
       const nuevo = { ...prev }
       for (const f of filasGrupo) nuevo[f.id] = { tipo: "maestro", insumoId }
@@ -743,6 +1030,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // deduplicación de solicitudes evita que se repita el mismo rechazo
   // muchas veces).
   function elegirCandidato(revisionId: string, insumoId: string) {
+    cambiarUnidad([revisionId], null)
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "maestro", insumoId } }))
   }
   function marcarSolicitud(revisionId: string) {
@@ -761,6 +1049,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "solicitud_equipo" } }))
   }
   function corregirAutoMatch(revisionId: string, nuevoInsumoId: string) {
+    cambiarUnidad([revisionId], null)
     setCorrecciones((prev) => ({ ...prev, [revisionId]: nuevoInsumoId }))
   }
   // Reusa el mismo mapa `correcciones` (revisionId -> nuevo id) que
@@ -829,7 +1118,12 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setError(null)
     try {
       if (eleccion.tipo === "maestro") {
-        await resolverLineaRevision({ revisionId, accion: "maestro", insumoId: eleccion.insumoId })
+        await resolverLineaRevision({
+          revisionId,
+          accion: "maestro",
+          insumoId: eleccion.insumoId,
+          ...datosUnidad(revisionId),
+        })
       } else if (eleccion.tipo === "mano_obra") {
         await resolverLineaRevision({ revisionId, accion: "mano_obra", manoObraCategoriaId: eleccion.categoriaId })
       } else if (eleccion.tipo === "solicitud_mano_obra") {
@@ -841,8 +1135,12 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
       } else {
         await resolverLineaRevision({ revisionId, accion: "solicitud" })
       }
-      await cargar()
-      onCambio?.()
+      // El botón sigue en "Guardando…" hasta que la línea sale de la
+      // lista: antes volvía a "Guardar" mientras se recargaba todo.
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar esa línea.")
     } finally {
@@ -879,7 +1177,12 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
           const eleccion = elecciones[id]
           if (!eleccion) return null
           if (eleccion.tipo === "maestro") {
-            return { revisionId: id, accion: "maestro" as const, insumoId: eleccion.insumoId }
+            return {
+              revisionId: id,
+              accion: "maestro" as const,
+              insumoId: eleccion.insumoId,
+              ...datosUnidad(id),
+            }
           }
           if (eleccion.tipo === "mano_obra") {
             return { revisionId: id, accion: "mano_obra" as const, manoObraCategoriaId: eleccion.categoriaId }
@@ -899,19 +1202,27 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
       const { errores } = await resolverLineasRevisionEnLote(resoluciones)
       if (errores.length > 0) setError(errores.map((e) => e.mensaje).join(" · "))
+      const conError = new Set(errores.map((e) => e.revisionId))
+      limpiarElecciones(idsNuevos.filter((id) => !conError.has(id)))
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron guardar los seleccionados.")
     }
 
+    // Se recargan solo los ítems tocados, y el "Guardando…" se quita
+    // DESPUÉS: así la tarjeta no vuelve a mostrar "Guardar" mientras tanto.
+    const items = itemsDeLineas(idsNuevos)
+    try {
+      await refrescarItems(items)
+    } catch (e) {
+      console.error("No se pudo refrescar la revisión:", e)
+    }
     idsNuevos.forEach((id) => enVueloRef.current.delete(id))
     setGuardandoIds((prev) => {
       const copia = new Set(prev)
       idsNuevos.forEach((id) => copia.delete(id))
       return copia
     })
-
-    await cargar()
-    onCambio?.()
+    onCambio?.(items)
   }
 
   async function guardarSeleccionados() {
@@ -959,9 +1270,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setGuardandoIds((prev) => new Set(prev).add(revisionId))
     setError(null)
     try {
-      await editarLineaAutoMatch({ revisionId, nuevoInsumoId })
-      await cargar()
-      onCambio?.()
+      await editarLineaAutoMatch({ revisionId, nuevoInsumoId, ...datosUnidad(revisionId) })
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo corregir esa línea.")
     } finally {
@@ -983,8 +1296,10 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     setError(null)
     try {
       await editarLineaAutoMatchEquipo({ revisionId, nuevoEquipoId })
-      await cargar()
-      onCambio?.()
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo corregir esa línea.")
     } finally {
@@ -1123,8 +1438,9 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
       const resultado = await importarPreciosTransporte(filasImport)
       setResultadoImportTransporte(resultado)
-      await cargar()
-      onCambio?.()
+      const items = itemsDeLineas(filasImport.map((f) => f.revisionId))
+      await refrescarItems(items)
+      onCambio?.(items)
     } catch (e) {
       setErrorTransporte(e instanceof Error ? e.message : "No se pudo procesar el Excel.")
     } finally {
@@ -1151,6 +1467,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   }
 
   return (
+    <PuedeGuardarEnMaestro.Provider value={puedeGuardarEnMaestro}>
     <Dialog open={open} onOpenChange={handleIntentoCerrar}>
       <DialogContent
         className="max-w-7xl w-[95vw] max-h-[92vh] overflow-y-auto"
@@ -1266,16 +1583,22 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                   </button>
                 </div>
 
-                {tabActiva === "insumos" && sinNadaEnTabInsumos && (
+                {cargandoResto && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="animate-spin inline-block h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+                    Cargando insumos automáticos e historial…
+                  </p>
+                )}
+                {tabActiva === "insumos" && sinNadaEnTabInsumos && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Insumos.</p>
                 )}
-                {tabActiva === "mano_obra" && sinNadaEnTabManoObra && (
+                {tabActiva === "mano_obra" && sinNadaEnTabManoObra && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Mano de obra.</p>
                 )}
-                {tabActiva === "equipo" && sinNadaEnTabEquipo && (
+                {tabActiva === "equipo" && sinNadaEnTabEquipo && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Equipo.</p>
                 )}
-                {tabActiva === "transporte" && sinNadaEnTabTransporte && (
+                {tabActiva === "transporte" && sinNadaEnTabTransporte && !cargandoResto && (
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Transporte.</p>
                 )}
 
@@ -1299,7 +1622,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       </div>
                     )}
 
-                    {capitulosGruposPendientes.map(({ capitulo, entradas }) => (
+                    {pendInsumosVisibles.visibles.map(({ capitulo, entradas }) => (
                       <div key={capitulo.id} className="space-y-2">
                         <EncabezadoCapitulo capitulo={capitulo} />
                         {entradas.map(([clave, filasGrupo]) => (
@@ -1313,10 +1636,17 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             onElegirCandidato={(insumoId) => elegirCandidatoGrupo(filasGrupo, insumoId)}
                             onMarcarSolicitud={() => marcarSolicitudGrupo(filasGrupo)}
                             onGuardarGrupo={() => guardarGrupo(filasGrupo)}
+                            estadoUnidad={unidadesLinea[filasGrupo[0].id]}
+                            onCambiarUnidad={(patch) => cambiarUnidad(filasGrupo.map((f) => f.id), patch)}
                           />
                         ))}
                       </div>
                     ))}
+                  <VerMas
+                      mostrados={Math.min(limite("pend-insumos"), pendInsumosVisibles.total)}
+                      total={pendInsumosVisibles.total}
+                      onClick={() => verMas("pend-insumos")}
+                    />
                   </section>
                 )}
 
@@ -1343,7 +1673,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       </div>
                     )}
 
-                    {capitulosPendientesManoObra.map(({ capitulo, filas: filasCapitulo }) => (
+                    {pendManoObraVisibles.visibles.map(({ capitulo, filas: filasCapitulo }) => (
                       <div key={capitulo.id} className="space-y-2">
                         <EncabezadoCapitulo capitulo={capitulo} />
                         {filasCapitulo.map((fila) => {
@@ -1384,6 +1714,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         })}
                       </div>
                     ))}
+                  <VerMas
+                      mostrados={Math.min(limite("pend-mo"), pendManoObraVisibles.total)}
+                      total={pendManoObraVisibles.total}
+                      onClick={() => verMas("pend-mo")}
+                    />
                   </section>
                 )}
 
@@ -1418,6 +1753,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         onElegirCandidato={elegirCandidato}
                         onMarcarSolicitud={marcarSolicitud}
                         onGuardarLinea={guardarLinea}
+                        unidadesLinea={unidadesLinea}
+                        onCambiarUnidad={(id, patch) => cambiarUnidad([id], patch)}
                         mostrarMotivoRechazo
                       />
                     ))}
@@ -1498,8 +1835,15 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
                 {tabActiva === "insumos" && autoMatch.length > 0 && (
                   <section className="space-y-3">
-                    <h3 className="text-sm font-semibold">Automáticos -- confirma que estén bien</h3>
-                    {Array.from(autoMatchPorItem.entries()).map(([itemId, filasItem]) => {
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold">
+                        Automáticos -- confirma que estén bien ({autoMatch.length})
+                      </h3>
+                      <Button size="sm" variant="outline" onClick={() => setVerAutomaticos((v) => !v)}>
+                        {verAutomaticos ? "Ocultar" : "Revisar automáticos"}
+                      </Button>
+                    </div>
+                    {verAutomaticos && autoMatchVisibles.map(([itemId, filasItem]) => {
                       const item = datos.itemsPorId[itemId]
                       return (
                         <div key={itemId} className="space-y-2">
@@ -1516,6 +1860,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                 </div>
                                 <TablaCandidatos
                                   candidatos={fila.candidatos as CandidatoInsumo[]}
+                                  unidadLinea={fila.unidad}
                                   seleccionado={correcciones[fila.id] ?? fila.insumoIdAsignado}
                                   onSeleccionar={(insumoId) => {
                                     // Click de nuevo sobre la fila ya seleccionada no es una
@@ -1525,11 +1870,20 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                     corregirAutoMatch(fila.id, insumoId)
                                   }}
                                 />
+                                <AvisoUnidad
+                                  fila={fila}
+                                  insumoId={correcciones[fila.id]}
+                                  estado={unidadesLinea[fila.id]}
+                                  onCambiar={(patch) => cambiarUnidad([fila.id], patch)}
+                                />
                                 {tieneCorreccionSinGuardar && (
                                   <Button
                                     size="sm"
                                     onClick={() => guardarCorreccion(fila.id)}
-                                    disabled={guardandoIds.has(fila.id)}
+                                    disabled={
+                                      guardandoIds.has(fila.id) ||
+                                      (candidatoNoCuadra(fila, correcciones[fila.id]) && !unidadResuelta(unidadesLinea[fila.id]))
+                                    }
                                   >
                                     {guardandoIds.has(fila.id) ? "Guardando…" : "Guardar cambio"}
                                   </Button>
@@ -1540,6 +1894,13 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         </div>
                       )
                     })}
+                  {verAutomaticos && (
+                      <VerMas
+                        mostrados={Math.min(limite("auto-insumos"), autoMatchPorItem.size)}
+                        total={autoMatchPorItem.size}
+                        onClick={() => verMas("auto-insumos")}
+                      />
+                    )}
                   </section>
                 )}
 
@@ -1562,7 +1923,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       </div>
                     )}
 
-                    {capitulosGruposPendientesEquipo.map(({ capitulo, entradas }) => (
+                    {pendEquipoVisibles.visibles.map(({ capitulo, entradas }) => (
                       <div key={capitulo.id} className="space-y-2">
                         <EncabezadoCapitulo capitulo={capitulo} />
                         {entradas.map(([clave, filasGrupo]) => (
@@ -1580,6 +1941,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         ))}
                       </div>
                     ))}
+                  <VerMas
+                      mostrados={Math.min(limite("pend-equipo"), pendEquipoVisibles.total)}
+                      total={pendEquipoVisibles.total}
+                      onClick={() => verMas("pend-equipo")}
+                    />
                   </section>
                 )}
 
@@ -1623,7 +1989,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                 {tabActiva === "equipo" && autoMatchEquipo.length > 0 && (
                   <section className="space-y-3">
                     <h3 className="text-sm font-semibold">Automáticos -- confirma que estén bien</h3>
-                    {Array.from(autoMatchEquipoPorItem.entries()).map(([itemId, filasItem]) => {
+                    {autoMatchEquipoVisibles.map(([itemId, filasItem]) => {
                       const item = datos.itemsPorId[itemId]
                       return (
                         <div key={itemId} className="space-y-2">
@@ -1663,6 +2029,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         </div>
                       )
                     })}
+                  <VerMas
+                      mostrados={Math.min(limite("auto-equipo"), autoMatchEquipoPorItem.size)}
+                      total={autoMatchEquipoPorItem.size}
+                      onClick={() => verMas("auto-equipo")}
+                    />
                   </section>
                 )}
 
@@ -1822,6 +2193,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
         )}
       </DialogContent>
     </Dialog>
+    </PuedeGuardarEnMaestro.Provider>
   )
 }
 
@@ -1841,6 +2213,8 @@ function GrupoInsumoPendiente({
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarGrupo,
+  estadoUnidad,
+  onCambiarUnidad,
 }: {
   clave: string
   filasGrupo: FilaRevisionImport[]
@@ -1850,6 +2224,8 @@ function GrupoInsumoPendiente({
   onElegirCandidato: (insumoId: string) => void
   onMarcarSolicitud: () => void
   onGuardarGrupo: () => void
+  estadoUnidad: EstadoUnidad | undefined
+  onCambiarUnidad: (patch: Partial<EstadoUnidad>) => void
 }) {
   const primera = filasGrupo[0]
   const eleccion = elecciones[primera.id] // todas las filas del grupo comparten la misma elección
@@ -1885,8 +2261,16 @@ function GrupoInsumoPendiente({
 
       <TablaCandidatos
         candidatos={primera.candidatos as CandidatoInsumo[]}
+        unidadLinea={primera.unidad}
         seleccionado={eleccion?.tipo === "maestro" ? eleccion.insumoId : undefined}
         onSeleccionar={onElegirCandidato}
+      />
+
+      <AvisoUnidad
+        fila={primera}
+        insumoId={eleccion?.tipo === "maestro" ? eleccion.insumoId : undefined}
+        estado={estadoUnidad}
+        onCambiar={onCambiarUnidad}
       />
 
       <div className="flex items-center gap-2">
@@ -1898,7 +2282,14 @@ function GrupoInsumoPendiente({
           No existe — crear solicitud de aprobación
         </button>
         {eleccion && (
-          <Button size="sm" onClick={onGuardarGrupo} disabled={guardandoAlgo}>
+          <Button
+            size="sm"
+            onClick={onGuardarGrupo}
+            disabled={
+              guardandoAlgo ||
+              (eleccion.tipo === "maestro" && candidatoNoCuadra(primera, eleccion.insumoId) && !unidadResuelta(estadoUnidad))
+            }
+          >
             {guardandoAlgo ? "Guardando…" : filasGrupo.length > 1 ? `Guardar (${filasGrupo.length} ítems)` : "Guardar"}
           </Button>
         )}
@@ -1924,6 +2315,8 @@ function FilaGrupoItem({
   onElegirCandidato,
   onMarcarSolicitud,
   onGuardarLinea,
+  unidadesLinea,
+  onCambiarUnidad,
   mostrarMotivoRechazo,
 }: {
   item: { codigo: string; descripcion: string } | undefined
@@ -1933,6 +2326,8 @@ function FilaGrupoItem({
   onElegirCandidato: (revisionId: string, insumoId: string) => void
   onMarcarSolicitud: (revisionId: string) => void
   onGuardarLinea: (revisionId: string) => void
+  unidadesLinea: Record<string, EstadoUnidad>
+  onCambiarUnidad: (revisionId: string, patch: Partial<EstadoUnidad>) => void
   mostrarMotivoRechazo?: boolean
 }) {
   return (
@@ -1977,8 +2372,16 @@ function FilaGrupoItem({
 
             <TablaCandidatos
               candidatos={fila.candidatos as CandidatoInsumo[]}
+              unidadLinea={fila.unidad}
               seleccionado={insumoElegido}
               onSeleccionar={(insumoId) => onElegirCandidato(fila.id, insumoId)}
+            />
+
+            <AvisoUnidad
+              fila={fila}
+              insumoId={insumoElegido}
+              estado={unidadesLinea[fila.id]}
+              onCambiar={(patch) => onCambiarUnidad(fila.id, patch)}
             />
 
             {mostrarMotivoRechazo && (
@@ -1998,7 +2401,11 @@ function FilaGrupoItem({
                 No existe — crear solicitud de aprobación
               </button>
               {eleccion && (
-                <Button size="sm" onClick={() => onGuardarLinea(fila.id)} disabled={guardando}>
+                <Button
+                  size="sm"
+                  onClick={() => onGuardarLinea(fila.id)}
+                  disabled={guardando || (candidatoNoCuadra(fila, insumoElegido) && !unidadResuelta(unidadesLinea[fila.id]))}
+                >
                   {guardando ? "Guardando…" : "Guardar"}
                 </Button>
               )}

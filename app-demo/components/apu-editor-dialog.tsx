@@ -29,6 +29,7 @@ import {
   actualizarCantidadItemApu,
   actualizarRendimientoItemApu,
   eliminarInsumoApu,
+  actualizarConversionLineaApu,
   recalcularValorItemDesdeApu,
   type InsumoSugerido,
   type InsumoSimilar,
@@ -38,6 +39,8 @@ import {
 import type { CategoriaManoObra, CategoriaEquipo } from "@/lib/apu-import-types"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
+import { describirPresentacion, nombreUnidad, normalizarUnidad, UNIDADES_DE_USO } from "@/lib/unidades"
+import { puedeEditarPresentacion } from "@/app/(app)/presupuestos/insumos/actions"
 
 // Qué "recurso" real corresponde a cada sección visual de CATEGORIAS_APU
 // -- determina qué buscador se muestra en el "+ Agregar" de cada
@@ -232,6 +235,13 @@ export function ApuEditorDialog({
 }) {
   const [apu, setApu] = useState<ApuDeItem | null>(null)
   const [cargando, setCargando] = useState(false)
+  // quien aprueba insumos puede guardar una conversión también en el maestro
+  const [puedeGuardarEnMaestro, setPuedeGuardarEnMaestro] = useState(false)
+  useEffect(() => {
+    puedeEditarPresentacion()
+      .then((v: boolean) => setPuedeGuardarEnMaestro(v))
+      .catch(() => setPuedeGuardarEnMaestro(false))
+  }, [])
   const [error, setError] = useState<string | null>(null)
   const [categoriaAbierta, setCategoriaAbierta] = useState<string | null>(null)
   // Feedback visual de que un cambio SÍ se guardó -- para ítems ya
@@ -335,6 +345,18 @@ export function ApuEditorDialog({
     }
   }
 
+  async function handleEditarConversion(itemApuId: string, unidad: string, conversion: number, guardarEnMaestro: boolean) {
+    if (!apu) return
+    setError(null)
+    try {
+      await actualizarConversionLineaApu({ itemApuId, unidad, conversion, guardarEnMaestro })
+      await recargarApu(apu.id)
+      avisarGuardado()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar la conversión.")
+    }
+  }
+
   async function handleEliminarLinea(itemApuId: string) {
     if (!apu) return
     try {
@@ -434,6 +456,8 @@ export function ApuEditorDialog({
                       setCategoriaAbierta(categoriaAbierta === cat.nombre ? null : cat.nombre)
                     }
                     onEliminarLinea={handleEliminarLinea}
+                    onEditarConversion={handleEditarConversion}
+                    puedeGuardarEnMaestro={puedeGuardarEnMaestro}
                     onEditarCantidad={handleEditarCantidad}
                     onEditarRendimiento={handleEditarRendimiento}
                     onAgregado={async () => {
@@ -472,6 +496,8 @@ function SeccionCategoria({
   abierta,
   onAbrir,
   onEliminarLinea,
+  onEditarConversion,
+  puedeGuardarEnMaestro,
   onEditarCantidad,
   onEditarRendimiento,
   onAgregado,
@@ -484,6 +510,8 @@ function SeccionCategoria({
   abierta: boolean
   onAbrir: () => void
   onEliminarLinea: (id: string) => void
+  onEditarConversion: (id: string, unidad: string, conversion: number, guardarEnMaestro: boolean) => void
+  puedeGuardarEnMaestro: boolean
   onEditarCantidad: (id: string, nuevaCantidad: number) => void
   onEditarRendimiento: (id: string, nuevoRendimiento: number) => void
   onAgregado: () => void
@@ -530,7 +558,21 @@ function SeccionCategoria({
             {items.map((it) => (
               <tr key={it.id} className="border-t">
                 <td className="px-4 py-2.5">{it.descripcion}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{it.uM ?? "—"}</td>
+                <td className="px-4 py-2.5 text-muted-foreground">
+                  {it.uM ?? "—"}
+                  {it.presentacion && (
+                    <span className="block text-[11px] text-emerald-700" title="El precio del insumo se dividió por su contenido">
+                      {it.presentacion}
+                    </span>
+                  )}
+                  {it.insumoId && (
+                    <EditorConversion
+                      linea={it}
+                      puedeGuardarEnMaestro={puedeGuardarEnMaestro}
+                      onGuardar={(unidad, conversion, guardar) => onEditarConversion(it.id, unidad, conversion, guardar)}
+                    />
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-right">
                   {/* Antes era editable con doble click (CantidadEditable) --
                       la cantidad de cada línea del APU ahora viene siempre del
@@ -643,6 +685,10 @@ function BuscadorInsumoCategoria({
   const [seleccionado, setSeleccionado] = useState<InsumoSugerido | null>(null)
   const [similares, setSimilares] = useState<InsumoSimilar[] | null>(null)
   const [cantidad, setCantidad] = useState("")
+  // Insumo con presentación (bulto de 50 kg): la cantidad puede ir en la
+  // unidad de compra o en la de uso. Por defecto la de uso, que es como se
+  // escriben los APU.
+  const [enUnidadDeUso, setEnUnidadDeUso] = useState(true)
   const [rendimiento, setRendimiento] = useState("1")
   const [precioNuevo, setPrecioNuevo] = useState("")
   const [verificando, setVerificando] = useState(false)
@@ -674,6 +720,7 @@ function BuscadorInsumoCategoria({
   }, [busqueda, seleccionado, tipos])
 
   function elegirSugerencia(insumo: InsumoSugerido) {
+    setEnUnidadDeUso(true)
     setSeleccionado(insumo)
     setBusqueda(insumo.descripcion)
     setSugerencias([])
@@ -696,6 +743,7 @@ function BuscadorInsumoCategoria({
         insumoId: seleccionado.id,
         cantidad: Number(cantidad),
         rendimiento: rendimiento ? Number(rendimiento) : 1,
+        unidadLinea: seleccionado.unidad_uso && enUnidadDeUso ? seleccionado.unidad_uso : seleccionado.u_m,
       })
 
       onAgregado()
@@ -806,6 +854,26 @@ function BuscadorInsumoCategoria({
               className="h-10"
             />
           </div>
+
+          {seleccionado.unidad_uso && seleccionado.contenido != null && (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                En ({describirPresentacion({
+                  u_m: seleccionado.u_m,
+                  unidad_uso: seleccionado.unidad_uso,
+                  contenido: Number(seleccionado.contenido),
+                })})
+              </label>
+              <select
+                value={enUnidadDeUso ? "uso" : "compra"}
+                onChange={(e) => setEnUnidadDeUso(e.target.value === "uso")}
+                className="h-10 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="uso">{nombreUnidad(seleccionado.unidad_uso)}</option>
+                <option value="compra">{nombreUnidad(seleccionado.u_m) || "unidad"}</option>
+              </select>
+            </div>
+          )}
 
           <div className="w-32 space-y-1.5">
             <label className="text-xs text-muted-foreground" title="Multiplicador libre, default 1 -- ej. factor de productividad de mano de obra">
@@ -1320,6 +1388,80 @@ function BuscadorEquipoCategoria({
       )}
 
       {mensaje && <p className="text-sm text-muted-foreground">{mensaje}</p>}
+    </div>
+  )
+}
+// Conversión de una línea de insumo: 1 unidad de compra del maestro (caja,
+// bulto) = N unidades de la línea (m², kg). Cambiarla recalcula el precio de
+// la línea sin volver a leer el precio del maestro.
+function EditorConversion({
+  linea,
+  puedeGuardarEnMaestro,
+  onGuardar,
+}: {
+  linea: ItemApu
+  puedeGuardarEnMaestro: boolean
+  onGuardar: (unidad: string, conversion: number, guardarEnMaestro: boolean) => void
+}) {
+  const [abierto, setAbierto] = useState(false)
+  const conFactor = (linea.factorUnidad ?? 1) !== 1
+  const [unidad, setUnidad] = useState(conFactor ? normalizarUnidad(linea.uM) ?? "" : "")
+  const [conversion, setConversion] = useState(conFactor ? String(linea.factorUnidad) : "")
+  const [guardarEnMaestro, setGuardarEnMaestro] = useState(false)
+  const compra = nombreUnidad(linea.uMCompra) || "unidad"
+  const numero = Number(conversion.replace(",", "."))
+  const valida = !!unidad && Number.isFinite(numero) && numero > 0
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)} className="block text-[11px] text-primary hover:underline">
+        conversión
+      </button>
+    )
+  }
+  return (
+    <div className="mt-1 space-y-1 rounded-md border bg-background p-2 text-[11px] text-foreground">
+      <div className="flex items-center gap-1">
+        <span className="shrink-0">1 {compra} =</span>
+        <input
+          value={conversion}
+          onChange={(e) => setConversion(e.target.value)}
+          inputMode="decimal"
+          className="h-6 w-14 rounded border px-1"
+          aria-label="Conversión"
+        />
+        <select value={unidad} onChange={(e) => setUnidad(e.target.value)} className="h-6 rounded border px-1" aria-label="Unidad de la línea">
+          <option value="">…</option>
+          {UNIDADES_DE_USO.map((u) => (
+            <option key={u.codigo} value={u.codigo}>
+              {u.nombre}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="text-muted-foreground">La cantidad de la línea ({linea.cantidad}) queda en esa unidad.</p>
+      {puedeGuardarEnMaestro && (
+        <label className="flex items-center gap-1">
+          <input type="checkbox" checked={guardarEnMaestro} onChange={(e) => setGuardarEnMaestro(e.target.checked)} />
+          Guardar también en el maestro
+        </label>
+      )}
+      <div className="flex gap-1">
+        <button
+          type="button"
+          disabled={!valida}
+          onClick={() => {
+            onGuardar(unidad, numero, guardarEnMaestro)
+            setAbierto(false)
+          }}
+          className="rounded bg-primary px-2 py-0.5 text-primary-foreground disabled:opacity-50"
+        >
+          Guardar
+        </button>
+        <button type="button" onClick={() => setAbierto(false)} className="rounded border px-2 py-0.5">
+          Cancelar
+        </button>
+      </div>
     </div>
   )
 }

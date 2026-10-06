@@ -12,7 +12,9 @@ import {
   CLASE_ESTADO_CONTRATO,
   ETIQUETA_ESTADO_CONTRATO,
   TIPO_CONTRATO_POR_VALOR,
+  anticipoEnLetras,
   numero,
+  pesosEnLetras,
   pesos,
   plazoTexto,
   type SolicitudContratoDetalle,
@@ -25,6 +27,8 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 // Detalle de una solicitud de contrato, compartido por Solicitud de contratos
 // (el director) y Pre-aprobación (Jurídica). Cada pantalla pone sus botones
 // con `acciones` (corregir y reenviar / aprobar, devolver, rechazar).
+// Con `minuta` (Pre-aprobación) el diálogo se agranda y suma la pestaña
+// "Minuta" junto a "Solicitud".
 // ---------------------------------------------------------------------------
 
 export const fechaContrato = (iso: string) =>
@@ -38,12 +42,15 @@ export function DetalleSolicitudContrato({
   id,
   onCerrar,
   acciones,
+  minuta,
 }: {
   id: string | null
   onCerrar: () => void
   acciones?: (detalle: SolicitudContratoDetalle) => React.ReactNode
+  minuta?: (detalle: SolicitudContratoDetalle) => React.ReactNode
 }) {
   const [detalle, setDetalle] = useState<SolicitudContratoDetalle | null>(null)
+  const [pestana, setPestana] = useState<"solicitud" | "minuta">("solicitud")
   const [error, setError] = useState<string | null>(null)
   const [viendo, setViendo] = useState<DocumentoAbierto | null>(null)
 
@@ -66,12 +73,19 @@ export function DetalleSolicitudContrato({
     setDetalle(null)
     setError(null)
     setViendo(null)
+    setPestana("solicitud")
     onCerrar()
   }
 
   return (
     <Dialog open={id !== null} onOpenChange={(abierto) => !abierto && cerrar()}>
-      <DialogContent className={`max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-3xl"}`}>
+      <DialogContent
+        className={
+          minuta
+            ? "flex h-[94svh] max-h-[94svh] flex-col gap-4 overflow-y-auto sm:max-w-[min(96vw,1440px)]"
+            : `max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-3xl"}`
+        }
+      >
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}` : "Solicitud de contrato"}
@@ -84,7 +98,33 @@ export function DetalleSolicitudContrato({
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {viendo ? (
+        {minuta && detalle && !viendo && (
+          <div className="-mt-1 flex gap-1 border-b" role="tablist" aria-label="Secciones">
+            {(
+              [
+                ["solicitud", "Solicitud"],
+                ["minuta", "Minuta"],
+              ] as const
+            ).map(([valor, etiqueta]) => (
+              <button
+                key={valor}
+                type="button"
+                role="tab"
+                aria-selected={pestana === valor}
+                onClick={() => setPestana(valor)}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+                  pestana === valor ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {minuta && detalle && !viendo && pestana === "minuta" ? (
+          minuta(detalle)
+        ) : viendo ? (
           <VisorDocumento
             titulo={viendo.titulo}
             nombreArchivo={viendo.nombreArchivo}
@@ -120,11 +160,10 @@ export function DetalleSolicitudContrato({
                     ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                     ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
                     ["Valor", `${pesos(detalle.valor)} (${detalle.anexoTipo === "valor_global" ? "valor global" : "valores unitarios"})`],
+                    ...(detalle.valorMensual !== null ? [["Pago mensual", pesosEnLetras(detalle.valorMensual)]] : []),
                     [
                       "Anticipo",
-                      detalle.tieneAnticipo
-                        ? `${numero(detalle.anticipoPorcentaje ?? 0)} % = ${pesos((detalle.valor * (detalle.anticipoPorcentaje ?? 0)) / 100)}`
-                        : "No",
+                      detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No",
                     ],
                     [
                       "Plazo",

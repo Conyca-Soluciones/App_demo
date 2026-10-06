@@ -2,8 +2,10 @@
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { Suspense, useEffect, useState } from "react"
+import { sugerirPresentacion, unidadMaestro, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
 import {
   listarSolicitudesInsumos,
+  listarAgrupacionesInsumos,
   aprobarSolicitudInsumo,
   rechazarSolicitudInsumo,
   type SolicitudInsumo,
@@ -19,6 +21,16 @@ const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medi
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
 type Estado = "pendiente" | "aprobado" | "rechazado"
+
+// Lo que se elige al aprobar para que el insumo entre estandarizado al maestro.
+type DatosAprobacion = {
+  precio: number
+  tipo: string
+  uM: string
+  agrupacion: string
+  ivaPorcentaje: number
+  presentacion: { unidadUso: string; contenido: string }
+}
 
 const FILTROS: { valor: Estado; etiqueta: string }[] = [
   { valor: "pendiente", etiqueta: "Pendientes" },
@@ -37,6 +49,12 @@ function AdminInsumosContent() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
+  const [agrupaciones, setAgrupaciones] = useState<string[]>([])
+  useEffect(() => {
+    listarAgrupacionesInsumos()
+      .then((lista: string[]) => setAgrupaciones(lista))
+      .catch(() => setAgrupaciones([]))
+  }, [])
 
     // dentro del componente:
   const searchParams = useSearchParams()
@@ -77,7 +95,8 @@ function AdminInsumosContent() {
     })
   }
 
-  async function handleAprobar(solicitud: SolicitudInsumo, precio: number, tipo: string, uM: string) {
+  async function handleAprobar(solicitud: SolicitudInsumo, datos: DatosAprobacion) {
+    const { precio, tipo, uM, agrupacion, ivaPorcentaje, presentacion } = datos
     marcarProcesando(solicitud.id, true)
     setError(null)
     try {
@@ -86,6 +105,10 @@ function AdminInsumosContent() {
         vrUnitario: precio,
         tipo,
         uM: uM || null,
+        agrupacion,
+        ivaPorcentaje,
+        unidadUso: presentacion.unidadUso || null,
+        contenido: presentacion.contenido.trim() ? Number(presentacion.contenido.replace(",", ".")) : null,
       })
       setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
     } catch (e) {
@@ -164,6 +187,7 @@ function AdminInsumosContent() {
         <TablaPendientes
           solicitudes={solicitudes}
           idsEnProceso={idsEnProceso}
+          agrupaciones={agrupaciones}
           onAprobar={handleAprobar}
           onRechazar={handleRechazar}
         />
@@ -201,12 +225,14 @@ export default function AdminInsumosPage() {
 function TablaPendientes({
   solicitudes,
   idsEnProceso,
+  agrupaciones,
   onAprobar,
   onRechazar,
 }: {
   solicitudes: SolicitudInsumo[]
   idsEnProceso: Set<string>
-  onAprobar: (s: SolicitudInsumo, precio: number, tipo: string, uM: string) => void
+  agrupaciones: string[]
+  onAprobar: (s: SolicitudInsumo, datos: DatosAprobacion) => void
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   return (
@@ -217,8 +243,10 @@ function TablaPendientes({
             <th className={`${headClasses} w-64`}>Insumo</th>
             <th className={`${headClasses} w-40`}>Origen</th>
             <th className={`${headClasses} w-44`}>Tipo</th>
-            <th className={`${headClasses} w-24`}>Unidad</th>
-            <th className={`${headClasses} w-32 text-right`}>Precio real</th>
+            <th className={`${headClasses} w-40`}>Unidad</th>
+            <th className={`${headClasses} w-48`}>Agrupación</th>
+            <th className={`${headClasses} w-20`}>IVA</th>
+            <th className={`${headClasses} w-32 text-right`}>Precio sin IVA</th>
             <th className={`${headClasses} w-56 text-center`}>Acciones</th>
           </tr>
         </thead>
@@ -228,6 +256,7 @@ function TablaPendientes({
               key={s.id}
               solicitud={s}
               procesando={idsEnProceso.has(s.id)}
+              agrupaciones={agrupaciones}
               onAprobar={onAprobar}
               onRechazar={onRechazar}
             />
@@ -241,17 +270,28 @@ function TablaPendientes({
 function FilaPendiente({
   solicitud,
   procesando,
+  agrupaciones,
   onAprobar,
   onRechazar,
 }: {
   solicitud: SolicitudInsumo
   procesando: boolean
-  onAprobar: (s: SolicitudInsumo, precio: number, tipo: string, uM: string) => void
+  agrupaciones: string[]
+  onAprobar: (s: SolicitudInsumo, datos: DatosAprobacion) => void
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   const [precio, setPrecio] = useState("")
-  const [tipo, setTipo] = useState(solicitud.tipo ?? TODOS_LOS_TIPOS[0])
-  const [uM, setUM] = useState(solicitud.uM ?? "")
+  // Lo que trae la solicitud (del Excel: "INSUMO", "m³") se usa solo si
+  // corresponde a la lista estándar; si no, queda vacío para elegirlo.
+  const [tipo, setTipo] = useState(solicitud.tipo && TODOS_LOS_TIPOS.includes(solicitud.tipo) ? solicitud.tipo : "")
+  const [uM, setUM] = useState(unidadMaestro(solicitud.uM) ?? "")
+  const [agrupacion, setAgrupacion] = useState("")
+  const [iva, setIva] = useState("19")
+  // Presentación: cuánto trae cada U.M. (1 bulto = 50 kg). Se propone la que
+  // se lee del nombre ("CEMENTO X 50 KG").
+  const sugerida = sugerirPresentacion(solicitud.descripcion, solicitud.uM)
+  const [contenido, setContenido] = useState(sugerida ? String(sugerida.contenido) : "")
+  const [unidadUso, setUnidadUso] = useState(sugerida?.unidadUso ?? "")
   const [error, setError] = useState<string | null>(null)
 
   // Caja de observaciones para el rechazo -- se abre solo cuando le dan
@@ -271,8 +311,27 @@ function FilaPendiente({
       setError("Elige un tipo.")
       return
     }
+    if (!uM) {
+      setError("Elige la unidad de compra.")
+      return
+    }
+    if (!agrupacion) {
+      setError("Elige la agrupación.")
+      return
+    }
+    if (!!contenido.trim() !== !!unidadUso) {
+      setError("La presentación necesita las dos cosas: cuánto trae y en qué unidad (o ninguna).")
+      return
+    }
     setError(null)
-    onAprobar(solicitud, precioNum, tipo, uM)
+    onAprobar(solicitud, {
+      precio: precioNum,
+      tipo,
+      uM,
+      agrupacion,
+      ivaPorcentaje: Number(iva),
+      presentacion: { unidadUso, contenido },
+    })
   }
 
   function confirmarRechazo() {
@@ -306,6 +365,7 @@ function FilaPendiente({
           disabled={mostrandoRechazo}
           className="h-8 w-full rounded-md border bg-background px-1.5 text-xs"
         >
+          <option value="">Elegir…</option>
           {TODOS_LOS_TIPOS.map((t) => (
             <option key={t} value={t}>
               {t}
@@ -314,12 +374,73 @@ function FilaPendiente({
         </select>
       </td>
       <td className={celda}>
-        <Input
+        <select
           value={uM}
           onChange={(e) => setUM(e.target.value)}
           disabled={mostrandoRechazo}
-          className="h-8 text-xs"
-        />
+          className="h-8 w-full rounded-md border bg-background px-1.5 text-xs"
+          title={solicitud.uM ? `En la solicitud: ${solicitud.uM}` : undefined}
+        >
+          <option value="">Elegir…</option>
+          {UNIDADES_MAESTRO.map((u) => (
+            <option key={u.codigo} value={u.texto}>
+              {u.texto}
+            </option>
+          ))}
+        </select>
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground" title="Presentación: cuánto trae cada unidad de compra (opcional)">
+          <span className="shrink-0">trae</span>
+          <Input
+            value={contenido}
+            onChange={(e) => setContenido(e.target.value)}
+            disabled={mostrandoRechazo}
+            inputMode="decimal"
+            placeholder="—"
+            className="h-7 w-14 px-1.5 text-xs"
+            aria-label="Contenido de la presentación"
+          />
+          <select
+            value={unidadUso}
+            onChange={(e) => setUnidadUso(e.target.value)}
+            disabled={mostrandoRechazo}
+            className="h-7 min-w-0 flex-1 rounded-md border bg-background px-1 text-xs"
+            aria-label="Unidad de uso"
+          >
+            <option value="">—</option>
+            {UNIDADES_DE_USO.map((u) => (
+              <option key={u.codigo} value={u.codigo}>
+                {u.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+      </td>
+      <td className={celda}>
+        <select
+          value={agrupacion}
+          onChange={(e) => setAgrupacion(e.target.value)}
+          disabled={mostrandoRechazo}
+          className="h-8 w-full rounded-md border bg-background px-1.5 text-xs"
+        >
+          <option value="">Elegir…</option>
+          {agrupaciones.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className={celda}>
+        <select
+          value={iva}
+          onChange={(e) => setIva(e.target.value)}
+          disabled={mostrandoRechazo}
+          className="h-8 w-full rounded-md border bg-background px-1.5 text-xs"
+        >
+          <option value="0">0 %</option>
+          <option value="5">5 %</option>
+          <option value="19">19 %</option>
+        </select>
       </td>
       <td className={celda}>
         <Input
