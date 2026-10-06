@@ -29,6 +29,16 @@ import {
   type ProveedorDetalle,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { nombreUnidad, unidadesDeCompra } from "@/lib/unidades"
+import {
+  cantidadPorPresentacion,
+  conversionValida,
+  maximoPresentaciones,
+  presentacionesPara,
+} from "@/lib/presentacion-compra"
+
+// Valor del desplegable "UM disponible" para la opción normal: la unidad de
+// compra del insumo (la del maestro). Cualquier otra es una presentación.
+const UM_PROPIA = "__propia__"
 
 // Conversión escrita en pantalla ("1,44" o "50"): número mayor que cero, o null.
 function numeroConversion(texto: string): number | null {
@@ -43,6 +53,10 @@ const CLAVE_SELECCION = "compras:seleccion"
 type SeleccionGuardada = { proyectoId: string; pedidoIds: string[] }
 
 type LineaForm = {
+  // "UM disponible": "" = la unidad de compra del insumo; si no, la
+  // presentación elegida (CAJA, ROLLO...) y entonces `conversion` es
+  // 1 presentación = conversion unidades de la requisición.
+  umCompra: string
   // conversión: 1 unidad de compra = conversion unidades de la requisición
   conversion: string
   cantidad: string
@@ -139,6 +153,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             data.map((p) => [
               p.id,
               {
+                umCompra: "",
                 conversion: String(p.factor),
                 cantidad: String(p.cantidadPendiente),
                 precioUnitario: "",
@@ -173,12 +188,35 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   // completas que cubren lo pendiente con esa conversión.
   function actualizarConversion(pedido: PedidoParaComprar, valor: string) {
     const conv = numeroConversion(valor)
+    setLineas((prev) => {
+      const actual = prev[pedido.id]
+      let cantidad: string | null = null
+      if (conv != null) {
+        cantidad = actual?.umCompra
+          ? conversionValida(conv)
+            ? String(maximoPresentaciones(pedido.pendienteUso, conv, pedido.factor))
+            : null
+          : String(unidadesDeCompra(pedido.pendienteUso, conv))
+      }
+      return {
+        ...prev,
+        [pedido.id]: { ...actual, conversion: valor, ...(cantidad != null ? { cantidad } : {}) },
+      }
+    })
+  }
+
+  // "UM disponible": la opción normal vuelve a lo de siempre (unidad del
+  // insumo, conversión del APU); una presentación (caja...) deja la conversión
+  // y la cantidad en blanco hasta que Compras escriba cuánto trae cada una.
+  function cambiarUm(pedido: PedidoParaComprar, valor: string) {
+    const um = valor === UM_PROPIA ? "" : valor
     setLineas((prev) => ({
       ...prev,
       [pedido.id]: {
         ...prev[pedido.id],
-        conversion: valor,
-        ...(conv != null ? { cantidad: String(unidadesDeCompra(pedido.pendienteUso, conv)) } : {}),
+        umCompra: um,
+        conversion: um ? "" : String(pedido.factor),
+        cantidad: um ? "" : String(pedido.cantidadPendiente),
       },
     }))
   }
@@ -195,6 +233,35 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     const porcentajeDescuento = Number(l.porcentajeDescuento || "0")
     const porcentajeIva = Number(l.porcentajeIva || "0")
 
+    // Otra presentación (cajas): la cantidad son unidades de esa presentación y
+    // el precio es por una de ellas; la base deriva lo del insumo.
+    if (l.umCompra) {
+      if (!conversionValida(factor)) return null
+      if (
+        !l.cantidad.trim() ||
+        !Number.isInteger(cantidad) ||
+        cantidad <= 0 ||
+        cantidad > maximoPresentaciones(pedido.pendienteUso, factor, pedido.factor)
+      )
+        return null
+      if (!l.precioUnitario.trim() || Number.isNaN(precioUnitario) || precioUnitario < 0) return null
+      if (Number.isNaN(porcentajeDescuento) || porcentajeDescuento < 0 || porcentajeDescuento > 100) return null
+      if (Number.isNaN(porcentajeIva) || porcentajeIva < 0 || porcentajeIva > 100) return null
+      return {
+        cantidad,
+        factor: pedido.factor,
+        precioUnitario,
+        porcentajeDescuento,
+        porcentajeIva,
+        presentacion: {
+          umCompra: l.umCompra,
+          conversionCompra: factor,
+          cantidadCompra: cantidad,
+          precioCompra: precioUnitario,
+        },
+      }
+    }
+
     // Cantidad: solo enteros (Entradas solo recibe enteros; una línea de 2,5
     // dejaría 0,5 imposible de recibir). Precio y porcentajes sí decimales.
     // Hasta las unidades completas que cubren lo pendiente con esta conversión.
@@ -209,7 +276,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     if (Number.isNaN(porcentajeDescuento) || porcentajeDescuento < 0 || porcentajeDescuento > 100) return null
     if (Number.isNaN(porcentajeIva) || porcentajeIva < 0 || porcentajeIva > 100) return null
 
-    return { cantidad, factor, precioUnitario, porcentajeDescuento, porcentajeIva }
+    return { cantidad, factor, precioUnitario, porcentajeDescuento, porcentajeIva, presentacion: undefined }
   }
 
   const todasLasLineasValidas = pedidos.length > 0 && pedidos.every((p) => lineaValida(p) !== null)
@@ -276,6 +343,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             precioUnitario: l.precioUnitario,
             porcentajeDescuento: l.porcentajeDescuento,
             porcentajeIva: l.porcentajeIva,
+            ...(l.presentacion ? { presentacion: l.presentacion } : {}),
           }
         }),
       })
@@ -337,9 +405,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                     <TableHead>Cod</TableHead>
                     <TableHead>Insumo</TableHead>
                     <TableHead className="text-right">Solicitado</TableHead>
+                    <TableHead className="w-40">UM disponible</TableHead>
                     <TableHead className="w-44">Conversión</TableHead>
                     <TableHead className="w-28 text-right">Cantidad</TableHead>
-                    <TableHead>UM</TableHead>
                     <TableHead className="text-right">Equivale a</TableHead>
                     <TableHead className="w-28 text-right">Vr. Unitario</TableHead>
                     <TableHead className="w-20 text-right">% Dto.</TableHead>
@@ -350,6 +418,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                 <TableBody>
                   {pedidos.map((pedido) => {
                     const l = lineas[pedido.id] ?? {
+                      umCompra: "",
                       conversion: "1",
                       cantidad: "",
                       precioUnitario: "",
@@ -361,7 +430,15 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                     return (
                       <TableRow key={pedido.id}>
                         <TableCell className="text-muted-foreground">{pedido.insumoCodigo}</TableCell>
-                        <TableCell className="max-w-[200px]">{pedido.insumoDescripcion}</TableCell>
+                        {/* whitespace-normal: la celda de tabla trae nowrap por defecto y los
+                            nombres largos se salían de su columna tapando las demás. Ahora
+                            bajan a una segunda línea (máximo 2); el nombre completo queda
+                            en el tooltip. */}
+                        <TableCell className="min-w-56 max-w-72 whitespace-normal">
+                          <span className="line-clamp-2 break-words" title={pedido.insumoDescripcion}>
+                            {pedido.insumoDescripcion}
+                          </span>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           {formatoCantidad(pedido.pendienteUso)} {nombreUnidad(pedido.unidadUso)}
                           {pedido.pendienteUso < pedido.cantidadUso && (
@@ -371,13 +448,36 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                           )}
                         </TableCell>
                         <TableCell>
+                          <Select value={l.umCompra || UM_PROPIA} onValueChange={(v) => cambiarUm(pedido, v ?? UM_PROPIA)}>
+                            <SelectTrigger className="h-8 w-36 text-xs" aria-label="UM disponible">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={UM_PROPIA}>
+                                {nombreUnidad(pedido.um) || "und"} (del insumo)
+                              </SelectItem>
+                              {presentacionesPara(pedido.um).map((u) => (
+                                <SelectItem key={u} value={u}>
+                                  {u.charAt(0) + u.slice(1).toLowerCase()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1 whitespace-nowrap text-xs">
-                            <span>1 {nombreUnidad(pedido.um) || "und"} =</span>
+                            <span>1 {l.umCompra ? l.umCompra.toLowerCase() : nombreUnidad(pedido.um) || "und"} =</span>
                             <Input
                               inputMode="decimal"
                               value={l.conversion}
                               onChange={(e) => actualizarConversion(pedido, e.target.value)}
-                              className={`h-8 w-16 text-right ${numeroConversion(l.conversion) == null ? "border-destructive" : ""}`}
+                              placeholder={l.umCompra ? "¿cuánto trae?" : undefined}
+                              className={`h-8 w-16 text-right ${
+                                numeroConversion(l.conversion) == null ||
+                                (l.umCompra && !conversionValida(numeroConversion(l.conversion) ?? 0))
+                                  ? "border-destructive"
+                                  : ""
+                              }`}
                               aria-label="Conversión"
                             />
                             <span>{nombreUnidad(pedido.unidadUso)}</span>
@@ -394,7 +494,6 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                             className={`text-right ${!valida ? "border-destructive" : ""}`}
                           />
                         </TableCell>
-                        <TableCell>{pedido.um ?? "—"}</TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           {(() => {
                             const conv = numeroConversion(l.conversion)
@@ -425,10 +524,21 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                             onChange={(e) => actualizarLinea(pedido.id, "precioUnitario", e.target.value)}
                             className={`text-right ${!valida ? "border-destructive" : ""}`}
                           />
+                          {l.umCompra && (
+                            <p className="mt-0.5 text-right text-[10px] leading-tight text-muted-foreground">
+                              por {l.umCompra.toLowerCase()}
+                            </p>
+                          )}
                           {(() => {
-                            const alerta = l.precioUnitario.trim()
-                              ? alertaPrecio(Number(l.precioUnitario), pedido.valorUnitarioProyectado)
-                              : null
+                            // El precio de referencia del maestro es por unidad del
+                            // insumo: con una presentación se compara el equivalente.
+                            const conv = numeroConversion(l.conversion)
+                            const precio = Number(l.precioUnitario)
+                            const porUm = l.umCompra && conv != null ? cantidadPorPresentacion(conv, pedido.factor) : 1
+                            const alerta =
+                              l.precioUnitario.trim() && porUm > 0
+                                ? alertaPrecio(precio / porUm, pedido.valorUnitarioProyectado)
+                                : null
                             return alerta ? (
                               <p className="mt-0.5 text-right text-[10px] leading-tight text-amber-700">{alerta}</p>
                             ) : null

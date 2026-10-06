@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
+import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import {
@@ -249,9 +250,25 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   <TableRow key={linea.id}>
                     <TableCell className="text-muted-foreground">{linea.insumoCodigo}</TableCell>
                     <TableCell>{linea.insumoDescripcion}</TableCell>
-                    <TableCell>{linea.um ?? "—"}</TableCell>
-                    <TableCell className="text-right">{linea.cantidad.toLocaleString("es-CO")}</TableCell>
-                    <TableCell className="text-right">{formatoMoneda.format(linea.precioUnitario)}</TableCell>
+                    <TableCell>{linea.presentacion ? linea.presentacion.umCompra : (linea.um ?? "—")}</TableCell>
+                    <TableCell className="text-right">
+                      {(linea.presentacion ? linea.presentacion.cantidadCompra : linea.cantidad).toLocaleString("es-CO")}
+                      {linea.presentacion && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          1 {linea.presentacion.umCompra.toLowerCase()} ={" "}
+                          {linea.presentacion.conversionCompra.toLocaleString("es-CO", { maximumFractionDigits: 4 })}{" "}
+                          {nombreUnidad(linea.presentacion.unidadConversion)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatoMoneda.format(linea.presentacion ? linea.presentacion.precioCompra : linea.precioUnitario)}
+                      {linea.presentacion && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          por {linea.presentacion.umCompra.toLowerCase()}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right font-medium">{formatoMoneda.format(c.total)}</TableCell>
                   </TableRow>
                 )

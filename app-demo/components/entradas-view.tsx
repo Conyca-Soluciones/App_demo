@@ -394,7 +394,7 @@ function DetalleEntrada({
     // Índice por id: evita un .find() sobre todas las líneas de la orden por
     // cada línea editada (O(n·m) -> O(n + m)).
     const lineaPorId = new Map(detalle.lineas.map((x) => [x.id, x]))
-    const lineas: { id: string; cantidad: number }[] = []
+    const lineas: { id: string; cantidad: number; enUnidadCompra?: boolean }[] = []
     for (const l of editando.lineas) {
       const leida = leerCantidadEntera(edCantidades[l.id] ?? "")
       if (!leida.ok || leida.valor <= 0) {
@@ -413,7 +413,7 @@ function DetalleEntrada({
           return
         }
       }
-      lineas.push({ id: l.id, cantidad })
+      lineas.push({ id: l.id, cantidad, enUnidadCompra: l.enUnidadCompra })
     }
 
     setProcesandoEdicion(true)
@@ -479,7 +479,7 @@ function DetalleEntrada({
     if (!detalle) return
     setError(null)
 
-    const lineas: { ordenCompraItemId: string; cantidad: number }[] = []
+    const lineas: { ordenCompraItemId: string; cantidad: number; enUnidadCompra?: boolean }[] = []
     for (const l of detalle.lineas) {
       const texto = cantidades[l.id]
       if (!texto || !texto.trim()) continue
@@ -495,7 +495,7 @@ function DetalleEntrada({
         )
         return
       }
-      if (cantidad > 0) lineas.push({ ordenCompraItemId: l.id, cantidad })
+      if (cantidad > 0) lineas.push({ ordenCompraItemId: l.id, cantidad, enUnidadCompra: l.enUnidadCompra })
     }
     if (lineas.length === 0) {
       setError("Ingresa la cantidad recibida de al menos un insumo.")

@@ -1,6 +1,7 @@
 "use server"
 
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
+import { redondear } from "@/lib/presentacion-compra"
 
 import { createClient } from "@/lib/supabase/server"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
@@ -134,7 +135,11 @@ export type LineaEntrada = {
   id: string // ordenes_compra_items.id
   insumoCodigo: number
   insumoDescripcion: string
+  // Si la línea se compró en otra presentación (cajas), `um` es esa
+  // presentación y las tres cantidades vienen en ella: el almacén recibe cajas
+  // y la base convierte a la unidad del insumo.
   um: string | null
+  enUnidadCompra?: boolean
   cantidadOrdenada: number
   cantidadRecibida: number
   cantidadPendiente: number
@@ -145,6 +150,7 @@ export type LineaEntradaRegistrada = {
   ordenCompraItemId: string
   insumoDescripcion: string
   um: string | null
+  enUnidadCompra?: boolean
   cantidad: number
   cantidadOriginal: number | null // solo si la cantidad fue editada
 }
@@ -191,15 +197,21 @@ export async function obtenerDetalleOrdenParaEntrada(
     proyectoCodigo: d.proyecto_codigo,
     proyectoNombre: d.proyecto_nombre,
     proveedorNombre: d.proveedor_nombre ?? "(proveedor eliminado)",
-    lineas: (d.lineas ?? []).map((l: any) => ({
-      id: l.id,
-      insumoCodigo: l.insumo_codigo,
-      insumoDescripcion: l.insumo_descripcion,
-      um: l.um,
-      cantidadOrdenada: Number(l.cantidad_ordenada),
-      cantidadRecibida: Number(l.cantidad_recibida),
-      cantidadPendiente: Number(l.cantidad_pendiente),
-    })),
+    lineas: (d.lineas ?? []).map((l: any) => {
+      // Presentación (cajas): las cantidades se muestran y se reciben en cajas.
+      const porUm = l.um_compra && l.cantidad_por_um ? Number(l.cantidad_por_um) : null
+      const aCajas = (n: number) => (porUm ? redondear(n / porUm, 6) : n)
+      return {
+        id: l.id,
+        insumoCodigo: l.insumo_codigo,
+        insumoDescripcion: l.insumo_descripcion,
+        um: porUm ? l.um_compra : l.um,
+        enUnidadCompra: porUm !== null,
+        cantidadOrdenada: aCajas(Number(l.cantidad_ordenada)),
+        cantidadRecibida: aCajas(Number(l.cantidad_recibida)),
+        cantidadPendiente: aCajas(Number(l.cantidad_pendiente)),
+      }
+    }),
     entradas: (d.entradas ?? []).map((e: any) => ({
       id: e.id,
       numero: e.numero,
@@ -210,14 +222,19 @@ export async function obtenerDetalleOrdenParaEntrada(
       anuladaAt: e.anulada_at,
       motivoAnulacion: e.motivo_anulacion,
       editadaAt: e.editada_at,
-      lineas: (e.lineas ?? []).map((l: any) => ({
-        id: l.id,
-        ordenCompraItemId: l.orden_compra_item_id,
-        insumoDescripcion: l.insumo_descripcion,
-        um: l.um,
-        cantidad: Number(l.cantidad),
-        cantidadOriginal: l.cantidad_original === null ? null : Number(l.cantidad_original),
-      })),
+      lineas: (e.lineas ?? []).map((l: any) => {
+        const porUm = l.um_compra && l.cantidad_por_um ? Number(l.cantidad_por_um) : null
+        const aCajas = (n: number) => (porUm ? redondear(n / porUm, 6) : n)
+        return {
+          id: l.id,
+          ordenCompraItemId: l.orden_compra_item_id,
+          insumoDescripcion: l.insumo_descripcion,
+          um: porUm ? l.um_compra : l.um,
+          enUnidadCompra: porUm !== null,
+          cantidad: aCajas(Number(l.cantidad)),
+          cantidadOriginal: l.cantidad_original === null ? null : aCajas(Number(l.cantidad_original)),
+        }
+      }),
     })),
   }
 }
@@ -226,7 +243,9 @@ export type DatosEntrada = {
   ordenId: string
   remision?: string | null
   observaciones?: string | null
-  lineas: { ordenCompraItemId: string; cantidad: number }[]
+  // enUnidadCompra: la cantidad viene en la presentación de la línea (cajas) y
+  // la base la convierte a la unidad del insumo con decimales exactos.
+  lineas: { ordenCompraItemId: string; cantidad: number; enUnidadCompra?: boolean }[]
 }
 
 // Devuelve el estado_entrega en el que quedó la OC tras registrar la entrada.
@@ -245,10 +264,11 @@ export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntre
     p_orden_id: datos.ordenId,
     p_remision: datos.remision ?? null,
     p_observaciones: datos.observaciones ?? null,
-    p_lineas: lineas.map((l) => ({
-      orden_compra_item_id: l.ordenCompraItemId,
-      cantidad: l.cantidad,
-    })),
+    p_lineas: lineas.map((l) =>
+      l.enUnidadCompra
+        ? { orden_compra_item_id: l.ordenCompraItemId, cantidad_compra: l.cantidad }
+        : { orden_compra_item_id: l.ordenCompraItemId, cantidad: l.cantidad }
+    ),
   })
   if (error) throw new Error(error.message)
 
@@ -260,7 +280,7 @@ export type DatosEdicionEntrada = {
   entradaId: string
   remision?: string | null
   observaciones?: string | null
-  lineas: { id: string; cantidad: number }[] // id = LineaEntradaRegistrada.id
+  lineas: { id: string; cantidad: number; enUnidadCompra?: boolean }[] // id = LineaEntradaRegistrada.id
 }
 
 // Corrige cantidades / remisión / observaciones de una entrada. Devuelve el
@@ -274,7 +294,9 @@ export async function editarEntrada(datos: DatosEdicionEntrada): Promise<EstadoE
     p_entrada_id: datos.entradaId,
     p_remision: datos.remision ?? null,
     p_observaciones: datos.observaciones ?? null,
-    p_lineas: datos.lineas.map((l) => ({ id: l.id, cantidad: l.cantidad })),
+    p_lineas: datos.lineas.map((l) =>
+      l.enUnidadCompra ? { id: l.id, cantidad_compra: l.cantidad } : { id: l.id, cantidad: l.cantidad }
+    ),
   })
   if (error) throw new Error(error.message)
   return data as EstadoEntrega

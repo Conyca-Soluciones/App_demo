@@ -1,6 +1,7 @@
 "use server"
 
 import { unidadesDeCompra } from "@/lib/unidades"
+import { conversionValida, type PresentacionLinea } from "@/lib/presentacion-compra"
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
@@ -355,6 +356,10 @@ export type LineaOrdenCompra = {
   precioUnitario: number
   porcentajeDescuento: number
   porcentajeIva: number
+  // "UM disponible": si Compras compra en otra presentación (cajas), acá va lo
+  // comprado. Entonces cantidadComprar/precioUnitario/factor se ignoran: la
+  // base deriva la cantidad y el precio por unidad del insumo.
+  presentacion?: PresentacionLinea
 }
 
 export type DatosOrdenCompra = {
@@ -388,6 +393,18 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
   }
   if (!datos.lineas.every((l) => esCantidadEnteraPositiva(l.cantidadComprar))) {
     throw new Error("Las cantidades de la orden deben ser números enteros mayores que cero.")
+  }
+  for (const l of datos.lineas) {
+    const pr = l.presentacion
+    if (!pr) continue
+    if (!pr.umCompra.trim()) throw new Error("Escoge la UM disponible de cada línea que se compra en otra presentación.")
+    if (!conversionValida(pr.conversionCompra)) {
+      throw new Error("La conversión debe ser un número mayor que cero con máximo 4 decimales.")
+    }
+    if (!esCantidadEnteraPositiva(pr.cantidadCompra)) {
+      throw new Error("La cantidad a comprar debe ser un número entero mayor que cero.")
+    }
+    if (!Number.isFinite(pr.precioCompra) || pr.precioCompra < 0) throw new Error("El precio no puede ser negativo.")
   }
 
   // Anticipo: se valida acá también (la base lo vuelve a validar). Los
@@ -426,14 +443,26 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     p_condiciones_pago: datos.condicionesPago ?? null,
     p_observaciones: datos.observaciones ?? null,
     ...(anticipo ?? {}),
-    p_lineas: datos.lineas.map((l) => ({
-      pedido_id: l.pedidoId,
-      cantidad_comprar: l.cantidadComprar,
-      factor: l.factor,
-      precio_unitario: l.precioUnitario,
-      porcentaje_descuento: l.porcentajeDescuento,
-      porcentaje_iva: l.porcentajeIva,
-    })),
+    p_lineas: datos.lineas.map((l) =>
+      l.presentacion
+        ? {
+            pedido_id: l.pedidoId,
+            um_compra: l.presentacion.umCompra.trim().toUpperCase(),
+            conversion_compra: l.presentacion.conversionCompra,
+            cantidad_compra: l.presentacion.cantidadCompra,
+            precio_compra: l.presentacion.precioCompra,
+            porcentaje_descuento: l.porcentajeDescuento,
+            porcentaje_iva: l.porcentajeIva,
+          }
+        : {
+            pedido_id: l.pedidoId,
+            cantidad_comprar: l.cantidadComprar,
+            factor: l.factor,
+            precio_unitario: l.precioUnitario,
+            porcentaje_descuento: l.porcentajeDescuento,
+            porcentaje_iva: l.porcentajeIva,
+          }
+    ),
   })
 
   if (error) throw new Error(error.message)
@@ -530,6 +559,10 @@ export type LineaOrdenCompraDetalle = {
   precioUnitario: number
   porcentajeDescuento: number
   porcentajeIva: number
+  // "UM disponible": si la línea se compró en otra presentación (cajas), lo
+  // comprado de verdad; cantidad y precioUnitario siguen en la unidad del
+  // insumo (de ahí cuelgan Entradas, inventario y precios promedio).
+  presentacion: PresentacionLinea | null
 }
 
 export type OrdenCompraDetalle = {
@@ -596,7 +629,9 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       aprobada_por_perfil:perfiles!ordenes_compra_aprobada_por_fkey(nombre),
       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
         id, cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva,
+        um_compra, conversion_compra, cantidad_compra, precio_compra,
         pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(
+          unidad,
           insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m)
         )
       )
@@ -660,6 +695,15 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       precioUnitario: Number(l.precio_unitario),
       porcentajeDescuento: Number(l.porcentaje_descuento),
       porcentajeIva: Number(l.porcentaje_iva),
+      presentacion: l.um_compra
+        ? {
+            umCompra: l.um_compra,
+            conversionCompra: Number(l.conversion_compra),
+            cantidadCompra: Number(l.cantidad_compra),
+            precioCompra: Number(l.precio_compra),
+            unidadConversion: l.pedido?.unidad ?? l.pedido?.insumo?.u_m ?? null,
+          }
+        : null,
     })),
   }
 }

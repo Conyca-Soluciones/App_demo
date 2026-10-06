@@ -3,6 +3,7 @@ import path from "path"
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { numeroALetrasCOP } from "@/lib/numero-a-letras"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
+import { nombreUnidad } from "@/lib/unidades"
 import type { OrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
 const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
@@ -213,10 +214,17 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
               <View style={idx % 2 === 1 ? styles.trPar : styles.tr} key={linea.id} wrap={false}>
                 <Text style={[styles.td, styles.colInsumo]}>
                   {linea.insumoCodigo} - {linea.insumoDescripcion}
+                  {linea.presentacion
+                    ? ` (${linea.presentacion.umCompra.toLowerCase()} de ${linea.presentacion.conversionCompra.toLocaleString("es-CO", { maximumFractionDigits: 4 })} ${nombreUnidad(linea.presentacion.unidadConversion)})`
+                    : ""}
                 </Text>
-                <Text style={[styles.td, styles.colUm]}>{linea.um ?? "—"}</Text>
-                <Text style={[styles.td, styles.colCant]}>{linea.cantidad.toLocaleString("es-CO")}</Text>
-                <Text style={[styles.td, styles.colPrecio]}>{formatoMoneda(linea.precioUnitario)}</Text>
+                <Text style={[styles.td, styles.colUm]}>{linea.presentacion ? linea.presentacion.umCompra : (linea.um ?? "—")}</Text>
+                <Text style={[styles.td, styles.colCant]}>
+                  {(linea.presentacion ? linea.presentacion.cantidadCompra : linea.cantidad).toLocaleString("es-CO")}
+                </Text>
+                <Text style={[styles.td, styles.colPrecio]}>
+                  {formatoMoneda(linea.presentacion ? linea.presentacion.precioCompra : linea.precioUnitario)}
+                </Text>
                 <Text style={[styles.td, styles.colDto]}>{linea.porcentajeDescuento}%</Text>
                 <Text style={[styles.td, styles.colIva]}>
                   {linea.porcentajeIva}% · {formatoMoneda(c.iva)}
