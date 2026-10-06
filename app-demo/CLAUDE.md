@@ -1012,6 +1012,36 @@ no podía distinguir 50 m de 50 rollos.
   (lcpr) volvía a contar órdenes RECHAZADAS como ya compradas (regresión de
   20261006100000); ahora no.
 
+## UM disponible, excedentes de compras y las tres categorías de costo (2026-10-06)
+
+- **UM disponible** (`generar-oc-view.tsx`, `lib/presentacion-compra.ts`,
+  `20261029000000_oc_presentacion_compra.sql`): en cada línea de Generar OC,
+  Compras elige una presentación (caja, rollo...) distinta de la unidad del insumo
+  y escribe cuánto trae (1 caja = 2,08 m²); el sistema calcula las unidades
+  completas (hacia arriba). La línea SIGUE guardando `cantidad` y `precio_unitario`
+  en la unidad de compra del insumo (de ahí cuelgan Entradas, inventario, pagos y
+  el precio promedio de los APU); la presentación va aparte en 5 columnas
+  (`um_compra`, `conversion_compra`, `cantidad_compra`, `precio_compra`,
+  `cantidad_por_um`). Entradas recibe en la presentación y la base convierte
+  (`cantidad_compra` en `_registrar_entrada_almacen` / `_editar_entrada_almacen`).
+  Se parchearon las versiones INTERNAS (`_...`): los envoltorios públicos llevan el
+  permiso por proyecto (`_exigir_proyecto_almacen`) y no se tocan.
+- **Se puede pasar de la requisición solo por el redondeo** a unidades completas
+  (`crear_orden_compra`: máximo = ceil(pendiente / lo que trae cada unidad)).
+- **Excedentes de compras** (`20261030000000_excedentes_de_compras.sql`): lo
+  comprado de más NO se descuenta del cupo (`_comprometido_insumo_item` cuenta lo
+  pedido, no `greatest(pedido, comprado)`). El costo se clasifica en tres
+  categorías (para la futura pestaña de control y supervisión del proyecto), en
+  la vista `v_ordenes_compra_items_costos`: **Compras** = lo pagado en la OC;
+  **Requisiciones** = el costo de lo que salió en la requisición (10 m², no 11);
+  **Excedentes de compras** = Compras − Requisiciones. Las líneas de un mismo
+  pedido se recorren por fecha y cada una cubre lo que le falte al pedido; se
+  calcula en el momento. Pago, OC e inventario no cambian (al proveedor se le paga
+  todo).
+- **La base viva puede ir por delante de `lcpr`**: otra rama
+  (`claude/tender-maxwell-iresrp`) aplica migraciones a Supabase. Antes de
+  `create or replace` de una función, leer su `prosrc` vivo (MCP de solo lectura).
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)
