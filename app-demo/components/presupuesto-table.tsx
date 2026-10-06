@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Trash2 } from "lucide-react"
 import {
   Table,
@@ -33,6 +33,12 @@ const cellClasses = "border-r p-0 align-middle last:border-r-0"
 // Textarea que ajusta su alto solo, según el texto -- así la caja de
 // descripción hace wrap en vez de desbordarse horizontalmente, y no le
 // queda una barra de scroll interna incómoda.
+//
+// El alto lo da CSS, no JS: un "doble" invisible con el mismo texto y las
+// mismas clases ocupa la misma celda del grid y estira la fila; el textarea
+// la llena. Antes cada fila hacía height=auto + scrollHeight en un efecto, y
+// cada lectura obligaba a recalcular la tabla entera: con 1.500 ítems eran
+// 1.500 recálculos de 1.500 filas (O(n²)) y el import congelaba el navegador.
 function DescripcionTextarea({
   value,
   onChange,
@@ -42,23 +48,18 @@ function DescripcionTextarea({
   onChange: (valor: string) => void
   className?: string
 }) {
-  const ref = useRef<HTMLTextAreaElement>(null)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    el.style.height = "auto"
-    el.style.height = `${el.scrollHeight}px`
-  }, [value])
-
   return (
-    <textarea
-      ref={ref}
-      rows={1}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={className}
-    />
+    <div className="grid">
+      <span aria-hidden className={`${className ?? ""} invisible whitespace-pre-wrap break-words [grid-area:1/1]`}>
+        {value + " "}
+      </span>
+      <textarea
+        rows={1}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${className ?? ""} [grid-area:1/1]`}
+      />
+    </div>
   )
 }
 

@@ -147,6 +147,9 @@ function detectarColumnas(filas: Record<string, unknown>[]) {
 // inicio del texto, para no descartar por error un ítem real que solo
 // mencione la palabra "total" en su descripción (ej. "revoque total del
 // muro").
+// Versión nueva a la que va un import sobre un presupuesto que ya existe.
+type VersionNuevaImport = { presupuestoId: string; nombre: string }
+
 const PALABRAS_TOTAL = ["total", "subtotal", "sub total", "costo directo", "costo indirecto"]
 
 function normalizarTexto(s: string): string {
@@ -828,10 +831,16 @@ export default function Presupuestos() {
   // -------------------------------------------------------------------
   const [bloquesParaReintentar, setBloquesParaReintentar] = useState<BloqueApu[] | null>(null)
 
+  // versionNueva: el import va a una versión NUEVA del presupuesto existente.
+  // Se pasa explícito (no se lee del estado): handleConfirmarNombreVersion
+  // hace setVersionPendienteDesdeImport y llama esto en el mismo evento, y el
+  // guardado veía el estado viejo (null) -- los ítems caían en la versión
+  // actual, mezclados con los que ya tenía y con códigos repetidos.
   async function iniciarFlujoApu(
     items: ItemPresupuesto[],
     bloques: BloqueApu[],
-    modo: "append" | "replace"
+    modo: "append" | "replace",
+    versionNueva?: VersionNuevaImport
   ) {
     const aplicarItemsAlPresupuesto = () => {
       if (modo === "append") setPresupuesto((prev) => [...prev, ...items])
@@ -860,13 +869,14 @@ export default function Presupuestos() {
       return
     }
 
-    await guardarPresupuestoConApu(items, bloques, aplicarItemsAlPresupuesto)
+    await guardarPresupuestoConApu(items, bloques, aplicarItemsAlPresupuesto, versionNueva)
   }
 
   async function guardarPresupuestoConApu(
     items: ItemPresupuesto[],
     bloques: BloqueApu[],
-    aplicarItemsAlPresupuesto: () => void
+    aplicarItemsAlPresupuesto: () => void,
+    versionNueva?: VersionNuevaImport
   ) {
     setGuardandoImportApu(true)
     setError(null)
@@ -877,7 +887,7 @@ export default function Presupuestos() {
     // "se actualiza seguido" y "no demasiadas llamadas al servidor"
 
     try {
-      const idPresupuesto = await handleGuardar(items) // items directo -- ver nota en handleGuardar sobre el timing de React
+      const idPresupuesto = await handleGuardar(items, versionNueva) // items directo -- ver nota en handleGuardar sobre el timing de React
       if (!idPresupuesto) throw new Error("No se pudo guardar el presupuesto.")
 
       // Se aplican los ítems al estado DE UNA (ya no se espera a que
@@ -987,8 +997,9 @@ export default function Presupuestos() {
     if (!itemsPendientesDeVersion || !nombreVersionDesdeImport.trim() || !presupuestoExistente)
       return
 
+    const nombreVersion = nombreVersionDesdeImport.trim()
     setPresupuestoDbId(presupuestoExistente.id)
-    setVersionPendienteDesdeImport({ nombre: nombreVersionDesdeImport.trim() })
+    setVersionPendienteDesdeImport({ nombre: nombreVersion })
     setViendoVersionActual(true)
 
     const items = itemsPendientesDeVersion
@@ -998,7 +1009,13 @@ export default function Presupuestos() {
     setBloquesApuPendientesDeVersion([])
     setNombreVersionDesdeImport("")
 
-    await iniciarFlujoApu(items, bloques, "replace")
+    // Sin hoja APU el guardado llega después (botón Guardar) y lee
+    // versionPendienteDesdeImport del estado; con hoja APU se guarda ya, en
+    // este mismo evento, así que la versión va explícita.
+    await iniciarFlujoApu(items, bloques, "replace", {
+      presupuestoId: presupuestoExistente.id,
+      nombre: nombreVersion,
+    })
   }
 
   function handleAgregarManual(item: ItemPresupuesto) {
@@ -1042,7 +1059,10 @@ export default function Presupuestos() {
   // -- pasar los ítems directo evita depender del timing de React. El
   // botón normal "Guardar en base de datos" sigue sin pasar nada, y usa
   // el estado tal cual (comportamiento de siempre).
-  async function handleGuardar(itemsOverride?: ItemPresupuesto[]): Promise<string | null> {
+  async function handleGuardar(
+    itemsOverride?: ItemPresupuesto[],
+    versionNuevaExplicita?: VersionNuevaImport
+  ): Promise<string | null> {
     if (!proyectoId) return null
 
     setGuardando(true)
@@ -1050,14 +1070,19 @@ export default function Presupuestos() {
 
     try {
       let idPresupuesto = presupuestoDbId
+      const versionNueva =
+        versionNuevaExplicita ??
+        (versionPendienteDesdeImport && presupuestoDbId
+          ? { presupuestoId: presupuestoDbId, nombre: versionPendienteDesdeImport.nombre }
+          : null)
 
-      if (versionPendienteDesdeImport && presupuestoDbId) {
+      if (versionNueva) {
         // "versión nueva del único presupuesto de este proyecto" --
         // primero crear la versión vacía, para que los ítems de este
         // Excel caigan ahí y no se mezclen con lo que ya hubiera en la
         // versión actual (ver crearVersionVacia en actions.ts).
-        await crearVersionVacia(presupuestoDbId, versionPendienteDesdeImport.nombre)
-        idPresupuesto = presupuestoDbId
+        await crearVersionVacia(versionNueva.presupuestoId, versionNueva.nombre)
+        idPresupuesto = versionNueva.presupuestoId
         setVersionPendienteDesdeImport(null)
       } else if (!idPresupuesto) {
         const nombre = `Presupuesto ${proyectoActual?.nombre ?? ""} — ${new Date().toLocaleDateString("es-CO")}`
