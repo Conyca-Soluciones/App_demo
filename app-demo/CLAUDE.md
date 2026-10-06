@@ -1014,6 +1014,34 @@ no podía distinguir 50 m de 50 rollos.
 
 ## Pendientes generales
 
+### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)
+Hecho: limpieza del maestro aplicada en producción (unidades estándar, 18
+insumos de $1.000 borrados, sus líneas volvieron a "Revisar pendientes");
+`20261027000000_redondeo_valor_total.sql` (total = unitario redondeado ×
+cantidad; había 31 ítems descuadrados). Pendiente:
+- **Migraciones por correr**: `20261023000000_ayf_rls_initplan.sql` (A&F,
+  solo reescribe políticas) y `20261027000000_redondeo_valor_total.sql`.
+  `verificar_migraciones.sql` ya las revisa.
+- **Región**: Supabase está en us-west-2 (Oregón); cada consulta tarda ~180 ms
+  (p50 medido en edge_logs) aunque sea trivial. Si la app está en Vercel,
+  poner las funciones en `pdx1`. Es la mejora más grande y no es código.
+- **Import de APU** (~3,5 min el Malecón, 18 tandas de ~6,5 s): mano de obra
+  hace un RPC por ítem (catálogo de 264: traerlo una vez y comparar en
+  memoria); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
+  presentaciones e inserts de insumo/equipo/herramienta van en serie;
+  `page.tsx` espera `refrescarEstadosApu` antes de la tanda siguiente.
+- **Decisiones del usuario**: seguridad de `apu`/`item_apu`/
+  `apu_import_revision`/`transporte_precios` (hoy cualquier sesión escribe);
+  quién pone el precio al aprobar un insumo; ampliación de cupo.
+- **Datos**: Guadua 6 m (código 5473) sigue a $1.000 (está en la requisición
+  27 y en una OC, no se pudo borrar); 25 ítems nivel ≥ 3 sin APU (valen $0);
+  4 pares de duplicados en el maestro (3104/4134, 4561/4564, 2367/3899,
+  1581/1582); 125 presentaciones sugeridas por revisar en la Maestra.
+- **Supabase**: activar "Leaked password protection" (Auth); políticas de
+  presupuestos/ítems/versiones evalúan "ver" y "editar" en cada lectura
+  (separar la de editar en insert/update/delete).
+- Import y "Crear versión nueva" no son todo-o-nada (ver más abajo).
+
 - **Seguridad APU** (auditoría 2026-10-02): `apu`, `item_apu`,
   `apu_import_revision` y `transporte_precios` aceptan escritura de cualquier
   usuario con sesión. Propuesta: exigir `editar_presupuestos` para escribir.

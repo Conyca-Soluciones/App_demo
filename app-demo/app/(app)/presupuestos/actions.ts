@@ -592,10 +592,12 @@ export async function AñadirItemPresuouesto(
     descripcion: item.descripcion,
     unidad: item.unidad,
     cantidad: item.cantidad ?? null,
-    valor_unitario: item.valorUnitario ?? null,
+    // la base guarda el unitario con 2 decimales: el total se calcula con ese
+    // mismo valor redondeado, para que unitario × cantidad = total
+    valor_unitario: item.valorUnitario != null ? redondear2(item.valorUnitario) : null,
     valor_total:
       item.cantidad != null && item.valorUnitario != null
-        ? item.cantidad * item.valorUnitario
+        ? redondear2(item.cantidad * redondear2(item.valorUnitario))
         : null,
     apu_id: item.apuId ?? null,
     precio_original: item.precioOriginal ?? null,
@@ -640,7 +642,7 @@ export async function actualizarCantidadPresupuestoItem(
   }
 
   const valorTotal =
-    actual.valor_unitario != null ? nuevaCantidad * actual.valor_unitario : null
+    actual.valor_unitario != null ? redondear2(nuevaCantidad * Number(actual.valor_unitario)) : null
 
   const { error } = await supabase
     .from("presupuesto_items")
@@ -3943,6 +3945,10 @@ export async function resolverLineaRevision(input: {
   }
 
   await recalcularValorItemDesdeApu(fila.presupuesto_item_id)
+}
+
+function redondear2(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 function trocear<T>(lista: T[], tamano: number): T[][] {

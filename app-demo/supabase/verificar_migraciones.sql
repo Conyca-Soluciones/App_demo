@@ -74,5 +74,13 @@ select * from (
   union all
   select '20261026000000_unidades_compras',
          exists (select 1 from pg_trigger where tgname = 'trg_pedido_unidad_desde_apu')
+  union all
+  select '20261023000000_ayf_rls_initplan',
+         exists (select 1 from pg_policies where tablename = 'terceros' and policyname = 'terceros_update'
+                 and qual like '%( SELECT auth.uid() AS uid)%')
+  union all
+  select '20261027000000_redondeo_valor_total',
+         exists (select 1 from pg_proc where proname = 'recalcular_valor_apus'
+                 and pg_get_functiondef(oid) like '%round(t.total * pi.cantidad, 2)%')
 ) t
 order by 1;
