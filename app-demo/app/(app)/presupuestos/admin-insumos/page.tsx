@@ -20,8 +20,6 @@ const TODOS_LOS_TIPOS = CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string
 const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
-type Estado = "pendiente" | "aprobado" | "rechazado"
-
 // Lo que se elige al aprobar para que el insumo entre estandarizado al maestro.
 type DatosAprobacion = {
   precio: number
@@ -32,19 +30,12 @@ type DatosAprobacion = {
   presentacion: { unidadUso: string; contenido: string }
 }
 
-const FILTROS: { valor: Estado; etiqueta: string }[] = [
-  { valor: "pendiente", etiqueta: "Pendientes" },
-  { valor: "aprobado", etiqueta: "Aprobadas" },
-  { valor: "rechazado", etiqueta: "Rechazadas" },
-]
-
 // Contenido real de la página -- usa useSearchParams(), así que NO puede
 // ser el export default directo: Next.js exige que cualquier componente
 // que lea searchParams esté envuelto en <Suspense>, o el build falla con
 // "useSearchParams() should be wrapped in a suspense boundary" al
 // intentar prerenderizar la ruta. Ver AdminInsumosPage más abajo.
 function AdminInsumosContent() {
-  const [estadoFiltro, setEstadoFiltro] = useState<Estado>("pendiente")
   const [solicitudes, setSolicitudes] = useState<SolicitudInsumo[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -75,7 +66,7 @@ function AdminInsumosContent() {
   function cargar() {
     setCargando(true)
     setError(null)
-    listarSolicitudesInsumos(estadoFiltro)
+    listarSolicitudesInsumos()
       .then(setSolicitudes)
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
       .finally(() => setCargando(false))
@@ -83,8 +74,7 @@ function AdminInsumosContent() {
 
   useEffect(() => {
     cargar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estadoFiltro])
+  }, [])
 
   function marcarProcesando(id: string, activo: boolean) {
     setIdsEnProceso((prev) => {
@@ -153,37 +143,15 @@ function AdminInsumosContent() {
       </div>
     )}
 
-      {/* Filtro por estado -- pestañas simples, mismo patrón de "un solo
-          estado a la vez" que ya usa admin-tecnico para pendientes,
-          extendido acá a las tres posibilidades */}
-      <div className="flex gap-1.5 border-b">
-        {FILTROS.map((f) => (
-          <button
-            key={f.valor}
-            type="button"
-            onClick={() => setEstadoFiltro(f.valor)}
-            className={`border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              estadoFiltro === f.valor
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {f.etiqueta}
-          </button>
-        ))}
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {cargando ? (
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : solicitudes.length === 0 ? (
         <p className="rounded-lg border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          {estadoFiltro === "pendiente"
-            ? "No hay solicitudes pendientes."
-            : `No hay solicitudes ${FILTROS.find((f) => f.valor === estadoFiltro)?.etiqueta.toLowerCase()}.`}
+          No hay solicitudes pendientes.
         </p>
-      ) : estadoFiltro === "pendiente" ? (
+      ) : (
         <TablaPendientes
           solicitudes={solicitudes}
           idsEnProceso={idsEnProceso}
@@ -191,8 +159,6 @@ function AdminInsumosContent() {
           onAprobar={handleAprobar}
           onRechazar={handleRechazar}
         />
-      ) : (
-        <TablaResueltas solicitudes={solicitudes} estado={estadoFiltro} />
       )}
     </main>
     </>
@@ -517,72 +483,5 @@ function FilaPendiente({
         </div>
       </td>
     </tr>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tabla de RESUELTAS (aprobadas/rechazadas) -- de solo lectura, con
-// trazabilidad: quién resolvió, cuándo, y el código de insumo que quedó
-// en el maestro (si fue aprobada) o el motivo (si fue rechazada).
-// ---------------------------------------------------------------------------
-
-function TablaResueltas({
-  solicitudes,
-  estado,
-}: {
-  solicitudes: SolicitudInsumo[]
-  estado: "aprobado" | "rechazado"
-}) {
-  return (
-    <div className="overflow-x-auto rounded-none border">
-      <table className="w-full border-separate border-spacing-0">
-        <thead>
-          <tr>
-            <th className={`${headClasses} w-64`}>Insumo</th>
-            <th className={`${headClasses} w-40`}>Origen</th>
-            {estado === "aprobado" && (
-              <th className={`${headClasses} w-28 text-center`}>Código maestro</th>
-            )}
-            {estado === "rechazado" && <th className={`${headClasses} w-56`}>Motivo</th>}
-            <th className={`${headClasses} w-44`}>
-              {estado === "aprobado" ? "Aprobado por" : "Rechazado por"}
-            </th>
-            <th className={`${headClasses} w-32 text-center`}>Fecha resolución</th>
-          </tr>
-        </thead>
-        <tbody>
-          {solicitudes.map((s) => (
-            <tr key={s.id} className="border-b hover:bg-muted/30">
-              <td className={celda}>
-                <p className="font-medium">{s.descripcion}</p>
-                {s.tipo && <p className="text-muted-foreground">{s.tipo}</p>}
-              </td>
-              <td className={`${celda} text-muted-foreground`}>
-                <p>{s.solicitadoPorNombre ?? "alguien"}</p>
-                <p>{new Date(s.createdAt).toLocaleDateString("es-CO")}</p>
-                {s.proyectoNombre && (
-                  <p className="truncate">
-                    {s.proyectoNombre}
-                    {s.itemCodigo && ` — ${s.itemCodigo}`}
-                  </p>
-                )}
-              </td>
-              {estado === "aprobado" && (
-                <td className={`${celda} text-center font-mono`}>
-                  {s.codigoMaestroAsignado ?? "—"}
-                </td>
-              )}
-              {estado === "rechazado" && (
-                <td className={celda}>{s.motivoRechazo ?? "—"}</td>
-              )}
-              <td className={celda}>{s.resueltoPorNombre ?? "—"}</td>
-              <td className={`${celda} text-center`}>
-                {s.resueltoAt ? new Date(s.resueltoAt).toLocaleDateString("es-CO") : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   )
 }

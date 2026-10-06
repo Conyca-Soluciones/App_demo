@@ -177,8 +177,8 @@ export type FilaRevisionImport = {
   transportePrecioIdAsignado: string | null
   valorTransporte: number | null
   itemApuId: string | null
-  // motivo que escribió el admin al rechazar (viene de
-  // solicitudes_insumos.motivo_rechazo via solicitud_id) -- null si esta
+  // motivo que escribió el admin al rechazar (apu_import_revision.motivo_rechazo,
+  // copiado de la solicitud antes de borrarla) -- null si esta
   // línea no está rechazada, o si el admin no escribió nada.
   motivoRechazo: string | null
 }

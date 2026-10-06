@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { requerirPestana } from "@/lib/permisos"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 
 // ---------------------------------------------------------------------------
 // Panel admin/visualizacion -- estado de obra: cuánto se ha comprado (vía OC
@@ -74,25 +75,31 @@ export async function obtenerResumenEjecucion(proyectoId: string): Promise<Resum
   await requerirPestana("admin.visualizacion")
   const supabase = await createClient()
 
-  const [{ data: insumos, error: errorInsumos }, { data: ordenes, error: errorOrdenes }] = await Promise.all([
-    supabase.rpc("resumen_ejecucion_proyecto", { p_proyecto_id: proyectoId }),
-    supabase
-      .from("ordenes_compra")
-      .select(
-        `
+  // Completo: los totales de la pantalla se suman sobre esta lista, así que
+  // cortada en 1000 filas daban mal. El resumen llega como un solo jsonb
+  // (calculado una vez) y las órdenes por páginas.
+  const [{ data: insumos, error: errorInsumos }, ordenes] = await Promise.all([
+    supabase.rpc("resumen_ejecucion_proyecto_completo", { p_proyecto_id: proyectoId }),
+    traerTodo((desde, hasta) =>
+      supabase
+        .from("ordenes_compra")
+        .select(
+          `
         id, numero, estado, created_at,
         proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre)
       `
-      )
-      .eq("proyecto_id", proyectoId)
-      .order("created_at", { ascending: false }),
+        )
+        .eq("proyecto_id", proyectoId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(desde, hasta)
+    ),
   ])
 
   if (errorInsumos) throw new Error(errorInsumos.message)
-  if (errorOrdenes) throw new Error(errorOrdenes.message)
 
   return {
-    insumos: (insumos ?? []).map((i: any) => ({
+    insumos: ((insumos ?? []) as any[]).map((i: any) => ({
       insumoId: i.insumo_id,
       insumoCodigo: i.insumo_codigo,
       insumoDescripcion: i.insumo_descripcion,
@@ -105,7 +112,7 @@ export async function obtenerResumenEjecucion(proyectoId: string): Promise<Resum
       cantidadSalida: Number(i.cantidad_salida),
       valorSalida: Number(i.valor_salida),
     })),
-    ordenes: (ordenes ?? []).map((o: any) => ({
+    ordenes: ordenes.map((o: any) => ({
       id: o.id,
       numero: o.numero,
       estado: o.estado,

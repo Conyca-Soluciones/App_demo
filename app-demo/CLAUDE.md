@@ -1052,6 +1052,32 @@ no podía distinguir 50 m de 50 rollos.
   (`claude/tender-maxwell-iresrp`) aplica migraciones a Supabase. Antes de
   `create or replace` de una función, leer su `prosrc` vivo (MCP de solo lectura).
 
+## Volumen: listas que se cortaban en 1000 filas (2026-10-06)
+
+`20261101000000_volumen_inventario_y_solicitudes.sql` (falta aplicarla, ANTES
+del deploy: el código ya llama las funciones nuevas).
+- **Inventario y Visualización** piden `inventario_proyecto_completo` /
+  `resumen_ejecucion_proyecto_completo`: el mismo cálculo, devuelto como UN
+  jsonb (una fila, no se corta y se calcula una sola vez; `.range` sobre una
+  RPC la recalcula entera en cada página). Los totales de Visualización se
+  suman en el navegador sobre la lista completa (decisión: no hay tabla de
+  control por proyecto mientras el cálculo al vuelo sea rápido). Las órdenes
+  del proyecto en Visualización van con `traerTodo`.
+- **Solicitudes de insumo / MO / equipo solo existen pendientes** (decisión
+  del usuario). Al aprobar o rechazar, la acción llama
+  `borrar_solicitud_resuelta(tipo, id)` AL FINAL (no en trigger:
+  `aprobarSolicitudInsumo` lee las líneas del import por `solicitud_id`
+  después del UPDATE y la FK `on delete set null` las soltaría). El motivo de
+  rechazo pasa a `apu_import_revision.motivo_rechazo` (antes se leía de la
+  solicitud, y solo el de insumos). No borra si alguna línea del import sigue
+  esperándola. Las pantallas de aprobación ya no tienen pestañas
+  Aprobadas/Rechazadas.
+- **Proyectos cerrados**: el plan es archivarlos (copia local) y bajarlos de la
+  plataforma; salidas y entradas solo tienen que existir mientras el proyecto
+  esté activo.
+- Sin uso en ninguna pantalla (no paginadas): `listarSalidasDelProyecto` y
+  `listarOrdenesParaEntrada`. Si se conectan, paginar primero.
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)

@@ -979,35 +979,33 @@ export type SolicitudInsumo = {
   motivoRechazo: string | null
 }
 
-export async function listarSolicitudesInsumos(
-  estado: "pendiente" | "aprobado" | "rechazado" = "pendiente"
-): Promise<SolicitudInsumo[]> {
+// Solo pendientes: las resueltas se borran (ver borrarSolicitudResuelta).
+// Completas por páginas: un import grande puede dejar más de 1000.
+export async function listarSolicitudesInsumos(): Promise<SolicitudInsumo[]> {
   await requerirScope("admin_insumos")
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("solicitudes_insumos")
-    .select(
-      `
-      id, descripcion, tipo, u_m, agrupacion, solicitado_por,
-      presupuesto_item_id, estado, created_at,
-      codigo_maestro_asignado, resuelto_at, resuelto_por, motivo_rechazo,
-      presupuesto_items:presupuesto_item_id (
-        codigo, descripcion,
-        presupuestos:presupuesto_id (
-          proyectos:proyecto_id (nombre)
+  const filas = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("solicitudes_insumos")
+      .select(
+        `
+        id, descripcion, tipo, u_m, agrupacion, solicitado_por,
+        presupuesto_item_id, estado, created_at,
+        codigo_maestro_asignado, resuelto_at, resuelto_por, motivo_rechazo,
+        presupuesto_items:presupuesto_item_id (
+          codigo, descripcion,
+          presupuestos:presupuesto_id (
+            proyectos:proyecto_id (nombre)
+          )
         )
+      `
       )
-    `
-    )
-    .eq("estado", estado)
-    .order("created_at", { ascending: estado === "pendiente" })
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  const filas = data ?? []
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(desde, hasta)
+  )
 
   const idsPersonas = [
     ...new Set(
@@ -1053,6 +1051,22 @@ export async function listarSolicitudesInsumos(
     resueltoPorNombre: r.resuelto_por ? nombrePorId.get(r.resuelto_por) ?? null : null,
     motivoRechazo: r.motivo_rechazo ?? null,
   }))
+}
+
+// Las solicitudes de insumo, mano de obra y equipo solo existen mientras están
+// pendientes: al aprobarlas o rechazarlas se borran (el motivo de rechazo pasa
+// a apu_import_revision). Se llama AL FINAL de cada acción: aprobar un insumo
+// todavía lee las líneas del import por solicitud_id después del UPDATE, y la
+// FK (ON DELETE SET NULL) las soltaría. Si el borrado falla no se revierte la
+// resolución: la solicitud ya no está pendiente y no sale en ninguna lista.
+// Ver 20261101000000_volumen_inventario_y_solicitudes.sql.
+async function borrarSolicitudResuelta(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tipo: "insumo" | "mano_obra" | "equipo",
+  id: string
+) {
+  const { error } = await supabase.rpc("borrar_solicitud_resuelta", { p_tipo: tipo, p_id: id })
+  if (error) console.error(`No se pudo borrar la solicitud resuelta ${id}:`, error.message)
 }
 
 export type AprobarSolicitudInput = {
@@ -1258,6 +1272,7 @@ export async function aprobarSolicitudInsumo(
     }
   }
 
+  await borrarSolicitudResuelta(supabase, "insumo", input.solicitudId)
   return insumoNuevo
 }
 
@@ -1293,6 +1308,7 @@ export async function rechazarSolicitudInsumo(solicitudId: string, motivo?: stri
   if (!data || data.length === 0) {
     throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
+  await borrarSolicitudResuelta(supabase, "insumo", solicitudId)
 }
 
 const PRECIOS_PLACEHOLDER = [0, 1]
@@ -2142,35 +2158,33 @@ export type SolicitudManoObra = {
   motivoRechazo: string | null
 }
 
-export async function listarSolicitudesManoObra(
-  estado: "pendiente" | "aprobado" | "rechazado" = "pendiente"
-): Promise<SolicitudManoObra[]> {
+// Solo pendientes: las resueltas se borran (ver borrarSolicitudResuelta).
+// Completas por páginas: un import grande puede dejar más de 1000.
+export async function listarSolicitudesManoObra(): Promise<SolicitudManoObra[]> {
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("solicitudes_mano_obra")
-    .select(
-      `
-      id, descripcion, grupo_sugerido, valor_propuesto, solicitado_por,
-      presupuesto_item_id, estado, created_at,
-      categoria_asignada_id, resuelto_at, resuelto_por, motivo_rechazo,
-      presupuesto_items:presupuesto_item_id (
-        codigo, descripcion,
-        presupuestos:presupuesto_id (
-          proyectos:proyecto_id (nombre)
+  const filas = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("solicitudes_mano_obra")
+      .select(
+        `
+        id, descripcion, grupo_sugerido, valor_propuesto, solicitado_por,
+        presupuesto_item_id, estado, created_at,
+        categoria_asignada_id, resuelto_at, resuelto_por, motivo_rechazo,
+        presupuesto_items:presupuesto_item_id (
+          codigo, descripcion,
+          presupuestos:presupuesto_id (
+            proyectos:proyecto_id (nombre)
+          )
         )
+      `
       )
-    `
-    )
-    .eq("estado", estado)
-    .order("created_at", { ascending: estado === "pendiente" })
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  const filas = data ?? []
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(desde, hasta)
+  )
 
   const idsPersonas = [
     ...new Set(
@@ -2344,6 +2358,7 @@ export async function aprobarSolicitudManoObra(
   // acá no hay nada más que hacer -- a diferencia de insumos, mano de
   // obra no tiene un flujo manual de "agregar directo" todavía (todo
   // pasa por el import o por esta solicitud).
+  await borrarSolicitudResuelta(supabase, "mano_obra", input.solicitudId)
 
   // categoriaNueva viene DIRECTO de Supabase, con el nombre de columna
   // tal cual (valor_unitario, snake_case) -- hay que mapearlo a la forma
@@ -2386,6 +2401,7 @@ export async function rechazarSolicitudManoObra(solicitudId: string, motivo?: st
   if (!data || data.length === 0) {
     throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
+  await borrarSolicitudResuelta(supabase, "mano_obra", solicitudId)
 }
 
 // ---------------------------------------------------------------------------
@@ -2447,35 +2463,33 @@ export type SolicitudEquipo = {
   motivoRechazo: string | null
 }
 
-export async function listarSolicitudesEquipo(
-  estado: "pendiente" | "aprobado" | "rechazado" = "pendiente"
-): Promise<SolicitudEquipo[]> {
+// Solo pendientes: las resueltas se borran (ver borrarSolicitudResuelta).
+// Completas por páginas: un import grande puede dejar más de 1000.
+export async function listarSolicitudesEquipo(): Promise<SolicitudEquipo[]> {
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("solicitudes_equipo")
-    .select(
-      `
-      id, descripcion, grupo_sugerido, valor_propuesto, solicitado_por,
-      presupuesto_item_id, estado, created_at,
-      categoria_asignada_id, resuelto_at, resuelto_por, motivo_rechazo,
-      presupuesto_items:presupuesto_item_id (
-        codigo, descripcion,
-        presupuestos:presupuesto_id (
-          proyectos:proyecto_id (nombre)
+  const filas = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("solicitudes_equipo")
+      .select(
+        `
+        id, descripcion, grupo_sugerido, valor_propuesto, solicitado_por,
+        presupuesto_item_id, estado, created_at,
+        categoria_asignada_id, resuelto_at, resuelto_por, motivo_rechazo,
+        presupuesto_items:presupuesto_item_id (
+          codigo, descripcion,
+          presupuestos:presupuesto_id (
+            proyectos:proyecto_id (nombre)
+          )
         )
+      `
       )
-    `
-    )
-    .eq("estado", estado)
-    .order("created_at", { ascending: estado === "pendiente" })
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  const filas = data ?? []
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(desde, hasta)
+  )
 
   const idsPersonas = [
     ...new Set(
@@ -2598,6 +2612,7 @@ export async function aprobarSolicitudEquipo(
   // El UPDATE de arriba ya disparó sincronizar_apu_import_revision_equipo
   // -- si esta solicitud vino de un import, el trigger ya agregó la línea
   // a item_apu y recalculó.
+  await borrarSolicitudResuelta(supabase, "equipo", input.solicitudId)
   return {
     id: categoriaNueva.id,
     categoria: categoriaNueva.categoria,
@@ -2634,6 +2649,7 @@ export async function rechazarSolicitudEquipo(solicitudId: string, motivo?: stri
   if (!data || data.length === 0) {
     throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
+  await borrarSolicitudResuelta(supabase, "equipo", solicitudId)
 }
 
 export async function eliminarInsumoApu(itemApuId: string) {
@@ -3671,11 +3687,8 @@ function mapearFilaRevision(fila: any): FilaRevisionImport {
     transportePrecioIdAsignado: transportePrecio?.id ?? null,
     valorTransporte: transportePrecio?.valor_unitario ?? null,
     itemApuId: fila.item_apu_id,
-    motivoRechazo:
-      fila.solicitudes_insumos?.motivo_rechazo ??
-      fila.solicitudes_mano_obra?.motivo_rechazo ??
-      fila.solicitudes_equipo?.motivo_rechazo ??
-      null,
+    // Lo copia borrar_solicitud_resuelta antes de borrar la solicitud.
+    motivoRechazo: fila.motivo_rechazo ?? null,
   }
 }
 
@@ -3692,7 +3705,7 @@ export type LoteRevisionInfo = {
 }
  
 const SELECT_REVISION_CON_MOTIVO =
-  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, presupuesto_items(id, codigo, descripcion, padre_id, nivel), solicitudes_insumos(motivo_rechazo), solicitudes_mano_obra(motivo_rechazo), solicitudes_equipo(motivo_rechazo), transporte_precios(id, valor_unitario)"
+  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, presupuesto_items(id, codigo, descripcion, padre_id, nivel), transporte_precios(id, valor_unitario)"
  
 export async function listarRevisionLote(loteImportId: string): Promise<LoteRevisionInfo> {
   const supabase = await createClient()
@@ -4802,7 +4815,7 @@ export async function obtenerEstadoApuPorItem(
   // presupuestos grandes (700+ ítems) necesitan esto partido en tandas,
   // un solo .in() con todos los ids genera "Bad Request".
   const TAMANO_LOTE = 200
-  const filasPorItem = new Map<string, { estado: string; descripcion: string; solicitudId: string | null }[]>()
+  const filasPorItem = new Map<string, { estado: string; descripcion: string; motivo: string | null }[]>()
 
   // traerTodo: 200 ítems pueden tener más de 1000 líneas (el tope de
   // PostgREST), y lo que no llegaba se pintaba como "listo".
@@ -4810,7 +4823,7 @@ export async function obtenerEstadoApuPorItem(
     traerTodo<any>((desde, hasta) =>
       supabase
         .from("apu_import_revision")
-        .select("id, presupuesto_item_id, estado, descripcion_original, solicitud_id")
+        .select("id, presupuesto_item_id, estado, descripcion_original, motivo_rechazo")
         .in("presupuesto_item_id", lote)
         .order("id")
         .range(desde, hasta)
@@ -4818,29 +4831,10 @@ export async function obtenerEstadoApuPorItem(
   )
   for (const fila of filasRevision) {
     const lista = filasPorItem.get(fila.presupuesto_item_id) ?? []
-    lista.push({ estado: fila.estado, descripcion: fila.descripcion_original, solicitudId: fila.solicitud_id })
+    // El motivo de rechazo vive en la misma línea (la solicitud se borra al
+    // resolverse, ver borrarSolicitudResuelta).
+    lista.push({ estado: fila.estado, descripcion: fila.descripcion_original, motivo: fila.motivo_rechazo ?? null })
     filasPorItem.set(fila.presupuesto_item_id, lista)
-  }
-
-  // Motivos de rechazo -- se traen aparte porque viven en
-  // solicitudes_insumos.motivo_rechazo, no en apu_import_revision.
-  const solicitudIdsRechazadas = Array.from(filasPorItem.values())
-    .flat()
-    .filter((f) => f.estado === "rechazado" && f.solicitudId)
-    .map((f) => f.solicitudId as string)
-
-  const motivoPorSolicitud = new Map<string, string | null>()
-  if (solicitudIdsRechazadas.length > 0) {
-    const solicitudes = await seleccionarEnLotesPorIds(
-      Array.from(new Set(solicitudIdsRechazadas)),
-      150,
-      async (lote) => {
-        const { data, error } = await supabase.from("solicitudes_insumos").select("id, motivo_rechazo").in("id", lote)
-        if (error) throw new Error(error.message)
-        return data ?? []
-      }
-    )
-    for (const s of solicitudes) motivoPorSolicitud.set(s.id, s.motivo_rechazo)
   }
 
   const estados: Record<string, EstadoApuItem> = {}
@@ -4852,7 +4846,7 @@ export async function obtenerEstadoApuPorItem(
       estados[itemId] = "rechazado"
       motivosRechazo[itemId] = rechazadas.map((f) => ({
         descripcion: f.descripcion,
-        motivo: f.solicitudId ? motivoPorSolicitud.get(f.solicitudId) ?? null : null,
+        motivo: f.motivo,
       }))
       continue
     }

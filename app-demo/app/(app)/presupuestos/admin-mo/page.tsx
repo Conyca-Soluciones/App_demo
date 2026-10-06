@@ -26,16 +26,13 @@ import { useSearchParams, useRouter } from "next/navigation"
 const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
-type Estado = "pendiente" | "aprobado" | "rechazado"
-// "catalogo" es una pestaña más, junto a las 3 de solicitudes -- no es
-// un estado de nada, es una vista distinta (la tabla completa del
-// catálogo -- mano_obra_categorias o equipo_categorias según `recurso`).
-type Vista = Estado | "catalogo"
+// Solicitudes pendientes o el catálogo completo (mano_obra_categorias o
+// equipo_categorias según `recurso`). Las solicitudes resueltas se borran,
+// así que no hay pestañas de aprobadas/rechazadas.
+type Vista = "pendiente" | "catalogo"
 
 const FILTROS: { valor: Vista; etiqueta: string }[] = [
   { valor: "pendiente", etiqueta: "Pendientes" },
-  { valor: "aprobado", etiqueta: "Aprobadas" },
-  { valor: "rechazado", etiqueta: "Rechazadas" },
   { valor: "catalogo", etiqueta: "Catálogo" },
 ]
 
@@ -47,7 +44,7 @@ const FILTROS: { valor: Vista; etiqueta: string }[] = [
 // (SolicitudManoObra y SolicitudEquipo son estructuralmente idénticos),
 // así que en vez de duplicar toda la página se agregó un selector de
 // "recurso" arriba de las pestañas de estado, y el resto del código
-// (TablaPendientes, TablaResueltas, CatalogoRecurso) quedó parametrizado
+// (TablaPendientes, CatalogoRecurso) quedó parametrizado
 // por `recurso` en vez de hardcodeado a mano de obra.
 // ---------------------------------------------------------------------------
 
@@ -64,7 +61,7 @@ const RECURSOS: Record<
     tablaCatalogo: "mano_obra_categorias" | "equipo_categorias"
     unidadesConocidas: string[]
     placeholderGrupo: string
-    listar: (estado: Estado) => Promise<SolicitudRecurso[]>
+    listar: () => Promise<SolicitudRecurso[]>
     aprobar: (input: { solicitudId: string; valorUnitario: number; grupo: string | null; unidad: string }) => Promise<unknown>
     rechazar: (id: string, motivo?: string) => Promise<void>
   }
@@ -127,7 +124,7 @@ function AdminManoObraContent() {
     setCargando(true)
     setError(null)
     config
-      .listar(vista)
+      .listar()
       .then(setSolicitudes)
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
       .finally(() => setCargando(false))
@@ -138,9 +135,7 @@ function AdminManoObraContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vista, recurso])
 
-  // Cambiar de recurso vuelve siempre a "Pendientes" -- si alguien está
-  // viendo "Rechazadas" de mano de obra y cambia a Equipo, no tiene
-  // sentido quedarse en "Rechazadas" de un recurso que todavía no vio.
+  // Cambiar de recurso vuelve siempre a "Pendientes".
   function cambiarRecurso(nuevo: TipoRecurso) {
     setRecurso(nuevo)
     setVista("pendiente")
@@ -250,11 +245,9 @@ function AdminManoObraContent() {
         <p className="text-sm text-muted-foreground">Cargando…</p>
       ) : solicitudes.length === 0 ? (
         <p className="rounded-lg border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          {vista === "pendiente"
-            ? "No hay solicitudes pendientes."
-            : `No hay solicitudes ${FILTROS.find((f) => f.valor === vista)?.etiqueta.toLowerCase()}.`}
+          No hay solicitudes pendientes.
         </p>
-      ) : vista === "pendiente" ? (
+      ) : (
         <TablaPendientes
           solicitudes={solicitudes}
           idsEnProceso={idsEnProceso}
@@ -263,8 +256,6 @@ function AdminManoObraContent() {
           onAprobar={handleAprobar}
           onRechazar={handleRechazar}
         />
-      ) : (
-        <TablaResueltas solicitudes={solicitudes} estado={vista} />
       )}
     </main>
     </>
@@ -512,64 +503,6 @@ function FilaPendiente({
         </div>
       </td>
     </tr>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tabla de RESUELTAS (aprobadas/rechazadas) -- de solo lectura, con
-// trazabilidad: quién resolvió, cuándo, y qué categoría quedó en el
-// catálogo (si fue aprobada) o el motivo (si fue rechazada). Ya no
-// depende del recurso -- las columnas son las mismas para ambos.
-// ---------------------------------------------------------------------------
-
-function TablaResueltas({
-  solicitudes,
-  estado,
-}: {
-  solicitudes: SolicitudRecurso[]
-  estado: "aprobado" | "rechazado"
-}) {
-  return (
-    <div className="overflow-x-auto rounded-none border">
-      <table className="w-full border-separate border-spacing-0">
-        <thead>
-          <tr>
-            <th className={`${headClasses} w-64`}>Categoría</th>
-            <th className={`${headClasses} w-40`}>Origen</th>
-            {estado === "rechazado" && <th className={`${headClasses} w-56`}>Motivo</th>}
-            <th className={`${headClasses} w-44`}>
-              {estado === "aprobado" ? "Aprobado por" : "Rechazado por"}
-            </th>
-            <th className={`${headClasses} w-32 text-center`}>Fecha resolución</th>
-          </tr>
-        </thead>
-        <tbody>
-          {solicitudes.map((s) => (
-            <tr key={s.id} className="border-b hover:bg-muted/30">
-              <td className={celda}>
-                <p className="font-medium">{s.descripcion}</p>
-                {s.grupoSugerido && <p className="text-muted-foreground">{s.grupoSugerido}</p>}
-              </td>
-              <td className={`${celda} text-muted-foreground`}>
-                <p>{s.solicitadoPorNombre ?? "alguien"}</p>
-                <p>{new Date(s.createdAt).toLocaleDateString("es-CO")}</p>
-                {s.proyectoNombre && (
-                  <p className="truncate">
-                    {s.proyectoNombre}
-                    {s.itemCodigo && ` — ${s.itemCodigo}`}
-                  </p>
-                )}
-              </td>
-              {estado === "rechazado" && <td className={celda}>{s.motivoRechazo ?? "—"}</td>}
-              <td className={celda}>{s.resueltoPorNombre ?? "—"}</td>
-              <td className={`${celda} text-center`}>
-                {s.resueltoAt ? new Date(s.resueltoAt).toLocaleDateString("es-CO") : "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   )
 }
 
