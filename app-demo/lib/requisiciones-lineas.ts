@@ -41,6 +41,9 @@ export type LineaRequisicion = {
   comprado: number
   estado: "pendiente" | "aprobado" | "rechazado" | "cancelado"
   rechazadaPorCompras: boolean
+  // Compras cerró el saldo de una requisición comprada a medias (no la rechazó
+  // entera): rechazadaPorCompras también es true, porque libera el cupo igual.
+  saldoCerrado: boolean
   motivoRechazoCompras: string | null
 }
 
@@ -85,7 +88,7 @@ export async function cargarLineas(
             .from("pedidos_insumos")
             .select(`
               id, grupo_pedido_id, cantidad, unidad, estado, resuelto_at, comentario_resolucion, motivo_cancelacion,
-              rechazado_compras_at, observaciones_compras, presupuesto_item_id,
+              rechazado_compras_at, observaciones_compras, saldo_cerrado_at, presupuesto_item_id,
               insumo:maestro_insumos(id, codigo, descripcion, u_m),
               presupuesto_item:presupuesto_items(codigo, descripcion, presupuesto_id),
               resolutor:perfiles!pedidos_insumos_resuelto_por_fkey(nombre)
@@ -132,6 +135,7 @@ export async function cargarLineas(
       comprado: compradoPorId.get(l.id) ?? 0,
       estado: l.estado,
       rechazadaPorCompras: l.rechazado_compras_at !== null,
+      saldoCerrado: l.saldo_cerrado_at != null,
       motivoRechazoCompras: l.observaciones_compras ?? null,
       _resolutor: l.resolutor?.nombre ?? null,
       _resueltoAt: l.resuelto_at,

@@ -208,10 +208,12 @@ export function RequisicionDetalleView({
                     {l.insumoDescripcion}
                     {l.rechazadaPorCompras && (
                       <span
-                        className="ml-2 rounded-full bg-red-100 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-red-800"
+                        className={`ml-2 inline-flex h-6 items-center rounded-full px-3 align-middle text-xs font-medium ${
+                          l.saldoCerrado ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
+                        }`}
                         title={l.motivoRechazoCompras ?? undefined}
                       >
-                        Rechazado por Compras
+                        {l.saldoCerrado ? "Saldo cerrado" : "Rechazado por Compras"}
                       </span>
                     )}
                   </TableCell>
@@ -223,7 +225,7 @@ export function RequisicionDetalleView({
                   <TableCell className="text-right">{l.cantidad.toLocaleString("es-CO")}</TableCell>
                   {mostrarCompra && (
                     <TableCell className="text-right">
-                      {l.rechazadaPorCompras ? (
+                      {l.rechazadaPorCompras && !l.saldoCerrado ? (
                         "—"
                       ) : (
                         <span className={l.comprado >= l.cantidad ? "text-emerald-700" : undefined}>

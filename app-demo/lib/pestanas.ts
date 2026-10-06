@@ -69,6 +69,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "compras.comprar_pedidos", titulo: "Requisiciones", seccion: "Compras", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
   { clave: "compras.ordenes", titulo: "Órdenes de compra", seccion: "Compras", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
   { clave: "compras.aprobar_oc", titulo: "Aprobación de órdenes de compra", seccion: "Compras", url: "/almacen/aprobar-oc", rutas: ["/almacen/aprobar-oc"] },
+  { clave: "compras.saldos_pendientes", titulo: "Saldos pendientes", seccion: "Compras", url: "/almacen/saldos-pendientes", rutas: ["/almacen/saldos-pendientes"], nota: "Requisiciones compradas a medias, para cerrar su saldo." },
   { clave: "almacen.insumos", titulo: "Maestra de insumos", seccion: "Compras", url: "/presupuestos/insumos", rutas: ["/presupuestos/insumos"] },
   { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Compras", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },

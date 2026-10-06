@@ -23,8 +23,16 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { rechazarPedidoCompras, type PedidoParaComprar } from "@/app/(app)/almacen/comprar-pedidos/actions"
-import { textoConversionCompra } from "@/lib/unidades"
+import {
+  cerrarSaldoPedido,
+  rechazarPedidoCompras,
+  type PedidoParaComprar,
+} from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { nombreUnidad, textoConversionCompra } from "@/lib/unidades"
+
+// Ya se compró algo, pero no todo: no se "rechaza", se cierra el saldo.
+const esParcial = (p: PedidoParaComprar) => p.pendienteUso < p.cantidadUso - 1e-9
+const formatoCant = (n: number) => n.toLocaleString("es-CO", { maximumFractionDigits: 2 })
 
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -58,7 +66,8 @@ export function TablaPedidosCompra({
     setRechazando(true)
     setError(null)
     try {
-      await rechazarPedidoCompras(pedidoARechazar.id, motivo.trim())
+      if (esParcial(pedidoARechazar)) await cerrarSaldoPedido(pedidoARechazar.id, motivo.trim())
+      else await rechazarPedidoCompras(pedidoARechazar.id, motivo.trim())
       onPedidoRechazado(pedidoARechazar.id)
       setPedidoARechazar(null)
       setMotivo("")
@@ -155,9 +164,9 @@ export function TablaPedidosCompra({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      title="Rechazar"
+                      title={esParcial(pedido) ? "Cerrar saldo" : "Rechazar"}
                       disabled={pedido.cantidadPendiente <= 0}
-                      aria-label={`Rechazar requisición de ${pedido.insumoDescripcion}`}
+                      aria-label={`${esParcial(pedido) ? "Cerrar saldo de" : "Rechazar"} requisición de ${pedido.insumoDescripcion}`}
                       onClick={() => {
                         setError(null)
                         setPedidoARechazar(pedido)
@@ -193,7 +202,9 @@ export function TablaPedidosCompra({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar requisición</DialogTitle>
+            <DialogTitle>
+              {pedidoARechazar && esParcial(pedidoARechazar) ? "Cerrar saldo de la requisición" : "Rechazar requisición"}
+            </DialogTitle>
           </DialogHeader>
 
           <p className="text-sm text-muted-foreground">
@@ -203,6 +214,15 @@ export function TablaPedidosCompra({
             ) : null}
           </p>
 
+          {pedidoARechazar && esParcial(pedidoARechazar) && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Ya se compraron {formatoCant(pedidoARechazar.cantidadUso - pedidoARechazar.pendienteUso)} de{" "}
+              {formatoCant(pedidoARechazar.cantidadUso)} {nombreUnidad(pedidoARechazar.unidadUso)}. Al cerrar el saldo,
+              lo que falta ({formatoCant(pedidoARechazar.pendienteUso)}) se libera del presupuesto, la requisición queda en
+              lo comprado y se avisa a quien la pidió.
+            </p>
+          )}
+
           {error ? (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error}
@@ -210,7 +230,11 @@ export function TablaPedidosCompra({
           ) : null}
 
           <Textarea
-            placeholder="Motivo del rechazo (obligatorio)"
+            placeholder={
+              pedidoARechazar && esParcial(pedidoARechazar)
+                ? "Motivo del cierre (obligatorio)"
+                : "Motivo del rechazo (obligatorio)"
+            }
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
             rows={3}
@@ -225,7 +249,13 @@ export function TablaPedidosCompra({
               disabled={!motivo.trim() || rechazando}
               onClick={confirmarRechazo}
             >
-              {rechazando ? "Rechazando..." : "Rechazar requisición"}
+              {pedidoARechazar && esParcial(pedidoARechazar)
+                ? rechazando
+                  ? "Cerrando..."
+                  : "Cerrar saldo"
+                : rechazando
+                  ? "Rechazando..."
+                  : "Rechazar requisición"}
             </Button>
           </DialogFooter>
         </DialogContent>

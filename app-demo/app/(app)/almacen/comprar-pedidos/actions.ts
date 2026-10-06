@@ -7,8 +7,8 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { puedeBuscar, limiteBusqueda } from "@/lib/busqueda"
-import { cortarPagina, rangoPagina } from "@/lib/paginacion"
-import { requerirScope, requerirAccion, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
+import { cortarPagina, rangoPagina, TAMANO_PAGINA } from "@/lib/paginacion"
+import { requerirScope, requerirAccion, requerirPestana, obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import {
   calcularEstadoVisible,
   type EstadoEntregaOrden,
@@ -248,6 +248,77 @@ export async function rechazarPedidoCompras(pedidoId: string, motivo: string): P
     p_motivo: motivo,
   })
   if (error) throw new Error(error.message)
+}
+
+// Cierra el SALDO de una requisición comprada a medias (se compraron 8 de 10):
+// lo que falta se libera del cupo del presupuesto, la requisición queda en lo
+// comprado y se avisa a quien la pidió. Exige que ya haya compras; si no se va
+// a comprar nada, se rechaza.
+export async function cerrarSaldoPedido(pedidoId: string, motivo: string): Promise<void> {
+  await requerirScope("rol_compras")
+  if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("cerrar_saldo_pedido", { p_pedido_id: pedidoId, p_motivo: motivo.trim() })
+  if (error) throw new Error(error.message)
+}
+
+export type SaldoPendiente = {
+  pedidoId: string
+  requisicionId: string
+  requisicionNumero: number | null
+  proyectoId: string
+  proyectoCodigo: string | null
+  proyectoNombre: string
+  insumoCodigo: number
+  insumoDescripcion: string
+  // Unidad de la requisición (la del APU): en ella van las tres cantidades.
+  unidad: string | null
+  cantidad: number
+  comprado: number
+  pendiente: number
+  ultimaCompra: string
+  diasSinCompra: number
+  solicitante: string | null
+  fechaRequerida: string
+}
+
+// Requisiciones aprobadas con compra parcial que Compras no ha cerrado, las más
+// antiguas primero. Una página de 50 (se pide una de más para saber si hay otra).
+export async function listarSaldosPendientes(
+  proyectoId: string | undefined,
+  pagina = 0
+): Promise<{ saldos: SaldoPendiente[]; hayMas: boolean }> {
+  await requerirPestana("compras.saldos_pendientes")
+  const supabase = await createClient()
+  const [desde] = rangoPagina(pagina)
+  const { data, error } = await supabase.rpc("listar_saldos_pendientes", {
+    p_proyecto_id: proyectoId ?? null,
+    p_limite: TAMANO_PAGINA + 1,
+    p_offset: desde,
+  })
+  if (error) throw new Error(error.message)
+  const { filas, hayMas } = cortarPagina((data ?? []) as any[])
+  return {
+    saldos: filas.map((f: any) => ({
+      pedidoId: f.pedido_id,
+      requisicionId: f.requisicion_id,
+      requisicionNumero: f.requisicion_numero != null ? Number(f.requisicion_numero) : null,
+      proyectoId: f.proyecto_id,
+      proyectoCodigo: f.proyecto_codigo,
+      proyectoNombre: f.proyecto_nombre,
+      insumoCodigo: f.insumo_codigo,
+      insumoDescripcion: f.insumo_descripcion,
+      unidad: f.unidad,
+      cantidad: Number(f.cantidad),
+      comprado: Number(f.comprado),
+      pendiente: Number(f.pendiente),
+      ultimaCompra: f.ultima_compra,
+      diasSinCompra: Number(f.dias_sin_compra),
+      solicitante: f.solicitante,
+      fechaRequerida: f.fecha_requerida,
+    })),
+    hayMas,
+  }
 }
 
 // ---------------------------------------------------------------------------

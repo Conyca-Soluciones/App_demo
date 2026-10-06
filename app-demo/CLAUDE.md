@@ -1038,6 +1038,16 @@ no podía distinguir 50 m de 50 rollos.
   pedido se recorren por fecha y cada una cubre lo que le falte al pedido; se
   calcula en el momento. Pago, OC e inventario no cambian (al proveedor se le paga
   todo).
+- **Requisiciones compradas a medias** (`20261031000000_cerrar_saldo_requisicion.sql`):
+  mientras una requisición esté abierta, el cupo cuenta lo PEDIDO completo (10),
+  aunque solo se hayan comprado 8. **Cerrar saldo** (`cerrar_saldo_pedido`, botón
+  en Compras > Requisiciones cuando ya hay compra parcial, y en la pestaña
+  **Saldos pendientes** `/almacen/saldos-pendientes`) libera lo no comprado: reutiliza
+  `rechazado_compras_at/por` (que ya hacen que el cupo cuente solo lo comprado) y
+  marca `saldo_cerrado_at/por` para distinguirlo de un rechazo; avisa al ingeniero
+  (notificación tipo `pedido_rechazado` con título "Saldo de requisición cerrado").
+  `listar_saldos_pendientes` lista las compradas a medias con cuánto falta y los días
+  desde la última compra (colores 15/30 días solo visuales; no hay cierre automático).
 - **La base viva puede ir por delante de `lcpr`**: otra rama
   (`claude/tender-maxwell-iresrp`) aplica migraciones a Supabase. Antes de
   `create or replace` de una función, leer su `prosrc` vivo (MCP de solo lectura).
