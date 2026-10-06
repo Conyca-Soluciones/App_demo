@@ -18,6 +18,9 @@ export async function listarPagosAprobacion(
   await requerirPestana(PESTANA)
   const supabase = await createClient()
 
+  // Saldos con fecha que ya están a 3 días o menos: los pasa a solicitado una
+  // tarea de pg_cron cada hora; esto lo adelanta al abrir la pantalla (misma
+  // regla, ver 20261102000000_pagos_programados_cron.sql).
   const { error: errorLiberar } = await supabase.rpc("liberar_pagos_programados")
   if (errorLiberar) throw new Error(errorLiberar.message)
 

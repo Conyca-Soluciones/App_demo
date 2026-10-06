@@ -92,5 +92,15 @@ select * from (
                  where e.extname = 'pg_trgm' and n.nspname = 'extensions')
          and exists (select 1 from pg_proc where proname = 'buscar_insumos_candidatos_lote'
                      and array_to_string(proconfig, ',') like '%extensions%')
+  union all
+  select '20261101000000_volumen_inventario_y_solicitudes',
+         exists (select 1 from pg_proc where proname = 'inventario_proyecto_completo')
+         and exists (select 1 from pg_proc where proname = 'borrar_solicitud_resuelta')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'apu_import_revision' and column_name = 'motivo_rechazo')
+  union all
+  select '20261102000000_pagos_programados_cron',
+         exists (select 1 from pg_proc where proname = '_liberar_pagos_programados')
+         and exists (select 1 from pg_extension where extname = 'pg_cron')
 ) t
 order by 1;

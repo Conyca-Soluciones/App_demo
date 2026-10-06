@@ -1078,6 +1078,17 @@ del deploy: el código ya llama las funciones nuevas).
 - Sin uso en ninguna pantalla (no paginadas): `listarSalidasDelProyecto` y
   `listarOrdenesParaEntrada`. Si se conectan, paginar primero.
 
+## Pagos programados (2026-10-06)
+
+`20261102000000_pagos_programados_cron.sql`: el saldo "en una fecha" de una OC
+con anticipo pasa de programado a **solicitado 3 días antes** de la fecha
+(decisión del usuario), con una tarea de **pg_cron cada hora** (`5 * * * *`,
+`_liberar_pagos_programados`, sin EXECUTE para usuarios). Antes era el mismo
+día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
+`liberar_pagos_programados` (misma regla). Sin anticipo y anticipo: nacen
+aprobados. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
+orden entregada completa (no con entrega parcial).
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)
