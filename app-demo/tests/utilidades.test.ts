@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
+import { formatearFechaSinHora, hoyColombia, sumarDiasFecha } from "@/lib/fechas"
 import { COMODIN_LISTAR, LIMITE_BUSQUEDA, LIMITE_LISTAR, limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
 import { TAMANO_PAGINA, cortarPagina, rangoPagina } from "@/lib/paginacion"
 
@@ -12,6 +12,12 @@ describe("fechas sin hora", () => {
   })
   it("hoy en formato AAAA-MM-DD", () => {
     expect(hoyColombia()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+  it("suma y resta días cruzando mes y año", () => {
+    expect(sumarDiasFecha("2026-10-20", -3)).toBe("2026-10-17")
+    expect(sumarDiasFecha("2026-11-02", -3)).toBe("2026-10-30")
+    expect(sumarDiasFecha("2027-01-01", -3)).toBe("2026-12-29")
+    expect(sumarDiasFecha("2028-03-01", -1)).toBe("2028-02-29")
   })
 })
 

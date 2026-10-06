@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { ClipboardList, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { formatearFechaSinHora, sumarDiasFecha } from "@/lib/fechas"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -746,7 +747,13 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                 )}
                 <p className="text-xs text-muted-foreground">
                   Al aprobar la orden se aprueba el pago del anticipo. El saldo llega a aprobación de Gerencia
-                  {saldoModo === "entrega" ? " cuando la orden quede entregada por completo." : " en la fecha indicada."}
+                  {saldoModo === "entrega"
+                    ? " cuando la orden quede entregada por completo."
+                    : saldoFecha
+                      ? ` 3 días antes de la fecha indicada (${
+                          sumarDiasFecha(saldoFecha, -3) <= hoy ? "apenas se apruebe la orden" : `el ${formatearFechaSinHora(sumarDiasFecha(saldoFecha, -3))}`
+                        }).`
+                      : " 3 días antes de la fecha indicada."}
                 </p>
               </div>
             )}

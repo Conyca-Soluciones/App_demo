@@ -30,3 +30,10 @@ export function formatearFechaSinHora(valor: string | null | undefined): string 
 export function hoyColombia(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
 }
+
+// "2026-10-20" - 3 días -> "2026-10-17", sin pasar por zona horaria (se
+// calcula en UTC sobre la fecha sola).
+export function sumarDiasFecha(fecha: string, dias: number): string {
+  const [a, m, d] = fecha.split("-").map(Number)
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10)
+}
