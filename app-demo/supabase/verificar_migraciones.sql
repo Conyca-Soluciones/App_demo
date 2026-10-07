@@ -102,5 +102,10 @@ select * from (
   select '20261102000000_pagos_programados_cron',
          exists (select 1 from pg_proc where proname = '_liberar_pagos_programados')
          and exists (select 1 from pg_extension where extname = 'pg_cron')
+  union all
+  select '20261103000000_import_presupuesto_abandonado',
+         exists (select 1 from pg_proc where proname = 'descartar_import_abandonado')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'presupuesto_versiones' and column_name = 'import_latido_at')
 ) t
 order by 1;

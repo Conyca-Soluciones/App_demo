@@ -7,7 +7,7 @@ import { ApuEditorDialog } from "@/components/apu-editor-dialog"
 import { AgregarItemManualDialog } from "@/components/agregar-item-manual-dialog"
 import * as XLSX from "xlsx"
 import ExcelJS from "exceljs"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { Button } from "@/components/ui/button"
 import { ExportTemplateButton } from "@/components/export-template-button"
@@ -35,6 +35,9 @@ import {
   obtenerValoresItems,
   obtenerItemsConTransportePendiente,
   EliminarPresupuesto,
+  latidoImportPresupuesto,
+  descartarImportAbandonado,
+  type ResultadoImportAbandonado,
   type ItemPresupuesto,
   type PresupuestoExistente,
   type VersionPresupuesto,
@@ -477,6 +480,13 @@ export default function Presupuestos() {
     null
   )
   const [cargandoExistente, setCargandoExistente] = useState(false)
+  // Otro import de este presupuesto sigue vivo (otra pestaña u otro usuario),
+  // o uno abandonado todavía no cumple los 45 s para descartarse.
+  const [importAjenoEnCurso, setImportAjenoEnCurso] = useState(false)
+  // Latido del import que corre en ESTA página (ver latidoImportPresupuesto).
+  // Vive con el ciclo del import, no con el componente: navegar dentro de la
+  // app no detiene el import, así que el latido tampoco debe detenerse.
+  const latidoImportRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [cargandoPresupuesto, setCargandoPresupuesto] = useState(false)
 
 
@@ -775,17 +785,66 @@ export default function Presupuestos() {
 
     if (!proyectoId) return
 
+    setImportAjenoEnCurso(false)
+    let cancelado = false
+    let reintento: ReturnType<typeof setTimeout> | null = null
+
+    // Un import que quedó a medias (alguien salió de la página) se descarta
+    // antes de mostrar el presupuesto. Si otro import sigue vivo, se vuelve a
+    // revisar cuando venza su plazo, hasta que termine o se descarte.
+    async function revisarImport(existente: PresupuestoExistente, primeraVez: boolean) {
+      const r: ResultadoImportAbandonado = await descartarImportAbandonado(existente.id)
+      if (cancelado) return
+      if (r.estado === "descartado") {
+        setAvisoImportApu(
+          `El import de "${r.version}" quedó a medias porque se salió de la página antes de terminar, ` +
+            `y se eliminó. Sube el archivo de nuevo.`
+        )
+        if (r.presupuestoBorrado) {
+          setPresupuestoExistente(null)
+          setPresupuesto([])
+          setPresupuestoDbId(null)
+          setImportAjenoEnCurso(false)
+          return
+        }
+      }
+      setImportAjenoEnCurso(r.estado === "en_curso")
+      if (r.estado === "en_curso") {
+        reintento = setTimeout(() => {
+          revisarImport(existente, false).catch((e) => console.error("No se pudo revisar el import:", e))
+        }, (r.segundos + 2) * 1000)
+      }
+      if (primeraVez || r.estado !== "en_curso") await handleContinuarPresupuesto(existente)
+    }
+
     setCargandoExistente(true)
     verPresupuestoDeProyecto(proyectoId)
       .then(async (existente) => {
+        if (cancelado) return
         setPresupuestoExistente(existente)
-        if (existente) {
-          await handleContinuarPresupuesto(existente)
-        }
+        if (existente) await revisarImport(existente, true)
       })
       .catch((e) => console.error("No se pudo consultar el presupuesto existente:", e))
       .finally(() => setCargandoExistente(false))
+
+    return () => {
+      cancelado = true
+      if (reintento) clearTimeout(reintento)
+    }
   }, [proyectoId])
+
+  // Mientras corre un import, salir de la página lo deja a medias y se
+  // descarta (ver revisarImport): el navegador pregunta antes de cerrar o
+  // recargar. Navegar dentro de la app no lo detiene.
+  useEffect(() => {
+    if (!guardandoImportApu) return
+    const avisar = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", avisar)
+    return () => window.removeEventListener("beforeunload", avisar)
+  }, [guardandoImportApu])
 
   async function handleContinuarPresupuesto(existente: PresupuestoExistente) {
     setCargandoPresupuesto(true)
@@ -890,6 +949,14 @@ export default function Presupuestos() {
       const idPresupuesto = await handleGuardar(items, versionNueva) // items directo -- ver nota en handleGuardar sobre el timing de React
       if (!idPresupuesto) throw new Error("No se pudo guardar el presupuesto.")
 
+      // Desde aquí hay datos en la base: si la página se cierra antes de
+      // terminar, el latido se detiene y el import se descarta al volver.
+      await latidoImportPresupuesto(idPresupuesto, true)
+      if (latidoImportRef.current) clearInterval(latidoImportRef.current)
+      latidoImportRef.current = setInterval(() => {
+        latidoImportPresupuesto(idPresupuesto, true).catch((e) => console.error("Latido del import:", e))
+      }, 10_000)
+
       // Se aplican los ítems al estado DE UNA (ya no se espera a que
       // termine todo el matching) -- la tabla se ve desde ya, sin
       // colores todavía, y se van pintando tanda por tanda. Así se
@@ -933,6 +1000,10 @@ export default function Presupuestos() {
       // recargar de la base al final -- trae valorUnitario/valorTotal
       // recalculados que el estado local no tiene (más simple y
       // confiable que reconstruirlos a mano tanda por tanda).
+      if (latidoImportRef.current) clearInterval(latidoImportRef.current)
+      latidoImportRef.current = null
+      await latidoImportPresupuesto(idPresupuesto, false)
+
       const itemsFrescos = await cargarItemsDePresupuesto(idPresupuesto)
       setPresupuesto(itemsFrescos)
 
@@ -946,6 +1017,10 @@ export default function Presupuestos() {
       setError(e instanceof Error ? e.message : "No se pudo guardar el APU importado.")
       aplicarItemsAlPresupuesto() // por si falló antes de aplicarlos (ej. handleGuardar) -- no se pierde lo que se alcanzó a parsear. Si ya se habían aplicado, llamar de nuevo no hace daño.
     } finally {
+      // Si falló, el latido se detiene: con "Reintentar" vuelve a arrancar;
+      // si se sale de la página, el import se descarta.
+      if (latidoImportRef.current) clearInterval(latidoImportRef.current)
+      latidoImportRef.current = null
       setGuardandoImportApu(false)
       setProgresoImport(null)
     }
@@ -1597,13 +1672,26 @@ export default function Presupuestos() {
         )}
 
         {guardandoImportApu && (
-          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3">
-            <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-            <p className="text-sm text-muted-foreground">
-              {progresoImport
-                ? `Procesando insumos… ${progresoImport.procesados} de ${progresoImport.total} ítems. Ya puedes revisar los que estén en amarillo/rojo abajo mientras el resto termina.`
-                : "Leyendo el Excel y guardando los ítems…"}
+          <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <div className="flex items-center gap-2">
+              <span className="animate-spin inline-block h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+              <p className="text-sm text-muted-foreground">
+                {progresoImport
+                  ? `Procesando insumos… ${progresoImport.procesados} de ${progresoImport.total} ítems. Ya puedes revisar los que estén en amarillo/rojo abajo mientras el resto termina.`
+                  : "Leyendo el Excel y guardando los ítems…"}
+              </p>
+            </div>
+            <p className="text-sm font-medium text-amber-900">
+              No cierres ni recargues esta página hasta que termine: si lo haces, se pierde el progreso y se
+              elimina lo que se haya subido.
             </p>
+          </div>
+        )}
+
+        {!guardandoImportApu && importAjenoEnCurso && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            Hay un import de este presupuesto en curso (en otra pestaña o de otro usuario). Si fuiste tú y saliste
+            de la página antes de que terminara, se eliminará en unos segundos y podrás subir el archivo de nuevo.
           </div>
         )}
 

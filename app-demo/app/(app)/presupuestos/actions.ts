@@ -278,6 +278,39 @@ export async function listarVersiones(presupuestoId: string): Promise<VersionPre
   }))
 }
 
+// ---------------------------------------------------------------------------
+// Import con hoja APU abandonado (20261103000000_import_presupuesto_abandonado.sql).
+// La página que importa avisa cada 10 s que sigue viva (latido) y lo limpia
+// al terminar. Si alguien sale de la página a mitad, el latido se detiene y
+// al abrir el presupuesto se descarta lo subido: hay que volver a importar.
+// ---------------------------------------------------------------------------
+
+export async function latidoImportPresupuesto(presupuestoId: string, activo: boolean) {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("latido_import_presupuesto", {
+    p_presupuesto_id: presupuestoId,
+    p_activo: activo,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export type ResultadoImportAbandonado =
+  | { estado: "ninguno" | "con_movimientos" }
+  | { estado: "en_curso"; segundos: number }
+  | { estado: "descartado"; presupuestoBorrado: boolean; version: string }
+
+export async function descartarImportAbandonado(presupuestoId: string): Promise<ResultadoImportAbandonado> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("descartar_import_abandonado", { p_presupuesto_id: presupuestoId })
+  if (error) throw new Error(error.message)
+  const r = (data ?? { estado: "ninguno" }) as any
+  if (r.estado === "en_curso") return { estado: "en_curso", segundos: Number(r.segundos) }
+  if (r.estado === "descartado") {
+    return { estado: "descartado", presupuestoBorrado: Boolean(r.presupuesto_borrado), version: r.version }
+  }
+  return { estado: r.estado === "con_movimientos" ? "con_movimientos" : "ninguno" }
+}
+
 export async function crearVersionVacia(
   presupuestoId: string,
   nombre: string

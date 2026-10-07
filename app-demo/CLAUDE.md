@@ -1089,6 +1089,32 @@ día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
 aprobados. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
 orden entregada completa (no con entrega parcial).
 
+## Import de presupuesto: tabla grande, versión nueva y abandono (2026-10-07)
+
+Probado con el proyecto de prueba ZZ-PRUEBA-VOLUMEN (1.500 ítems, 8.545
+líneas de APU): el import completo tarda ~5,5 min (tandas de 40, ~8 s c/u).
+- **Tabla grande**: `DescripcionTextarea` (presupuesto-table.tsx) ya no mide el
+  alto con JS (height=auto + scrollHeight en un efecto por fila = recalcular la
+  tabla entera por fila, O(n²)): un doble invisible en la misma celda del grid
+  le da el alto con CSS. Antes 1.500 ítems congelaban el navegador >3 min.
+- **Versión nueva desde Excel con hoja APU**: `handleConfirmarNombreVersion`
+  pasa la versión explícita hasta `handleGuardar` (`VersionNuevaImport`).
+  Antes el guardado leía `versionPendienteDesdeImport` del estado en el mismo
+  evento (todavía null) y metía los ítems en la versión ACTUAL, duplicados.
+- **Import abandonado** (`20261103000000_import_presupuesto_abandonado.sql`,
+  decisión del usuario: avisar y obligar a reiniciar). El import lo dirige el
+  navegador; cerrar o recargar la página lo deja a medias. Mientras corre: aviso
+  del navegador (`beforeunload`) y letrero en la página. La página manda un
+  latido cada 10 s (`latido_import_presupuesto` ->
+  `presupuesto_versiones.import_latido_at`) y lo limpia al terminar. Al abrir el
+  presupuesto, `descartar_import_abandonado` borra en una transacción la versión
+  con más de 45 s sin latido (ítems, APU, revisión, transporte; si era la única
+  versión, el presupuesto completo) y la anterior vuelve a ser la actual. No
+  borra si hay requisiciones o contratos sobre esos ítems. Navegar dentro de la
+  app no detiene el import (el latido vive con el ciclo, no con el componente).
+- Mano de obra nunca hace auto-match en el import (regla de negocio): todas sus
+  líneas quedan pendientes.
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)
