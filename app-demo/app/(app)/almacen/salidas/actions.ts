@@ -4,6 +4,7 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion } from "@/lib/permisos"
+import { cortarPagina, TAMANO_PAGINA } from "@/lib/paginacion"
 
 // ---------------------------------------------------------------------------
 // SALIDAS de bodega hacia obra. Limitadas por el inventario disponible
@@ -27,33 +28,61 @@ export type SalidaRegistrada = {
   observaciones: string | null
   registradoPorNombre: string | null
   editadaAt: string | null
+  editadaPorNombre: string | null
   anuladaAt: string | null
+  anuladaPorNombre: string | null
   motivoAnulacion: string | null
 }
 
-export async function listarSalidasDelProyecto(proyectoId: string): Promise<SalidaRegistrada[]> {
+export type FiltrosSalidas = {
+  insumo?: string // código exacto o parte de la descripción
+  desde?: string // YYYY-MM-DD, fecha de la salida
+  hasta?: string
+  incluirAnuladas?: boolean
+}
+
+// Una página (50) de las salidas del proyecto, la más reciente primero. Todo
+// se filtra en la base (listar_salidas_registradas, que valida el acceso al
+// proyecto): el costo no crece con el historial.
+export async function listarSalidasRegistradas(
+  proyectoId: string,
+  filtros: FiltrosSalidas = {},
+  pagina = 0
+): Promise<{ salidas: SalidaRegistrada[]; hayMas: boolean }> {
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("listar_salidas_proyecto", {
+  const { data, error } = await supabase.rpc("listar_salidas_registradas", {
     p_proyecto_id: proyectoId,
+    p_insumo: filtros.insumo?.trim() || null,
+    p_desde: filtros.desde || null,
+    p_hasta: filtros.hasta || null,
+    p_incluir_anuladas: filtros.incluirAnuladas ?? true,
+    p_limite: TAMANO_PAGINA + 1,
+    p_offset: pagina * TAMANO_PAGINA,
   })
   if (error) throw new Error(error.message)
 
-  return (data ?? []).map((s: any) => ({
-    id: s.id,
-    fecha: s.fecha,
-    createdAt: s.created_at,
-    insumoCodigo: s.insumo_codigo,
-    insumoDescripcion: s.insumo_descripcion,
-    insumoUm: s.insumo_um,
-    cantidad: Number(s.cantidad),
-    cantidadOriginal: s.cantidad_original === null ? null : Number(s.cantidad_original),
-    retira: s.retira,
-    observaciones: s.observaciones,
-    registradoPorNombre: s.registrado_por_nombre,
-    editadaAt: s.editada_at,
-    anuladaAt: s.anulada_at,
-    motivoAnulacion: s.motivo_anulacion,
-  }))
+  const { filas, hayMas } = cortarPagina((data ?? []) as any[])
+  return {
+    hayMas,
+    salidas: filas.map((s) => ({
+      id: s.id,
+      fecha: s.fecha,
+      createdAt: s.created_at,
+      insumoCodigo: s.insumo_codigo,
+      insumoDescripcion: s.insumo_descripcion,
+      insumoUm: s.insumo_um,
+      cantidad: Number(s.cantidad),
+      cantidadOriginal: s.cantidad_original === null ? null : Number(s.cantidad_original),
+      retira: s.retira,
+      observaciones: s.observaciones,
+      registradoPorNombre: s.registrado_por_nombre,
+      editadaAt: s.editada_at,
+      editadaPorNombre: s.editada_por_nombre,
+      anuladaAt: s.anulada_at,
+      anuladaPorNombre: s.anulada_por_nombre,
+      motivoAnulacion: s.motivo_anulacion,
+    })),
+  }
 }
 
 export type DatosSalida = {

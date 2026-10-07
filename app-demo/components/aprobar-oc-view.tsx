@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table"
 import { OrdenCompraDetalleView } from "./orden-compra-detalle-view"
 import { PanelFiltros } from "@/components/panel-filtros"
+import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { ESTADO_VISIBLE_BADGE, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import {
@@ -149,14 +150,19 @@ export function AprobarOCView() {
     setHasta("")
   }
 
+  // Aprobar pide confirmación (ver ConfirmarAprobacion).
+  const [porAprobar, setPorAprobar] = useState<OrdenCompraListado | null>(null)
+
   async function handleAprobar(id: string) {
     setProcesandoId(id)
     setError(null)
     try {
       await aprobarOrdenCompra(id)
+      setPorAprobar(null)
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo aprobar la orden.")
+      setPorAprobar(null)
     } finally {
       setProcesandoId(null)
     }
@@ -387,7 +393,7 @@ export function AprobarOCView() {
                                     variant="outline"
                                     className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                                     disabled={procesando}
-                                    onClick={() => handleAprobar(orden.id)}
+                                    onClick={() => setPorAprobar(orden)}
                                     aria-label={`Aprobar orden ${orden.numero}`}
                                   >
                                     {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -526,6 +532,19 @@ export function AprobarOCView() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmarAprobacion
+        abierta={porAprobar !== null}
+        titulo={`¿Aprobar la orden de compra #${porAprobar?.numero ?? ""}?`}
+        detalle={
+          porAprobar
+            ? `Proveedor: ${porAprobar.proveedorNombre}. Al aprobarla se generan sus pagos y queda lista para recibir en almacén.`
+            : ""
+        }
+        procesando={porAprobar !== null && procesandoId === porAprobar.id}
+        onConfirmar={() => porAprobar && handleAprobar(porAprobar.id)}
+        onCerrar={() => setPorAprobar(null)}
+      />
     </div>
   )
 }

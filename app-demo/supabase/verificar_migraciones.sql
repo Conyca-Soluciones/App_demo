@@ -107,5 +107,8 @@ select * from (
          exists (select 1 from pg_proc where proname = 'descartar_import_abandonado')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'presupuesto_versiones' and column_name = 'import_latido_at')
+  union all
+  select '20261104000000_salidas_registradas',
+         exists (select 1 from pg_proc where proname = 'listar_salidas_registradas')
 ) t
 order by 1;

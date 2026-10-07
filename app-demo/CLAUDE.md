@@ -1115,6 +1115,30 @@ líneas de APU): el import completo tarda ~5,5 min (tandas de 40, ~8 s c/u).
 - Mano de obra nunca hace auto-match en el import (regla de negocio): todas sus
   líneas quedan pendientes.
 
+## Salidas registradas, confirmar aprobaciones y fechas de requisición (2026-10-07)
+
+- **Salidas** (`/almacen/salidas`, `components/salidas-pagina.tsx`): pestañas
+  "Nueva salida" y "Salidas registradas" (`salidas-registradas-view.tsx`):
+  filtros (insumo, fechas, ocultar anuladas), páginas de 50
+  (`listar_salidas_registradas`, `20261104000000_salidas_registradas.sql`),
+  Editar (cantidad, quién retira, observaciones) y Anular con motivo, sobre
+  `editar_salida_almacen` / `anular_salida_almacen` que ya existían. Antes no
+  había pantalla: una salida equivocada no se podía corregir y bloqueaba anular
+  la entrada. `listar_salidas_proyecto` (sin uso, cortaba en 200) sigue en la
+  base; su server action se quitó.
+- **Aprobar requisiciones y órdenes de compra pide confirmación**
+  (`components/confirmar-aprobacion.tsx`): en Aprobación de requisiciones,
+  Aprobación de órdenes de compra y el detalle de la orden. Antes era un clic.
+- **Fecha de la requisición**: no se modifica. Al modificar, el formulario
+  muestra la fecha ORIGINAL (antes mostraba la de hoy) y la última
+  modificación; el detalle muestra "Fecha de solicitud" y "Última
+  modificación" (fecha y hora). La última modificación sale del evento
+  `modificada` del historial (`obtenerRequisicion` -> `modificadaAt`), sin
+  columna nueva.
+- **Cancelar una requisición** actualiza el detalle apenas responde la base
+  (estado y botones); antes esperaba la recarga completa (~3 s) y seguía
+  diciendo "Pendiente".
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)

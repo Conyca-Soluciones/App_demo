@@ -28,6 +28,7 @@ import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calcul
 import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import {
   obtenerOrdenCompraDetalle,
   obtenerPermisosOrdenCompra,
@@ -80,6 +81,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordenId])
 
+  // Aprobar pide confirmación (ver ConfirmarAprobacion).
+  const [confirmandoAprobacion, setConfirmandoAprobacion] = useState(false)
+
   async function handleAprobar() {
     setProcesando(true)
     setError(null)
@@ -90,6 +94,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
       setError(e instanceof Error ? e.message : "No se pudo aprobar la orden.")
     } finally {
       setProcesando(false)
+      setConfirmandoAprobacion(false)
     }
   }
 
@@ -412,7 +417,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
 
           {puedeAprobarORechazar && (
             <div className="space-y-2 border-t pt-3">
-              <Button className="w-full" disabled={procesando} onClick={handleAprobar}>
+              <Button className="w-full" disabled={procesando} onClick={() => setConfirmandoAprobacion(true)}>
                 Aprobar orden
               </Button>
               <Button
@@ -511,6 +516,15 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmarAprobacion
+        abierta={confirmandoAprobacion}
+        titulo={`¿Aprobar la orden de compra #${orden.numero}?`}
+        detalle={`Proveedor: ${orden.proveedorNombre}. Al aprobarla se generan sus pagos y queda lista para recibir en almacén.`}
+        procesando={procesando}
+        onConfirmar={handleAprobar}
+        onCerrar={() => setConfirmandoAprobacion(false)}
+      />
     </div>
   )
 }

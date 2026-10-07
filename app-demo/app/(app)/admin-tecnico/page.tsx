@@ -1,6 +1,7 @@
 "use client"
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
+import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { formatearFechaSinHora } from "@/lib/fechas"
 
 // app/(app)/admin-tecnico/page.tsx
@@ -72,6 +73,7 @@ export default function AdminTecnico() {
   const [motivo, setMotivo] = useState("")
   const [procesandoAccion, setProcesandoAccion] = useState(false)
   const [abiertaId, setAbiertaId] = useState<string | null>(null)
+  const [porAprobar, setPorAprobar] = useState<RequisicionParaAprobar | null>(null)
   // Últimos filtros consultados (para repetir la consulta tras una acción).
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
   const [pagina, setPagina] = useState(0)
@@ -124,9 +126,11 @@ export default function AdminTecnico() {
     setError(null)
     try {
       await resolverRequisicion(id, "aprobado")
+      setPorAprobar(null)
       cargar()
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo actualizar la requisición.")
+      setPorAprobar(null)
     } finally {
       setIdsEnProceso((prev) => {
         const next = new Set(prev)
@@ -245,7 +249,7 @@ export default function AdminTecnico() {
                                     variant="outline"
                                     className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                                     disabled={procesando}
-                                    onClick={() => aprobar(req.id)}
+                                    onClick={() => setPorAprobar(req)}
                                     aria-label={`Aprobar requisición ${req.numero}`}
                                   >
                                     {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -350,6 +354,21 @@ export default function AdminTecnico() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmarAprobacion
+        abierta={porAprobar !== null}
+        titulo={`¿Aprobar la requisición #${porAprobar?.numero ?? ""}?`}
+        detalle={
+          porAprobar
+            ? `${porAprobar.nLineas} ${porAprobar.nLineas === 1 ? "insumo" : "insumos"}, solicitada por ${
+                porAprobar.solicitanteNombre ?? "—"
+              }. Al aprobarla pasa a Compras y se le avisa a quien la pidió.`
+            : ""
+        }
+        procesando={porAprobar !== null && idsEnProceso.has(porAprobar.id)}
+        onConfirmar={() => porAprobar && aprobar(porAprobar.id)}
+        onCerrar={() => setPorAprobar(null)}
+      />
     </>
   )
 }

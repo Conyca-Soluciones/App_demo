@@ -1,6 +1,6 @@
 "use client"
 
-import { hoyColombia } from "@/lib/fechas"
+import { hoyColombia, ZONA_HORARIA } from "@/lib/fechas"
 
 // components/dialogue-nuevo-pedido.tsx
 //
@@ -95,7 +95,11 @@ export function FormularioRequisicion({
     if (!open) return
     // Hoy en Colombia (toISOString daba el día en UTC: después de las 7 p. m.
     // ya era "mañana" y no dejaba escoger hoy como fecha requerida).
-    const fecha = hoyColombia()
+    // Al modificar se muestra la fecha ORIGINAL de la requisición (no cambia);
+    // antes salía la de hoy.
+    const fecha = edicion
+      ? new Date(edicion.creadaAt).toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
+      : hoyColombia()
     setFechaPedido(fecha)
     setBusqueda("")
     setSugerencias([])
@@ -265,7 +269,17 @@ export function FormularioRequisicion({
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Fecha requisición</label>
-              <Input type="date" value={fechaPedido} readOnly className="h-10 bg-muted/40" />
+              <Input type="date" value={fechaPedido} readOnly tabIndex={-1} className="pointer-events-none h-10 bg-muted/40" />
+              {edicion?.modificadaAt && (
+                <p className="text-xs text-muted-foreground">
+                  Última modificación:{" "}
+                  {new Date(edicion.modificadaAt).toLocaleString("es-CO", {
+                    timeZone: ZONA_HORARIA,
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

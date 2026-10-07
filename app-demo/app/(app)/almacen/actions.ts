@@ -300,6 +300,10 @@ export type RequisicionDetalle = RequisicionResumen & {
   motivoCancelacion: string | null
   resueltoPorNombre: string | null
   resueltoAt: string | null
+  // Última vez que quien la hizo la modificó (evento "modificada" del
+  // historial); null si nunca se modificó. La fecha de la requisición
+  // (createdAt) no cambia al modificarla.
+  modificadaAt: string | null
 }
 
 export type FiltrosRequisiciones = {
@@ -372,8 +376,17 @@ export async function obtenerRequisicion(id: string): Promise<RequisicionDetalle
   if (error) throw new Error(error.message)
   if (!data) throw new Error("La requisición no existe o no tienes acceso a ella.")
 
-  const lineas = (await cargarLineas(supabase, [id])).get(id) ?? []
+  const [lineasPorReq, historial] = await Promise.all([
+    cargarLineas(supabase, [id]),
+    supabase.rpc("historial_entidad", { p_tipo: "requisicion", p_id: id }),
+  ])
+  const lineas = lineasPorReq.get(id) ?? []
   const resumen = mapResumen(data)
+  // El historial ya viene validado por la base (solo quien ve la requisición).
+  let modificadaAt: string | null = null
+  for (const e of ((historial.data ?? []) as { evento: string; created_at: string }[])) {
+    if (e.evento === "modificada" && (!modificadaAt || e.created_at > modificadaAt)) modificadaAt = e.created_at
+  }
   const resuelta = lineas.find((l) => l._resueltoAt)
   return {
     ...resumen,
@@ -384,6 +397,7 @@ export async function obtenerRequisicion(id: string): Promise<RequisicionDetalle
       resumen.estado === "cancelada" ? lineas.find((l) => l._motivoCancelacion)?._motivoCancelacion ?? null : null,
     resueltoPorNombre: resuelta?._resolutor ?? null,
     resueltoAt: resuelta?._resueltoAt ?? null,
+    modificadaAt,
   }
 }
 
@@ -403,6 +417,8 @@ export async function cancelarRequisicion(id: string, motivo: string) {
 export type EdicionRequisicion = {
   requisicionId: string
   numero: number
+  creadaAt: string // fecha de la requisición: no se modifica
+  modificadaAt: string | null
   versionId: string
   fechaRequerida: string
   urgente: boolean
@@ -481,6 +497,8 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   return {
     requisicionId: id,
     numero: detalle.numero,
+    creadaAt: detalle.createdAt,
+    modificadaAt: detalle.modificadaAt,
     versionId,
     fechaRequerida: detalle.fechaRequerida ?? "",
     urgente: detalle.urgente,

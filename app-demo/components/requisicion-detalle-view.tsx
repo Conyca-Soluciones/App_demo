@@ -87,6 +87,11 @@ export function RequisicionDetalleView({
     setError(null)
     try {
       await cancelarRequisicion(requisicionId, motivo.trim())
+      // La base ya la canceló: se refleja de una vez (sin botones de modificar
+      // ni cancelar) y la recarga completa llega detrás. Antes se esperaba la
+      // recarga (~3 s) y mientras tanto seguía diciendo "Pendiente".
+      const motivoCancelacion = motivo.trim()
+      setReq((r) => (r ? { ...r, estado: "cancelada", motivoCancelacion } : r))
       setCancelando(false)
       setMotivo("")
       cargar()
@@ -255,6 +260,18 @@ export function RequisicionDetalleView({
             <p className="text-muted-foreground">Fecha de solicitud</p>
             <p>{formatoFecha(req.createdAt)}</p>
           </div>
+          {req.modificadaAt && (
+            <div className="space-y-1">
+              <p className="text-muted-foreground">Última modificación</p>
+              <p>
+                {new Date(req.modificadaAt).toLocaleString("es-CO", {
+                  timeZone: "America/Bogota",
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <p className="text-muted-foreground">Fecha requerida</p>
             <p>{req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}</p>
