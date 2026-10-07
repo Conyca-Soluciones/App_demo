@@ -481,7 +481,7 @@ export default function Presupuestos() {
   )
   const [cargandoExistente, setCargandoExistente] = useState(false)
   // Otro import de este presupuesto sigue vivo (otra pestaña u otro usuario),
-  // o uno abandonado todavía no cumple los 45 s para descartarse.
+  // o uno abandonado todavía no cumple los 2 minutos para descartarse.
   const [importAjenoEnCurso, setImportAjenoEnCurso] = useState(false)
   // Latido del import que corre en ESTA página (ver latidoImportPresupuesto).
   // Vive con el ciclo del import, no con el componente: navegar dentro de la
@@ -949,6 +949,16 @@ export default function Presupuestos() {
       const idPresupuesto = await handleGuardar(items, versionNueva) // items directo -- ver nota en handleGuardar sobre el timing de React
       if (!idPresupuesto) throw new Error("No se pudo guardar el presupuesto.")
 
+      // Versión nueva: lo pendiente de la versión anterior ya no aplica. Sin
+      // esto, "Revisar pendientes" mezclaba los ítems de las dos versiones y
+      // resolverlos editaba la anterior, que debe quedar congelada.
+      if (versionNueva) {
+        setEstadosApu({})
+        setMotivosRechazo({})
+        setDiferenciasLineas({})
+        setItemIdsTransportePendiente([])
+      }
+
       // Desde aquí hay datos en la base: si la página se cierra antes de
       // terminar, el latido se detiene y el import se descarta al volver.
       await latidoImportPresupuesto(idPresupuesto, true)
@@ -985,6 +995,11 @@ export default function Presupuestos() {
           throw e
         }
 
+        // Latido también por tanda: en una pestaña en segundo plano el
+        // navegador espacia los temporizadores (hasta 1 por minuto) y el
+        // setInterval solo podría pasar el plazo; las tandas siguen al ritmo
+        // de la red.
+        latidoImportPresupuesto(idPresupuesto, true).catch((e) => console.error("Latido del import:", e))
         const idsTanda = tanda.map((b) => idPorCodigo[b.codigoItem])
         await refrescarEstadosApu(idsTanda)
         setProgresoImport({ procesados: Math.min(i + TAMANO_TANDA, bloques.length), total: bloques.length })

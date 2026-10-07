@@ -110,5 +110,12 @@ select * from (
   union all
   select '20261104000000_salidas_registradas',
          exists (select 1 from pg_proc where proname = 'listar_salidas_registradas')
+  union all
+  select '20261105000000_saldo_programado_inmediato',
+         exists (select 1 from pg_trigger where tgname = 'trg_pago_programado_vencido')
+  union all
+  select '20261106000000_import_abandonado_plazo',
+         exists (select 1 from pg_proc where proname = 'descartar_import_abandonado'
+                 and prosrc like '%2 minutes%')
 ) t
 order by 1;

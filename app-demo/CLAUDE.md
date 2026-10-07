@@ -1088,6 +1088,10 @@ día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
 `liberar_pagos_programados` (misma regla). Sin anticipo y anticipo: nacen
 aprobados. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
 orden entregada completa (no con entrega parcial).
+Un saldo que NACE con fecha a 3 días o menos (OC aprobada hoy, saldo para
+pasado mañana) entra directo como solicitado: disparador BEFORE INSERT
+`trg_pago_programado_vencido` (`20261105000000_saldo_programado_inmediato.sql`).
+La regla de los 3 días vive en ese disparador y en `_liberar_pagos_programados`.
 
 ## Import de presupuesto: tabla grande, versión nueva y abandono (2026-10-07)
 
@@ -1108,12 +1112,21 @@ líneas de APU): el import completo tarda ~5,5 min (tandas de 40, ~8 s c/u).
   latido cada 10 s (`latido_import_presupuesto` ->
   `presupuesto_versiones.import_latido_at`) y lo limpia al terminar. Al abrir el
   presupuesto, `descartar_import_abandonado` borra en una transacción la versión
-  con más de 45 s sin latido (ítems, APU, revisión, transporte; si era la única
+  con más de 2 min sin latido (ítems, APU, revisión, transporte; si era la única
   versión, el presupuesto completo) y la anterior vuelve a ser la actual. No
   borra si hay requisiciones o contratos sobre esos ítems. Navegar dentro de la
   app no detiene el import (el latido vive con el ciclo, no con el componente).
 - Mano de obra nunca hace auto-match en el import (regla de negocio): todas sus
   líneas quedan pendientes.
+- Plazo de abandono: **2 minutos** (`20261106000000_import_abandonado_plazo.sql`).
+  El latido también se manda al terminar cada tanda: en una pestaña en segundo
+  plano Chrome espacia los temporizadores hasta 1 por minuto.
+- **Versión nueva desde Excel**: `guardarPresupuestoConApu` limpia
+  `estadosApu`/motivos/diferencias/transporte de la versión anterior. Antes
+  "Revisar pendientes" mezclaba los ítems de las dos versiones (1.600 = 1.500
+  nuevos + 100 viejos) y resolverlos editaba la versión anterior.
+- Medido (1.500 ítems): import 5,5-6,2 min; abrir el presupuesto 3,6 s;
+  "Revisar pendientes" con ~1.800 líneas pendientes de ~10.000: 4,3 s.
 
 ## Salidas registradas, confirmar aprobaciones y fechas de requisición (2026-10-07)
 
