@@ -340,6 +340,7 @@ export function SalidasRegistradasView() {
               rows={2}
             />
           </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditando(null)} disabled={procesando}>
               Cancelar
@@ -371,6 +372,7 @@ export function SalidasRegistradasView() {
             onChange={(e) => setMotivo(e.target.value)}
             rows={3}
           />
+          {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setAnulando(null)} disabled={procesando}>
               Cancelar
