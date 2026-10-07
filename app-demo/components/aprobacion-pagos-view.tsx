@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PanelFiltros } from "@/components/panel-filtros"
+import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { aprobarPago, listarPagosAprobacion, rechazarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
@@ -54,6 +55,8 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
 
   const [procesandoId, setProcesandoId] = useState<string | null>(null)
   const [rechazando, setRechazando] = useState<Pago | null>(null)
+  // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
+  const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
   const [motivo, setMotivo] = useState("")
 
   function cargar(filtros: FiltrosAprobacionPagos = ultimosFiltros, pag: number = pagina) {
@@ -101,6 +104,7 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
       setError(e instanceof Error ? e.message : "No se pudo aprobar el pago.")
     } finally {
       setProcesandoId(null)
+      setPorAprobar(null)
     }
   }
 
@@ -200,7 +204,7 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
       celda: (p) =>
         puedeAprobar && p.estado === "solicitado" ? (
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-8 w-24" disabled={procesandoId === p.id} onClick={() => handleAprobar(p)}>
+            <Button size="sm" className="h-8 w-24" disabled={procesandoId === p.id} onClick={() => setPorAprobar(p)}>
               <Check className="mr-1.5 h-4 w-4" />
               Aprobar
             </Button>
@@ -337,6 +341,21 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmarAprobacion
+        abierta={porAprobar !== null}
+        titulo={`¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`}
+        detalle={
+          porAprobar
+            ? `${porAprobar.terceroNombre ?? "Sin tercero"}${porAprobar.ordenNumero ? ` · OC ${porAprobar.ordenNumero}` : ""}${
+                porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
+              }. ${porAprobar.concepto}`
+            : ""
+        }
+        procesando={porAprobar !== null && procesandoId === porAprobar.id}
+        onConfirmar={() => porAprobar && handleAprobar(porAprobar)}
+        onCerrar={() => setPorAprobar(null)}
+      />
     </div>
   )
 }

@@ -166,7 +166,7 @@ export function TablaPedidosCompra({
                       className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
                       title={esParcial(pedido) ? "Cerrar saldo" : "Rechazar"}
                       disabled={pedido.cantidadPendiente <= 0}
-                      aria-label={`${esParcial(pedido) ? "Cerrar saldo de" : "Rechazar"} requisición de ${pedido.insumoDescripcion}`}
+                      aria-label={`${esParcial(pedido) ? "Cerrar saldo de la requisición de" : "Rechazar insumo"} ${pedido.insumoDescripcion}`}
                       onClick={() => {
                         setError(null)
                         setPedidoARechazar(pedido)
@@ -203,7 +203,7 @@ export function TablaPedidosCompra({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {pedidoARechazar && esParcial(pedidoARechazar) ? "Cerrar saldo de la requisición" : "Rechazar requisición"}
+              {pedidoARechazar && esParcial(pedidoARechazar) ? "Cerrar saldo de la requisición" : "Rechazar insumo"}
             </DialogTitle>
           </DialogHeader>
 
@@ -213,6 +213,11 @@ export function TablaPedidosCompra({
               <span> (de {pedidoARechazar.cantidad} solicitadas originalmente)</span>
             ) : null}
           </p>
+          {pedidoARechazar && !esParcial(pedidoARechazar) && (
+            <p className="text-sm text-muted-foreground">
+              Solo se rechaza este insumo; el resto de la requisición sigue igual.
+            </p>
+          )}
 
           {pedidoARechazar && esParcial(pedidoARechazar) && (
             <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -255,7 +260,7 @@ export function TablaPedidosCompra({
                   : "Cerrar saldo"
                 : rechazando
                   ? "Rechazando..."
-                  : "Rechazar requisición"}
+                  : "Rechazar insumo"}
             </Button>
           </DialogFooter>
         </DialogContent>
