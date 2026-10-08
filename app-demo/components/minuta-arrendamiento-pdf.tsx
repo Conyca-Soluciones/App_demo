@@ -1,7 +1,12 @@
 import { Document, Page, View, Text } from "@react-pdf/renderer"
 import { leerNumero } from "@/lib/contratos"
 import { blanco, cantidadEnLetras, fechaLarga, ordinalClausula, partesFecha, pesosSinSimbolo } from "@/lib/minuta-mano-obra"
-import { OPCIONES_SERVICIOS, PRIMERA_CLAUSULA_ADICIONAL_ARRENDAMIENTO, type MinutaArrendamiento } from "@/lib/minuta-arrendamiento"
+import {
+  OPCIONES_SERVICIOS,
+  PRIMERA_CLAUSULA_ADICIONAL_ARRENDAMIENTO,
+  tipoDocumentoArrendador,
+  type MinutaArrendamiento,
+} from "@/lib/minuta-arrendamiento"
 import { Clausula, Encabezado, Lista, s } from "@/components/minuta-mano-obra-pdf"
 
 // ---------------------------------------------------------------------------
@@ -17,6 +22,7 @@ const letra = (i: number) => `${String.fromCharCode(97 + i)})`
 export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: MinutaArrendamiento; numero: number; logo: string | Buffer }) {
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.arrendadorTipoPersona === "juridica"
+  const documento = tipoDocumentoArrendador(m.arrendadorTipoDocumento)
   const canon = leerNumero(m.canon)
   const consecutivo = `Nº CJ-${numero} DE ${fecha ? fecha.anio : "20__"}`
   const iva = m.iva === "mas_iva" ? "más IVA" : m.iva === "incluido" ? "incluido el IVA" : blanco(null)
@@ -38,13 +44,13 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           {juridica ? (
             <>
               <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text> identificada con número de identificación tributaria {blanco(m.arrendadorNit)},
-              representada legalmente por <Text style={s.b}>{blanco(m.arrendadorRepresentante)}</Text> identificado con cédula de ciudadanía{" "}
-              {blanco(m.arrendadorCedula)} expedida en {blanco(m.arrendadorCedulaExpedida)}
+              representada legalmente por <Text style={s.b}>{blanco(m.arrendadorRepresentante)}</Text> identificado con {documento.texto}{" "}
+              {blanco(m.arrendadorCedula)} {documento.expedido} en {blanco(m.arrendadorCedulaExpedida)}
             </>
           ) : (
             <>
-              <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text> identificado con cédula de ciudadanía {blanco(m.arrendadorCedula)} expedida en{" "}
-              {blanco(m.arrendadorCedulaExpedida)}
+              <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text>, mayor de edad, identificado con {documento.texto} {blanco(m.arrendadorCedula)}{" "}
+              {documento.expedido} en {blanco(m.arrendadorCedulaExpedida)}, actuando en nombre propio
             </>
           )}
           , quien obra en calidad de propietario del inmueble, y que para efectos de este contrato se denominará el{" "}
@@ -126,7 +132,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
 
         <Clausula titulo="OCTAVA. - REPARACIONES Y MEJORAS.">
           <Text style={s.b}>El ARRENDATARIO</Text> queda autorizado a hacer las reparaciones locativas que considere pertinentes para el funcionamiento de su
-          negocio. Las reparaciones necesarias son a cargo del <Text style={s.b}>ARRENDADATARIO.</Text> En consecuencia, el ARRENDADOR no queda obligado a
+          negocio. Las reparaciones necesarias son a cargo del <Text style={s.b}>ARRENDADOR.</Text> En consecuencia, el ARRENDADOR no queda obligado a
           pagar tales mejoras o reformas ni a indemnizar en forma alguna al <Text style={s.b}>ARRENDATARIO,</Text> aún en los casos en los que este las haya
           autorizado expresamente. <Text style={s.b}>El ARRENDATARIO,</Text> podrá separar o llevarse los materiales utilizados y cualquier cerradura o
           implemento adicional que este instale en las puertas o ventanas interiores o exteriores del inmueble siempre y cuando su retiro no genere
@@ -225,7 +231,9 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
             <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text>
             {juridica && <Text>NIT. {blanco(m.arrendadorNit)}</Text>}
             {juridica && <Text>RL. {blanco(m.arrendadorRepresentante)}</Text>}
-            <Text>CC. {blanco(m.arrendadorCedula)}</Text>
+            <Text>
+              {documento.firma} {blanco(m.arrendadorCedula)}
+            </Text>
           </View>
           <View style={s.firma}>
             <Text style={{ marginBottom: 36 }}>El Arrendatario</Text>

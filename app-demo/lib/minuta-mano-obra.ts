@@ -86,6 +86,7 @@ export type DatosExtraMinuta = {
   contratistaDv: number | null
   contratistaRepresentante: string | null
   contratistaRepresentanteDocumento: string | null
+  contratistaRepresentanteTipoDocumento?: string | null // CC, CE, PPT o PA
   contratistaCiudad: string | null
 }
 

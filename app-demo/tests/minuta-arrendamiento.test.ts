@@ -122,6 +122,20 @@ describe("minutaArrendamientoPorDefecto", () => {
     expect(n.arrendadorCedula).toBe("79990100")
     expect(n.arrendadorRepresentante).toBe("")
     expect(n.arrendadorNit).toBe("")
+    expect(n.arrendadorTipoDocumento).toBe("CC")
+  })
+
+  it("tipo de documento: el de la persona natural o el del representante; CC si no viene", () => {
+    const ce = minutaArrendamientoPorDefecto(detalle({ contratistaTipoPersona: "natural" }), { ...extra, contratistaTipoDocumento: "CE", contratistaNumeroDocumento: "E12345" }, "2026-10-08")
+    expect(ce.arrendadorTipoDocumento).toBe("CE")
+    expect(ce.arrendadorCedula).toBe("E12345")
+    const rep = minutaArrendamientoPorDefecto(detalle(), { ...extra, contratistaRepresentanteTipoDocumento: "PA" }, "2026-10-08")
+    expect(rep.arrendadorTipoDocumento).toBe("PA")
+    expect(minutaArrendamientoPorDefecto(detalle(), extra, "2026-10-08").arrendadorTipoDocumento).toBe("CC")
+  })
+
+  it("la causal por mora del arrendatario la alega el arrendador", () => {
+    expect(m.causalesTerminacion[3]).toMatch(/solo podrá ser alegada por parte del ARRENDADOR\.$/)
   })
 
   it("sin valor mensual el canon queda vacío", () => {
@@ -142,7 +156,9 @@ describe("mezclarMinutaArrendamiento", () => {
       arrendadorTipoPersona: "otra",
       inventado: "x",
       canon: 5,
+      arrendadorTipoDocumento: "NIT",
     })
+    expect(r.arrendadorTipoDocumento).toBe("CC")
     expect(r.destinacion).toBe("oficina de obra")
     expect(r.iva).toBe("incluido")
     expect(r.serviciosPublicos).toBe("")

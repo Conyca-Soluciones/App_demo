@@ -26,6 +26,18 @@ export const VERSION_MINUTA_ARRENDAMIENTO = 1
 
 export type IvaCanon = "" | "mas_iva" | "incluido"
 export type ServiciosPublicos = "" | "arrendatario" | "incluidos"
+export type TipoDocumentoArrendador = "CC" | "CE" | "PPT" | "PA"
+
+// Documento de quien firma por el arrendador (la persona natural o el
+// representante legal): cómo se nombra en el texto y en la firma.
+export const TIPOS_DOCUMENTO_ARRENDADOR: { valor: TipoDocumentoArrendador; titulo: string; texto: string; expedido: string; firma: string }[] = [
+  { valor: "CC", titulo: "Cédula de ciudadanía", texto: "cédula de ciudadanía", expedido: "expedida", firma: "CC." },
+  { valor: "CE", titulo: "Cédula de extranjería", texto: "cédula de extranjería", expedido: "expedida", firma: "CE." },
+  { valor: "PPT", titulo: "Permiso por protección temporal", texto: "permiso por protección temporal", expedido: "expedido", firma: "PPT." },
+  { valor: "PA", titulo: "Pasaporte", texto: "pasaporte", expedido: "expedido", firma: "Pasaporte" },
+]
+const esTipoDocumentoArrendador = (v: unknown): v is TipoDocumentoArrendador => TIPOS_DOCUMENTO_ARRENDADOR.some((t) => t.valor === v)
+export const tipoDocumentoArrendador = (v: TipoDocumentoArrendador) => TIPOS_DOCUMENTO_ARRENDADOR.find((t) => t.valor === v)!
 
 export type MinutaArrendamiento = {
   v: number
@@ -37,7 +49,8 @@ export type MinutaArrendamiento = {
   arrendadorNombre: string // persona natural o razón social
   arrendadorNit: string // jurídica
   arrendadorRepresentante: string // jurídica: representante legal
-  arrendadorCedula: string // natural: su cédula; jurídica: la del representante
+  arrendadorTipoDocumento: TipoDocumentoArrendador // natural: el suyo; jurídica: el del representante
+  arrendadorCedula: string // número de ese documento
   arrendadorCedulaExpedida: string
   arrendadorCorreo: string
   // Arrendatario: la empresa del proyecto
@@ -94,7 +107,7 @@ export const CAUSALES_TERMINACION = [
   "Por mutuo acuerdo en cualquier momento de ejecución del Contrato.",
   "Por vencimiento del término inicial.",
   "La destinación por parte del ARRENDATARIO del INMUEBLE para fines ilícitos o contrarios a las buenas costumbres, que representen peligro para el inmueble o para la salubridad de sus habitantes.",
-  "La mora injustificada en el pago de un canon de arrendamiento por parte de EL ARRENDATARIO. Esta causal solo podrá ser alegada por parte del ARRENDATARIO.",
+  "La mora injustificada en el pago de un canon de arrendamiento por parte de EL ARRENDATARIO. Esta causal solo podrá ser alegada por parte del ARRENDADOR.",
   "En caso que el ARRENDADOR, o el ARRENDATARIO, sus accionistas o administradores, sean incluidos en listas para el control de lavado de activos y financiación del terrorismo administradas por cualquier autoridad nacional o extranjera, o figuren en cualquier tipo de investigación o proceso relacionado con delitos fuentes de lavado de activos y financiación del terrorismo (LAFT) o con la administración de recursos relacionados con dichas actividades y demás señaladas en la cláusula denominada Origen de Ingresos y de conformidad con lo establecido en la Cláusula SARLAFT.",
   "Por las demás establecidas en el presente Contrato o en la ley.",
   "Por el incumplimiento de cualquiera de las obligaciones contractuales o legales a cargo de cualquiera de las Partes.",
@@ -187,6 +200,7 @@ export function minutaArrendamientoPorDefecto(d: SolicitudContratoDetalle, extra
       ? `${extra.contratistaNumeroDocumento}${extra.contratistaDv !== null ? `-${extra.contratistaDv}` : ""}`
       : ""
   const ciudadProyecto = extra.proyectoCiudad ?? ""
+  const tipoDocumento = juridica ? extra.contratistaRepresentanteTipoDocumento : extra.contratistaTipoDocumento
   const condicionesPago = [
     d.formaPago.trim(),
     d.tieneAnticipo && d.anticipoPorcentaje ? `Se entregará un anticipo del ${anticipoEnLetras(d.anticipoPorcentaje, d.valor)}.` : "",
@@ -202,6 +216,7 @@ export function minutaArrendamientoPorDefecto(d: SolicitudContratoDetalle, extra
     arrendadorNombre: d.contratistaNombre,
     arrendadorNit: nit,
     arrendadorRepresentante: juridica ? (extra.contratistaRepresentante ?? "") : "",
+    arrendadorTipoDocumento: esTipoDocumentoArrendador(tipoDocumento) ? tipoDocumento : "CC",
     arrendadorCedula: juridica ? (extra.contratistaRepresentanteDocumento ?? "") : (extra.contratistaNumeroDocumento ?? ""),
     arrendadorCedulaExpedida: "",
     arrendadorCorreo: d.correoNotificacion,
@@ -238,6 +253,7 @@ export function minutaArrendamientoVacia(): MinutaArrendamiento {
     arrendadorNombre: "",
     arrendadorNit: "",
     arrendadorRepresentante: "",
+    arrendadorTipoDocumento: "CC",
     arrendadorCedula: "",
     arrendadorCedulaExpedida: "",
     arrendadorCorreo: "",
@@ -285,6 +301,8 @@ export function mezclarMinutaArrendamiento(defecto: MinutaArrendamiento, guardad
       if (Array.isArray(valor)) r[clave] = valor.map((x) => String(x ?? ""))
     } else if (clave === "arrendadorTipoPersona") {
       if (valor === "natural" || valor === "juridica") r[clave] = valor
+    } else if (clave === "arrendadorTipoDocumento") {
+      if (esTipoDocumentoArrendador(valor)) r[clave] = valor
     } else if (clave === "iva") {
       if (valor === "" || valor === "mas_iva" || valor === "incluido") r[clave] = valor
     } else if (clave === "serviciosPublicos") {

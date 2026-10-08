@@ -90,7 +90,8 @@ async function cargarBaseMinuta(id: string) {
       .select(`
         proyecto:proyectos!contratos_proyecto_id_fkey(ciudad, empresa:empresas(nit, razon_social)),
         contratista:contratistas!contratos_contratista_id_fkey(
-          tipo_documento, numero_documento, digito_verificacion, representante_nombre, representante_numero_documento, ciudad
+          tipo_documento, numero_documento, digito_verificacion, representante_nombre, representante_tipo_documento,
+          representante_numero_documento, ciudad
         )
       `)
       .eq("id", id)
@@ -115,6 +116,7 @@ async function cargarBaseMinuta(id: string) {
     contratistaDv: c?.digito_verificacion ?? null,
     contratistaRepresentante: c?.representante_nombre ?? null,
     contratistaRepresentanteDocumento: c?.representante_numero_documento ?? null,
+    contratistaRepresentanteTipoDocumento: c?.representante_tipo_documento ?? null,
     contratistaCiudad: c?.ciudad ?? null,
   }
   const g = guardada.data as any

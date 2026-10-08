@@ -27,6 +27,7 @@ import {
   OPCIONES_IVA,
   OPCIONES_SERVICIOS,
   PRIMERA_CLAUSULA_ADICIONAL_ARRENDAMIENTO,
+  TIPOS_DOCUMENTO_ARRENDADOR,
   nombreArchivoMinutaArrendamiento,
   origenCampoArrendamiento,
   type MinutaArrendamiento,
@@ -230,8 +231,17 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
             {campo("arrendadorNombre", juridica ? "Razón social" : "Nombre completo")}
             {juridica && campo("arrendadorNit", "NIT")}
             {juridica && campo("arrendadorRepresentante", "Representante legal")}
-            {campo("arrendadorCedula", juridica ? "Cédula del representante" : "Cédula")}
-            {campo("arrendadorCedulaExpedida", "Cédula expedida en")}
+            <SelectorMinuta
+              id="minuta-arrendador-tipo-documento"
+              etiqueta={juridica ? "Documento del representante" : "Tipo de documento"}
+              valor={m.arrendadorTipoDocumento}
+              opciones={TIPOS_DOCUMENTO_ARRENDADOR}
+              origen={origenSelector(m.arrendadorTipoDocumento, datos.porDefecto.arrendadorTipoDocumento)}
+              onChange={(v) => v && actualizar({ arrendadorTipoDocumento: v })}
+              disabled={deshabilitado}
+            />
+            {campo("arrendadorCedula", juridica ? "Número de documento del representante" : "Número de documento")}
+            {campo("arrendadorCedulaExpedida", "Documento expedido en")}
             {campo("arrendadorCorreo", "Correo de notificaciones (décima novena)", { tipo: "email" })}
           </div>
         </Seccion>
