@@ -1,3 +1,4 @@
+import { Children, Fragment, cloneElement, isValidElement, type ReactNode } from "react"
 import { Document, Font, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { leerNumero } from "@/lib/contratos"
 import {
@@ -94,12 +95,41 @@ export function Lista({ items, marcador }: { items: string[]; marcador: (i: numb
   )
 }
 
-export function Clausula({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+// Junta en un solo texto los pedazos seguidos ("COMFIAR" y ". De conformidad"
+// son dos nodos en el JSX): si quedan separados, al partir la línea justo entre
+// los dos @react-pdf los trata como una palabra cortada y pone un guion.
+// Los fragmentos se aplanan; las negrillas (<Text>) quedan como están.
+export function unirTexto(children: ReactNode): ReactNode[] {
+  const piezas: ReactNode[] = []
+  const agregar = (n: ReactNode) => {
+    if (n === null || n === undefined || typeof n === "boolean") return
+    if (typeof n === "string" || typeof n === "number") {
+      const ultima = piezas[piezas.length - 1]
+      if (typeof ultima === "string") piezas[piezas.length - 1] = ultima + String(n)
+      else piezas.push(String(n))
+    } else if (Array.isArray(n)) {
+      n.forEach(agregar)
+    } else if (isValidElement(n) && n.type === Fragment) {
+      Children.forEach((n.props as { children?: ReactNode }).children, agregar)
+    } else {
+      piezas.push(n)
+    }
+  }
+  Children.forEach(children, agregar)
+  return piezas.map((n, i) => (isValidElement(n) ? cloneElement(n, { key: i }) : n))
+}
+
+// Párrafo justificado de la minuta.
+export function P({ children }: { children: ReactNode }) {
+  return <Text style={s.p}>{unirTexto(children)}</Text>
+}
+
+export function Clausula({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <Text style={s.p}>
+    <P>
       <Text style={s.b}>{titulo} </Text>
-      {children}
-    </Text>
+      {unirTexto(children)}
+    </P>
   )
 }
 
@@ -131,7 +161,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
 
         <Text style={s.titulo}>CONTRATO DE MANO DE OBRA N° {numero}</Text>
 
-        <Text style={s.p}>
+        <P>
           En la ciudad de {blanco(m.ciudadFirma)} {lugarFecha}, entre los suscritos a saber: {blanco(m.contratanteRepresentante)} mayor de edad,
           identificado con cédula de ciudadanía {blanco(m.contratanteRepresentanteCedula)} de {blanco(m.contratanteRepresentanteExpedida)}, actuando
           en calidad de representante legal de <Text style={s.b}>{blanco(m.contratanteNombre)}</Text> identificado con Nit. {blanco(m.contratanteNit)}{" "}
@@ -152,7 +182,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
             </>
           )}
           , acuerdan celebrar el presente negocio jurídico, previo a las siguientes consideraciones:
-        </Text>
+        </P>
 
         <Clausula titulo="PRIMERA. – OBJETO:">
           En virtud del presente contrato, EL CONTRATANTE, encarga al CONTRATISTA {blanco(m.objeto)}, para la obra denominada {blanco(m.obra)}.
@@ -168,20 +198,20 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
           La realización de las actividades del presente contrato, se llevará a cabo dentro de un plazo {blanco(m.plazo)}. El presente
           contrato vence el {fechaLarga(m.vencimiento)}.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           Una vez finalizado el objeto del contrato y aceptada por EL CONTRATANTE, EL CONTRATISTA deberá hacer entrega formal de las mismas, junto con
           cualquier otra documentación que se haya generado con motivo de este contrato, de tal forma que sólo existirá una copia de la totalidad del
           material relativo al objeto del contrato en poder exclusivo de EL CONTRATANTE.
-        </Text>
+        </P>
 
         <Clausula titulo="CUARTA. - PRECIO Y FORMA DE PAGO:">
           El valor del presente contrato será por la suma de {blanco(m.valorLetras)} (${valor !== null ? pesosSinSimbolo(valor) : blanco(m.valor)}) M/CTE,
           incluidos todos los impuestos, gravámenes y demás.
         </Clausula>
-        {m.formaPago.trim() && <Text style={s.p}>{m.formaPago.trim()}</Text>}
+        {m.formaPago.trim() && <P>{m.formaPago.trim()}</P>}
         {m.requisitosPago.length > 0 && (
           <>
-            <Text style={s.p}>Para el respectivo pago se requiere:</Text>
+            <P>Para el respectivo pago se requiere:</P>
             <Lista items={m.requisitosPago} marcador={(i) => `${String.fromCharCode(97 + i)})`} />
           </>
         )}
@@ -201,10 +231,10 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
           El CONTRATISTA no podrá ceder a persona alguna natural o jurídica, Nacional o extranjera, el presente contrato. PARÁGRAFO: Para la cesión del
           presente contrato se requiere de previa autorización por escrito del CONTRATANTE.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           El CONTRATISTA no podrá subcontratar con persona jurídica o natural la ejecución parcial o total del objeto del presente contrato, salvo
           autorización expresa del CONTRATANTE.
-        </Text>
+        </P>
 
         <Clausula titulo="OCTAVA. – CLAUSULA PENAL:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al{" "}
@@ -248,16 +278,16 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
           parcialmente, de palabra, por escrito o de cualquier otra forma, a ninguna persona física o jurídica, ya sea de carácter público o privado, la
           Información Confidencial, sin el consentimiento expreso y por escrito de la contraparte.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           La misma confidencialidad que se imponen a las partes o a terceros que intervengan en la ejecución, deberá ser impuesta por cada una de las
           partes a sus trabajadores (por cuenta propia o ajena, con relación laboral o mercantil) que de modo directo o indirecto estén relacionados con el
           objeto del contrato. Será obligación de las mismas partes hacer firmar a sus trabajadores un documento vinculante por el que adquieren tal
           obligación.
-        </Text>
-        <Text style={s.p}>
+        </P>
+        <P>
           Este compromiso de confidencialidad, tanto entre las partes como de éstas con sus trabajadores y contratistas, permanecerá durante la vigencia
           del presente contrato, así como un año después de la finalización del mismo.
-        </Text>
+        </P>
 
         <Clausula titulo="DECIMA QUINTA. – SOLUCION DE CONTROVERSIAS:">
           Cualquier disputa o diferencia que surja con ocasión del objeto y obligaciones de este contrato serán arregladas en lo posible mediante la
@@ -289,9 +319,9 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
           </Clausula>
         ))}
 
-        <Text style={s.p}>
+        <P>
           En constancia de lo anterior se firma en la ciudad de {blanco(m.ciudadFirma)}, {lugarFecha}.
-        </Text>
+        </P>
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
@@ -337,10 +367,10 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         <Encabezado logo={logo} {...ENCABEZADO} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de mano de obra N° ${numero} · Página ${pageNumber} de ${totalPages}`} />
         <Text style={s.titulo}>ANEXO N° 1 — ACTIVIDADES, CANTIDADES Y VALORES</Text>
-        <Text style={s.p}>
+        <P>
           Contrato de mano de obra N° {numero} entre {blanco(m.contratanteNombre)} y {blanco(m.contratistaNombre)}, para la obra denominada{" "}
           {blanco(m.obra)}.
-        </Text>
+        </P>
         <View style={s.tabla}>
           <View style={s.tr} fixed>
             <Text style={[s.th, { width: anchos.actividad }]}>Actividad</Text>

@@ -1867,9 +1867,26 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   exportan de `minuta-mano-obra-pdf.tsx`. Para otra plantilla: un `lib/`, un
   editor y un PDF nuevos, y una rama más en la ruta y en
   `preaprobacion-contratos-view.tsx`.
+- **Minuta de suministro** (2026-10-08, plantilla GJ-F-012, tipo
+  `suministro_instalacion`): `lib/minuta-suministro.ts`,
+  `components/minuta-suministro-{editor,pdf}.tsx`. Empresa = CONTRATANTE,
+  contratista = CONTRATISTA (natural o jurídica, con tipo de documento como en
+  arrendamiento). Tabla de especificaciones = ítems de la solicitud (o una
+  línea GL con el objeto); forma de pago = texto de la plantilla + anticipo +
+  la de la solicitud; plazo en días calendario; tabla de amparos editable (el
+  de buen manejo de anticipo solo si hay anticipo); cláusula penal 10 % y
+  multa diaria 0,2 % editables. Número "Nº CJ-<numero>-<año>". La tabla de
+  ítems del editor es `TablaItemsMinuta` (minuta-comun, también la usa mano de
+  obra).
+- **PDF de minutas: texto en un solo nodo.** `P` y `Clausula`
+  (minuta-mano-obra-pdf) juntan los pedazos de texto seguidos con `unirTexto`:
+  si un valor y la puntuación que lo sigue quedan en nodos distintos
+  (`{blanco(m.obra)}.`), al partir la línea entre los dos @react-pdf pone un
+  guion ("COMFIAR-" / ". De conformidad"). Los párrafos nuevos van con `<P>`;
+  dentro de una negrilla, la puntuación va dentro del mismo `<Text>`.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos) y las plantillas de obra, alquiler de vehículo, prestación de
-  servicios y suministro e instalación.
+  contratos) y las plantillas de obra, alquiler de vehículo y prestación de
+  servicios.
 
 ---
 

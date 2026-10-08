@@ -30,11 +30,11 @@ export type TipoDocumentoArrendador = "CC" | "CE" | "PPT" | "PA"
 
 // Documento de quien firma por el arrendador (la persona natural o el
 // representante legal): cómo se nombra en el texto y en la firma.
-export const TIPOS_DOCUMENTO_ARRENDADOR: { valor: TipoDocumentoArrendador; titulo: string; texto: string; expedido: string; firma: string }[] = [
-  { valor: "CC", titulo: "Cédula de ciudadanía", texto: "cédula de ciudadanía", expedido: "expedida", firma: "CC." },
-  { valor: "CE", titulo: "Cédula de extranjería", texto: "cédula de extranjería", expedido: "expedida", firma: "CE." },
-  { valor: "PPT", titulo: "Permiso por protección temporal", texto: "permiso por protección temporal", expedido: "expedido", firma: "PPT." },
-  { valor: "PA", titulo: "Pasaporte", texto: "pasaporte", expedido: "expedido", firma: "Pasaporte" },
+export const TIPOS_DOCUMENTO_ARRENDADOR: { valor: TipoDocumentoArrendador; titulo: string; texto: string; articulo: string; expedido: string; firma: string }[] = [
+  { valor: "CC", titulo: "Cédula de ciudadanía", texto: "cédula de ciudadanía", articulo: "la", expedido: "expedida", firma: "CC." },
+  { valor: "CE", titulo: "Cédula de extranjería", texto: "cédula de extranjería", articulo: "la", expedido: "expedida", firma: "CE." },
+  { valor: "PPT", titulo: "Permiso por protección temporal", texto: "permiso por protección temporal", articulo: "el", expedido: "expedido", firma: "PPT." },
+  { valor: "PA", titulo: "Pasaporte", texto: "pasaporte", articulo: "el", expedido: "expedido", firma: "Pasaporte" },
 ]
 const esTipoDocumentoArrendador = (v: unknown): v is TipoDocumentoArrendador => TIPOS_DOCUMENTO_ARRENDADOR.some((t) => t.valor === v)
 export const tipoDocumentoArrendador = (v: TipoDocumentoArrendador) => TIPOS_DOCUMENTO_ARRENDADOR.find((t) => t.valor === v)!

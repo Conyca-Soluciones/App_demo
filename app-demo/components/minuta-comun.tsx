@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { ordinalClausula, type ClausulaAdicional, type OrigenDato } from "@/lib/minuta-mano-obra"
+import { leerNumero, pesos } from "@/lib/contratos"
+import { ordinalClausula, totalItemsMinuta, type ClausulaAdicional, type ItemAnexoMinuta, type OrigenDato } from "@/lib/minuta-mano-obra"
 
 // ---------------------------------------------------------------------------
 // Piezas comunes de los editores de minuta (mano de obra, arrendamiento...):
@@ -285,6 +286,133 @@ export function ClausulasAdicionalesEditor(props: {
         </Button>
       )}
     </div>
+  )
+}
+
+// Tabla de actividades o ítems con cantidad y valor unitario (anexo de mano
+// de obra, especificaciones de suministro). Origen por fila: igual a la
+// solicitud, editada o vacía.
+export function TablaItemsMinuta(props: {
+  items: ItemAnexoMinuta[]
+  porDefecto: ItemAnexoMinuta[]
+  onChange: (items: ItemAnexoMinuta[]) => void
+  editable: boolean
+  guardando: boolean
+  etiqueta?: string
+}) {
+  const { items, porDefecto, onChange, editable, guardando, etiqueta = "Actividad" } = props
+  const deshabilitado = !editable || guardando
+  const totalAnexo = totalItemsMinuta(items)
+  const cambiarItem = (i: number, cambio: Partial<ItemAnexoMinuta>) => onChange(items.map((it, j) => (j === i ? { ...it, ...cambio } : it)))
+  return (
+    <>
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[620px] text-sm">
+        <thead>
+          <tr className="bg-muted/60 text-left text-xs">
+            <th className="px-2 py-1.5">{etiqueta}</th>
+            <th className="w-20 px-2 py-1.5">Unidad</th>
+            <th className="w-24 px-2 py-1.5 text-right">Cantidad</th>
+            <th className="w-32 px-2 py-1.5 text-right">Valor unitario</th>
+            <th className="w-32 px-2 py-1.5 text-right">Total</th>
+            {editable && <th className="w-10" />}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((it, i) => {
+            const c = leerNumero(it.cantidad)
+            const v = leerNumero(it.valorUnitario)
+            const original = porDefecto[i]
+            const origenFila: OrigenDato =
+              !it.actividad.trim() && !it.cantidad.trim()
+                ? "vacio"
+                : original &&
+                    original.actividad === it.actividad &&
+                    original.unidad === it.unidad &&
+                    original.cantidad === it.cantidad &&
+                    original.valorUnitario === it.valorUnitario
+                  ? "solicitud"
+                  : "editado"
+            return (
+              <tr key={i} className={`border-t align-top ${ORIGEN[origenFila].borde}`}>
+                <td className="p-1">
+                  <div className="px-1 pb-1">
+                    <ChipOrigen origen={origenFila} />
+                  </div>
+                  <textarea
+                    rows={2}
+                    aria-label={`${etiqueta} ${i + 1}`}
+                    value={it.actividad}
+                    onChange={(e) => cambiarItem(i, { actividad: e.target.value })}
+                    disabled={deshabilitado}
+                    className={claseArea}
+                  />
+                </td>
+                <td className="p-1">
+                  <input aria-label={`Unidad ${i + 1}`} value={it.unidad} onChange={(e) => cambiarItem(i, { unidad: e.target.value })} disabled={deshabilitado} className={claseCampo} />
+                </td>
+                <td className="p-1">
+                  <input
+                    aria-label={`Cantidad ${i + 1}`}
+                    inputMode="decimal"
+                    value={it.cantidad}
+                    onChange={(e) => cambiarItem(i, { cantidad: e.target.value })}
+                    disabled={deshabilitado}
+                    className={`${claseCampo} text-right tabular-nums ${it.cantidad.trim() && c === null ? "border-destructive" : ""}`}
+                  />
+                </td>
+                <td className="p-1">
+                  <input
+                    aria-label={`Valor unitario ${i + 1}`}
+                    inputMode="decimal"
+                    value={it.valorUnitario}
+                    onChange={(e) => cambiarItem(i, { valorUnitario: e.target.value })}
+                    disabled={deshabilitado}
+                    className={`${claseCampo} text-right tabular-nums ${it.valorUnitario.trim() && v === null ? "border-destructive" : ""}`}
+                  />
+                </td>
+                <td className="px-2 py-2.5 text-right tabular-nums">{c !== null && v !== null ? pesos(Math.round(c * v * 100) / 100) : "—"}</td>
+                {editable && (
+                  <td className="p-1">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label="Quitar fila"
+                      disabled={guardando}
+                      onClick={() => onChange(items.filter((_, j) => j !== i))}
+                    >
+                      <Trash2 className="size-3.5 text-destructive" />
+                    </Button>
+                  </td>
+                )}
+              </tr>
+            )
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t bg-muted/40 font-medium">
+            <td colSpan={4} className="px-2 py-1.5 text-right">
+              Total
+            </td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{pesos(totalAnexo)}</td>
+            {editable && <td />}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {editable && (
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={guardando}
+        onClick={() => onChange([...items, { actividad: "", unidad: "", cantidad: "", valorUnitario: "" }])}
+      >
+        <Plus className="size-4" /> Agregar {etiqueta.toLowerCase()}
+      </Button>
+    )}
+    </>
   )
 }
 

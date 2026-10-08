@@ -12,6 +12,8 @@ import {
   nombreArchivoMinutaArrendamiento,
 } from "@/lib/minuta-arrendamiento"
 import { MinutaArrendamientoPDF } from "@/components/minuta-arrendamiento-pdf"
+import { limpiarMinutaSuministro, mezclarMinutaSuministro, minutaSuministroVacia, nombreArchivoMinutaSuministro } from "@/lib/minuta-suministro"
+import { MinutaSuministroPDF } from "@/components/minuta-suministro-pdf"
 
 // @react-pdf/renderer usa APIs de Node -- no corre en el edge runtime.
 export const runtime = "nodejs"
@@ -63,6 +65,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const minuta = limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), datos))
     buffer = await renderToBuffer(<MinutaArrendamientoPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
     archivo = nombreArchivoMinutaArrendamiento(numero, minuta.arrendadorNombre)
+  } else if (contrato.tipo === "suministro_instalacion") {
+    const minuta = limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), datos))
+    buffer = await renderToBuffer(<MinutaSuministroPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
+    archivo = nombreArchivoMinutaSuministro(numero, minuta.contratistaNombre)
   } else {
     return NextResponse.json({ error: "Este tipo de contrato todavía no tiene plantilla de minuta." }, { status: 400 })
   }

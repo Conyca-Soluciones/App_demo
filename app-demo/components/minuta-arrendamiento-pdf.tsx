@@ -7,7 +7,7 @@ import {
   tipoDocumentoArrendador,
   type MinutaArrendamiento,
 } from "@/lib/minuta-arrendamiento"
-import { Clausula, Encabezado, Lista, s } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s } from "@/components/minuta-mano-obra-pdf"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de arrendamiento: el texto de la plantilla
@@ -39,7 +39,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
         <Text style={[s.titulo, { marginBottom: 2 }]}>CONTRATO DE ARRENDAMIENTO</Text>
         <Text style={s.titulo}>{consecutivo}</Text>
 
-        <Text style={s.p}>
+        <P>
           Entre los suscritos a saber:{" "}
           {juridica ? (
             <>
@@ -59,26 +59,26 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           con cédula de ciudadanía {blanco(m.arrendatarioCedula)}, quien para los efectos del presente contrato se denominará el{" "}
           <Text style={s.b}>ARRENDATARIO,</Text> manifestaron que han decidido celebrar un contrato de arrendamiento de bien inmueble para uso comercial, en
           adelante el “Contrato”, el cual se rige por las siguientes cláusulas:
-        </Text>
+        </P>
 
-        <Text style={s.p}>
+        <P>
           <Text style={s.b}>PRIMERA. - OBJETO: </Text>
           <Text style={s.b}>
             CONCEDER (POR PARTE DEL ARRENDADOR) EL USO Y GOCE TEMPORAL DE UN BIEN Y PAGAR UN PRECIO DETERMINADO Y PERIÓDICO POR DICHO USO (POR PARTE DEL
             ARRENDATARIO) DEL BIEN INMUEBLE UBICADO EN {blanco(m.inmuebleDireccion).toUpperCase()}, {blanco(m.inmuebleCiudad).toUpperCase()}.
           </Text>
-        </Text>
+        </P>
 
         <Clausula titulo="SEGUNDA. - DESTINACIÓN:">
           <Text style={s.b}>El ARRENDATARIO</Text> destinará el inmueble arrendado exclusivamente para {blanco(m.destinacion)}.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           <Text style={s.b}>PARÁGRAFO. El ARRENDADOR</Text> prohíbe expresa y terminantemente al ARRENDATARIO dar al inmueble destinación con fines ilícitos
           tales como los contemplados en el literal b) del parágrafo del Artículo 3 del Decreto 180 de 1998 y el Artículo 34 de la Ley 30 de 1986 y ley 820
           de 2003 y en consecuencia el ARRENDATARIO se obliga a no utilizar el inmueble objeto de este contrato para ocultar o como depósito de armas,
           explosivos o Dineros de grupos terroristas o artículos de contrabando o para que en él se elaboren o almacenen, vendan o usen drogas
           estupefacientes o sustancias alucinógenas y afines.
-        </Text>
+        </P>
 
         <Clausula titulo="TERCERA. - CANON DE ARRENDAMIENTO:">
           Se pacta en la suma de {blanco(m.canonLetras)} M/CTE (${canon !== null ? pesosSinSimbolo(canon) : blanco(m.canon)}) mensuales {iva}, valor al
@@ -87,18 +87,18 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           efectuará mediante transferencia electrónica a la cuenta bancaria acreditada por el arrendador, quedando establecido que los períodos mensuales
           son indivisibles.
         </Clausula>
-        {m.condicionesPago.trim() && <Text style={s.p}>{m.condicionesPago.trim()}</Text>}
-        <Text style={s.p}>
+        {m.condicionesPago.trim() && <P>{m.condicionesPago.trim()}</P>}
+        <P>
           <Text style={s.b}>PARÁGRAFO PRIMERO. </Text>
           La mera tolerancia del <Text style={s.b}>ARRENDADOR</Text> en aceptar el pago del precio de la renta con posterioridad al plazo pactado, no se
           entenderá como ánimo de novar o modificar el término para el pago de este contrato o la modificación del precio del arrendamiento, lo cual en
           ningún caso podrá considerarse como novación o existencia de un contrato verbal de arrendamiento.
-        </Text>
+        </P>
         {m.paragrafoAdministracion.trim() && (
-          <Text style={s.p}>
+          <P>
             <Text style={s.b}>PARÁGRAFO SEGUNDO. </Text>
             {m.paragrafoAdministracion.trim()}
-          </Text>
+          </P>
         )}
 
         <Clausula titulo="CUARTA. - TÉRMINO DE DURACIÓN DEL ARRENDAMIENTO.">
@@ -107,10 +107,10 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           anticipación no menor a treinta (30) días para el cumplimiento del plazo inicial o de alguna de sus prorrogas su intención de no prorrogarlo a su
           vencimiento, sin que en tal evento deba mediar indemnización alguna.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           <Text style={s.b}>PARÁGRAFO: </Text>
           {servicios}
-        </Text>
+        </P>
 
         <Text style={[s.p, s.b]}>QUINTA. - OBLIGACIONES DE LAS PARTES:</Text>
         <Text style={s.sub}>Serán obligaciones de EL ARRENDADOR:</Text>
@@ -138,7 +138,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           implemento adicional que este instale en las puertas o ventanas interiores o exteriores del inmueble siempre y cuando su retiro no genere
           detrimento al inmueble.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           <Text style={s.b}>PARÁGRAFO. EL ARRENDATARIO</Text> se obliga expresamente a notificar por escrito y en tiempo a{" "}
           <Text style={s.b}>EL ARRENDADOR</Text> acerca de las novedades que presente el inmueble y que requieran de las reparaciones necesarias a las que
           está obligado a realizar, no obstante, pasados quince (15) días calendario posteriores a la notificación sin que{" "}
@@ -146,7 +146,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           <Text style={s.b}>EL ARRENDATARIO</Text> iniciar tales reparaciones en los términos del artículo 1993 del código civil, razón por la cual, podrá
           descontar de las sumas adeudadas por concepto de canon de arrendamiento el costo de tales reparaciones, situación que las partes manifiestan conocer
           y aceptar con la suscripción del presente contrato.
-        </Text>
+        </P>
 
         <Clausula titulo="NOVENA. - INSPECCIÓN.">
           <Text style={s.b}>El ARRENDATARIO</Text> permitirá, en cualquier tiempo, las visitas que el <Text style={s.b}>ARRENDADOR</Text> o sus
@@ -160,12 +160,12 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           <Text style={s.b}>El ARRENDADOR</Text> se compromete a entregar el inmueble objeto de arriendo con los servicios de agua y energía eléctrica
           debidamente legalizados y al día cuyos pagos deberá asumir el ARRENDATARIO a partir de la entrega y recibo del inmueble.
         </Clausula>
-        <Text style={s.p}>
+        <P>
           El pago de los servicios públicos de energía eléctrica, acueducto, alcantarillado, etc., serán asumidos por <Text style={s.b}>EL ARRENDATARIO</Text>{" "}
           desde el momento en que reciba el inmueble, hasta el día en que lo entregue y restituya formalmente a <Text style={s.b}>EL ARRENDADOR.</Text>{" "}
           <Text style={s.b}>EL ARRENDADOR</Text> no será responsable por los perjuicios, retrasos y fallas de la operación logística de EL ARRENDATARIO por
           fallas o deficiente prestación de los servicios públicos.
-        </Text>
+        </P>
 
         <Clausula titulo="DÉCIMA PRIMERA. - CESIÓN DEL CONTRATO.">
           <Text style={s.b}>El ARRENDATARIO</Text> no podrá ceder el presente contrato de arrendamiento, ni subarrendar el inmueble total o parcialmente, sin
@@ -220,9 +220,9 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           </Clausula>
         ))}
 
-        <Text style={s.p}>
+        <P>
           Para constancia de lo anterior, se firma el presente contrato en la ciudad de {blanco(m.ciudadFirma)}, {lugarFecha}.
-        </Text>
+        </P>
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
