@@ -117,5 +117,10 @@ select * from (
   select '20261106000000_import_abandonado_plazo',
          exists (select 1 from pg_proc where proname = 'descartar_import_abandonado'
                  and prosrc like '%2 minutes%')
+  union all
+  select '20261107000000_seguridad_apu',
+         exists (select 1 from pg_policies where tablename = 'item_apu' and policyname = 'item_apu_insert')
+         and not exists (select 1 from pg_policies where tablename = 'apu'
+                         and policyname = 'autenticados leen y modifican apu')
 ) t
 order by 1;

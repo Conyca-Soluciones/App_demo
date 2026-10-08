@@ -837,8 +837,8 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
 - Catálogos (resuelto, `20261005100000_seguridad_catalogos.sql`):
   `maestro_insumos` UPDATE exige `aprobar_insumos`; `mano_obra_categorias` /
   `equipo_categorias` se leen con sesión y se escriben con
-  `aprobar_mano_obra`. Siguen abiertas a cualquier autenticado: `apu`,
-  `item_apu`, `apu_import_revision`, `transporte_precios`.
+  `aprobar_mano_obra`. `apu`, `item_apu`, `apu_import_revision` y
+  `transporte_precios`: ver "Seguridad de APU" (2026-10-08).
 - Ninguna función de `public` es ejecutable sin sesión
   (`20261005200000_funciones_sin_anon.sql`); las nuevas tampoco (default
   privileges). `test_fase1_compras` (prueba que inserta datos) sin permiso
@@ -947,11 +947,10 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `resumen_ejecucion_proyecto` y `registrar_salida_almacen` (SECURITY
   DEFINER) no revisaban acceso al proyecto. Envoltura con el nombre de
   siempre + original renombrada con "_" (sin EXECUTE para usuarios).
-- **Abierto**: `apu`, `item_apu`, `apu_import_revision` y
-  `transporte_precios` aceptan escritura de cualquier usuario con sesión
-  (cualquiera puede cambiar o borrar líneas de un APU por la API, y eso
-  mueve los topes de requisiciones). `crearNuevaVersion` no es
-  transaccional (si falla a mitad deja una versión vacía y APUs huérfanos).
+- **Resuelto (2026-10-08)**: escribir en `apu`, `item_apu`,
+  `apu_import_revision` y `transporte_precios` exige `editar_presupuestos`
+  (ver "Seguridad de APU"). `crearNuevaVersion` no es transaccional (si falla
+  a mitad deja una versión vacía y APUs huérfanos).
 
 ## Unidades: presentación de insumos y conversión (2026-10-05)
 
@@ -1152,6 +1151,26 @@ líneas de APU): el import completo tarda ~5,5 min (tandas de 40, ~8 s c/u).
   (estado y botones); antes esperaba la recarga completa (~3 s) y seguía
   diciendo "Pendiente".
 
+## Seguridad de APU (2026-10-08)
+
+`20261107000000_seguridad_apu.sql` (opción A, decisión del usuario). Antes
+`apu`, `item_apu`, `apu_import_revision` y `transporte_precios` tenían una sola
+política: cualquier usuario con sesión leía y MODIFICABA todo, de cualquier
+proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones).
+- **Leer**: igual, cualquier usuario con sesión (APU recomendados e import leen
+  APU de otros proyectos).
+- **Crear / modificar / borrar**: `tiene_accion(uid, 'editar_presupuestos')`
+  (hoy: Área Técnica, Líder Técnico, Administrador).
+- **`item_apu` insert/update** también con `aprobar_insumos`:
+  `aprobarSolicitudInsumo` ajusta la unidad de las líneas del import y agrega la
+  línea del insumo nuevo en el flujo manual.
+- No pasan por estas políticas los disparadores y funciones SECURITY DEFINER
+  (aprobar MO/equipo, `borrar_solicitud_resuelta`, `descartar_import_abandonado`,
+  `eliminar_apu_huerfano`). `recalcular_valor_apu(s)` no escriben en estas tablas.
+- Una server action nueva que escriba en estas tablas desde otro rol necesita
+  que ese rol tenga `editar_presupuestos`, o pasar por una función SECURITY DEFINER.
+- **Pendiente (opción B)**: restringir por proyecto.
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)
@@ -1177,9 +1196,8 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   memoria); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
   presentaciones e inserts de insumo/equipo/herramienta van en serie;
   `page.tsx` espera `refrescarEstadosApu` antes de la tanda siguiente.
-- **Decisiones del usuario**: seguridad de `apu`/`item_apu`/
-  `apu_import_revision`/`transporte_precios` (hoy cualquier sesión escribe);
-  quién pone el precio al aprobar un insumo; ampliación de cupo.
+- **Decisiones del usuario**: quién pone el precio al aprobar un insumo;
+  ampliación de cupo. (Seguridad de APU: opción A hecha el 2026-10-08.)
 - **Datos**: Guadua 6 m (código 5473) sigue a $1.000 (está en la requisición
   27 y en una OC, no se pudo borrar); 25 ítems nivel ≥ 3 sin APU (valen $0);
   4 pares de duplicados en el maestro (3104/4134, 4561/4564, 2367/3899,
@@ -1189,9 +1207,8 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   (separar la de editar en insert/update/delete).
 - Import y "Crear versión nueva" no son todo-o-nada (ver más abajo).
 
-- **Seguridad APU** (auditoría 2026-10-02): `apu`, `item_apu`,
-  `apu_import_revision` y `transporte_precios` aceptan escritura de cualquier
-  usuario con sesión. Propuesta: exigir `editar_presupuestos` para escribir.
+- **Seguridad APU**: opción A hecha (2026-10-08, ver "Seguridad de APU").
+  Falta la B: restringir lectura y escritura por proyecto.
 - **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
   mitad, deja una versión vacía y APUs huérfanos).
 - **Resuelto en `20261024000000_requisiciones_y_almacen_por_proyecto.sql`
@@ -1460,11 +1477,9 @@ Reemplaza el esquema de banderas en `perfiles` + grupos. Un usuario tiene
 - **Acciones**: `editar_presupuestos`, `aprobar_pedidos`, `aprobar_mano_obra`,
   `aprobar_insumos`, `gestionar_almacen` (entradas/salidas),
   `comprar`, `aprobar_oc`, `desaprobar_oc`, `cancelar_oc`.
-- **Pendiente**: siguen abiertas a cualquier usuario con sesión `apu`,
-  `item_apu`, `transporte_precios` y `apu_import_revision` (la restricción por
-  pestaña las oculta de la pantalla pero no de la API). `maestro_insumos` y
-  los catálogos de MO/equipo ya se cerraron (ver "Rendimiento: índices y
-  hallazgos").
+- `apu`, `item_apu`, `transporte_precios` y `apu_import_revision`: escribir
+  exige `editar_presupuestos` (ver "Seguridad de APU"); `maestro_insumos` y
+  los catálogos de MO/equipo ya se cerraron antes.
 
 
 ## Desaprobar y cancelar órdenes de compra (implementado)
