@@ -1,8 +1,22 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, Download, ExternalLink, Loader2, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { useEffect, useState } from "react"
+import { Download, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  CampoMinuta,
+  ChipOrigen,
+  ClausulasAdicionalesEditor,
+  LeyendaOrigen,
+  ListaEditable,
+  ORIGEN,
+  PanelVistaPrevia,
+  Seccion,
+  claseArea,
+  claseCampo,
+  descargarPdfMinuta,
+  useVistaPreviaMinuta,
+} from "@/components/minuta-comun"
 import { leerNumero, pesos } from "@/lib/contratos"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import {
@@ -19,7 +33,6 @@ import {
   obligacionCorreccion,
   totalItemsMinuta,
   valorEnLetras,
-  type ClausulaAdicional,
   type ItemAnexoMinuta,
   type MinutaManoObra,
 } from "@/lib/minuta-mano-obra"
@@ -34,82 +47,10 @@ import { guardarMinutaContrato, obtenerMinutaContrato, type MinutaContrato } fro
 // components/minuta-mano-obra-pdf.tsx.
 // ---------------------------------------------------------------------------
 
-const claseCampo =
-  "h-9 w-full min-w-0 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
-const claseArea =
-  "w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
-
 const formatoValor = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 
 type CampoTexto = { [K in keyof MinutaManoObra]: MinutaManoObra[K] extends string ? K : never }[keyof MinutaManoObra]
 type CampoLista = "obligacionesContratante" | "obligacionesContratista" | "requisitosPago"
-
-// Origen de cada dato: plantilla (texto de la GJ-F-003), solicitud (datos de
-// la solicitud, el contratista o el proyecto) o falta (rojo). Lo escrito o
-// cambiado a mano queda sin color.
-const ORIGEN: Record<OrigenDato, { etiqueta: string; chip: string; borde: string; ayuda: string }> = {
-  plantilla: {
-    etiqueta: "Plantilla",
-    chip: "bg-slate-100 text-slate-700 ring-slate-300",
-    borde: "border-l-4 border-l-slate-400",
-    ayuda: "Texto que trae la plantilla GJ-F-003.",
-  },
-  solicitud: {
-    etiqueta: "Solicitud",
-    chip: "bg-sky-100 text-sky-800 ring-sky-300",
-    borde: "border-l-4 border-l-sky-500",
-    ayuda: "Dato de la solicitud, el contratista o el proyecto.",
-  },
-  editado: {
-    etiqueta: "Editado",
-    chip: "",
-    borde: "",
-    ayuda: "Escrito o cambiado a mano en la minuta (sin color).",
-  },
-  vacio: {
-    etiqueta: "Falta",
-    chip: "bg-red-100 text-red-800 ring-red-300",
-    borde: "border-l-4 border-l-red-500 bg-red-50/40",
-    ayuda: "Falta llenarlo: en el PDF sale como raya.",
-  },
-}
-
-function ChipOrigen({ origen }: { origen: OrigenDato }) {
-  if (origen === "editado") return null
-  const o = ORIGEN[origen]
-  return (
-    <span title={o.ayuda} className={`inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-medium ring-1 ${o.chip}`}>
-      {o.etiqueta}
-    </span>
-  )
-}
-
-function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3 rounded-lg border bg-background p-4">
-      <div>
-        <h3 className="text-sm font-semibold">{titulo}</h3>
-        {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-async function generarPdf(id: string, minuta: MinutaManoObra, signal?: AbortSignal): Promise<Blob> {
-  const r = await fetch(`/contratos/pre-aprobacion/${id}/minuta`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ minuta }),
-    signal,
-  })
-  const tipo = r.headers.get("Content-Type") ?? ""
-  if (!r.ok || !tipo.includes("application/pdf")) {
-    const cuerpo = tipo.includes("json") ? await r.json().catch(() => null) : null
-    throw new Error(cuerpo?.error ?? "No se pudo generar el PDF.")
-  }
-  return r.blob()
-}
 
 export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: SolicitudContratoDetalle; puedeEditar: boolean }) {
   const [datos, setDatos] = useState<MinutaContrato | null>(null)
@@ -119,8 +60,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
   const [guardando, setGuardando] = useState(false)
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
   const [descargando, setDescargando] = useState(false)
-  const [vista, setVista] = useState<{ url: string | null; cargando: boolean; error: string | null }>({ url: null, cargando: false, error: null })
-  const urlVista = useRef<string | null>(null)
+  const vistaPrevia = useVistaPreviaMinuta(detalle.id, m)
 
   const editable = puedeEditar && detalle.estado !== "rechazada"
   const deshabilitado = !editable || guardando
@@ -138,37 +78,6 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
       cancelado = true
     }
   }, [detalle.id])
-
-  // Vista previa: se vuelve a generar un momento después del último cambio.
-  useEffect(() => {
-    if (!m) return
-    const control = new AbortController()
-    const t = setTimeout(() => {
-      setVista((v) => ({ ...v, cargando: true, error: null }))
-      generarPdf(detalle.id, m, control.signal)
-        .then((blob) => {
-          const url = URL.createObjectURL(blob)
-          if (urlVista.current) URL.revokeObjectURL(urlVista.current)
-          urlVista.current = url
-          setVista({ url, cargando: false, error: null })
-        })
-        .catch((e) => {
-          if (control.signal.aborted) return
-          setVista((v) => ({ ...v, cargando: false, error: e instanceof Error ? e.message : "No se pudo generar la vista previa." }))
-        })
-    }, 900)
-    return () => {
-      clearTimeout(t)
-      control.abort()
-    }
-  }, [m, detalle.id])
-
-  useEffect(
-    () => () => {
-      if (urlVista.current) URL.revokeObjectURL(urlVista.current)
-    },
-    []
-  )
 
   if (error) return <p className="text-sm text-destructive">{error}</p>
   if (!m || !datos) {
@@ -194,111 +103,48 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
   }
 
   function campo(clave: CampoTexto, etiqueta: string, opciones?: { placeholder?: string; tipo?: string; ayuda?: string; ancho?: boolean }) {
-    const idCampo = `minuta-${clave}`
-    const origen = origenCampo(clave, m![clave] as string, datos!.porDefecto)
     return (
-      <div className={`min-w-0 space-y-1 ${opciones?.ancho ? "sm:col-span-2" : ""}`}>
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor={idCampo} className="text-xs font-medium text-muted-foreground">
-            {etiqueta}
-          </label>
-          <ChipOrigen origen={origen} />
-        </div>
-        <input
-          id={idCampo}
-          type={opciones?.tipo ?? "text"}
-          value={m![clave] as string}
-          placeholder={opciones?.placeholder}
-          onChange={(e) => (clave === "valor" ? cambiarValor(e.target.value) : actualizar({ [clave]: e.target.value } as Partial<MinutaManoObra>))}
-          disabled={deshabilitado}
-          className={`${claseCampo} ${ORIGEN[origen].borde}`}
-        />
-        {opciones?.ayuda && <p className="text-xs text-muted-foreground">{opciones.ayuda}</p>}
-      </div>
+      <CampoMinuta
+        id={`minuta-${clave}`}
+        etiqueta={etiqueta}
+        valor={m![clave] as string}
+        origen={origenCampo(clave, m![clave] as string, datos!.porDefecto)}
+        onChange={(v) => (clave === "valor" ? cambiarValor(v) : actualizar({ [clave]: v } as Partial<MinutaManoObra>))}
+        disabled={deshabilitado}
+        {...opciones}
+      />
     )
   }
 
   function area(clave: CampoTexto, etiqueta: string, filas = 3, ayuda?: string) {
-    const idCampo = `minuta-${clave}`
-    const origen = origenCampo(clave, m![clave] as string, datos!.porDefecto)
     return (
-      <div className="min-w-0 space-y-1 sm:col-span-2">
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor={idCampo} className="text-xs font-medium text-muted-foreground">
-            {etiqueta}
-          </label>
-          <ChipOrigen origen={origen} />
-        </div>
-        <textarea
-          id={idCampo}
-          rows={filas}
-          value={m![clave] as string}
-          onChange={(e) => actualizar({ [clave]: e.target.value } as Partial<MinutaManoObra>)}
-          disabled={deshabilitado}
-          className={`${claseArea} ${ORIGEN[origen].borde}`}
-        />
-        {ayuda && <p className="text-xs text-muted-foreground">{ayuda}</p>}
-      </div>
+      <CampoMinuta
+        id={`minuta-${clave}`}
+        etiqueta={etiqueta}
+        valor={m![clave] as string}
+        origen={origenCampo(clave, m![clave] as string, datos!.porDefecto)}
+        onChange={(v) => actualizar({ [clave]: v } as Partial<MinutaManoObra>)}
+        disabled={deshabilitado}
+        filas={filas}
+        ayuda={ayuda}
+      />
     )
   }
 
   function lista(clave: CampoLista, marcador: (i: number) => string, textoAgregar: string) {
-    const items = m![clave]
     const plantilla =
       clave === "obligacionesContratante" ? OBLIGACIONES_CONTRATANTE : clave === "obligacionesContratista" ? OBLIGACIONES_CONTRATISTA : REQUISITOS_PAGO
     const deSolicitud = clave === "obligacionesContratista" ? detalle.obligaciones : []
-    const mover = (i: number, d: -1 | 1) => {
-      const copia = [...items]
-      ;[copia[i], copia[i + d]] = [copia[i + d], copia[i]]
-      actualizar({ [clave]: copia } as Partial<MinutaManoObra>)
-    }
     return (
-      <div className="space-y-2">
-        {items.map((t, i) => {
-          const origen = origenRenglon(t, plantilla, deSolicitud)
-          return (
-          <div key={i} className="flex items-start gap-2">
-            <div className="flex w-16 shrink-0 flex-col items-end gap-1 pt-1.5">
-              <span className="text-xs text-muted-foreground tabular-nums">{marcador(i)}</span>
-              <ChipOrigen origen={origen} />
-            </div>
-            <textarea
-              rows={2}
-              value={t}
-              aria-label={`${textoAgregar} ${i + 1}`}
-              onChange={(e) => actualizar({ [clave]: items.map((x, j) => (j === i ? e.target.value : x)) } as Partial<MinutaManoObra>)}
-              disabled={deshabilitado}
-              className={`${claseArea} flex-1 ${ORIGEN[origen].borde}`}
-            />
-            {editable && (
-              <div className="flex flex-col">
-                <Button type="button" size="icon-sm" variant="ghost" aria-label="Subir" disabled={guardando || i === 0} onClick={() => mover(i, -1)}>
-                  <ArrowUp className="size-3.5" />
-                </Button>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label="Bajar" disabled={guardando || i === items.length - 1} onClick={() => mover(i, 1)}>
-                  <ArrowDown className="size-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Quitar"
-                  disabled={guardando}
-                  onClick={() => actualizar({ [clave]: items.filter((_, j) => j !== i) } as Partial<MinutaManoObra>)}
-                >
-                  <Trash2 className="size-3.5 text-destructive" />
-                </Button>
-              </div>
-            )}
-          </div>
-          )
-        })}
-        {editable && (
-          <Button type="button" size="sm" variant="outline" disabled={guardando} onClick={() => actualizar({ [clave]: [...items, ""] } as Partial<MinutaManoObra>)}>
-            <Plus className="size-4" /> {textoAgregar}
-          </Button>
-        )}
-      </div>
+      <ListaEditable
+        items={m![clave]}
+        onChange={(items) => actualizar({ [clave]: items } as Partial<MinutaManoObra>)}
+        marcador={marcador}
+        origen={(t) => origenRenglon(t, plantilla, deSolicitud)}
+        textoAgregar={textoAgregar}
+        editable={editable}
+        guardando={guardando}
+      />
     )
   }
 
@@ -326,15 +172,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
     if (!m) return
     setDescargando(true)
     try {
-      const blob = await generarPdf(detalle.id, m)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = nombreArchivoMinuta(detalle.numero, m.contratistaNombre)
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      await descargarPdfMinuta(detalle.id, m, nombreArchivoMinuta(detalle.numero, m.contratistaNombre))
     } catch (e) {
       setAviso({ ok: false, texto: e instanceof Error ? e.message : "No se pudo generar el PDF." })
     } finally {
@@ -387,14 +225,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
           )}
         </div>
         {aviso && <p className={`text-sm ${aviso.ok ? "text-emerald-700" : "text-destructive"}`}>{aviso.texto}</p>}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Origen de cada dato:</span>
-          {(["plantilla", "solicitud", "vacio"] as OrigenDato[]).map((o) => (
-            <span key={o} className="flex items-center gap-1">
-              <ChipOrigen origen={o} /> {ORIGEN[o].ayuda}
-            </span>
-          ))}
-        </div>
+        <LeyendaOrigen />
 
         <Seccion titulo="Lugar y fecha de firma">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -541,63 +372,13 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
             </ol>
           </details>
 
-          <div className="space-y-3">
-            <p className="text-xs font-medium text-muted-foreground">Cláusulas adicionales (van después de la décima octava)</p>
-            {m.clausulasAdicionales.length === 0 && <p className="text-xs text-muted-foreground">No hay cláusulas adicionales.</p>}
-            {m.clausulasAdicionales.map((c, i) => {
-              const cambiarClausula = (cambio: Partial<ClausulaAdicional>) =>
-                actualizar({ clausulasAdicionales: m.clausulasAdicionales.map((x, j) => (j === i ? { ...x, ...cambio } : x)) })
-              const vacia = !c.titulo.trim() || !c.texto.trim()
-              return (
-                <div key={i} className={`space-y-2 rounded-md border p-3 ${ORIGEN[vacia ? "vacio" : "editado"].borde}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="shrink-0 text-xs font-semibold">{ordinalClausula(CLAUSULAS_PLANTILLA.length + 1 + i)}.</span>
-                    <input
-                      aria-label={`Título de la cláusula adicional ${i + 1}`}
-                      value={c.titulo}
-                      onChange={(e) => cambiarClausula({ titulo: e.target.value })}
-                      placeholder="Título, p. ej. Seguridad y salud en el trabajo"
-                      disabled={deshabilitado}
-                      className={claseCampo}
-                    />
-                    <ChipOrigen origen={vacia ? "vacio" : "editado"} />
-                    {editable && (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="Quitar cláusula"
-                        disabled={guardando}
-                        onClick={() => actualizar({ clausulasAdicionales: m.clausulasAdicionales.filter((_, j) => j !== i) })}
-                      >
-                        <Trash2 className="size-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                  <textarea
-                    rows={3}
-                    aria-label={`Texto de la cláusula adicional ${i + 1}`}
-                    value={c.texto}
-                    onChange={(e) => cambiarClausula({ texto: e.target.value })}
-                    placeholder="Texto de la cláusula"
-                    disabled={deshabilitado}
-                    className={claseArea}
-                  />
-                </div>
-              )
-            })}
-            {editable && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={guardando}
-                onClick={() => actualizar({ clausulasAdicionales: [...m.clausulasAdicionales, { titulo: "", texto: "" }] })}
-              >
-                <Plus className="size-4" /> Agregar cláusula
-              </Button>
-            )}
-          </div>
+          <ClausulasAdicionalesEditor
+            clausulas={m.clausulasAdicionales}
+            onChange={(clausulasAdicionales) => actualizar({ clausulasAdicionales })}
+            desde={CLAUSULAS_PLANTILLA.length + 1}
+            editable={editable}
+            guardando={guardando}
+          />
         </Seccion>
 
         <Seccion titulo="Anexo N° 1 · Actividades, cantidades y valores">
@@ -714,35 +495,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
       </div>
 
       {/* ---------------- vista previa ---------------- */}
-      <div className="min-w-0">
-        <div className="sticky top-0 flex h-[70svh] flex-col overflow-hidden rounded-lg border bg-muted/30 lg:h-[calc(94svh-9rem)]">
-          <div className="flex items-center gap-2 border-b bg-background px-3 py-2 text-xs">
-            <span className="flex-1 font-medium">Vista previa del PDF</span>
-            {vista.cargando && (
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Loader2 className="size-3.5 animate-spin" /> Actualizando...
-              </span>
-            )}
-            {vista.url && (
-              <a href={vista.url} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "ghost" })}>
-                <ExternalLink className="size-4" /> Abrir
-              </a>
-            )}
-            <Button size="sm" variant="ghost" aria-label="Actualizar vista previa" onClick={() => setM((x) => (x ? { ...x } : x))}>
-              <RefreshCw className="size-4" />
-            </Button>
-          </div>
-          {vista.error ? (
-            <p className="p-4 text-sm text-destructive">{vista.error}</p>
-          ) : vista.url ? (
-            <iframe src={vista.url} title="Vista previa de la minuta" className="min-h-0 flex-1 bg-white" />
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              <Loader2 className="mr-2 size-4 animate-spin" /> Generando vista previa...
-            </div>
-          )}
-        </div>
-      </div>
+      <PanelVistaPrevia {...vistaPrevia} />
     </div>
   )
 }

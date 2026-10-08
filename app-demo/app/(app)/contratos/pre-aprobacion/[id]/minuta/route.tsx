@@ -5,6 +5,13 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirPestana } from "@/lib/permisos"
 import { limpiarMinuta, mezclarMinuta, minutaVacia, nombreArchivoMinuta } from "@/lib/minuta-mano-obra"
 import { MinutaManoObraPDF } from "@/components/minuta-mano-obra-pdf"
+import {
+  limpiarMinutaArrendamiento,
+  mezclarMinutaArrendamiento,
+  minutaArrendamientoVacia,
+  nombreArchivoMinutaArrendamiento,
+} from "@/lib/minuta-arrendamiento"
+import { MinutaArrendamientoPDF } from "@/components/minuta-arrendamiento-pdf"
 
 // @react-pdf/renderer usa APIs de Node -- no corre en el edge runtime.
 export const runtime = "nodejs"
@@ -15,6 +22,8 @@ const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 // PDF de la minuta con lo que está en pantalla (POST con la minuta en el
 // cuerpo): así la vista previa y la descarga reflejan cambios aún sin
 // guardar. Quien no tenga la pestaña o no vea el contrato recibe 403/404.
+// La plantilla sale del tipo guardado en la base, no de lo que mande el
+// navegador.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
@@ -24,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const supabase = await createClient()
-  const { data: contrato, error } = await supabase.from("contratos").select("numero").eq("id", id).maybeSingle()
+  const { data: contrato, error } = await supabase.from("contratos").select("numero, tipo").eq("id", id).maybeSingle()
   if (error || !contrato) {
     return NextResponse.json({ error: "La solicitud no existe o no tienes acceso." }, { status: 404 })
   }
@@ -41,14 +50,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch {
     return NextResponse.json({ error: "La minuta no es válida." }, { status: 400 })
   }
-  const minuta = limpiarMinuta(mezclarMinuta(minutaVacia(), (cuerpo as { minuta?: unknown })?.minuta))
+  const datos = (cuerpo as { minuta?: unknown })?.minuta
   const numero = Number(contrato.numero)
 
-  const buffer = await renderToBuffer(<MinutaManoObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
+  let buffer: Buffer
+  let archivo: string
+  if (contrato.tipo === "mano_obra") {
+    const minuta = limpiarMinuta(mezclarMinuta(minutaVacia(), datos))
+    buffer = await renderToBuffer(<MinutaManoObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
+    archivo = nombreArchivoMinuta(numero, minuta.contratistaNombre)
+  } else if (contrato.tipo === "arrendamiento") {
+    const minuta = limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), datos))
+    buffer = await renderToBuffer(<MinutaArrendamientoPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
+    archivo = nombreArchivoMinutaArrendamiento(numero, minuta.arrendadorNombre)
+  } else {
+    return NextResponse.json({ error: "Este tipo de contrato todavía no tiene plantilla de minuta." }, { status: 400 })
+  }
+
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${nombreArchivoMinuta(numero, minuta.contratistaNombre)}"`,
+      "Content-Disposition": `inline; filename="${archivo}"`,
       "Cache-Control": "no-store",
     },
   })

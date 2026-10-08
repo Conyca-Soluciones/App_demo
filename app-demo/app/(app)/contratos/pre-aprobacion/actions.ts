@@ -6,7 +6,14 @@ import { requerirAccion, requerirPestana } from "@/lib/permisos"
 import type { EstadoContrato } from "@/lib/contratos"
 import { SELECT_FILA_CONTRATO, cargarDetalleContrato, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 import { hoyColombia } from "@/lib/fechas"
-import { limpiarMinuta, mezclarMinuta, minutaPorDefecto, type MinutaManoObra } from "@/lib/minuta-mano-obra"
+import { limpiarMinuta, mezclarMinuta, minutaPorDefecto, type DatosExtraMinuta, type MinutaManoObra } from "@/lib/minuta-mano-obra"
+import {
+  limpiarMinutaArrendamiento,
+  mezclarMinutaArrendamiento,
+  minutaArrendamientoPorDefecto,
+  minutaArrendamientoVacia,
+  type MinutaArrendamiento,
+} from "@/lib/minuta-arrendamiento"
 
 // ---------------------------------------------------------------------------
 // Pre-aprobación de contratos: Jurídica revisa las solicitudes de TODOS los
@@ -64,7 +71,16 @@ export type MinutaContrato = {
   guardadaPorNombre: string | null
 }
 
-export async function obtenerMinutaContrato(id: string): Promise<MinutaContrato> {
+export type MinutaContratoArrendamiento = {
+  minuta: MinutaArrendamiento
+  porDefecto: MinutaArrendamiento
+  guardadaAt: string | null
+  guardadaPorNombre: string | null
+}
+
+// Lo que necesita cualquier minuta: la solicitud, los datos del contratista y
+// el proyecto que no vienen en el detalle, y lo que Jurídica ya guardó.
+async function cargarBaseMinuta(id: string) {
   await requerirPestana("contratos.preaprobacion")
   const supabase = await createClient()
   const [detalle, extra, guardada] = await Promise.all([
@@ -90,27 +106,35 @@ export async function obtenerMinutaContrato(id: string): Promise<MinutaContrato>
 
   const x = extra.data as any
   const c = x?.contratista
-  const defecto = minutaPorDefecto(
-    detalle,
-    {
-      proyectoCiudad: x?.proyecto?.ciudad ?? null,
-      empresaNombre: x?.proyecto?.empresa?.razon_social ?? null,
-      empresaNit: x?.proyecto?.empresa?.nit ?? null,
-      contratistaTipoDocumento: c?.tipo_documento ?? null,
-      contratistaNumeroDocumento: c?.numero_documento ?? null,
-      contratistaDv: c?.digito_verificacion ?? null,
-      contratistaRepresentante: c?.representante_nombre ?? null,
-      contratistaRepresentanteDocumento: c?.representante_numero_documento ?? null,
-      contratistaCiudad: c?.ciudad ?? null,
-    },
-    hoyColombia()
-  )
+  const datosExtra: DatosExtraMinuta = {
+    proyectoCiudad: x?.proyecto?.ciudad ?? null,
+    empresaNombre: x?.proyecto?.empresa?.razon_social ?? null,
+    empresaNit: x?.proyecto?.empresa?.nit ?? null,
+    contratistaTipoDocumento: c?.tipo_documento ?? null,
+    contratistaNumeroDocumento: c?.numero_documento ?? null,
+    contratistaDv: c?.digito_verificacion ?? null,
+    contratistaRepresentante: c?.representante_nombre ?? null,
+    contratistaRepresentanteDocumento: c?.representante_numero_documento ?? null,
+    contratistaCiudad: c?.ciudad ?? null,
+  }
   const g = guardada.data as any
   return {
-    minuta: mezclarMinuta(defecto, g?.minuta_datos),
+    detalle,
+    datosExtra,
+    guardadaDatos: g?.minuta_datos as unknown,
+    guardadaAt: (g?.minuta_actualizada_at ?? null) as string | null,
+    guardadaPorNombre: (g?.editor?.nombre ?? null) as string | null,
+  }
+}
+
+export async function obtenerMinutaContrato(id: string): Promise<MinutaContrato> {
+  const base = await cargarBaseMinuta(id)
+  const defecto = minutaPorDefecto(base.detalle, base.datosExtra, hoyColombia())
+  return {
+    minuta: mezclarMinuta(defecto, base.guardadaDatos),
     porDefecto: defecto,
-    guardadaAt: g?.minuta_actualizada_at ?? null,
-    guardadaPorNombre: g?.editor?.nombre ?? null,
+    guardadaAt: base.guardadaAt,
+    guardadaPorNombre: base.guardadaPorNombre,
   }
 }
 
@@ -118,6 +142,30 @@ export async function guardarMinutaContrato(id: string, minuta: MinutaManoObra):
   await requerirAccion("aprobar_contratos")
   const supabase = await createClient()
   const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: limpiarMinuta(minuta) })
+  if (error) throw new Error(error.message)
+  return { guardadaAt: new Date().toISOString() }
+}
+
+// ---------------------------------------------------------------- minuta de arrendamiento
+// Misma columna (contratos.minuta_datos) y misma función de la base; cambia la
+// plantilla (lib/minuta-arrendamiento.ts).
+
+export async function obtenerMinutaArrendamiento(id: string): Promise<MinutaContratoArrendamiento> {
+  const base = await cargarBaseMinuta(id)
+  const defecto = minutaArrendamientoPorDefecto(base.detalle, base.datosExtra, hoyColombia())
+  return {
+    minuta: mezclarMinutaArrendamiento(defecto, base.guardadaDatos),
+    porDefecto: defecto,
+    guardadaAt: base.guardadaAt,
+    guardadaPorNombre: base.guardadaPorNombre,
+  }
+}
+
+export async function guardarMinutaArrendamiento(id: string, minuta: MinutaArrendamiento): Promise<{ guardadaAt: string }> {
+  await requerirAccion("aprobar_contratos")
+  const supabase = await createClient()
+  const datos = limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), minuta))
+  const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: datos })
   if (error) throw new Error(error.message)
   return { guardadaAt: new Date().toISOString() }
 }

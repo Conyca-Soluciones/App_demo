@@ -28,7 +28,8 @@ Font.registerHyphenationCallback((palabra) => [palabra])
 const AZUL = "#3B6EA5"
 const BORDE = "#9AA4AE"
 
-const s = StyleSheet.create({
+// Estilos y piezas compartidas con las demás minutas (arrendamiento...).
+export const s = StyleSheet.create({
   page: { paddingTop: 108, paddingBottom: 56, paddingHorizontal: 72, fontSize: 10.5, fontFamily: "Helvetica", lineHeight: 1.35, color: "#111" },
   header: { position: "absolute", top: 28, left: 72, right: 72, flexDirection: "row", borderWidth: 1, borderColor: BORDE },
   headerLogo: { width: 130, padding: 6, justifyContent: "center", alignItems: "center", borderRightWidth: 1, borderColor: BORDE },
@@ -59,7 +60,8 @@ const s = StyleSheet.create({
   controlTitulo: { fontFamily: "Helvetica-Bold", fontSize: 9, textAlign: "center", marginBottom: 2 },
 })
 
-function Encabezado({ logo }: { logo: string | Buffer }) {
+export function Encabezado(props: { logo: string | Buffer; formato: string; codigo: string; version: string; fecha: string }) {
+  const { logo, formato, codigo, version, fecha } = props
   return (
     <View style={s.header} fixed>
       <View style={s.headerLogo}>
@@ -68,18 +70,18 @@ function Encabezado({ logo }: { logo: string | Buffer }) {
       </View>
       <View style={s.headerTitulo}>
         <Text style={s.headerTituloTexto}>SISTEMA INTEGRADO DE GESTIÓN</Text>
-        <Text style={s.headerTituloTexto}>FORMATO CONTRATO DE MANO DE OBRA</Text>
+        <Text style={s.headerTituloTexto}>{formato}</Text>
       </View>
       <View style={s.headerDatos}>
-        <Text style={s.headerDato}>GJ-F-003</Text>
-        <Text style={[s.headerDato, s.headerDatoBorde]}>Versión 01</Text>
-        <Text style={[s.headerDato, s.headerDatoBorde]}>Fecha: 19/01/2023</Text>
+        <Text style={s.headerDato}>{codigo}</Text>
+        <Text style={[s.headerDato, s.headerDatoBorde]}>Versión {version}</Text>
+        <Text style={[s.headerDato, s.headerDatoBorde]}>Fecha: {fecha}</Text>
       </View>
     </View>
   )
 }
 
-function Lista({ items, marcador }: { items: string[]; marcador: (i: number) => string }) {
+export function Lista({ items, marcador }: { items: string[]; marcador: (i: number) => string }) {
   return (
     <View style={{ marginBottom: 8 }}>
       {items.map((t, i) => (
@@ -92,7 +94,7 @@ function Lista({ items, marcador }: { items: string[]; marcador: (i: number) => 
   )
 }
 
-function Clausula({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+export function Clausula({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <Text style={s.p}>
       <Text style={s.b}>{titulo} </Text>
@@ -100,6 +102,8 @@ function Clausula({ titulo, children }: { titulo: string; children: React.ReactN
     </Text>
   )
 }
+
+const ENCABEZADO = { formato: "FORMATO CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "01", fecha: "19/01/2023" }
 
 export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaManoObra; numero: number; logo: string | Buffer }) {
   const fecha = partesFecha(m.fechaFirma)
@@ -122,7 +126,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
   return (
     <Document title={`Contrato de mano de obra N° ${numero}`} author={m.contratanteNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} />
+        <Encabezado logo={logo} {...ENCABEZADO} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de mano de obra N° ${numero} · Página ${pageNumber} de ${totalPages}`} />
 
         <Text style={s.titulo}>CONTRATO DE MANO DE OBRA N° {numero}</Text>
@@ -330,7 +334,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
       </Page>
 
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} />
+        <Encabezado logo={logo} {...ENCABEZADO} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de mano de obra N° ${numero} · Página ${pageNumber} de ${totalPages}`} />
         <Text style={s.titulo}>ANEXO N° 1 — ACTIVIDADES, CANTIDADES Y VALORES</Text>
         <Text style={s.p}>

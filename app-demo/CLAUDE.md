@@ -1849,8 +1849,27 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   contratista o proyecto), Falta (rojo); lo editado a mano queda sin color. Tiene vencimiento (sale en
   la tercera) y cláusulas adicionales (`clausulasAdicionales`, numeradas
   después de la décima octava con `ordinalClausula`).
+- **Minuta de arrendamiento** (2026-10-08, plantilla GJ-F-014): mismo
+  funcionamiento, en `lib/minuta-arrendamiento.ts`,
+  `components/minuta-arrendamiento-editor.tsx` y
+  `components/minuta-arrendamiento-pdf.tsx`. Las partes van AL REVÉS que en
+  mano de obra: el contratista es el ARRENDADOR (propietario) y la empresa del
+  proyecto el ARRENDATARIO. Canon = `valor_mensual` de la solicitud; término y
+  fecha de inicio salen del plazo; las obligaciones específicas se suman a las
+  del arrendador. IVA (más / incluido) y servicios públicos (los paga el
+  arrendatario / incluidos en el canon) son selectores; el parágrafo de
+  propiedad horizontal es editable. Número: "Nº CJ-<numero> DE <año de firma>".
+  La ruta del PDF elige la plantilla por `contratos.tipo` (de la base, no del
+  navegador); misma columna `minuta_datos` y misma `guardar_minuta_contrato`
+  (sin migración). Las piezas de UI comunes a las dos minutas (origen de cada
+  dato, listas, cláusulas adicionales, vista previa) están en
+  `components/minuta-comun.tsx`; el encabezado y los estilos del PDF se
+  exportan de `minuta-mano-obra-pdf.tsx`. Para otra plantilla: un `lib/`, un
+  editor y un PDF nuevos, y una rama más en la ruta y en
+  `preaprobacion-contratos-view.tsx`.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos) y las plantillas de los demás tipos.
+  contratos) y las plantillas de obra, alquiler de vehículo, prestación de
+  servicios y suministro e instalación.
 
 ---
 

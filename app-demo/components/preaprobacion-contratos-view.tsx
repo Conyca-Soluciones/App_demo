@@ -11,6 +11,7 @@ import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { MinutaManoObraEditor } from "@/components/minuta-mano-obra-editor"
+import { MinutaArrendamientoEditor } from "@/components/minuta-arrendamiento-editor"
 import {
   CLASE_ESTADO_CONTRATO,
   ETIQUETA_ESTADO_CONTRATO,
@@ -233,9 +234,11 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
         minuta={(d) =>
           d.tipo === "mano_obra" ? (
             <MinutaManoObraEditor detalle={d} puedeEditar={puedeResolver} />
+          ) : d.tipo === "arrendamiento" ? (
+            <MinutaArrendamientoEditor detalle={d} puedeEditar={puedeResolver} />
           ) : (
             <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Por ahora solo está la plantilla de la minuta de mano de obra (GJ-F-003). Las de {tituloTipoContrato(d.tipo).toLowerCase()} se agregan
+              Por ahora están las plantillas de mano de obra (GJ-F-003) y arrendamiento (GJ-F-014). Las de {tituloTipoContrato(d.tipo).toLowerCase()} se agregan
               cuando Jurídica las entregue.
             </p>
           )
