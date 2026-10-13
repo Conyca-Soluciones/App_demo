@@ -18,6 +18,8 @@ import { limpiarMinutaVehiculo, mezclarMinutaVehiculo, minutaVehiculoVacia, nomb
 import { MinutaVehiculoPDF } from "@/components/minuta-vehiculo-pdf"
 import { limpiarMinutaServicios, mezclarMinutaServicios, minutaServiciosVacia, nombreArchivoMinutaServicios } from "@/lib/minuta-servicios"
 import { MinutaServiciosPDF } from "@/components/minuta-servicios-pdf"
+import { limpiarMinutaObra, mezclarMinutaObra, minutaObraVacia, nombreArchivoMinutaObra } from "@/lib/minuta-obra"
+import { MinutaObraPDF } from "@/components/minuta-obra-pdf"
 
 // @react-pdf/renderer usa APIs de Node -- no corre en el edge runtime.
 export const runtime = "nodejs"
@@ -81,6 +83,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const minuta = limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), datos))
     buffer = await renderToBuffer(<MinutaServiciosPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
     archivo = nombreArchivoMinutaServicios(numero, minuta.contratistaNombre)
+  } else if (contrato.tipo === "obra") {
+    const minuta = limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), datos))
+    buffer = await renderToBuffer(<MinutaObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} />)
+    archivo = nombreArchivoMinutaObra(numero, minuta.contratistaNombre)
   } else {
     return NextResponse.json({ error: "Este tipo de contrato todavía no tiene plantilla de minuta." }, { status: 400 })
   }

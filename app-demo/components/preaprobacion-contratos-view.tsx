@@ -15,6 +15,7 @@ import { MinutaArrendamientoEditor } from "@/components/minuta-arrendamiento-edi
 import { MinutaSuministroEditor } from "@/components/minuta-suministro-editor"
 import { MinutaVehiculoEditor } from "@/components/minuta-vehiculo-editor"
 import { MinutaServiciosEditor } from "@/components/minuta-servicios-editor"
+import { MinutaObraEditor } from "@/components/minuta-obra-editor"
 import {
   CLASE_ESTADO_CONTRATO,
   ETIQUETA_ESTADO_CONTRATO,
@@ -245,10 +246,11 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
             <MinutaVehiculoEditor detalle={d} puedeEditar={puedeResolver} />
           ) : d.tipo === "prestacion_servicios" ? (
             <MinutaServiciosEditor detalle={d} puedeEditar={puedeResolver} />
+          ) : d.tipo === "obra" ? (
+            <MinutaObraEditor detalle={d} puedeEditar={puedeResolver} />
           ) : (
             <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Por ahora están las plantillas de mano de obra (GJ-F-003), arrendamiento (GJ-F-014), suministro (GJ-F-012), alquiler de vehículo o maquinaria y prestación de servicios (GJ-F-020). Las de {tituloTipoContrato(d.tipo).toLowerCase()} se agregan
-              cuando Jurídica las entregue.
+              El tipo {tituloTipoContrato(d.tipo).toLowerCase()} todavía no tiene plantilla de minuta.
             </p>
           )
         }

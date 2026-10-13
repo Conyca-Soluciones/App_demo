@@ -1905,8 +1905,20 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   plantilla deja en blanco) = obligaciones de la solicitud + sus entregables
   ("Entregar: …"). "Los pagos se realizarán de manera …" = valor mensual,
   anticipo y forma de pago de la solicitud.
+- **Minuta de obra** (2026-10-13, plantilla "CONTRATO DE OBRA TC" versión 04,
+  a todo costo; encabezado con código GJ-F-003): `lib/minuta-obra.ts`,
+  `components/minuta-obra-{editor,pdf}.tsx`, tipo `obra`. Anexo N° 1 con los
+  ítems de la solicitud (`TablaItemsMinuta`, página aparte en el PDF);
+  anticipo = %, monto, letras y amortización (cambiar el % recalcula el
+  monto; vacío = la cuarta dice que no hay anticipo); garantía obligatoria
+  con tabla de amparos; retención en garantía (parágrafo tercero de la
+  quinta). Obligaciones específicas: las 17 de la plantilla (que salta los
+  números 3, 8 y 17; aquí van seguidas) + las de la solicitud y sus
+  entregables. Domicilio por defecto "Arauca" (venía fijo en la plantilla).
+- **Las 6 plantillas están hechas**; la rama final de
+  `preaprobacion-contratos-view.tsx` solo aplica a un tipo nuevo.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos) y la plantilla de obra.
+  contratos).
 
 ---
 
