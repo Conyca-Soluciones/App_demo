@@ -1935,7 +1935,9 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   (descomprime el contenido de cada página; en párrafos justificados la marca
   sale partida en `[<7e> -289 <7e> …] TJ`) y calcula la altura siguiendo
   q/Q/cm/Tm. La ruta lo devuelve en `X-Minuta-Pagina` / `X-Minuta-Altura` y el
-  visor del navegador abre con `#page=N&view=FitH,Y` (el fragmento tiene que
+  visor del navegador abre con `#page=N&view=Fit`, la página completa (la
+  altura no se usa: con `view=FitH,Y` el visor se acercaba siempre igual).
+  El fragmento tiene que
   ir en la URL nueva del blob; cambiar solo el `#` no mueve el visor). La
   descarga no manda foco. Si el dato sale varias veces, abre en la primera.
   `unirTexto` además aplana un `<Text>` con otros `<Text>` adentro: @react-pdf
