@@ -1653,8 +1653,14 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   existía quedó agrupado sin tocar sus líneas). Las **líneas** siguen siendo las
   filas de `pedidos_insumos` (una por insumo + ítem): de ahí salen el cupo del
   presupuesto, las órdenes de compra, el inventario y la visualización.
-- El **estado no se guarda**: la vista `requisiciones_vista` lo deriva de las
-  líneas. `estado` = pendiente | aprobada | rechazada | cancelada;
+- El **estado se guarda** en `requisiciones` (`n_lineas`, `estado`,
+  `estado_compra`) desde `20261108100000_estado_requisiciones_guardado.sql`: lo
+  mantienen triggers por sentencia sobre `pedidos_insumos`,
+  `ordenes_compra_items` y `ordenes_compra` (cambio de estado), que llaman a
+  `_recalcular_estado_requisiciones`; la regla vive en `_estado_requisiciones`.
+  `requisiciones_vista` solo lee esas columnas. Si se agrega otra cosa que cambie
+  el estado de una requisición, tiene que pasar por esas tablas o llamar a
+  `_recalcular_estado_requisiciones`. `estado` = pendiente | aprobada | rechazada | cancelada;
   `estado_compra` (solo aprobadas) = completa (todas sus líneas ya en órdenes de
   compra vigentes) | pendiente | rechazada_compras.
 - **Cupo**: sin cambios. Cada línea cuenta como comprometida mientras esté
@@ -1987,12 +1993,15 @@ notificaciones · `20261007100000` quitar duplicadas · `20261008000000`
 requisiciones · `20261009000000` quitar enviada · `20261010000000` entradas por
 orden · `20261010100000` rendimiento (Sofia) · `20261011000000` revisión de
 seguridad/rendimiento · `20261012000000` lista de entradas en SQL.
+Después: `20261108000000` cupo una vez por fila en la búsqueda de insumos de
+la requisición · `20261108100000` estado de requisiciones guardado.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
 ## Pendientes conocidos (no hechos)
-- El estado de compra de las requisiciones se calcula con una función por línea;
-  con mucho volumen conviene guardarlo o calcularlo solo para la página.
+- Compras → requisiciones: el filtro "Solo pendientes por comprar" se aplica en
+  JS después de traer todo el histórico del proyecto; con
+  `requisiciones.estado_compra` guardado se puede filtrar en la base.
 - Funciones por línea antiguas siguen en la base sin uso: `cancelar_pedido`,
   `modificar_pedido`, `desaprobar_pedido` (decisión: dejarlas por ahora).
 - La matriz de Roles y permisos no agrupa por módulo todavía.
