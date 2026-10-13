@@ -975,7 +975,9 @@ export type NotificacionTipo =
   | "contrato_aprobado"
   | "contrato_devuelto"
   | "contrato_rechazado"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato"
+  | "acta_aprobada"
+  | "acta_rechazada"
+export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta"
 
 export type Notificacion = {
   id: string

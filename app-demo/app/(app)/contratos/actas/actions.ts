@@ -133,6 +133,8 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
     resueltoAt: d.resuelto_at ?? null,
     resueltoPorNombre: d.resuelto_por_nombre ?? null,
     motivoResolucion: d.motivo_resolucion ?? null,
+    editadaAt: d.editada_at ?? null,
+    editadaPorNombre: d.editada_por_nombre ?? null,
     contratoId: d.contrato_id,
     numeroContrato: d.numero_contrato,
     contratoValor: Number(d.contrato_valor),
@@ -140,11 +142,14 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
     tipo: d.tipo,
     proyectoCodigo: d.proyecto_codigo,
     proyectoNombre: d.proyecto_nombre,
+    contratistaId: d.contratista_id,
     contratistaNombre: d.contratista_nombre,
     contratistaDocumento: d.contratista_documento,
     otrasActas: Number(d.otras_actas),
     lineas: (d.lineas ?? []).map((l: any) => ({
       orden: Number(l.orden),
+      presupuestoItemId: l.presupuesto_item_id ?? null,
+      itemApuId: l.item_apu_id ?? null,
       itemCodigo: l.item_codigo ?? null,
       itemDescripcion: l.item_descripcion ?? null,
       insumoCodigo: l.insumo_codigo ?? null,
@@ -168,6 +173,25 @@ export async function guardarActa(contratoId: string, lineas: LineaActaForm[]): 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("crear_acta", {
     p_contrato_id: contratoId,
+    p_lineas: r.lineas.map((l) => ({
+      presupuesto_item_id: l.presupuestoItemId,
+      item_apu_id: l.itemApuId,
+      cantidad: l.cantidad,
+    })),
+  })
+  if (error) throw new Error(error.message)
+  return { id: data.id, numero: Number(data.numero) }
+}
+
+// Corrige un acta que no está aprobada: reemplaza sus líneas y vuelve a
+// "por aprobar" con el mismo número (editar_acta revisa estado y cupo).
+export async function editarActa(actaId: string, lineas: LineaActaForm[]): Promise<{ id: string; numero: number }> {
+  await requerirAccion("elaborar_actas")
+  const r = validarActa(lineas)
+  if (!r.ok) throw new Error(r.error)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("editar_acta", {
+    p_acta_id: actaId,
     p_lineas: r.lineas.map((l) => ({
       presupuesto_item_id: l.presupuestoItemId,
       item_apu_id: l.itemApuId,

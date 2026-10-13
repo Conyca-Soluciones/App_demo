@@ -87,6 +87,12 @@ export function DetalleActa({
                 </Dato>
               )}
               {visible.motivoResolucion && <Dato titulo="Motivo">{visible.motivoResolucion}</Dato>}
+              {visible.editadaAt && (
+                <Dato titulo="Última edición">
+                  {formatearFechaSinHora(visible.editadaAt)}
+                  {visible.editadaPorNombre ? ` por ${visible.editadaPorNombre}` : ""}
+                </Dato>
+              )}
             </div>
 
             <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-4">

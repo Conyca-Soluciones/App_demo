@@ -3,7 +3,7 @@
 // (crear_acta, 20261110000000_actas_contratos.sql) vuelve a poner precio e IVA
 // y recalcula todo: lo de aquí es lo que se ve mientras se llena.
 
-import { aCentavos, leerNumero, type TipoContrato } from "@/lib/contratos"
+import { aCentavos, leerNumero, numero, type TipoContrato } from "@/lib/contratos"
 
 export const MAX_LINEAS_ACTA = 20
 
@@ -62,6 +62,9 @@ export const saldoContrato = (valor: number, consumido: number) => aCentavos(val
 
 export type LineaActaDetalle = {
   orden: number
+  // null si después se borró el ítem o la línea del APU (hay que volver a escogerlo al editar).
+  presupuestoItemId: string | null
+  itemApuId: string | null
   itemCodigo: string | null
   itemDescripcion: string | null
   insumoCodigo: number | null
@@ -85,6 +88,8 @@ export type ActaDetalle = {
   resueltoAt: string | null
   resueltoPorNombre: string | null
   motivoResolucion: string | null
+  editadaAt: string | null
+  editadaPorNombre: string | null
   contratoId: string
   numeroContrato: string
   contratoValor: number
@@ -92,6 +97,7 @@ export type ActaDetalle = {
   tipo: TipoContrato
   proyectoCodigo: string
   proyectoNombre: string
+  contratistaId: string
   contratistaNombre: string
   contratistaDocumento: string
   // Lo que usan las demás actas del contrato (por aprobar + aprobadas).
@@ -135,6 +141,32 @@ export type LineaActaForm = {
 }
 
 export const lineaActaVacia = (): LineaActaForm => ({ item: null, insumo: null, cantidad: "" })
+
+// Se edita lo que no está aprobado (por aprobar o rechazada).
+export const actaEditable = (estado: EstadoActa) => estado !== "aprobada"
+
+// Las líneas guardadas, como líneas del formulario para editar el acta. El
+// precio y el IVA son los guardados hasta que la fila carga los del APU de hoy
+// (con los que la base vuelve a calcular al guardar).
+export function lineasFormDesdeActa(acta: ActaDetalle): LineaActaForm[] {
+  return acta.lineas.map((l) => {
+    const item: ItemParaActa | null = l.presupuestoItemId
+      ? { id: l.presupuestoItemId, codigo: l.itemCodigo ?? "", descripcion: l.itemDescripcion ?? "", unidad: null }
+      : null
+    const insumo: InsumoParaActa | null =
+      item && l.itemApuId
+        ? {
+            itemApuId: l.itemApuId,
+            insumoCodigo: l.insumoCodigo,
+            descripcion: l.insumoDescripcion,
+            unidad: l.unidad,
+            precio: l.precio,
+            ivaPorcentaje: l.ivaPorcentaje,
+          }
+        : null
+    return { item, insumo, cantidad: numero(l.cantidad) }
+  })
+}
 
 export type CalculoLinea = { base: number; iva: number; total: number }
 

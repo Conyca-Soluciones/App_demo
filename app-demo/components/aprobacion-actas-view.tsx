@@ -30,13 +30,13 @@ const FILTROS: { valor: EstadoActa | "todas"; etiqueta: string }[] = [
 const TEXTO_ACCION: Record<AccionActa, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
   aprobar: {
     titulo: "Aprobar acta",
-    explicacion: "Queda aprobada y su valor sigue descontado del contrato.",
+    explicacion: "Queda aprobada y su valor sigue descontado del contrato. Ya no se podrá editar. Quien la hizo recibe un aviso.",
     boton: "Aprobar",
     pideMotivo: false,
   },
   rechazar: {
     titulo: "Rechazar acta",
-    explicacion: "Es definitivo: el acta se cierra y su valor vuelve al saldo del contrato.",
+    explicacion: "Su valor vuelve al saldo del contrato. Quien la hizo recibe un aviso con el motivo y puede corregirla y enviarla otra vez.",
     boton: "Rechazar",
     pideMotivo: true,
   },

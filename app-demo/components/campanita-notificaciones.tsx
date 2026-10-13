@@ -25,6 +25,8 @@ function rutaDestino(n: Notificacion): string {
       ? `/contratos/pre-aprobacion?ver=${n.entidadId}`
       : `/contratos/solicitar?ver=${n.entidadId}`
   }
+  // Actas aprobadas o rechazadas: a quien la hizo, a Elaboración de actas con el acta abierta.
+  if (n.entidadTipo === "acta") return `/contratos/actas?ver=${n.entidadId}`
   return "/almacen/registro-requisiciones"
 }
 

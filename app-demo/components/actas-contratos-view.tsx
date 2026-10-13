@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { CheckCircle2, Loader2, Plus, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { CheckCircle2, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -16,12 +17,15 @@ import {
   CLASE_ESTADO_ACTA,
   ETIQUETA_ESTADO_ACTA,
   MAX_LINEAS_ACTA,
+  actaEditable,
   calculoLineaForm,
   consumidoActas,
   lineaActaVacia,
+  lineasFormDesdeActa,
   saldoContrato,
   totalActa,
   validarActa,
+  type ActaDetalle,
   type ActaResumen,
   type ContratoParaActa,
   type InsumoParaActa,
@@ -33,19 +37,24 @@ import {
   buscarContratosParaActa,
   buscarItemsParaActa,
   contratosDeContratista,
+  editarActa,
   guardarActa,
   insumosDeItemParaActa,
   listarActasDeContrato,
+  obtenerActa,
 } from "@/app/(app)/contratos/actas/actions"
 
 // Elaboración de actas: se busca el contrato o el contratista (con un solo
 // contrato aprobado se escoge solo; con varios, se elige en la lista). Del
 // contrato se ve su información y sus actas, y "Crear acta nueva" abre la
-// tabla para llenar (hasta 20 líneas). El acta queda por aprobar.
+// tabla para llenar (hasta 20 líneas). El acta queda por aprobar. Las que no
+// están aprobadas se pueden editar (una rechazada vuelve a aprobación).
+// ?ver=<id> (aviso de la campanita) abre el contrato del acta con el acta abierta.
 
 const mensaje = (e: unknown, otro: string) => (e instanceof Error ? e.message : otro)
 
-export function ActasContratosView({ puedeElaborar }: { puedeElaborar: boolean }) {
+export function ActasContratosView({ puedeElaborar, verInicial }: { puedeElaborar: boolean; verInicial: string | null }) {
+  const router = useRouter()
   const [contratista, setContratista] = useState<OpcionBuscador | null>(null)
   // Contratos aprobados del contratista elegido (null = no se ha elegido o se buscó por contrato y aún carga).
   const [contratosContratista, setContratosContratista] = useState<ContratoParaActa[] | null>(null)
@@ -54,6 +63,8 @@ export function ActasContratosView({ puedeElaborar }: { puedeElaborar: boolean }
   const [error, setError] = useState<string | null>(null)
   // Los resultados de la última búsqueda de contratos, para pasar de la opción al contrato.
   const ultimosContratos = useRef(new Map<string, ContratoParaActa>())
+  // Acta que se abre al entrar desde un aviso (?ver=<id>).
+  const [actaInicial, setActaInicial] = useState<{ id: string; contratoId: string } | null>(null)
 
   const buscarContratistas = useCallback(async (t: string): Promise<OpcionBuscador[]> => {
     const lista = await buscarContratistasParaActa(t)
@@ -74,13 +85,18 @@ export function ActasContratosView({ puedeElaborar }: { puedeElaborar: boolean }
     }))
   }, [])
 
-  function cargarContratosDe(contratistaId: string, elegido: ContratoParaActa | null) {
+  // elegirId: el contrato a escoger cuando se llega desde un aviso.
+  function cargarContratosDe(contratistaId: string, elegido: ContratoParaActa | null, elegirId?: string) {
     setCargandoContratos(true)
     setError(null)
     contratosDeContratista(contratistaId)
       .then((lista) => {
         setContratosContratista(lista)
-        if (!elegido) setContrato(lista.length === 1 ? lista[0] : null)
+        if (elegirId) {
+          const c = lista.find((x) => x.id === elegirId) ?? null
+          setContrato(c)
+          if (!c) setError("El contrato de esta acta ya no está aprobado o no tienes acceso.")
+        } else if (!elegido) setContrato(lista.length === 1 ? lista[0] : null)
       })
       .catch((e) => setError(mensaje(e, "No se pudieron cargar los contratos.")))
       .finally(() => setCargandoContratos(false))
@@ -101,6 +117,20 @@ export function ActasContratosView({ puedeElaborar }: { puedeElaborar: boolean }
       cargarContratosDe(c.contratistaId, c)
     }
   }
+
+  // Desde un aviso: busca el acta, escoge su contratista y su contrato y la abre.
+  useEffect(() => {
+    if (!verInicial) return
+    obtenerActa(verInicial)
+      .then((a) => {
+        setContratista({ id: a.contratistaId, etiqueta: a.contratistaNombre, subetiqueta: a.contratistaDocumento })
+        setActaInicial({ id: a.id, contratoId: a.contratoId })
+        cargarContratosDe(a.contratistaId, null, a.contratoId)
+      })
+      .catch((e) => setError(mensaje(e, "No se pudo abrir el acta.")))
+    // Solo al entrar a la página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const variosContratos = contratosContratista != null && contratosContratista.length > 1
 
@@ -162,16 +192,40 @@ export function ActasContratosView({ puedeElaborar }: { puedeElaborar: boolean }
           {error && <p className="text-sm text-destructive md:col-span-2">{error}</p>}
         </section>
 
-        {contrato && <ContratoActas key={contrato.id} contrato={contrato} puedeElaborar={puedeElaborar} />}
+        {contrato && (
+          <ContratoActas
+            key={contrato.id}
+            contrato={contrato}
+            puedeElaborar={puedeElaborar}
+            verActaInicial={actaInicial?.contratoId === contrato.id ? actaInicial.id : null}
+            onCerrarActaInicial={() => {
+              setActaInicial(null)
+              if (verInicial) router.replace("/contratos/actas")
+            }}
+          />
+        )}
       </div>
     </MarcoPagina>
   )
 }
 
-function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa; puedeElaborar: boolean }) {
+function ContratoActas({
+  contrato,
+  puedeElaborar,
+  verActaInicial,
+  onCerrarActaInicial,
+}: {
+  contrato: ContratoParaActa
+  puedeElaborar: boolean
+  verActaInicial: string | null
+  onCerrarActaInicial: () => void
+}) {
   const [actas, setActas] = useState<ActaResumen[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creando, setCreando] = useState(false)
+  // Acta que se está corrigiendo (con sus líneas).
+  const [editando, setEditando] = useState<ActaDetalle | null>(null)
+  const [abriendoEdicion, setAbriendoEdicion] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
   const cargar = useCallback(() => {
@@ -181,12 +235,36 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
   }, [contrato.id])
   useEffect(cargar, [cargar])
 
-  const [verActa, setVerActa] = useState<string | null>(null)
+  const [verActa, setVerActa] = useState<string | null>(verActaInicial)
+
+  function cerrarActa() {
+    if (verActa != null && verActa === verActaInicial) onCerrarActaInicial()
+    setVerActa(null)
+  }
+
+  function editar(acta: ActaDetalle) {
+    cerrarActa()
+    setAviso(null)
+    setCreando(false)
+    setEditando(acta)
+  }
+
+  // Desde la lista: trae el acta con sus líneas y abre el formulario.
+  function editarDesdeLista(id: string) {
+    setAbriendoEdicion(id)
+    setError(null)
+    obtenerActa(id)
+      .then(editar)
+      .catch((e) => setError(mensaje(e, "No se pudo abrir el acta.")))
+      .finally(() => setAbriendoEdicion(null))
+  }
 
   const siguiente = (actas?.reduce((max, a) => Math.max(max, a.numero), 0) ?? 0) + 1
   // Cupo: las actas por aprobar y aprobadas descuentan del valor del contrato.
   const consumido = actas ? consumidoActas(actas) : null
   const saldo = consumido == null ? null : saldoContrato(contrato.valor, consumido)
+  // Al editar, el acta misma no cuenta contra el saldo (si estaba por aprobar, ya estaba descontada).
+  const saldoFormulario = (saldo ?? 0) + (editando?.estado === "pendiente" ? editando.total : 0)
 
   return (
     <>
@@ -238,21 +316,27 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
         </table>
       </section>
 
-      {aviso && !creando && (
+      {aviso && !creando && !editando && (
         <p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           <CheckCircle2 className="h-4 w-4" /> {aviso}
         </p>
       )}
 
-      {creando ? (
+      {creando || editando ? (
         <FormularioActa
+          key={editando?.id ?? "nueva"}
           contrato={contrato}
-          numero={siguiente}
-          saldo={saldo ?? 0}
-          onCancelar={() => setCreando(false)}
-          onGuardada={(n) => {
+          numero={editando?.numero ?? siguiente}
+          edicion={editando}
+          saldo={saldoFormulario}
+          onCancelar={() => {
             setCreando(false)
-            setAviso(`Acta ${n} guardada. Queda por aprobar.`)
+            setEditando(null)
+          }}
+          onGuardada={(n) => {
+            setAviso(editando ? `Acta ${n} corregida. Queda por aprobar.` : `Acta ${n} guardada. Queda por aprobar.`)
+            setCreando(false)
+            setEditando(null)
             cargar()
           }}
         />
@@ -292,6 +376,7 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
                     <th className="text-right">Líneas</th>
                     <th className="text-right">Total</th>
                     <th className="text-center">Estado</th>
+                    {puedeElaborar && <th className="w-28" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -314,6 +399,16 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
                       <td className="text-center">
                         <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>
                       </td>
+                      {puedeElaborar && (
+                        <td className="text-right">
+                          {actaEditable(a.estado) && (
+                            <Button size="sm" variant="outline" onClick={() => editarDesdeLista(a.id)} disabled={abriendoEdicion != null}>
+                              {abriendoEdicion === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                              Editar
+                            </Button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -323,7 +418,17 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
         </section>
       )}
 
-      <DetalleActa id={verActa} onCerrar={() => setVerActa(null)} />
+      <DetalleActa
+        id={verActa}
+        onCerrar={cerrarActa}
+        acciones={(a) =>
+          puedeElaborar && actaEditable(a.estado) ? (
+            <Button onClick={() => editar(a)}>
+              <Pencil className="size-4" /> {a.estado === "rechazada" ? "Corregir y enviar otra vez" : "Editar acta"}
+            </Button>
+          ) : null
+        }
+      />
     </>
   )
 }
@@ -331,25 +436,32 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
 function FormularioActa({
   contrato,
   numero: numeroActa,
+  edicion,
   saldo,
   onCancelar,
   onGuardada,
 }: {
   contrato: ContratoParaActa
   numero: number
+  edicion: ActaDetalle | null
   saldo: number
   onCancelar: () => void
   onGuardada: (numero: number) => void
 }) {
-  const [lineas, setLineas] = useState<LineaActaForm[]>([lineaActaVacia()])
-  // Clave estable de cada fila (al quitar una, las de abajo no heredan los insumos cargados de otra).
-  const siguienteClave = useRef(1)
-  const [claves, setClaves] = useState<number[]>([0])
+  // Cada fila con una clave estable (al quitar una, las de abajo no heredan los insumos cargados de otra).
+  const [filas, setFilas] = useState<{ clave: number; linea: LineaActaForm }[]>(() =>
+    (edicion ? lineasFormDesdeActa(edicion) : [lineaActaVacia()]).map((linea, clave) => ({ clave, linea }))
+  )
+  const siguienteClave = useRef(filas.length)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const lineas = filas.map((f) => f.linea)
 
-  const cambiar = (i: number, cambios: Partial<LineaActaForm>) =>
-    setLineas((ls) => ls.map((l, k) => (k === i ? { ...l, ...cambios } : l)))
+  const actualizar = useCallback(
+    (clave: number, cambio: (l: LineaActaForm) => LineaActaForm) =>
+      setFilas((fs) => fs.map((f) => (f.clave === clave ? { ...f, linea: cambio(f.linea) } : f))),
+    []
+  )
 
   const total = totalActa(lineas)
   const excede = total > saldo
@@ -367,8 +479,8 @@ function FormularioActa({
     setGuardando(true)
     setError(null)
     try {
-      const creada = await guardarActa(contrato.id, lineas)
-      onGuardada(creada.numero)
+      const guardada = edicion ? await editarActa(edicion.id, lineas) : await guardarActa(contrato.id, lineas)
+      onGuardada(guardada.numero)
     } catch (e) {
       setError(mensaje(e, "No se pudo guardar el acta."))
     } finally {
@@ -379,10 +491,16 @@ function FormularioActa({
   return (
     <section className="rounded-lg border">
       <div className="border-b px-4 py-3">
-        <h2 className="font-semibold">Acta {numeroActa}</h2>
+        <h2 className="font-semibold">{edicion ? `Editar acta ${numeroActa}` : `Acta ${numeroActa}`}</h2>
         <p className="text-sm text-muted-foreground">
           Busca el ítem, escoge el insumo y escribe la cantidad. El precio y el IVA salen del APU del presupuesto.
+          {edicion && " Al guardar, el acta vuelve a quedar por aprobar con el mismo número."}
         </p>
+        {edicion?.estado === "rechazada" && (
+          <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            Rechazada{edicion.resueltoPorNombre ? ` por ${edicion.resueltoPorNombre}` : ""}. Motivo: {edicion.motivoResolucion}
+          </p>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-sm">
@@ -400,21 +518,15 @@ function FormularioActa({
             </tr>
           </thead>
           <tbody>
-            {lineas.map((l, i) => (
+            {filas.map((f, i) => (
               <FilaActa
-                key={claves[i]}
+                key={f.clave}
+                clave={f.clave}
                 indice={i}
-                linea={l}
+                linea={f.linea}
                 contratoId={contrato.id}
-                onCambiar={(c) => cambiar(i, c)}
-                onQuitar={
-                  lineas.length > 1
-                    ? () => {
-                        setLineas((ls) => ls.filter((_, k) => k !== i))
-                        setClaves((cs) => cs.filter((_, k) => k !== i))
-                      }
-                    : undefined
-                }
+                actualizar={actualizar}
+                onQuitar={filas.length > 1 ? () => setFilas((fs) => fs.filter((x) => x.clave !== f.clave)) : undefined}
               />
             ))}
           </tbody>
@@ -439,10 +551,7 @@ function FormularioActa({
       <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
         <Button
           variant="outline"
-          onClick={() => {
-            setLineas((ls) => [...ls, lineaActaVacia()])
-            setClaves((cs) => [...cs, siguienteClave.current++])
-          }}
+          onClick={() => setFilas((fs) => [...fs, { clave: siguienteClave.current++, linea: lineaActaVacia() }])}
           disabled={lineas.length >= MAX_LINEAS_ACTA || guardando}
         >
           <Plus className="mr-1 h-4 w-4" /> Agregar línea ({lineas.length}/{MAX_LINEAS_ACTA})
@@ -452,7 +561,7 @@ function FormularioActa({
             Cancelar
           </Button>
           <Button onClick={guardar} disabled={guardando || excede}>
-            {guardando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Guardar acta
+            {guardando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} {edicion ? "Guardar cambios" : "Guardar acta"}
           </Button>
         </div>
       </div>
@@ -467,34 +576,45 @@ function FormularioActa({
 }
 
 function FilaActa({
+  clave,
   indice,
   linea,
   contratoId,
-  onCambiar,
+  actualizar,
   onQuitar,
 }: {
+  clave: number
   indice: number
   linea: LineaActaForm
   contratoId: string
-  onCambiar: (cambios: Partial<LineaActaForm>) => void
+  actualizar: (clave: number, cambio: (l: LineaActaForm) => LineaActaForm) => void
   onQuitar?: () => void
 }) {
+  const onCambiar = (cambios: Partial<LineaActaForm>) => actualizar(clave, (l) => ({ ...l, ...cambios }))
   const [insumos, setInsumos] = useState<InsumoParaActa[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const ultimosItems = useRef(new Map<string, ItemParaActa>())
   const itemId = linea.item?.id ?? null
 
-  // Al cambiar el ítem se cargan los insumos de su APU.
+  // Al cambiar el ítem se cargan los insumos de su APU. Si la fila ya traía
+  // un insumo (al editar), se cambia por el de hoy: precio e IVA actuales, que
+  // son con los que la base calcula al guardar (o se quita si ya no está).
   useEffect(() => {
     if (!itemId) return
     let vigente = true
     insumosDeItemParaActa(contratoId, itemId)
-      .then((lista) => vigente && setInsumos(lista))
+      .then((lista) => {
+        if (!vigente) return
+        setInsumos(lista)
+        actualizar(clave, (l) =>
+          l.item?.id === itemId && l.insumo ? { ...l, insumo: lista.find((x) => x.itemApuId === l.insumo!.itemApuId) ?? null } : l
+        )
+      })
       .catch((e) => vigente && setError(mensaje(e, "No se pudieron cargar los insumos.")))
     return () => {
       vigente = false
     }
-  }, [contratoId, itemId])
+  }, [contratoId, itemId, clave, actualizar])
 
   const buscarItems = useCallback(
     async (t: string): Promise<OpcionBuscador[]> => {

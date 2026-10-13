@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { calcularLinea, consumidoActas, lineaActaVacia, saldoContrato, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
+import { leerNumero } from "@/lib/contratos"
+import { calcularLinea, consumidoActas, lineaActaVacia, lineasFormDesdeActa, saldoContrato, type ActaDetalle, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
 
 const item: ItemParaActa = { id: "i1", codigo: "1.01", descripcion: "Excavación", unidad: "M3" }
 const insumo = (cambios: Partial<InsumoParaActa> = {}): InsumoParaActa => ({
@@ -52,5 +53,22 @@ describe("cupo del contrato", () => {
     ])
     expect(consumido).toBe(1_250_000.5)
     expect(saldoContrato(2_000_000, consumido)).toBe(749_999.5)
+  })
+})
+
+describe("lineasFormDesdeActa", () => {
+  it("arma las líneas del formulario; sin ítem o insumo borrado quedan por escoger", () => {
+    const base = { orden: 1, itemCodigo: "1.01", itemDescripcion: "Excavación", insumoCodigo: 256, insumoDescripcion: "ARCILLA", unidad: "M3", precio: 100, ivaPorcentaje: 19, baseIva: 0, iva: 0, total: 0 }
+    const acta = {
+      lineas: [
+        { ...base, presupuestoItemId: "i1", itemApuId: "a1", cantidad: 1250.5 },
+        { ...base, presupuestoItemId: "i1", itemApuId: null, cantidad: 2 },
+      ],
+    } as unknown as ActaDetalle
+    const [a, b] = lineasFormDesdeActa(acta)
+    expect(a.item?.id).toBe("i1")
+    expect(a.insumo).toMatchObject({ itemApuId: "a1", precio: 100, ivaPorcentaje: 19 })
+    expect(leerNumero(a.cantidad)).toBe(1250.5)
+    expect(b.insumo).toBeNull()
   })
 })

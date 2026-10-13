@@ -1996,8 +1996,21 @@ Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
 - **Detalle de un acta** (`components/detalle-acta.tsx`, función
   `detalle_acta`): contrato, cupo (valor, otras actas, esta acta, saldo) y
   líneas. Se abre desde la lista de actas en Elaboración y en Aprobación.
-- **Pendiente**: el PDF del acta; notificaciones (a quien aprueba cuando llega
-  un acta, a quien la hizo cuando se resuelve).
+- **Editar** (`20261110200000_editar_actas_avisos.sql`, `editar_acta`): un
+  acta que no esté aprobada (por aprobar o rechazada) se corrige con la acción
+  `elaborar_actas` (botón "Editar" en la lista y en el detalle; en una
+  rechazada, "Corregir y enviar otra vez"). Se reemplazan las líneas (precio e
+  IVA otra vez desde el APU: al abrir el formulario cada fila cambia el
+  insumo guardado por el de hoy), el cupo se revisa sin contar el acta misma y
+  vuelve a "por aprobar" con el MISMO número, sin motivo de rechazo
+  (`actas.editada_at` / `editada_por`, se ve en el detalle). Crear y editar
+  comparten `_llenar_acta`. Lo puede editar cualquiera con la acción y acceso
+  al proyecto, no solo quien la creó.
+- **Avisos**: `resolver_acta` notifica a quien creó el acta (si no fue él
+  quien la resolvió): `acta_aprobada` / `acta_rechazada` (con el motivo),
+  entidad `acta`. La campanita lleva a `/contratos/actas?ver=<id>`, que escoge
+  el contratista y el contrato del acta y la abre.
+- **Pendiente**: el PDF del acta; aviso a quien aprueba cuando llega un acta.
 
 
 ## Aprobación de actas `/contratos/aprobacion-actas` (2026-10-14)
@@ -2012,8 +2025,8 @@ Pestaña `contratos.aprobar_actas` y acción `aprobar_actas`
   fila también abre el detalle.
 - En el detalle: **Aprobar** o **Rechazar** con motivo obligatorio
   (`resolver_acta`: bloquea el acta y exige estado `pendiente`, así dos
-  personas no la resuelven a la vez). Rechazar es definitivo y devuelve el
-  valor al saldo del contrato.
+  personas no la resuelven a la vez). Rechazar devuelve el valor al saldo del
+  contrato; quien la hizo puede corregirla y mandarla otra vez.
 - `puede_ver_actas` acepta cualquiera de las dos pestañas (cortes o
   aprobar_actas) más el acceso al proyecto.
 
