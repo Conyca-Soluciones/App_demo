@@ -1,6 +1,7 @@
 import { Children, Fragment, cloneElement, isValidElement, type ReactNode } from "react"
 import { Document, Font, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { leerNumero } from "@/lib/contratos"
+import { MARCA_FOCO } from "@/lib/minuta-pdf-foco"
 import {
   POSICION_OBLIGACION_CORRECCION,
   blanco,
@@ -82,13 +83,48 @@ export function Encabezado(props: { logo: string | Buffer; formato: string; codi
   )
 }
 
-export function Lista({ items, marcador }: { items: string[]; marcador: (i: number) => string }) {
+// ---------------------------------------------------------------- dato en edición
+// En la vista previa, el dato del campo que Jurídica está editando sale
+// resaltado y con una marca invisible delante: la ruta del PDF busca la marca
+// para saber en qué página quedó (lib/minuta-pdf-foco.ts) y el visor abre ahí.
+// `foco` es la clave del campo ("objeto"), o "lista:posición" para un renglón
+// de una lista ("obligacionesContratista:2").
+export const AMARILLO_FOCO = "#fde68a"
+
+const ESTILO_MARCA = { fontSize: 1, color: "#ffffff" }
+const ESTILO_RESALTADO = { backgroundColor: AMARILLO_FOCO }
+
+// Fragmento (no componente): unirTexto lo aplana dentro de los párrafos.
+export function resaltado(contenido: ReactNode): ReactNode {
+  return (
+    <>
+      <Text style={ESTILO_MARCA}>{MARCA_FOCO}</Text>
+      <Text style={ESTILO_RESALTADO}>{contenido}</Text>
+    </>
+  )
+}
+
+// res("objeto", blanco(m.objeto)): el contenido, resaltado si ese campo tiene el foco.
+export function campoResaltable(foco: string | undefined) {
+  return function resaltar(clave: string, contenido: ReactNode): ReactNode {
+    return foco === clave ? resaltado(contenido) : contenido
+  }
+}
+
+// Posición del renglón con foco dentro de una lista ("obligaciones:3" -> 3).
+export const renglonConFoco = (foco: string | undefined, lista: string): number | undefined => {
+  if (!foco?.startsWith(`${lista}:`)) return undefined
+  const n = Number(foco.slice(lista.length + 1))
+  return Number.isInteger(n) ? n : undefined
+}
+
+export function Lista({ items, marcador, resaltado: renglon }: { items: string[]; marcador: (i: number) => string; resaltado?: number }) {
   return (
     <View style={{ marginBottom: 8 }}>
       {items.map((t, i) => (
         <View key={i} style={s.li} wrap={false}>
           <Text style={s.liNum}>{marcador(i)}</Text>
-          <Text style={s.liTexto}>{t}</Text>
+          <Text style={s.liTexto}>{i === renglon ? unirTexto(resaltado(t)) : t}</Text>
         </View>
       ))}
     </View>
@@ -98,24 +134,38 @@ export function Lista({ items, marcador }: { items: string[]; marcador: (i: numb
 // Junta en un solo texto los pedazos seguidos ("COMFIAR" y ". De conformidad"
 // son dos nodos en el JSX): si quedan separados, al partir la línea justo entre
 // los dos @react-pdf los trata como una palabra cortada y pone un guion.
-// Los fragmentos se aplanan; las negrillas (<Text>) quedan como están.
+// Los fragmentos se aplanan; una negrilla (<Text>) con solo texto queda como
+// está. Si trae otro <Text> adentro (el dato resaltado), se aplana con los
+// estilos sumados: @react-pdf no dibuja texto anidado en tres niveles.
+type Estilo = Record<string, unknown> | Record<string, unknown>[]
+const tieneElementos = (children: ReactNode) => Children.toArray(children).some((c) => isValidElement(c))
+
 export function unirTexto(children: ReactNode): ReactNode[] {
   const piezas: ReactNode[] = []
-  const agregar = (n: ReactNode) => {
+  const agregar = (n: ReactNode, estilo: Estilo[]) => {
     if (n === null || n === undefined || typeof n === "boolean") return
     if (typeof n === "string" || typeof n === "number") {
+      if (estilo.length > 0) {
+        piezas.push(<Text style={estilo.flat() as never}>{String(n)}</Text>)
+        return
+      }
       const ultima = piezas[piezas.length - 1]
       if (typeof ultima === "string") piezas[piezas.length - 1] = ultima + String(n)
       else piezas.push(String(n))
     } else if (Array.isArray(n)) {
-      n.forEach(agregar)
+      n.forEach((x) => agregar(x, estilo))
     } else if (isValidElement(n) && n.type === Fragment) {
-      Children.forEach((n.props as { children?: ReactNode }).children, agregar)
+      Children.forEach((n.props as { children?: ReactNode }).children, (x) => agregar(x, estilo))
+    } else if (isValidElement(n) && n.type === Text) {
+      const props = n.props as { style?: Estilo; children?: ReactNode }
+      const propio = props.style ? [props.style] : []
+      if (tieneElementos(props.children)) Children.forEach(props.children, (x) => agregar(x, [...estilo, ...propio]))
+      else piezas.push(estilo.length > 0 ? cloneElement(n, { style: [...estilo, ...propio].flat() } as never) : n)
     } else {
       piezas.push(n)
     }
   }
-  Children.forEach(children, agregar)
+  Children.forEach(children, (x) => agregar(x, []))
   return piezas.map((n, i) => (isValidElement(n) ? cloneElement(n, { key: i }) : n))
 }
 
@@ -135,13 +185,22 @@ export function Clausula({ titulo, children }: { titulo: string; children: React
 
 const ENCABEZADO = { formato: "FORMATO CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "01", fecha: "19/01/2023" }
 
-export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaManoObra; numero: number; logo: string | Buffer }) {
+export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaManoObra; numero: number; logo: string | Buffer; foco?: string }) {
+  const res = campoResaltable(foco)
+  const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.contratistaTipoPersona === "juridica"
   const valor = leerNumero(m.valor)
   const pct = (t: string) => `${blanco(t.replace(/%/g, ""))}%`
 
   const obligacionesContratista = [...m.obligacionesContratista]
+  const posicionCorreccion = Math.min(POSICION_OBLIGACION_CORRECCION, obligacionesContratista.length)
+  const renglonOriginal = r("obligacionesContratista")
+  const renglonContratista = ["plazoSolicitudCorreccion", "plazoAjustes", "plazoSilencio"].includes(foco ?? "")
+    ? posicionCorreccion
+    : renglonOriginal !== undefined && renglonOriginal >= posicionCorreccion
+      ? renglonOriginal + 1
+      : renglonOriginal
   obligacionesContratista.splice(Math.min(POSICION_OBLIGACION_CORRECCION, obligacionesContratista.length), 0, obligacionCorreccion(m))
 
   const lugarFecha = fecha
@@ -162,22 +221,22 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         <Text style={s.titulo}>CONTRATO DE MANO DE OBRA N° {numero}</Text>
 
         <P>
-          En la ciudad de {blanco(m.ciudadFirma)} {lugarFecha}, entre los suscritos a saber: {blanco(m.contratanteRepresentante)} mayor de edad,
-          identificado con cédula de ciudadanía {blanco(m.contratanteRepresentanteCedula)} de {blanco(m.contratanteRepresentanteExpedida)}, actuando
-          en calidad de representante legal de <Text style={s.b}>{blanco(m.contratanteNombre)}</Text> identificado con Nit. {blanco(m.contratanteNit)}{" "}
+          En la ciudad de {res("ciudadFirma", blanco(m.ciudadFirma))} {res("fechaFirma", lugarFecha)}, entre los suscritos a saber: {res("contratanteRepresentante", blanco(m.contratanteRepresentante))} mayor de edad,
+          identificado con cédula de ciudadanía {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))} de {res("contratanteRepresentanteExpedida", blanco(m.contratanteRepresentanteExpedida))}, actuando
+          en calidad de representante legal de <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text> identificado con Nit. {res("contratanteNit", blanco(m.contratanteNit))}{" "}
           quien para efectos del presente contrato se denominará el <Text style={s.b}>CONTRATANTE</Text>, y{" "}
           {juridica ? (
             <>
-              {blanco(m.contratistaRepresentante)}, mayor de edad, identificado con la cédula de ciudadanía Nº. {blanco(m.contratistaCedula)} de{" "}
-              {blanco(m.contratistaCedulaExpedida)} domiciliado y residente en la ciudad de {blanco(m.contratistaCiudad)}, actuando en nombre y
-              representación legal de <Text style={s.b}>{blanco(m.contratistaNombre)}</Text> identificada con NIT N° {blanco(m.contratistaNit)} y quien
+              {res("contratistaRepresentante", blanco(m.contratistaRepresentante))}, mayor de edad, identificado con la cédula de ciudadanía Nº. {res("contratistaCedula", blanco(m.contratistaCedula))} de{" "}
+              {res("contratistaCedulaExpedida", blanco(m.contratistaCedulaExpedida))} domiciliado y residente en la ciudad de {res("contratistaCiudad", blanco(m.contratistaCiudad))}, actuando en nombre y
+              representación legal de <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))}</Text> identificada con NIT N° {res("contratistaNit", blanco(m.contratistaNit))} y quien
               para los efectos del presente documento se denominará el <Text style={s.b}>CONTRATISTA</Text>
             </>
           ) : (
             <>
-              <Text style={s.b}>{blanco(m.contratistaNombre)}</Text>, mayor de edad, identificado con la cédula de ciudadanía Nº.{" "}
-              {blanco(m.contratistaCedula)} de {blanco(m.contratistaCedulaExpedida)}, domiciliado y residente en la ciudad de{" "}
-              {blanco(m.contratistaCiudad)}, actuando en nombre propio y quien para los efectos del presente documento se denominará el{" "}
+              <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))}</Text>, mayor de edad, identificado con la cédula de ciudadanía Nº.{" "}
+              {res("contratistaCedula", blanco(m.contratistaCedula))} de {res("contratistaCedulaExpedida", blanco(m.contratistaCedulaExpedida))}, domiciliado y residente en la ciudad de{" "}
+              {res("contratistaCiudad", blanco(m.contratistaCiudad))}, actuando en nombre propio y quien para los efectos del presente documento se denominará el{" "}
               <Text style={s.b}>CONTRATISTA</Text>
             </>
           )}
@@ -185,18 +244,18 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         </P>
 
         <Clausula titulo="PRIMERA. – OBJETO:">
-          En virtud del presente contrato, EL CONTRATANTE, encarga al CONTRATISTA {blanco(m.objeto)}, para la obra denominada {blanco(m.obra)}.
+          En virtud del presente contrato, EL CONTRATANTE, encarga al CONTRATISTA {res("objeto", blanco(m.objeto))}, para la obra denominada {res("obra", blanco(m.obra))}.
         </Clausula>
 
         <Text style={[s.p, s.b]}>SEGUNDA. - OBLIGACIONES DE LAS PARTES</Text>
         <Text style={s.sub}>El CONTRATANTE se compromete a:</Text>
-        <Lista items={m.obligacionesContratante} marcador={(i) => `${i + 1}.`} />
+        <Lista items={m.obligacionesContratante} resaltado={r("obligacionesContratante")} marcador={(i) => `${i + 1}.`} />
         <Text style={s.sub}>EL CONTRATISTA se compromete a:</Text>
-        <Lista items={obligacionesContratista} marcador={(i) => `${i + 1}.`} />
+        <Lista items={obligacionesContratista} resaltado={renglonContratista} marcador={(i) => `${i + 1}.`} />
 
         <Clausula titulo="TERCERA. - DURACIÓN Y ENTREGA DE LA OBRA:">
-          La realización de las actividades del presente contrato, se llevará a cabo dentro de un plazo {blanco(m.plazo)}. El presente
-          contrato vence el {fechaLarga(m.vencimiento)}.
+          La realización de las actividades del presente contrato, se llevará a cabo dentro de un plazo {res("plazo", blanco(m.plazo))}. El presente
+          contrato vence el {res("vencimiento", fechaLarga(m.vencimiento))}.
         </Clausula>
         <P>
           Una vez finalizado el objeto del contrato y aceptada por EL CONTRATANTE, EL CONTRATISTA deberá hacer entrega formal de las mismas, junto con
@@ -205,20 +264,20 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         </P>
 
         <Clausula titulo="CUARTA. - PRECIO Y FORMA DE PAGO:">
-          El valor del presente contrato será por la suma de {blanco(m.valorLetras)} (${valor !== null ? pesosSinSimbolo(valor) : blanco(m.valor)}) M/CTE,
+          El valor del presente contrato será por la suma de {res("valorLetras", blanco(m.valorLetras))} (${res("valor", valor !== null ? pesosSinSimbolo(valor) : blanco(m.valor))}) M/CTE,
           incluidos todos los impuestos, gravámenes y demás.
         </Clausula>
-        {m.formaPago.trim() && <P>{m.formaPago.trim()}</P>}
+        {m.formaPago.trim() && <P>{res("formaPago", m.formaPago.trim())}</P>}
         {m.requisitosPago.length > 0 && (
           <>
             <P>Para el respectivo pago se requiere:</P>
-            <Lista items={m.requisitosPago} marcador={(i) => `${String.fromCharCode(97 + i)})`} />
+            <Lista items={m.requisitosPago} resaltado={r("requisitosPago")} marcador={(i) => `${String.fromCharCode(97 + i)})`} />
           </>
         )}
 
         <Clausula titulo="QUINTA. - LUGAR DE EJECUCIÓN:">
-          Las actividades objeto del contrato, se desarrollarán en el Municipio de {blanco(m.municipioEjecucion)}, donde el contratante ejecuta la obra
-          denominada {blanco(m.obra)}.
+          Las actividades objeto del contrato, se desarrollarán en el Municipio de {res("municipioEjecucion", blanco(m.municipioEjecucion))}, donde el contratante ejecuta la obra
+          denominada {res("obra", blanco(m.obra))}.
         </Clausula>
 
         <Clausula titulo="SEXTA. - INDEPENDENCIA DEL CONTRATISTA:">
@@ -238,7 +297,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
 
         <Clausula titulo="OCTAVA. – CLAUSULA PENAL:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al{" "}
-          {pct(m.clausulaPenalPorcentaje)} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la
+          {res("clausulaPenalPorcentaje", pct(m.clausulaPenalPorcentaje))} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la
           parte afectada por el incumplimiento. PARÁGRAFO. El valor de la cláusula penal, será descontado de cualquier saldo que resultare a favor del
           CONTRATISTA en razón de este contrato si lo hubiere. En caso contrario se hará efectiva la garantía y si esto no fuere posible, se iniciarán las
           acciones judiciales pertinentes.
@@ -256,18 +315,18 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
 
         <Clausula titulo="DECIMA PRIMERA. - CLÁUSULA PENAL PECUNIARIA:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al{" "}
-          {pct(m.clausulaPenalPorcentaje)} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la
+          {res("clausulaPenalPorcentaje", pct(m.clausulaPenalPorcentaje))} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la
           parte afectada por el incumplimiento. PARÁGRAFO. El valor de la cláusula penal, será descontado de cualquier saldo que resultare a favor del
           CONTRATISTA en razón de este contrato si lo hubiere. En caso contrario, se iniciarán las acciones judiciales pertinentes.
         </Clausula>
 
         <Clausula titulo="DECIMA SEGUNDA. - DOMICILIO:">
-          Para todos los efectos legales, las partes acuerdan como domicilio de este contrato el municipio de {blanco(m.domicilioMunicipio)}, departamento
-          de {blanco(m.domicilioDepartamento)}.
+          Para todos los efectos legales, las partes acuerdan como domicilio de este contrato el municipio de {res("domicilioMunicipio", blanco(m.domicilioMunicipio))}, departamento
+          de {res("domicilioDepartamento", blanco(m.domicilioDepartamento))}.
         </Clausula>
 
         <Clausula titulo="DECIMA TERCERA. - DOCUMENTOS DEL CONTRATO:">
-          Forman parte integral del presente contrato los anexos {blanco(m.anexos)}, y todos los documentos que se produzcan durante el desarrollo del
+          Forman parte integral del presente contrato los anexos {res("anexos", blanco(m.anexos))}, y todos los documentos que se produzcan durante el desarrollo del
           mismo.
         </Clausula>
 
@@ -294,13 +353,13 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
           negociación y la conciliación entre las partes, para lo cual se contará con un período de treinta (30) días calendario. Sin embargo, en
           cualquier momento las partes podrán llevar cualquier disputa o controversia o reclamo relacionado con este contrato, incluyendo la existencia,
           validez o terminación de éste, ante un Tribunal de Arbitramento. La sede de dicho Tribunal de Arbitramento será la ciudad de{" "}
-          {blanco(m.ciudadArbitramento)} y estará conformado por un (1) árbitro que será un abogado o con experiencia laboral no menor a cinco años en
+          {res("ciudadArbitramento", blanco(m.ciudadArbitramento))} y estará conformado por un (1) árbitro que será un abogado o con experiencia laboral no menor a cinco años en
           actividades de obra civil, que fallará en derecho dando aplicación a la ley colombiana. Dicho árbitro será nombrado por el Centro de
           Conciliación y Arbitraje de la Cámara de Comercio.
         </Clausula>
 
         <Clausula titulo="DECIMA SEXTA. – GARANTIA GENERAL DE CUMPLIMIENTO:">
-          El contratista podrá presentar póliza de cumplimiento del contrato en cuantía equivalente al {pct(m.polizaPorcentaje)} del valor total del
+          El contratista podrá presentar póliza de cumplimiento del contrato en cuantía equivalente al {res("polizaPorcentaje", pct(m.polizaPorcentaje))} del valor total del
           mismo con una vigencia igual a la del término del contrato y dos meses más, o cualquiera otra garantía a satisfacción del contratante.
         </Clausula>
 
@@ -309,35 +368,35 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         </Clausula>
 
         <Clausula titulo="DECIMA OCTAVA. – NOTIFICACIONES:">
-          Las partes recibirán notificaciones en: El CONTRATANTE al correo electrónico {blanco(m.contratanteCorreo)} y el CONTRATISTA al correo
-          electrónico {blanco(m.contratistaCorreo)}.
+          Las partes recibirán notificaciones en: El CONTRATANTE al correo electrónico {res("contratanteCorreo", blanco(m.contratanteCorreo))} y el CONTRATISTA al correo
+          electrónico {res("contratistaCorreo", blanco(m.contratistaCorreo))}.
         </Clausula>
 
         {m.clausulasAdicionales.map((c, i) => (
           <Clausula key={i} titulo={`${ordinalClausula(CLAUSULAS_PLANTILLA.length + 1 + i)}. – ${blanco(c.titulo).toUpperCase()}:`}>
-            {c.texto}
+            {res(`clausulasAdicionales:${i}`, c.texto)}
           </Clausula>
         ))}
 
         <P>
-          En constancia de lo anterior se firma en la ciudad de {blanco(m.ciudadFirma)}, {lugarFecha}.
+          En constancia de lo anterior se firma en la ciudad de {res("ciudadFirma", blanco(m.ciudadFirma))}, {res("fechaFirma", lugarFecha)}.
         </P>
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
             <View style={s.firmaLinea} />
-            <Text style={s.b}>{blanco(m.contratanteNombre)}</Text>
-            <Text>{blanco(m.contratanteRepresentante)}</Text>
-            <Text>C.C.: {blanco(m.contratanteRepresentanteCedula)}</Text>
-            <Text>NIT. {blanco(m.contratanteNit)}</Text>
+            <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
+            <Text>{res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
+            <Text>C.C.: {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))}</Text>
+            <Text>NIT. {res("contratanteNit", blanco(m.contratanteNit))}</Text>
             <Text style={s.b}>CONTRATANTE</Text>
           </View>
           <View style={s.firma}>
             <View style={s.firmaLinea} />
-            <Text style={s.b}>{blanco(m.contratistaNombre)}</Text>
-            {juridica && <Text>{blanco(m.contratistaRepresentante)}</Text>}
-            <Text>C.C.: {blanco(m.contratistaCedula)}</Text>
-            {juridica && <Text>NIT. {blanco(m.contratistaNit)}</Text>}
+            <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))}</Text>
+            {juridica && <Text>{res("contratistaRepresentante", blanco(m.contratistaRepresentante))}</Text>}
+            <Text>C.C.: {res("contratistaCedula", blanco(m.contratistaCedula))}</Text>
+            {juridica && <Text>NIT. {res("contratistaNit", blanco(m.contratistaNit))}</Text>}
             <Text style={s.b}>CONTRATISTA</Text>
           </View>
         </View>
@@ -368,8 +427,8 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de mano de obra N° ${numero} · Página ${pageNumber} de ${totalPages}`} />
         <Text style={s.titulo}>ANEXO N° 1 — ACTIVIDADES, CANTIDADES Y VALORES</Text>
         <P>
-          Contrato de mano de obra N° {numero} entre {blanco(m.contratanteNombre)} y {blanco(m.contratistaNombre)}, para la obra denominada{" "}
-          {blanco(m.obra)}.
+          Contrato de mano de obra N° {numero} entre {res("contratanteNombre", blanco(m.contratanteNombre))} y {res("contratistaNombre", blanco(m.contratistaNombre))}, para la obra denominada{" "}
+          {res("obra", blanco(m.obra))}.
         </P>
         <View style={s.tabla}>
           <View style={s.tr} fixed>
@@ -384,7 +443,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
             const v = leerNumero(it.valorUnitario)
             return (
               <View key={i} style={s.tr} wrap={false}>
-                <Text style={[s.td, { width: anchos.actividad }]}>{it.actividad}</Text>
+                <Text style={[s.td, { width: anchos.actividad }]}>{res(`items:${i}`, it.actividad)}</Text>
                 <Text style={[s.td, s.celdaBorde, { width: anchos.unidad }]}>{it.unidad}</Text>
                 <Text style={[s.td, s.celdaBorde, { width: anchos.cantidad, textAlign: "right" }]}>{it.cantidad}</Text>
                 <Text style={[s.td, s.celdaBorde, { width: anchos.vu, textAlign: "right" }]}>{v !== null ? `$ ${pesosSinSimbolo(v)}` : it.valorUnitario}</Text>
@@ -399,7 +458,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo }: { minuta: MinutaM
             <Text style={[s.td, s.celdaBorde, s.b, { width: anchos.total, textAlign: "right" }]}>$ {pesosSinSimbolo(totalAnexo)}</Text>
           </View>
         </View>
-        <Text style={[s.p, { marginTop: 10, fontSize: 9, color: "#444" }]}>Fecha: {fechaLarga(m.fechaFirma)}.</Text>
+        <Text style={[s.p, { marginTop: 10, fontSize: 9, color: "#444" }]}>Fecha: {res("fechaFirma", fechaLarga(m.fechaFirma))}.</Text>
       </Page>
     </Document>
   )

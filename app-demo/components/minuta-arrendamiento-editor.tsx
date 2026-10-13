@@ -14,6 +14,7 @@ import {
   SelectorMinuta,
   claseCampo,
   descargarPdfMinuta,
+  focoDeEvento,
   useVistaPreviaMinuta,
 } from "@/components/minuta-comun"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
@@ -59,7 +60,9 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
   const [guardando, setGuardando] = useState(false)
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
   const [descargando, setDescargando] = useState(false)
-  const vistaPrevia = useVistaPreviaMinuta(detalle.id, m)
+  // Dato que se está editando: la vista previa lo resalta y abre en su página.
+  const [foco, setFoco] = useState<string | null>(null)
+  const vistaPrevia = useVistaPreviaMinuta(detalle.id, m, foco)
 
   const editable = puedeEditar && detalle.estado !== "rechazada"
   const deshabilitado = !editable || guardando
@@ -123,6 +126,7 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
     const deSolicitud = clave === "obligacionesArrendador" ? detalle.obligaciones : []
     return (
       <ListaEditable
+        foco={clave}
         items={m![clave]}
         onChange={(items) => actualizar({ [clave]: items } as Partial<MinutaArrendamiento>)}
         marcador={letra}
@@ -177,7 +181,13 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
   const canonNumero = leerNumero(m.canon)
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div
+      className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+      onFocus={(e) => {
+        const f = focoDeEvento(e)
+        if (f) setFoco(f)
+      }}
+    >
       {/* ---------------- formulario ---------------- */}
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
@@ -301,6 +311,7 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
             {campo("fechaInicio", "Inicia el", { tipo: "date" })}
             <SelectorMinuta
               id="minuta-servicios"
+              foco="serviciosPublicos"
               etiqueta="Servicios públicos (parágrafo)"
               valor={m.serviciosPublicos}
               opciones={OPCIONES_SERVICIOS}

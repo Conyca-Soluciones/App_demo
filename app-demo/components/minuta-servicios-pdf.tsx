@@ -3,7 +3,7 @@ import { leerNumero } from "@/lib/contratos"
 import { blanco, cantidadEnLetras, fechaLarga, ordinalClausula, partesFecha, pesosSinSimbolo } from "@/lib/minuta-mano-obra"
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_SERVICIOS, type MinutaServicios } from "@/lib/minuta-servicios"
-import { Clausula, Encabezado, Lista, P, s } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de prestación de servicios: el texto de la
@@ -15,7 +15,9 @@ const ENCABEZADO = { formato: "CONTRATO DE PRESTACIÓN DE SERVICIOS", codigo: "G
 
 const numero = (i: number) => `${i + 1}.`
 
-export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: { minuta: MinutaServicios; numero: number; logo: string | Buffer }) {
+export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, foco }: { minuta: MinutaServicios; numero: number; logo: string | Buffer; foco?: string }) {
+  const res = campoResaltable(foco)
+  const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.contratistaTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.contratistaTipoDocumento)
@@ -40,19 +42,19 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
         <Text style={s.titulo}>{consecutivo}</Text>
 
         <P>
-          Entre los suscritos a saber: <Text style={s.b}>{blanco(m.contratanteNombre)},</Text> con NIT. {blanco(m.contratanteNit)}, representado por{" "}
-          <Text style={s.b}>{blanco(m.contratanteRepresentante)},</Text> mayor de edad identificado con cedula número {blanco(m.contratanteRepresentanteCedula)},
+          Entre los suscritos a saber: <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))},</Text> con NIT. {res("contratanteNit", blanco(m.contratanteNit))}, representado por{" "}
+          <Text style={s.b}>{res("contratanteRepresentante", blanco(m.contratanteRepresentante))},</Text> mayor de edad identificado con cedula número {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))},
           en adelante el <Text style={s.b}>CONTRATANTE,</Text> por una parte y por la otra,{" "}
           {juridica ? (
             <>
-              <Text style={s.b}>{blanco(m.contratistaNombre)},</Text> con NIT. {blanco(m.contratistaNit)}, representada por{" "}
-              <Text style={s.b}>{blanco(m.contratistaRepresentante)},</Text> mayor de edad, identificado con {documento.articulo} {documento.texto} Nro.{" "}
-              <Text style={s.b}>{blanco(m.contratistaCedula)}</Text> {documento.expedido} en <Text style={s.b}>{blanco(m.contratistaCedulaExpedida)},</Text>
+              <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))},</Text> con NIT. {res("contratistaNit", blanco(m.contratistaNit))}, representada por{" "}
+              <Text style={s.b}>{res("contratistaRepresentante", blanco(m.contratistaRepresentante))},</Text> mayor de edad, identificado con {documento.articulo} {documento.texto} Nro.{" "}
+              <Text style={s.b}>{res("contratistaCedula", blanco(m.contratistaCedula))}</Text> {documento.expedido} en <Text style={s.b}>{res("contratistaCedulaExpedida", blanco(m.contratistaCedulaExpedida))},</Text>
             </>
           ) : (
             <>
-              <Text style={s.b}>{blanco(m.contratistaNombre)},</Text> mayor de edad, identificado con {documento.articulo} {documento.texto} Nro.{" "}
-              <Text style={s.b}>{blanco(m.contratistaCedula)}</Text> {documento.expedido} en <Text style={s.b}>{blanco(m.contratistaCedulaExpedida)},</Text>{" "}
+              <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))},</Text> mayor de edad, identificado con {documento.articulo} {documento.texto} Nro.{" "}
+              <Text style={s.b}>{res("contratistaCedula", blanco(m.contratistaCedula))}</Text> {documento.expedido} en <Text style={s.b}>{res("contratistaCedulaExpedida", blanco(m.contratistaCedulaExpedida))},</Text>{" "}
               actuando en nombre y representación propia,
             </>
           )}{" "}
@@ -63,11 +65,11 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
 
         <Clausula titulo="PRIMERA- OBJETO:">
           El contratista se compromete con el contratante a prestar de manera diligente y con plena autonomía, los servicios profesionales como{" "}
-          {blanco(m.servicio)}, para el proyecto {blanco(m.obra)}.
+          {res("servicio", blanco(m.servicio))}, para el proyecto {res("obra", blanco(m.obra))}.
         </Clausula>
 
         <Text style={[s.p, s.b]}>SEGUNDA. – OBLIGACIONES GENERALES DEL CONTRATISTA:</Text>
-        <Lista items={m.obligacionesGenerales} marcador={numero} />
+        <Lista items={m.obligacionesGenerales} resaltado={r("obligacionesGenerales")} marcador={numero} />
         <P>
           <Text style={s.b}>PARAGRAFO:</Text> EL contratista tiene la obligación como requisito para el pago de los honorarios acordados, presentar los
           soportes de la afiliación y pago mensual de la seguridad social en salud, pensión y ARL los cuales lo presentará con el informe de actividades
@@ -75,14 +77,14 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
         </P>
 
         <Text style={[s.p, s.b]}>TERCERA- OBLIGACIONES ESPECIFICAS DEL CONTRATISTA:</Text>
-        {m.obligacionesEspecificas.length > 0 ? <Lista items={m.obligacionesEspecificas} marcador={numero} /> : <P>{blanco(null)}</P>}
+        {m.obligacionesEspecificas.length > 0 ? <Lista items={m.obligacionesEspecificas} resaltado={r("obligacionesEspecificas")} marcador={numero} /> : <P>{blanco(null)}</P>}
 
         <Text style={[s.p, s.b]}>CUARTA-OBLIGACIONES GENERALES DEL CONTRATANTE:</Text>
-        <Lista items={m.obligacionesContratante} marcador={numero} />
+        <Lista items={m.obligacionesContratante} resaltado={r("obligacionesContratante")} marcador={numero} />
 
         <Clausula titulo="QUINTA-DURACIÓN O PLAZO:">
-          La realización de las actividades del presente contrato se llevará a cabo dentro de un plazo de {blanco(m.plazo)} contado a partir del{" "}
-          {fechaLarga(m.fechaInicio)}.
+          La realización de las actividades del presente contrato se llevará a cabo dentro de un plazo de {res("plazo", blanco(m.plazo))} contado a partir del{" "}
+          {res("fechaInicio", fechaLarga(m.fechaInicio))}.
         </Clausula>
         <P>
           Una vez finalizado el objeto del contrato y aceptada por el contratante, el contratista deberá hacer entrega formal de las actividades encargadas,
@@ -93,9 +95,9 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
         <Clausula titulo="SEXTA-VALOR:">
           El contratante cancelará como contraprestación por concepto de honorarios la suma de valor{" "}
           <Text style={s.b}>
-            {blanco(m.valorLetras)} (${valor !== null ? pesosSinSimbolo(valor) : blanco(m.valor)}) M/CTE,
+            {res("valorLetras", blanco(m.valorLetras))} (${res("valor", valor !== null ? pesosSinSimbolo(valor) : blanco(m.valor))}) M/CTE,
           </Text>{" "}
-          incluido todos los costos, descuentos y deducciones que apliquen. Los pagos se realizarán de manera {blanco(m.formaPago)}
+          incluido todos los costos, descuentos y deducciones que apliquen. Los pagos se realizarán de manera {res("formaPago", blanco(m.formaPago))}
         </Clausula>
         <P>
           <Text style={s.b}>PARAGRAFO 2:</Text> Los pagos se realizarán previa verificación de las obligaciones del contratista, para lo cual, el
@@ -113,7 +115,7 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
 
         <Clausula titulo="OCTAVA- CLAUSULA PENAL PECUNIARIA:">
           En caso de incumplimiento parcial o total de las obligaciones a cargo del contratista, el contratante previo aviso escrito podrá hacer efectiva la
-          cláusula penal pecuniaria en un monto equivalente ({pct ? `${pct}%` : blanco(null)}) por ciento del valor del contrato que se haya ejecutado, como
+          cláusula penal pecuniaria en un monto equivalente ({res("clausulaPenalPorcentaje", pct ? `${pct}%` : blanco(null))}) por ciento del valor del contrato que se haya ejecutado, como
           estimación anticipada y parcial de los perjuicios que se causen, sin perjuicio de que se pueda solicitar al contratista la totalidad del valor de
           los perjuicios causados en lo que excedan del valor de la cláusula penal pecuniaria.
         </Clausula>
@@ -123,8 +125,8 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
         </P>
 
         <Clausula titulo="NOVENA- LUGAR DE EJECUCIÓN:">
-          El lugar de ejecución de la actividad contratada será el Municipio de {blanco(m.municipioEjecucion)} del Departamento de{" "}
-          {blanco(m.departamentoEjecucion)}.
+          El lugar de ejecución de la actividad contratada será el Municipio de {res("municipioEjecucion", blanco(m.municipioEjecucion))} del Departamento de{" "}
+          {res("departamentoEjecucion", blanco(m.departamentoEjecucion))}.
         </Clausula>
 
         <Clausula titulo="DECIMA- SUSPENSION, TERMINACION ANTICIPADA O PRORROGA:">
@@ -183,40 +185,40 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo }: 
         </P>
 
         <Clausula titulo="DECIMA OCTAVA - DOMICILIO CONTRACTUAL:">
-          Para todos los efectos legales el presente contrato tendrá como domicilio la ciudad de {blanco(m.domicilioCiudad)}.
+          Para todos los efectos legales el presente contrato tendrá como domicilio la ciudad de {res("domicilioCiudad", blanco(m.domicilioCiudad))}.
         </Clausula>
 
         <Clausula titulo="DECIMA NOVENA: NOTIFICACIONES">
           para todos los efectos de notificaciones, las partes autorizan las siguientes direcciones: El Contratista en el correo electrónico{" "}
-          {blanco(m.contratistaCorreo)} y el contratante al correo {blanco(m.contratanteCorreo)}.
+          {res("contratistaCorreo", blanco(m.contratistaCorreo))} y el contratante al correo {res("contratanteCorreo", blanco(m.contratanteCorreo))}.
         </Clausula>
 
         {m.clausulasAdicionales.map((c, i) => (
           <Clausula key={i} titulo={`${ordinalClausula(PRIMERA_CLAUSULA_ADICIONAL_SERVICIOS + i)}- ${blanco(c.titulo).toUpperCase()}:`}>
-            {c.texto}
+            {res(`clausulasAdicionales:${i}`, c.texto)}
           </Clausula>
         ))}
 
         <P>
-          Para constancia se firma en {blanco(m.ciudadFirma)} {lugarFecha}.
+          Para constancia se firma en {res("ciudadFirma", blanco(m.ciudadFirma))} {res("fechaFirma", lugarFecha)}.
         </P>
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATANTE</Text>
             <View style={s.firmaLinea} />
-            <Text style={s.b}>{blanco(m.contratanteNombre)}</Text>
-            <Text style={s.b}>NIT {blanco(m.contratanteNit)}</Text>
-            <Text style={s.b}>R/: {blanco(m.contratanteRepresentante)}</Text>
+            <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
+            <Text style={s.b}>NIT {res("contratanteNit", blanco(m.contratanteNit))}</Text>
+            <Text style={s.b}>R/: {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
           </View>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATISTA</Text>
             <View style={s.firmaLinea} />
-            <Text style={s.b}>{blanco(m.contratistaNombre)}</Text>
-            {juridica && <Text style={s.b}>NIT {blanco(m.contratistaNit)}</Text>}
-            {juridica && <Text style={s.b}>R/: {blanco(m.contratistaRepresentante)}</Text>}
+            <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))}</Text>
+            {juridica && <Text style={s.b}>NIT {res("contratistaNit", blanco(m.contratistaNit))}</Text>}
+            {juridica && <Text style={s.b}>R/: {res("contratistaRepresentante", blanco(m.contratistaRepresentante))}</Text>}
             <Text style={s.b}>
-              {documento.firma === "CC." ? "C.C." : documento.firma} {blanco(m.contratistaCedula)}
+              {documento.firma === "CC." ? "C.C." : documento.firma} {res("contratistaCedula", blanco(m.contratistaCedula))}
             </Text>
           </View>
         </View>

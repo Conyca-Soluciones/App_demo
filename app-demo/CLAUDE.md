@@ -1921,6 +1921,26 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   quinta). Obligaciones específicas: las 17 de la plantilla (que salta los
   números 3, 8 y 17; aquí van seguidas) + las de la solicitud y sus
   entregables. Domicilio por defecto "Arauca" (venía fijo en la plantilla).
+- **Dato en edición resaltado en la vista previa** (2026-10-13): al entrar a
+  un campo del editor, la vista previa se regenera con ese dato en amarillo y
+  el visor abre en su página y altura. Cada campo lleva `data-foco` (clave del
+  campo; en listas y tablas "clave:posición", p. ej.
+  "obligacionesContratista:2", "items:0", "amparos:1"); el editor lo lee en
+  `onFocus` (`focoDeEvento`) y `useVistaPreviaMinuta(id, m, foco)` lo manda a
+  la ruta. Los PDF envuelven cada dato con `res("clave", …)` y las listas con
+  `resaltado={r("clave")}` (`campoResaltable` / `renglonConFoco` en
+  minuta-mano-obra-pdf). @react-pdf no dice en qué página queda un texto: el
+  resaltado lleva delante una marca invisible ("~~~~~~", blanco, 1 pt) y
+  `buscarMarcaEnPdf` (lib/minuta-pdf-foco.ts) la busca en el PDF ya generado
+  (descomprime el contenido de cada página; en párrafos justificados la marca
+  sale partida en `[<7e> -289 <7e> …] TJ`) y calcula la altura siguiendo
+  q/Q/cm/Tm. La ruta lo devuelve en `X-Minuta-Pagina` / `X-Minuta-Altura` y el
+  visor del navegador abre con `#page=N&view=FitH,Y` (el fragmento tiene que
+  ir en la URL nueva del blob; cambiar solo el `#` no mueve el visor). La
+  descarga no manda foco. Si el dato sale varias veces, abre en la primera.
+  `unirTexto` además aplana un `<Text>` con otros `<Text>` adentro: @react-pdf
+  no dibuja texto anidado en tres niveles (negrilla con el dato resaltado
+  dentro de un párrafo).
 - **Las 6 plantillas están hechas**; la rama final de
   `preaprobacion-contratos-view.tsx` solo aplica a un tipo nuevo.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de

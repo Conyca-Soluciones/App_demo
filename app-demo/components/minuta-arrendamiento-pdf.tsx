@@ -7,7 +7,7 @@ import {
   tipoDocumentoArrendador,
   type MinutaArrendamiento,
 } from "@/lib/minuta-arrendamiento"
-import { Clausula, Encabezado, Lista, P, s } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de arrendamiento: el texto de la plantilla
@@ -19,7 +19,9 @@ const ENCABEZADO = { formato: "CONTRATO DE ARRENDAMIENTO", codigo: "GJ-F-014", v
 
 const letra = (i: number) => `${String.fromCharCode(97 + i)})`
 
-export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: MinutaArrendamiento; numero: number; logo: string | Buffer }) {
+export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaArrendamiento; numero: number; logo: string | Buffer; foco?: string }) {
+  const res = campoResaltable(foco)
+  const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.arrendadorTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.arrendadorTipoDocumento)
@@ -43,20 +45,20 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           Entre los suscritos a saber:{" "}
           {juridica ? (
             <>
-              <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text> identificada con número de identificación tributaria {blanco(m.arrendadorNit)},
-              representada legalmente por <Text style={s.b}>{blanco(m.arrendadorRepresentante)}</Text> identificado con {documento.texto}{" "}
-              {blanco(m.arrendadorCedula)} {documento.expedido} en {blanco(m.arrendadorCedulaExpedida)}
+              <Text style={s.b}>{res("arrendadorNombre", blanco(m.arrendadorNombre))}</Text> identificada con número de identificación tributaria {res("arrendadorNit", blanco(m.arrendadorNit))},
+              representada legalmente por <Text style={s.b}>{res("arrendadorRepresentante", blanco(m.arrendadorRepresentante))}</Text> identificado con {documento.texto}{" "}
+              {res("arrendadorCedula", blanco(m.arrendadorCedula))} {documento.expedido} en {res("arrendadorCedulaExpedida", blanco(m.arrendadorCedulaExpedida))}
             </>
           ) : (
             <>
-              <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text>, mayor de edad, identificado con {documento.texto} {blanco(m.arrendadorCedula)}{" "}
-              {documento.expedido} en {blanco(m.arrendadorCedulaExpedida)}, actuando en nombre propio
+              <Text style={s.b}>{res("arrendadorNombre", blanco(m.arrendadorNombre))}</Text>, mayor de edad, identificado con {documento.texto} {res("arrendadorCedula", blanco(m.arrendadorCedula))}{" "}
+              {documento.expedido} en {res("arrendadorCedulaExpedida", blanco(m.arrendadorCedulaExpedida))}, actuando en nombre propio
             </>
           )}
           , quien obra en calidad de propietario del inmueble, y que para efectos de este contrato se denominará el{" "}
-          <Text style={s.b}>ARRENDADOR,</Text> por una parte, y por la otra, {blanco(m.arrendatarioNombre)} identificada con número de identificación
-          tributaria {blanco(m.arrendatarioNit)}, representada legalmente por <Text style={s.b}>{blanco(m.arrendatarioRepresentante)}</Text> identificado
-          con cédula de ciudadanía {blanco(m.arrendatarioCedula)}, quien para los efectos del presente contrato se denominará el{" "}
+          <Text style={s.b}>ARRENDADOR,</Text> por una parte, y por la otra, {res("arrendatarioNombre", blanco(m.arrendatarioNombre))} identificada con número de identificación
+          tributaria {res("arrendatarioNit", blanco(m.arrendatarioNit))}, representada legalmente por <Text style={s.b}>{res("arrendatarioRepresentante", blanco(m.arrendatarioRepresentante))}</Text> identificado
+          con cédula de ciudadanía {res("arrendatarioCedula", blanco(m.arrendatarioCedula))}, quien para los efectos del presente contrato se denominará el{" "}
           <Text style={s.b}>ARRENDATARIO,</Text> manifestaron que han decidido celebrar un contrato de arrendamiento de bien inmueble para uso comercial, en
           adelante el “Contrato”, el cual se rige por las siguientes cláusulas:
         </P>
@@ -65,12 +67,12 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
           <Text style={s.b}>PRIMERA. - OBJETO: </Text>
           <Text style={s.b}>
             CONCEDER (POR PARTE DEL ARRENDADOR) EL USO Y GOCE TEMPORAL DE UN BIEN Y PAGAR UN PRECIO DETERMINADO Y PERIÓDICO POR DICHO USO (POR PARTE DEL
-            ARRENDATARIO) DEL BIEN INMUEBLE UBICADO EN {blanco(m.inmuebleDireccion).toUpperCase()}, {blanco(m.inmuebleCiudad).toUpperCase()}.
+            ARRENDATARIO) DEL BIEN INMUEBLE UBICADO EN {res("inmuebleDireccion", blanco(m.inmuebleDireccion).toUpperCase())}, {res("inmuebleCiudad", blanco(m.inmuebleCiudad).toUpperCase())}.
           </Text>
         </P>
 
         <Clausula titulo="SEGUNDA. - DESTINACIÓN:">
-          <Text style={s.b}>El ARRENDATARIO</Text> destinará el inmueble arrendado exclusivamente para {blanco(m.destinacion)}.
+          <Text style={s.b}>El ARRENDATARIO</Text> destinará el inmueble arrendado exclusivamente para {res("destinacion", blanco(m.destinacion))}.
         </Clausula>
         <P>
           <Text style={s.b}>PARÁGRAFO. El ARRENDADOR</Text> prohíbe expresa y terminantemente al ARRENDATARIO dar al inmueble destinación con fines ilícitos
@@ -81,13 +83,13 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
         </P>
 
         <Clausula titulo="TERCERA. - CANON DE ARRENDAMIENTO:">
-          Se pacta en la suma de {blanco(m.canonLetras)} M/CTE (${canon !== null ? pesosSinSimbolo(canon) : blanco(m.canon)}) mensuales {iva}, valor al
+          Se pacta en la suma de {res("canonLetras", blanco(m.canonLetras))} M/CTE (${res("canon", canon !== null ? pesosSinSimbolo(canon) : blanco(m.canon))}) mensuales {res("iva", iva)}, valor al
           cual se le aplicarán los descuentos y retenciones de ley y deberá ser pagado de forma anticipada por el ARRENDATARIO dentro de los cinco (05)
-          primeros días hábiles de cada mes contados a partir de la radicación de factura al correo electrónico {blanco(m.correoFacturacion)}. El pago se
+          primeros días hábiles de cada mes contados a partir de la radicación de factura al correo electrónico {res("correoFacturacion", blanco(m.correoFacturacion))}. El pago se
           efectuará mediante transferencia electrónica a la cuenta bancaria acreditada por el arrendador, quedando establecido que los períodos mensuales
           son indivisibles.
         </Clausula>
-        {m.condicionesPago.trim() && <P>{m.condicionesPago.trim()}</P>}
+        {m.condicionesPago.trim() && <P>{res("condicionesPago", m.condicionesPago.trim())}</P>}
         <P>
           <Text style={s.b}>PARÁGRAFO PRIMERO. </Text>
           La mera tolerancia del <Text style={s.b}>ARRENDADOR</Text> en aceptar el pago del precio de la renta con posterioridad al plazo pactado, no se
@@ -97,26 +99,26 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
         {m.paragrafoAdministracion.trim() && (
           <P>
             <Text style={s.b}>PARÁGRAFO SEGUNDO. </Text>
-            {m.paragrafoAdministracion.trim()}
+            {res("paragrafoAdministracion", m.paragrafoAdministracion.trim())}
           </P>
         )}
 
         <Clausula titulo="CUARTA. - TÉRMINO DE DURACIÓN DEL ARRENDAMIENTO.">
-          El término de arrendamiento es de {blanco(m.plazo)} contados a partir del {fechaLarga(m.fechaInicio)} y se prorrogara sucesivamente por un (1) año
+          El término de arrendamiento es de {res("plazo", blanco(m.plazo))} contados a partir del {res("fechaInicio", fechaLarga(m.fechaInicio))} y se prorrogara sucesivamente por un (1) año
           después de cumplido el término inicial o inferior si lo acuerdan las partes, salvo que cualquiera de las partes manifieste por escrito, con
           anticipación no menor a treinta (30) días para el cumplimiento del plazo inicial o de alguna de sus prorrogas su intención de no prorrogarlo a su
           vencimiento, sin que en tal evento deba mediar indemnización alguna.
         </Clausula>
         <P>
           <Text style={s.b}>PARÁGRAFO: </Text>
-          {servicios}
+          {res("serviciosPublicos", servicios)}
         </P>
 
         <Text style={[s.p, s.b]}>QUINTA. - OBLIGACIONES DE LAS PARTES:</Text>
         <Text style={s.sub}>Serán obligaciones de EL ARRENDADOR:</Text>
-        <Lista items={m.obligacionesArrendador} marcador={letra} />
+        <Lista items={m.obligacionesArrendador} resaltado={r("obligacionesArrendador")} marcador={letra} />
         <Text style={s.sub}>Serán obligaciones de EL ARRENDATARIO:</Text>
-        <Lista items={m.obligacionesArrendatario} marcador={letra} />
+        <Lista items={m.obligacionesArrendatario} resaltado={r("obligacionesArrendatario")} marcador={letra} />
 
         <Clausula titulo="SEXTA. REAJUSTE DEL CANON DE ARRENDAMIENTO.">
           El canon será reajustado cada doce (12) meses de la vigencia contractual en forma automática en un porcentaje igual a la variación del IPC (Índice
@@ -183,7 +185,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
         <Clausula titulo="DÉCIMA TERCERA. CAUSALES DE TERMINACIÓN DEL CONTRATO:">
           Las Partes podrán dar por terminado el presente Contrato por las siguientes causales:
         </Clausula>
-        <Lista items={m.causalesTerminacion} marcador={letra} />
+        <Lista items={m.causalesTerminacion} resaltado={r("causalesTerminacion")} marcador={letra} />
 
         <Clausula titulo="DÉCIMA CUARTA. - SOLUCIÓN DE CONFLICTOS.">
           Las partes acuerdan que para la solución de las diferencias y discrepancias que surjan de la celebración o ejecución de este contrato, o de la forma
@@ -209,39 +211,39 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo }: { minuta: Mi
         </Clausula>
 
         <Clausula titulo="DÉCIMA NOVENA. NOTIFICACIONES.">
-          Las partes autorizan ser notificados en las siguientes direcciones: El ARRENDADOR al correo electrónico {blanco(m.arrendadorCorreo)} y por parte
-          del ARRENDATARIO al correo electrónico: {blanco(m.arrendatarioCorreo)}. Las partes deberán comunicar inmediatamente cualquier variación de
+          Las partes autorizan ser notificados en las siguientes direcciones: El ARRENDADOR al correo electrónico {res("arrendadorCorreo", blanco(m.arrendadorCorreo))} y por parte
+          del ARRENDATARIO al correo electrónico: {res("arrendatarioCorreo", blanco(m.arrendatarioCorreo))}. Las partes deberán comunicar inmediatamente cualquier variación de
           dirección, so pena de entenderse surtidas las notificaciones en el lugar aquí señalado.
         </Clausula>
 
         {m.clausulasAdicionales.map((c, i) => (
           <Clausula key={i} titulo={`${ordinalClausula(PRIMERA_CLAUSULA_ADICIONAL_ARRENDAMIENTO + i)}. - ${blanco(c.titulo).toUpperCase()}.`}>
-            {c.texto}
+            {res(`clausulasAdicionales:${i}`, c.texto)}
           </Clausula>
         ))}
 
         <P>
-          Para constancia de lo anterior, se firma el presente contrato en la ciudad de {blanco(m.ciudadFirma)}, {lugarFecha}.
+          Para constancia de lo anterior, se firma el presente contrato en la ciudad de {res("ciudadFirma", blanco(m.ciudadFirma))}, {res("fechaFirma", lugarFecha)}.
         </P>
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
             <Text style={{ marginBottom: 36 }}>El Arrendador</Text>
             <View style={s.firmaLinea} />
-            <Text style={s.b}>{blanco(m.arrendadorNombre)}</Text>
-            {juridica && <Text>NIT. {blanco(m.arrendadorNit)}</Text>}
-            {juridica && <Text>RL. {blanco(m.arrendadorRepresentante)}</Text>}
+            <Text style={s.b}>{res("arrendadorNombre", blanco(m.arrendadorNombre))}</Text>
+            {juridica && <Text>NIT. {res("arrendadorNit", blanco(m.arrendadorNit))}</Text>}
+            {juridica && <Text>RL. {res("arrendadorRepresentante", blanco(m.arrendadorRepresentante))}</Text>}
             <Text>
-              {documento.firma} {blanco(m.arrendadorCedula)}
+              {documento.firma} {res("arrendadorCedula", blanco(m.arrendadorCedula))}
             </Text>
           </View>
           <View style={s.firma}>
             <Text style={{ marginBottom: 36 }}>El Arrendatario</Text>
             <View style={s.firmaLinea} />
-            <Text style={s.b}>{blanco(m.arrendatarioNombre)}</Text>
-            <Text>NIT. {blanco(m.arrendatarioNit)}</Text>
-            <Text>RL. {blanco(m.arrendatarioRepresentante)}</Text>
-            <Text>CC. {blanco(m.arrendatarioCedula)}</Text>
+            <Text style={s.b}>{res("arrendatarioNombre", blanco(m.arrendatarioNombre))}</Text>
+            <Text>NIT. {res("arrendatarioNit", blanco(m.arrendatarioNit))}</Text>
+            <Text>RL. {res("arrendatarioRepresentante", blanco(m.arrendatarioRepresentante))}</Text>
+            <Text>CC. {res("arrendatarioCedula", blanco(m.arrendatarioCedula))}</Text>
           </View>
         </View>
       </Page>

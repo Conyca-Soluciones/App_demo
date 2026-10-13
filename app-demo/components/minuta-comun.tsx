@@ -84,8 +84,13 @@ export function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: s
 }
 
 // Campo de una línea o de varias (filas) con su etiqueta y el chip de origen.
+// `data-foco` dice qué dato del PDF es cada campo: el editor lo lee al entrar
+// al campo y la vista previa lo resalta (ver useVistaPreviaMinuta).
+const focoDeId = (id: string) => id.replace(/^minuta-/, "")
+
 export function CampoMinuta(props: {
   id: string
+  foco?: string
   etiqueta: string
   valor: string
   origen: OrigenDato
@@ -97,7 +102,7 @@ export function CampoMinuta(props: {
   ancho?: boolean
   filas?: number
 }) {
-  const { id, etiqueta, valor, origen, onChange, disabled, tipo, placeholder, ayuda, ancho, filas } = props
+  const { id, foco, etiqueta, valor, origen, onChange, disabled, tipo, placeholder, ayuda, ancho, filas } = props
   return (
     <div className={`min-w-0 space-y-1 ${ancho || filas ? "sm:col-span-2" : ""}`}>
       <div className="flex items-center justify-between gap-2">
@@ -109,6 +114,7 @@ export function CampoMinuta(props: {
       {filas ? (
         <textarea
           id={id}
+          data-foco={foco ?? focoDeId(id)}
           rows={filas}
           value={valor}
           placeholder={placeholder}
@@ -119,6 +125,7 @@ export function CampoMinuta(props: {
       ) : (
         <input
           id={id}
+          data-foco={foco ?? focoDeId(id)}
           type={tipo ?? "text"}
           value={valor}
           placeholder={placeholder}
@@ -135,6 +142,7 @@ export function CampoMinuta(props: {
 // Selector con chip de origen (vacío = "Falta").
 export function SelectorMinuta<T extends string>(props: {
   id: string
+  foco?: string
   etiqueta: string
   valor: T | ""
   opciones: { valor: T; titulo: string }[]
@@ -143,7 +151,7 @@ export function SelectorMinuta<T extends string>(props: {
   disabled: boolean
   ancho?: boolean
 }) {
-  const { id, etiqueta, valor, opciones, origen, onChange, disabled, ancho } = props
+  const { id, foco, etiqueta, valor, opciones, origen, onChange, disabled, ancho } = props
   return (
     <div className={`min-w-0 space-y-1 ${ancho ? "sm:col-span-2" : ""}`}>
       <div className="flex items-center justify-between gap-2">
@@ -152,7 +160,7 @@ export function SelectorMinuta<T extends string>(props: {
         </label>
         <ChipOrigen origen={origen} />
       </div>
-      <select id={id} value={valor} onChange={(e) => onChange(e.target.value as T | "")} disabled={disabled} className={`${claseCampo} ${ORIGEN[origen].borde}`}>
+      <select id={id} data-foco={foco ?? focoDeId(id)} value={valor} onChange={(e) => onChange(e.target.value as T | "")} disabled={disabled} className={`${claseCampo} ${ORIGEN[origen].borde}`}>
         <option value="">— Elige —</option>
         {opciones.map((o) => (
           <option key={o.valor} value={o.valor}>
@@ -167,6 +175,8 @@ export function SelectorMinuta<T extends string>(props: {
 // Lista de renglones editables (obligaciones, requisitos, causales...): subir,
 // bajar, quitar y agregar.
 export function ListaEditable(props: {
+  // Clave de la lista en la minuta: cada renglón es "clave:posición".
+  foco?: string
   items: string[]
   onChange: (items: string[]) => void
   marcador: (i: number) => string
@@ -175,7 +185,7 @@ export function ListaEditable(props: {
   editable: boolean
   guardando: boolean
 }) {
-  const { items, onChange, marcador, origen, textoAgregar, editable, guardando } = props
+  const { foco, items, onChange, marcador, origen, textoAgregar, editable, guardando } = props
   const deshabilitado = !editable || guardando
   const mover = (i: number, d: -1 | 1) => {
     const copia = [...items]
@@ -195,6 +205,7 @@ export function ListaEditable(props: {
             <textarea
               rows={2}
               value={t}
+              data-foco={foco ? `${foco}:${i}` : undefined}
               aria-label={`${textoAgregar} ${i + 1}`}
               onChange={(e) => onChange(items.map((x, j) => (j === i ? e.target.value : x)))}
               disabled={deshabilitado}
@@ -244,7 +255,7 @@ export function ClausulasAdicionalesEditor(props: {
         const cambiar = (cambio: Partial<ClausulaAdicional>) => onChange(clausulas.map((x, j) => (j === i ? { ...x, ...cambio } : x)))
         const vacia = !c.titulo.trim() || !c.texto.trim()
         return (
-          <div key={i} className={`space-y-2 rounded-md border p-3 ${ORIGEN[vacia ? "vacio" : "editado"].borde}`}>
+          <div key={i} data-foco={`clausulasAdicionales:${i}`} className={`space-y-2 rounded-md border p-3 ${ORIGEN[vacia ? "vacio" : "editado"].borde}`}>
             <div className="flex items-center gap-2">
               <span className="shrink-0 text-xs font-semibold">{ordinalClausula(desde + i)}.</span>
               <input
@@ -335,7 +346,7 @@ export function TablaItemsMinuta(props: {
                   ? "solicitud"
                   : "editado"
             return (
-              <tr key={i} className={`border-t align-top ${ORIGEN[origenFila].borde}`}>
+              <tr key={i} data-foco={`items:${i}`} className={`border-t align-top ${ORIGEN[origenFila].borde}`}>
                 <td className="p-1">
                   <div className="px-1 pb-1">
                     <ChipOrigen origen={origenFila} />
@@ -437,7 +448,7 @@ export function TablaAmparosMinuta(props: {
         const original = porDefecto[i]
         const origen: OrigenDato = !a.amparo.trim() || !a.porcentaje.trim() ? "vacio" : mismoAmparo(a, original) ? "plantilla" : "editado"
         return (
-          <div key={i} className={`grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1.2fr)_6rem_minmax(0,1.5fr)_auto] ${ORIGEN[origen].borde}`}>
+          <div key={i} data-foco={`amparos:${i}`} className={`grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1.2fr)_6rem_minmax(0,1.5fr)_auto] ${ORIGEN[origen].borde}`}>
             <input
               aria-label={`Amparo ${i + 1}`}
               value={a.amparo}
@@ -500,11 +511,15 @@ export function TablaAmparosMinuta(props: {
 // El PDF se genera en el servidor con lo que está en pantalla (POST con la
 // minuta): la vista previa y la descarga muestran cambios aún sin guardar. La
 // ruta elige la plantilla según el tipo del contrato.
-export async function generarPdfMinuta(id: string, minuta: unknown, signal?: AbortSignal): Promise<Blob> {
+export type PdfMinuta = { blob: Blob; pagina: number | null; altura: number | null }
+
+// `foco` (solo la vista previa): el dato que se está editando sale resaltado y
+// la ruta dice en qué página y a qué altura quedó.
+export async function generarPdfMinuta(id: string, minuta: unknown, signal?: AbortSignal, foco?: string | null): Promise<PdfMinuta> {
   const r = await fetch(`/contratos/pre-aprobacion/${id}/minuta`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ minuta }),
+    body: JSON.stringify({ minuta, ...(foco ? { foco } : {}) }),
     signal,
   })
   const tipo = r.headers.get("Content-Type") ?? ""
@@ -512,11 +527,15 @@ export async function generarPdfMinuta(id: string, minuta: unknown, signal?: Abo
     const cuerpo = tipo.includes("json") ? await r.json().catch(() => null) : null
     throw new Error(cuerpo?.error ?? "No se pudo generar el PDF.")
   }
-  return r.blob()
+  const numero = (h: string) => {
+    const n = Number(r.headers.get(h))
+    return r.headers.has(h) && Number.isFinite(n) ? n : null
+  }
+  return { blob: await r.blob(), pagina: numero("X-Minuta-Pagina"), altura: numero("X-Minuta-Altura") }
 }
 
 export async function descargarPdfMinuta(id: string, minuta: unknown, nombreArchivo: string) {
-  const blob = await generarPdfMinuta(id, minuta)
+  const { blob } = await generarPdfMinuta(id, minuta)
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -527,35 +546,52 @@ export async function descargarPdfMinuta(id: string, minuta: unknown, nombreArch
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-// Vista previa: se vuelve a generar un momento después del último cambio.
-// `refrescar` la genera otra vez con la misma minuta.
-export function useVistaPreviaMinuta(id: string, minuta: unknown) {
-  const [vista, setVista] = useState<{ url: string | null; cargando: boolean; error: string | null }>({ url: null, cargando: false, error: null })
+// Lee el dato de un campo al entrar en él (onFocus del editor): el elemento o
+// su contenedor más cercano con data-foco.
+export const focoDeEvento = (e: React.FocusEvent) => (e.target as HTMLElement).closest<HTMLElement>("[data-foco]")?.dataset.foco ?? null
+
+// Vista previa: se vuelve a generar un momento después del último cambio, o
+// enseguida al pasar a otro campo (`foco`): ese dato sale resaltado y el
+// visor abre en su página, a su altura. `refrescar` la genera otra vez.
+export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string | null) {
+  const [vista, setVista] = useState<{ url: string | null; cargando: boolean; error: string | null; pagina: number | null }>({
+    url: null,
+    cargando: false,
+    error: null,
+    pagina: null,
+  })
   const [vuelta, setVuelta] = useState(0)
   const urlVista = useRef<string | null>(null)
+  const minutaAnterior = useRef<unknown>(null)
 
   useEffect(() => {
     if (!minuta) return
     const control = new AbortController()
+    // Si solo cambió el campo, no hay que esperar a que se termine de escribir.
+    const espera = minutaAnterior.current === minuta ? 200 : 900
+    minutaAnterior.current = minuta
     const t = setTimeout(() => {
       setVista((v) => ({ ...v, cargando: true, error: null }))
-      generarPdfMinuta(id, minuta, control.signal)
-        .then((blob) => {
+      generarPdfMinuta(id, minuta, control.signal, foco)
+        .then(({ blob, pagina, altura }) => {
           const url = URL.createObjectURL(blob)
           if (urlVista.current) URL.revokeObjectURL(urlVista.current)
           urlVista.current = url
-          setVista({ url, cargando: false, error: null })
+          // El visor del navegador abre en la página (y la altura, con un
+          // margen arriba) que vienen en la dirección.
+          const destino = pagina ? `#page=${pagina}${altura !== null ? `&view=FitH,${Math.round(altura + 60)}` : ""}` : ""
+          setVista({ url: url + destino, cargando: false, error: null, pagina })
         })
         .catch((e) => {
           if (control.signal.aborted) return
           setVista((v) => ({ ...v, cargando: false, error: e instanceof Error ? e.message : "No se pudo generar la vista previa." }))
         })
-    }, 900)
+    }, espera)
     return () => {
       clearTimeout(t)
       control.abort()
     }
-  }, [minuta, id, vuelta])
+  }, [minuta, id, vuelta, foco])
 
   useEffect(
     () => () => {
@@ -572,7 +608,10 @@ export function PanelVistaPrevia({ vista, refrescar }: ReturnType<typeof useVist
     <div className="min-w-0">
       <div className="sticky top-0 flex h-[70svh] flex-col overflow-hidden rounded-lg border bg-muted/30 lg:h-[calc(94svh-9rem)]">
         <div className="flex items-center gap-2 border-b bg-background px-3 py-2 text-xs">
-          <span className="flex-1 font-medium">Vista previa del PDF</span>
+          <span className="flex-1 font-medium">
+            Vista previa del PDF
+            {vista.pagina && <span className="ml-2 font-normal text-muted-foreground">· el dato resaltado está en la página {vista.pagina}</span>}
+          </span>
           {vista.cargando && (
             <span className="flex items-center gap-1 text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" /> Actualizando...
