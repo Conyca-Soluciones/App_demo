@@ -87,6 +87,8 @@ export type Contratista = {
   numeroCuenta: string
   creadoPorNombre: string | null
   createdAt: string
+  editadoAt: string | null
+  editadoPorNombre: string | null
   documentos: DocumentoContratista[]
 }
 

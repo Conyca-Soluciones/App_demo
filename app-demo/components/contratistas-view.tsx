@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Eye, FileUp, Loader2, Plus, Search, X } from "lucide-react"
+import { CheckCircle2, Eye, FileUp, Loader2, Pencil, Plus, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -25,11 +25,13 @@ import {
   type CampoContratista,
   type Contratista,
   type DatosContratista,
+  type DocumentoContratista,
   type TipoDocumentoContratista,
   type TipoPersona,
 } from "@/lib/contratistas"
 import {
   crearContratista,
+  editarContratista,
   enlaceDocumentoContratista,
   listarContratistas,
   type DocumentoSubido,
@@ -67,6 +69,9 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
   const [orden, setOrden] = useState<OrdenExcel | null>({ clave: "nombre", dir: "asc" })
   const [pagina, setPagina] = useState(1)
   const [nuevoAbierto, setNuevoAbierto] = useState(false)
+  const [editando, setEditando] = useState<Contratista | null>(null)
+  // Cambia al cerrar el formulario: la próxima vez se monta de cero.
+  const [vezFormulario, setVezFormulario] = useState(0)
   const [detalle, setDetalle] = useState<Contratista | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
@@ -263,17 +268,36 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
       </main>
 
       {puedeCrear && (
-        <NuevoContratistaDialog
-          abierto={nuevoAbierto}
-          onAbiertoChange={setNuevoAbierto}
-          onCreado={(c) => {
-            setContratistas((prev) => [...(prev ?? []), c])
-            setAviso(`Contratista "${c.nombre}" creado.`)
+        <ContratistaFormDialog
+          key={`${editando?.id ?? "nuevo"}-${vezFormulario}`}
+          abierto={nuevoAbierto || editando !== null}
+          editando={editando}
+          onAbiertoChange={(abrir) => {
+            if (abrir) return
+            setNuevoAbierto(false)
+            setEditando(null)
+            setVezFormulario((n) => n + 1)
+          }}
+          onGuardado={(c, nuevo) => {
+            setContratistas((prev) => (nuevo ? [...(prev ?? []), c] : (prev ?? []).map((x) => (x.id === c.id ? c : x))))
+            setAviso(nuevo ? `Contratista "${c.nombre}" creado.` : `Contratista "${c.nombre}" actualizado.`)
           }}
         />
       )}
 
-      <DetalleContratistaDialog contratista={detalle} onCerrar={() => setDetalle(null)} />
+      <DetalleContratistaDialog
+        contratista={detalle}
+        onCerrar={() => setDetalle(null)}
+        onEditar={
+          puedeCrear
+            ? (c) => {
+                setDetalle(null)
+                setAviso(null)
+                setEditando(c)
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }
@@ -282,7 +306,15 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
 // Detalle (datos + documentos)
 // ---------------------------------------------------------------------------
 
-function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: Contratista | null; onCerrar: () => void }) {
+function DetalleContratistaDialog({
+  contratista: c,
+  onCerrar,
+  onEditar,
+}: {
+  contratista: Contratista | null
+  onCerrar: () => void
+  onEditar?: (c: Contratista) => void
+}) {
   // Documento abierto en el visor (dentro del mismo diálogo).
   const [viendo, setViendo] = useState<{ id: string; titulo: string; nombreArchivo: string; mime: string } | null>(null)
 
@@ -304,6 +336,9 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
         ["Banco", c.banco],
         ["Cuenta", `${c.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} ${c.numeroCuenta}`],
         ["Creado", `${fechaCreacion(c.createdAt)}${c.creadoPorNombre ? ` por ${c.creadoPorNombre}` : ""}`],
+        ...(c.editadoAt
+          ? ([["Última edición", `${fechaCreacion(c.editadoAt)}${c.editadoPorNombre ? ` por ${c.editadoPorNombre}` : ""}`]] as [string, string][])
+          : []),
       ]
     : []
 
@@ -321,7 +356,14 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
     >
       <DialogContent className={`max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-2xl"}`}>
         <DialogHeader>
-          <DialogTitle>{c?.nombre}</DialogTitle>
+          <DialogTitle className="flex flex-wrap items-center gap-2 pr-8">
+            <span className="min-w-0 flex-1">{c?.nombre}</span>
+            {c && onEditar && !viendo && (
+              <Button size="sm" variant="outline" onClick={() => onEditar(c)}>
+                <Pencil className="size-4" /> Editar
+              </Button>
+            )}
+          </DialogTitle>
         </DialogHeader>
         {c && viendo && (
           <VisorDocumento
@@ -379,7 +421,7 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
 }
 
 // ---------------------------------------------------------------------------
-// Nuevo contratista
+// Nuevo contratista / editar contratista
 // ---------------------------------------------------------------------------
 
 const FORMULARIO_VACIO: DatosContratista = {
@@ -412,16 +454,45 @@ function extension(archivo: File) {
   return archivo.type === "application/pdf" ? "pdf" : archivo.type === "image/png" ? "png" : "jpg"
 }
 
-function NuevoContratistaDialog({
+// Datos del contratista en el formulario (todo como texto), para editarlo.
+function formularioDesde(c: Contratista): DatosContratista {
+  return {
+    tipoPersona: c.tipoPersona,
+    tipoDocumento: c.tipoDocumento,
+    numeroDocumento: c.numeroDocumento,
+    digitoVerificacion: c.digitoVerificacion !== null ? String(c.digitoVerificacion) : "",
+    nombre: c.nombre,
+    representanteNombre: c.representanteNombre ?? "",
+    representanteTipoDocumento: c.representanteTipoDocumento ?? "CC",
+    representanteNumeroDocumento: c.representanteNumeroDocumento ?? "",
+    cedulaExpedidaEn: c.cedulaExpedidaEn ?? "",
+    correo: c.correo,
+    telefono: c.telefono,
+    direccion: c.direccion,
+    ciudad: c.ciudad,
+    banco: c.banco,
+    tipoCuenta: c.tipoCuenta,
+    numeroCuenta: c.numeroCuenta,
+  }
+}
+
+// Con `editando`, el mismo formulario corrige un contratista: datos llenos, el
+// tipo de persona fijo y los documentos actuales; solo se suben los que se
+// reemplazan o agregan.
+function ContratistaFormDialog({
   abierto,
+  editando,
   onAbiertoChange,
-  onCreado,
+  onGuardado,
 }: {
   abierto: boolean
+  editando: Contratista | null
   onAbiertoChange: (abierto: boolean) => void
-  onCreado: (c: Contratista) => void
+  onGuardado: (c: Contratista, nuevo: boolean) => void
 }) {
-  const [valores, setValores] = useState<DatosContratista>(FORMULARIO_VACIO)
+  // Al editar arranca lleno con el contratista (la página monta un formulario
+  // nuevo cada vez que se abre: ver `key`).
+  const [valores, setValores] = useState<DatosContratista>(() => (editando ? formularioDesde(editando) : FORMULARIO_VACIO))
   const [errores, setErrores] = useState<Partial<Record<CampoContratista, string>>>({})
   const [archivos, setArchivos] = useState<Partial<Record<TipoDocumentoContratista, File>>>({})
   const [erroresArchivo, setErroresArchivo] = useState<Partial<Record<TipoDocumentoContratista, string>>>({})
@@ -430,6 +501,10 @@ function NuevoContratistaDialog({
   const guardando = paso !== null
   const juridica = valores.tipoPersona === "juridica"
   const documentos = DOCUMENTOS_POR_PERSONA[valores.tipoPersona]
+  const actuales = useMemo(
+    () => new Map<TipoDocumentoContratista, DocumentoContratista>((editando?.documentos ?? []).map((d) => [d.tipo, d])),
+    [editando]
+  )
 
   function limpiar() {
     setValores(FORMULARIO_VACIO)
@@ -451,7 +526,7 @@ function NuevoContratistaDialog({
   }
 
   function cambiarPersona(tipo: TipoPersona) {
-    if (tipo === valores.tipoPersona) return
+    if (editando || tipo === valores.tipoPersona) return
     setValores((v) => ({ ...v, tipoPersona: tipo, tipoDocumento: tipo === "juridica" ? "NIT" : "CC", digitoVerificacion: "" }))
     setErrores({})
     // Los documentos de un tipo de persona no sirven para el otro (salvo los comunes).
@@ -478,15 +553,19 @@ function NuevoContratistaDialog({
 
     const r = validarContratista(valores)
     const faltan: Partial<Record<TipoDocumentoContratista, string>> = {}
-    for (const d of documentos) if (d.obligatorio && !archivos[d.tipo]) faltan[d.tipo] = "Adjunta este documento."
+    for (const d of documentos) if (d.obligatorio && !archivos[d.tipo] && !actuales.has(d.tipo)) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
     setErroresArchivo(faltan)
     if (!r.ok || Object.keys(faltan).length > 0) {
-      setErrorGeneral("Revisa los campos marcados: todos los datos y los documentos obligatorios son necesarios para crear el contratista.")
+      setErrorGeneral(
+        editando
+          ? "Revisa los campos marcados: todos los datos y los documentos obligatorios son necesarios."
+          : "Revisa los campos marcados: todos los datos y los documentos obligatorios son necesarios para crear el contratista."
+      )
       return
     }
 
-    const id = crypto.randomUUID()
+    const id = editando?.id ?? crypto.randomUUID()
     const supabase = createClient()
     const subidos: DocumentoSubido[] = []
     setPaso("subiendo")
@@ -507,15 +586,22 @@ function NuevoContratistaDialog({
       )
 
       setPaso("guardando")
-      const creado = await crearContratista(id, valores, subidos)
-      onCreado(creado)
+      if (editando) {
+        const r = await editarContratista(id, valores, subidos)
+        // Los archivos reemplazados ya no son documento de nadie: se borran
+        // (si falla, solo queda un archivo suelto, los datos ya se guardaron).
+        if (r.rutasReemplazadas.length > 0) await supabase.storage.from("contratistas").remove(r.rutasReemplazadas)
+        onGuardado(r.contratista, false)
+      } else {
+        onGuardado(await crearContratista(id, valores, subidos), true)
+      }
       limpiar()
       onAbiertoChange(false)
     } catch (err) {
-      // No queda nada a medias: los archivos subidos se borran (el contratista
-      // no se creó, crear_contratista es una sola transacción).
+      // No queda nada a medias: los archivos subidos se borran (crear y
+      // editar son una sola transacción en la base).
       if (subidos.length > 0) await supabase.storage.from("contratistas").remove(subidos.map((s) => s.ruta))
-      setErrorGeneral(err instanceof Error ? err.message : "No se pudo crear el contratista.")
+      setErrorGeneral(err instanceof Error ? err.message : editando ? "No se pudo guardar el contratista." : "No se pudo crear el contratista.")
     } finally {
       setPaso(null)
     }
@@ -548,10 +634,15 @@ function NuevoContratistaDialog({
     <Dialog open={abierto} onOpenChange={cambiarAbierto}>
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Nuevo contratista</DialogTitle>
+          <DialogTitle>{editando ? `Editar contratista · ${editando.nombre}` : "Nuevo contratista"}</DialogTitle>
         </DialogHeader>
 
         <form id="form-nuevo-contratista" onSubmit={crear} noValidate className="space-y-6">
+          {editando && (
+            <p className="text-xs text-muted-foreground">
+              El tipo de persona no se puede cambiar. Los documentos actuales se conservan; adjunta uno nuevo solo para reemplazarlo.
+            </p>
+          )}
           <div className="flex gap-1" role="radiogroup" aria-label="Tipo de persona">
             {(["juridica", "natural"] as const).map((t) => (
               <Button
@@ -561,7 +652,7 @@ function NuevoContratistaDialog({
                 aria-checked={valores.tipoPersona === t}
                 variant={valores.tipoPersona === t ? "default" : "outline"}
                 onClick={() => cambiarPersona(t)}
-                disabled={guardando}
+                disabled={guardando || (editando !== null && valores.tipoPersona !== t)}
               >
                 Persona {ETIQUETA_PERSONA[t].toLowerCase()}
               </Button>
@@ -678,6 +769,7 @@ function NuevoContratistaDialog({
             <ul className="divide-y rounded-md border">
               {documentos.map((d) => {
                 const archivo = archivos[d.tipo]
+                const actual = actuales.get(d.tipo)
                 const err = erroresArchivo[d.tipo]
                 const id = `archivo-${d.tipo}`
                 return (
@@ -689,10 +781,14 @@ function NuevoContratistaDialog({
                       </p>
                       {err ? (
                         <p className="text-xs text-destructive">{err}</p>
+                      ) : archivo ? (
+                        <p className="truncate text-xs text-muted-foreground" title={archivo.name}>
+                          {actual ? `Nuevo: ${archivo.name} (reemplaza a ${actual.nombreArchivo})` : archivo.name}
+                        </p>
                       ) : (
-                        archivo && (
-                          <p className="truncate text-xs text-muted-foreground" title={archivo.name}>
-                            {archivo.name}
+                        actual && (
+                          <p className="truncate text-xs text-muted-foreground" title={actual.nombreArchivo}>
+                            Actual: {actual.nombreArchivo}
                           </p>
                         )
                       )}
@@ -715,9 +811,9 @@ function NuevoContratistaDialog({
                       } ${err ? "border-destructive" : ""}`}
                     >
                       <FileUp className="size-4" />
-                      {archivo ? "Cambiar" : "Adjuntar"}
+                      {archivo ? "Cambiar" : actual ? "Reemplazar" : "Adjuntar"}
                     </label>
-                    {archivo && !d.obligatorio && (
+                    {archivo && (!d.obligatorio || actual) && (
                       <button
                         type="button"
                         onClick={() =>
@@ -748,7 +844,7 @@ function NuevoContratistaDialog({
           </Button>
           <Button type="submit" form="form-nuevo-contratista" disabled={guardando}>
             {guardando && <Loader2 className="size-4 animate-spin" />}
-            {paso === "subiendo" ? "Subiendo documentos..." : paso === "guardando" ? "Guardando..." : "Crear contratista"}
+            {paso === "subiendo" ? "Subiendo documentos..." : paso === "guardando" ? "Guardando..." : editando ? "Guardar cambios" : "Crear contratista"}
           </Button>
         </DialogFooter>
       </DialogContent>

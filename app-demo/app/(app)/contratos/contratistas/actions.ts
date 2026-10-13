@@ -17,7 +17,9 @@ const SELECT_CONTRATISTA = `
   id, tipo_persona, tipo_documento, numero_documento, digito_verificacion, nombre,
   representante_nombre, representante_tipo_documento, representante_numero_documento, cedula_expedida_en,
   correo, telefono, direccion, ciudad, banco, tipo_cuenta, numero_cuenta, created_at,
+  updated_at, updated_by,
   creador:perfiles!contratistas_created_by_fkey(nombre),
+  editor:perfiles!contratistas_updated_by_fkey(nombre),
   documentos:contratista_documentos(id, tipo, nombre_archivo, tamano, mime, subido_at)
 `
 
@@ -42,6 +44,9 @@ function mapContratista(f: any): Contratista {
     numeroCuenta: f.numero_cuenta,
     creadoPorNombre: f.creador?.nombre ?? null,
     createdAt: f.created_at,
+    // updated_at se llena también al crear: solo cuenta si alguien editó.
+    editadoAt: f.updated_by ? f.updated_at : null,
+    editadoPorNombre: f.updated_by ? (f.editor?.nombre ?? null) : null,
     documentos: ((f.documentos ?? []) as any[]).map((d) => ({
       id: d.id,
       tipo: d.tipo,
@@ -88,6 +93,51 @@ export type DocumentoSubido = {
   mime: string
 }
 
+// Datos y documentos con los nombres de columna de la base (crear y editar).
+function datosParaBase(d: DatosContratista) {
+  return {
+    tipo_persona: d.tipoPersona,
+    tipo_documento: d.tipoDocumento,
+    numero_documento: d.numeroDocumento,
+    digito_verificacion: d.digitoVerificacion,
+    nombre: d.nombre,
+    representante_nombre: d.representanteNombre,
+    representante_tipo_documento: d.representanteTipoDocumento,
+    representante_numero_documento: d.representanteNumeroDocumento,
+    cedula_expedida_en: d.cedulaExpedidaEn,
+    correo: d.correo,
+    telefono: d.telefono,
+    direccion: d.direccion,
+    ciudad: d.ciudad,
+    banco: d.banco,
+    tipo_cuenta: d.tipoCuenta,
+    numero_cuenta: d.numeroCuenta,
+  }
+}
+
+const documentosParaBase = (documentos: DocumentoSubido[]) =>
+  documentos.map((x) => ({ tipo: x.tipo, ruta: x.ruta, nombre_archivo: x.nombreArchivo, tamano: x.tamano, mime: x.mime }))
+
+function validarArchivosSubidos(id: string, documentos: DocumentoSubido[]) {
+  for (const doc of documentos) {
+    if (!doc.ruta.startsWith(`${id}/`)) throw new Error("La ruta de un documento no corresponde a este contratista.")
+    if (!MIME_PERMITIDOS.includes(doc.mime) || doc.tamano <= 0 || doc.tamano > TAMANO_MAXIMO) {
+      throw new Error(`El archivo "${doc.nombreArchivo}" no es válido (solo PDF, JPG o PNG de hasta 10 MB).`)
+    }
+  }
+}
+
+function errorDeBase(error: { code?: string; message: string }, d: DatosContratista) {
+  if (error.code === "23505") {
+    return new Error(
+      d.tipoPersona === "juridica"
+        ? `Ya existe un contratista con el NIT ${d.numeroDocumento}.`
+        : `Ya existe un contratista con ${d.tipoDocumento} ${d.numeroDocumento}.`
+    )
+  }
+  return new Error(error.message)
+}
+
 // Los archivos ya los subió el navegador a `contratistas/<id>/...`; aquí se
 // valida todo otra vez y crear_contratista guarda datos y documentos en una
 // sola transacción (y comprueba que cada archivo exista).
@@ -108,56 +158,48 @@ export async function crearContratista(
   if (faltan.length > 0) {
     throw new Error(`Faltan documentos: ${faltan.map((x) => x.titulo).join(", ")}.`)
   }
-  for (const doc of documentos) {
-    if (!doc.ruta.startsWith(`${id}/`)) throw new Error("La ruta de un documento no corresponde a este contratista.")
-    if (!MIME_PERMITIDOS.includes(doc.mime) || doc.tamano <= 0 || doc.tamano > TAMANO_MAXIMO) {
-      throw new Error(`El archivo "${doc.nombreArchivo}" no es válido (solo PDF, JPG o PNG de hasta 10 MB).`)
-    }
-  }
+  validarArchivosSubidos(id, documentos)
 
   const supabase = await createClient()
   const { error } = await supabase.rpc("crear_contratista", {
     p_id: id,
-    p_datos: {
-      tipo_persona: d.tipoPersona,
-      tipo_documento: d.tipoDocumento,
-      numero_documento: d.numeroDocumento,
-      digito_verificacion: d.digitoVerificacion,
-      nombre: d.nombre,
-      representante_nombre: d.representanteNombre,
-      representante_tipo_documento: d.representanteTipoDocumento,
-      representante_numero_documento: d.representanteNumeroDocumento,
-      cedula_expedida_en: d.cedulaExpedidaEn,
-      correo: d.correo,
-      telefono: d.telefono,
-      direccion: d.direccion,
-      ciudad: d.ciudad,
-      banco: d.banco,
-      tipo_cuenta: d.tipoCuenta,
-      numero_cuenta: d.numeroCuenta,
-    },
-    p_documentos: documentos.map((x) => ({
-      tipo: x.tipo,
-      ruta: x.ruta,
-      nombre_archivo: x.nombreArchivo,
-      tamano: x.tamano,
-      mime: x.mime,
-    })),
+    p_datos: datosParaBase(d),
+    p_documentos: documentosParaBase(documentos),
   })
-  if (error) {
-    if (error.code === "23505") {
-      throw new Error(
-        d.tipoPersona === "juridica"
-          ? `Ya existe un contratista con el NIT ${d.numeroDocumento}.`
-          : `Ya existe un contratista con ${d.tipoDocumento} ${d.numeroDocumento}.`
-      )
-    }
-    throw new Error(error.message)
-  }
+  if (error) throw errorDeBase(error, d)
 
   const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
   if (errorLeer) throw new Error(errorLeer.message)
   return mapContratista(data)
+}
+
+// Corrige los datos de un contratista y reemplaza o agrega documentos
+// (`documentos` = solo los archivos nuevos, ya subidos por el navegador). El
+// tipo de persona no cambia. Devuelve el contratista y las rutas de los
+// archivos reemplazados, que el navegador borra (ya no son documento de nadie).
+export async function editarContratista(
+  id: string,
+  crudo: DatosContratista,
+  documentos: DocumentoSubido[]
+): Promise<{ contratista: Contratista; rutasReemplazadas: string[] }> {
+  await requerirAccion("gestionar_contratistas")
+
+  const r = validarContratista(crudo)
+  if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del contratista.")
+  const d = r.datos
+  validarArchivosSubidos(id, documentos)
+
+  const supabase = await createClient()
+  const { data: viejas, error } = await supabase.rpc("editar_contratista", {
+    p_id: id,
+    p_datos: datosParaBase(d),
+    p_documentos: documentosParaBase(documentos),
+  })
+  if (error) throw errorDeBase(error, d)
+
+  const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
+  if (errorLeer) throw new Error(errorLeer.message)
+  return { contratista: mapContratista(data), rutasReemplazadas: (viejas as string[] | null) ?? [] }
 }
 
 // Enlace temporal (2 minutos) para ver un documento: el bucket es privado.

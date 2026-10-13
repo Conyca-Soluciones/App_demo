@@ -137,5 +137,10 @@ select * from (
                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'datos_tipo')
          and exists (select 1 from pg_proc where proname = 'crear_contratista' and prosrc like '%cedula_expedida_en%')
          and exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%domicilio_departamento%')
+  union all
+  select '20261109100000_editar_contratista',
+         exists (select 1 from pg_proc where proname = 'editar_contratista')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'contratistas' and column_name = 'updated_by')
 ) t
 order by 1;
