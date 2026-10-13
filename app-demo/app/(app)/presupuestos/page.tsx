@@ -793,7 +793,17 @@ export default function Presupuestos() {
     // antes de mostrar el presupuesto. Si otro import sigue vivo, se vuelve a
     // revisar cuando venza su plazo, hasta que termine o se descarte.
     async function revisarImport(existente: PresupuestoExistente, primeraVez: boolean) {
-      const r: ResultadoImportAbandonado = await descartarImportAbandonado(existente.id)
+      // La revisión es limpieza: si Supabase falla (p. ej. un 504 pasajero),
+      // se reintenta una vez y, si vuelve a fallar, el presupuesto se abre igual.
+      let r: ResultadoImportAbandonado
+      try {
+        r = await descartarImportAbandonado(existente.id).catch(() => descartarImportAbandonado(existente.id))
+      } catch (e) {
+        console.error("No se pudo revisar el import:", e)
+        if (cancelado) return
+        if (primeraVez) await handleContinuarPresupuesto(existente)
+        return
+      }
       if (cancelado) return
       if (r.estado === "descartado") {
         setAvisoImportApu(
