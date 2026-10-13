@@ -60,6 +60,7 @@ export type MinutaObra = {
   amortizacion: string // "El Anticipo será amortizado en el …"
   // Quinta: forma de pago
   periodicidadPago: string // "Se pagará cada …"
+  retencion: "" | "si" | "no" // ¿hay retención en garantía? (parágrafo tercero)
   retencionGarantia: string // parágrafo tercero: "retención … del … del valor del contrato"
   condicionesPago: string // forma de pago de la solicitud (párrafo aparte)
   // Sexta a octava: obligaciones
@@ -214,7 +215,7 @@ export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosEx
 
   return {
     v: VERSION_MINUTA_OBRA,
-    departamentoFirma: "",
+    departamentoFirma: d.domicilioDepartamento ?? "",
     fechaFirma: hoy,
     contratanteNombre: extra.empresaNombre ?? CONTRATANTE_POR_DEFECTO.nombre,
     contratanteNit: extra.empresaNit ?? CONTRATANTE_POR_DEFECTO.nit,
@@ -237,8 +238,9 @@ export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosEx
     anticipo: monto !== null ? numeroTexto(monto) : "",
     anticipoLetras: monto !== null ? valorEnLetras(monto) : "",
     amortizacion: pct !== null ? `${numeroPorcentaje(pct)}%` : "",
-    periodicidadPago: "",
-    retencionGarantia: "",
+    periodicidadPago: d.datosTipo.pagoCadaDias ? conUnidad(d.datosTipo.pagoCadaDias, "día", "días") : "",
+    retencion: d.datosTipo.retencionGarantia === undefined ? "" : d.datosTipo.retencionGarantia ? "si" : "no",
+    retencionGarantia: d.datosTipo.retencionGarantia && d.datosTipo.retencionPorcentaje ? `${numeroPorcentaje(d.datosTipo.retencionPorcentaje)}%` : "",
     condicionesPago: d.formaPago.trim(),
     obligacionesContratante: [...OBLIGACIONES_CONTRATANTE_OBRA],
     obligacionesGenerales: [...OBLIGACIONES_GENERALES_OBRA],
@@ -248,7 +250,7 @@ export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosEx
       ...d.entregables.filter((e) => !esNoAplica(e)).map((e) => `Entregar: ${sinPuntoFinal(e)}.`),
     ],
     amparos: pct !== null ? [{ ...AMPARO_ANTICIPO_OBRA }, ...AMPAROS_OBRA.map((a) => ({ ...a }))] : AMPAROS_OBRA.map((a) => ({ ...a })),
-    domicilioDepartamento: DOMICILIO_PLANTILLA_OBRA,
+    domicilioDepartamento: d.domicilioDepartamento ?? DOMICILIO_PLANTILLA_OBRA,
     municipioEjecucion: ciudadProyecto,
     clausulasAdicionales: [],
   }
@@ -281,6 +283,7 @@ export function minutaObraVacia(): MinutaObra {
     anticipoLetras: "",
     amortizacion: "",
     periodicidadPago: "",
+    retencion: "",
     retencionGarantia: "",
     condicionesPago: "",
     obligacionesContratante: [],
@@ -327,6 +330,8 @@ export function mezclarMinutaObra(defecto: MinutaObra, guardada: unknown): Minut
       if (valor === "natural" || valor === "juridica") r[clave] = valor
     } else if (clave === "contratistaTipoDocumento") {
       if (TIPOS_DOCUMENTO_ARRENDADOR.some((t) => t.valor === valor)) r[clave] = valor
+    } else if (clave === "retencion") {
+      if (valor === "" || valor === "si" || valor === "no") r[clave] = valor
     } else if (typeof valor === "string") {
       r[clave] = valor
     }

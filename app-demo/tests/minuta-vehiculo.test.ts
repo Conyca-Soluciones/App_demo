@@ -50,6 +50,8 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   formaPago: "Actas mensuales.",
   correoNotificacion: "alquiler@maquinaria.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Llevar la máquina a la obra", "No aplica"],
   entregables: [],
   items: [],
@@ -160,4 +162,20 @@ it("bienDesdeObjeto quita el verbo inicial", () => {
   expect(bienDesdeObjeto("Alquilar una volqueta doble troque.")).toBe("una volqueta doble troque")
   expect(bienDesdeObjeto("Contratar el alquiler de un minicargador")).toBe("un minicargador")
   expect(bienDesdeObjeto("Retroexcavadora 320")).toBe("Retroexcavadora 320")
+})
+
+describe("datos de la solicitud para la minuta de alquiler", () => {
+  it("nombre corto, actas, garantías y departamento", () => {
+    const m = minutaVehiculoPorDefecto(
+      detalle({ domicilioDepartamento: "Arauca", datosTipo: { bienNombre: "retroexcavadora", actas: "quincenales", exigeGarantia: false } }),
+      extra,
+      "2026-10-13"
+    )
+    expect(m.bienNombre).toBe("retroexcavadora")
+    expect(m.periodicidadPago).toBe("quincenales")
+    expect(m.garantia).toBe("no_exige")
+    expect(m.domicilio).toBe("Arauca – Arauca")
+    expect(m.departamentoEjecucion).toBe("Arauca")
+    expect(minutaVehiculoPorDefecto(detalle({ datosTipo: { exigeGarantia: true } }), extra, "2026-10-13").garantia).toBe("exige")
+  })
 })

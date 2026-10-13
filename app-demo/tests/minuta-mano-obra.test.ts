@@ -50,6 +50,8 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   formaPago: "Actas quincenales.",
   correoNotificacion: "obras@alvarez.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Suministrar la herramienta menor", "N/A"],
   entregables: [],
   items: [{ presupuestoItemId: "i1", codigo: "3.1", actividad: "Muro en bloque", unidad: "m2", cantidad: 1250.5, valorUnitario: 24_000 }],
@@ -210,5 +212,13 @@ describe("textos", () => {
 
   it("nombre del archivo sin tildes ni símbolos", () => {
     expect(nombreArchivoMinuta(17, "CONSTRUCCIONES ÁLVAREZ S.A.S")).toBe("minuta-contrato-17-construcciones-alvarez-s-a-s.pdf")
+  })
+})
+
+describe("datos nuevos de la solicitud y del contratista", () => {
+  it("departamento de domicilio y cédula expedida en", () => {
+    const m = minutaPorDefecto(detalle({ domicilioDepartamento: "Cundinamarca" }), { ...extra, contratistaCedulaExpedida: "Soacha" }, "2026-10-13")
+    expect(m.domicilioDepartamento).toBe("Cundinamarca")
+    expect(m.contratistaCedulaExpedida).toBe("Soacha")
   })
 })

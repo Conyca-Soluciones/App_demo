@@ -15,7 +15,7 @@ import {
 
 const SELECT_CONTRATISTA = `
   id, tipo_persona, tipo_documento, numero_documento, digito_verificacion, nombre,
-  representante_nombre, representante_tipo_documento, representante_numero_documento,
+  representante_nombre, representante_tipo_documento, representante_numero_documento, cedula_expedida_en,
   correo, telefono, direccion, ciudad, banco, tipo_cuenta, numero_cuenta, created_at,
   creador:perfiles!contratistas_created_by_fkey(nombre),
   documentos:contratista_documentos(id, tipo, nombre_archivo, tamano, mime, subido_at)
@@ -32,6 +32,7 @@ function mapContratista(f: any): Contratista {
     representanteNombre: f.representante_nombre,
     representanteTipoDocumento: f.representante_tipo_documento,
     representanteNumeroDocumento: f.representante_numero_documento,
+    cedulaExpedidaEn: f.cedula_expedida_en ?? null,
     correo: f.correo,
     telefono: f.telefono,
     direccion: f.direccion,
@@ -126,6 +127,7 @@ export async function crearContratista(
       representante_nombre: d.representanteNombre,
       representante_tipo_documento: d.representanteTipoDocumento,
       representante_numero_documento: d.representanteNumeroDocumento,
+      cedula_expedida_en: d.cedulaExpedidaEn,
       correo: d.correo,
       telefono: d.telefono,
       direccion: d.direccion,

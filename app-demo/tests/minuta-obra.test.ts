@@ -48,6 +48,8 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   formaPago: "Actas quincenales.",
   correoNotificacion: "obras@andinas.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Instalar la línea de vida", "N/A"],
   entregables: ["Plano récord de la cubierta"],
   items: [{ presupuestoItemId: "i1", codigo: "9.1", actividad: "Cubierta termoacústica", unidad: "m2", cantidad: 500, valorUnitario: 100_000 }],
@@ -142,5 +144,24 @@ describe("mezclar, limpiar y origen", () => {
     expect(origenCampoObra("obra", "COMFIAR", d)).toBe("solicitud")
     expect(origenCampoObra("periodicidadPago", "", d)).toBe("vacio")
     expect(nombreArchivoMinutaObra(61, "Construcciones Andinas SAS")).toBe("minuta-obra-61-construcciones-andinas-sas.pdf")
+  })
+})
+
+describe("datos de la solicitud para la minuta de obra", () => {
+  it("pago cada X días, retención en garantía y departamento", () => {
+    const m = minutaObraPorDefecto(
+      detalle({ domicilioDepartamento: "Arauca", datosTipo: { pagoCadaDias: 15, retencionGarantia: true, retencionPorcentaje: 5 } }),
+      extra,
+      "2026-10-13"
+    )
+    expect(m.periodicidadPago).toBe("quince (15) días")
+    expect(m.retencion).toBe("si")
+    expect(m.retencionGarantia).toBe("5%")
+    expect(m.domicilioDepartamento).toBe("Arauca")
+    expect(m.departamentoFirma).toBe("Arauca")
+    const sin = minutaObraPorDefecto(detalle({ datosTipo: { pagoCadaDias: 30, retencionGarantia: false } }), extra, "2026-10-13")
+    expect(sin.retencion).toBe("no")
+    expect(sin.retencionGarantia).toBe("")
+    expect(mezclarMinutaObra(sin, { retencion: "tal vez" }).retencion).toBe("no")
   })
 })

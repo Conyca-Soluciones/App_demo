@@ -46,6 +46,8 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   formaPago: "Contra informe mensual aprobado.",
   correoNotificacion: "luz@correo.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Llevar la bitácora de obra", "N/A"],
   entregables: ["Informe mensual de avance", "No aplica"],
   items: [],
@@ -140,5 +142,13 @@ describe("mezclar, limpiar y origen", () => {
     expect(origenCampoServicios("servicio", d.servicio, d)).toBe("solicitud")
     expect(origenCampoServicios("departamentoEjecucion", "", d)).toBe("vacio")
     expect(nombreArchivoMinutaServicios(51, "Luz Marina Rodríguez Ortiz")).toBe("minuta-servicios-51-luz-marina-rodriguez-ortiz.pdf")
+  })
+})
+
+describe("datos nuevos de la solicitud y del contratista", () => {
+  it("departamento (lugar de ejecución) y cédula expedida en", () => {
+    const m = minutaServiciosPorDefecto(detalle({ domicilioDepartamento: "Arauca" }), { ...extra, contratistaCedulaExpedida: "Bucaramanga" }, "2026-10-13")
+    expect(m.departamentoEjecucion).toBe("Arauca")
+    expect(m.contratistaCedulaExpedida).toBe("Bucaramanga")
   })
 })

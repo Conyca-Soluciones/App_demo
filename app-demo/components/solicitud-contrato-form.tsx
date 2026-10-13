@@ -14,6 +14,7 @@ import {
   type Contratista,
 } from "@/lib/contratistas"
 import {
+  OPCIONES_ACTAS,
   TIPOS_CONTRATO,
   TIPO_CONTRATO_POR_VALOR,
   anticipoEnLetras,
@@ -28,6 +29,7 @@ import {
   type CampoSolicitud,
   type ItemPresupuestoContrato,
   type SolicitudContratoDetalle,
+  type ActasPeriodicidad,
   type SolicitudContratoForm,
   type TipoContrato,
   type TipoDocumentoContrato,
@@ -68,7 +70,21 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   entregables: [],
   correoNotificacion: "",
   observaciones: "",
+  departamentoDomicilio: "",
+  pagoCadaDias: "",
+  retencionGarantia: "",
+  retencionPorcentaje: "",
+  inmuebleDireccion: "",
+  inmuebleUso: "",
+  canonIva: "",
+  serviciosIncluidos: "",
+  correoFactura: "",
+  bienNombre: "",
+  actas: "",
+  exigeGarantia: "",
 }
+
+const siNo = (v: boolean | undefined): "" | "si" | "no" => (v === undefined ? "" : v ? "si" : "no")
 
 // Formulario lleno con una solicitud devuelta, para corregirla.
 function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
@@ -95,7 +111,61 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     entregables: d.entregables,
     correoNotificacion: d.correoNotificacion,
     observaciones: d.observaciones ?? "",
+    departamentoDomicilio: d.domicilioDepartamento ?? "",
+    pagoCadaDias: d.datosTipo.pagoCadaDias !== undefined ? String(d.datosTipo.pagoCadaDias) : "",
+    retencionGarantia: siNo(d.datosTipo.retencionGarantia),
+    retencionPorcentaje: d.datosTipo.retencionPorcentaje ? numero(d.datosTipo.retencionPorcentaje) : "",
+    inmuebleDireccion: d.datosTipo.inmuebleDireccion ?? "",
+    inmuebleUso: d.datosTipo.inmuebleUso ?? "",
+    canonIva: d.datosTipo.canonIva ?? "",
+    serviciosIncluidos: siNo(d.datosTipo.serviciosIncluidos),
+    correoFactura: d.datosTipo.correoFactura ?? "",
+    bienNombre: d.datosTipo.bienNombre ?? "",
+    actas: d.datosTipo.actas ?? "",
+    exigeGarantia: siNo(d.datosTipo.exigeGarantia),
   }
+}
+
+// Pregunta de sí / no con dos botones.
+function PreguntaSiNo(props: {
+  id: string
+  etiqueta: string
+  valor: "" | "si" | "no"
+  onChange: (v: "si" | "no") => void
+  disabled: boolean
+  conError: boolean
+  textoSi?: string
+  textoNo?: string
+}) {
+  const { id, etiqueta, valor, onChange, disabled, conError, textoSi = "Sí", textoNo = "No" } = props
+  return (
+    <div className="space-y-1">
+      <p id={id} className="text-xs font-medium text-muted-foreground">
+        {etiqueta}
+      </p>
+      <div role="radiogroup" aria-labelledby={id} className={`inline-flex gap-1 rounded-md ${conError ? "ring-1 ring-destructive" : ""}`}>
+        {(
+          [
+            ["si", textoSi],
+            ["no", textoNo],
+          ] as const
+        ).map(([v, texto]) => (
+          <Button
+            key={v}
+            type="button"
+            size="sm"
+            role="radio"
+            aria-checked={valor === v}
+            variant={valor === v ? "default" : "outline"}
+            onClick={() => onChange(v)}
+            disabled={disabled}
+          >
+            {texto}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 type DocumentoExistente = DocumentoContratoSubido
@@ -1006,7 +1076,198 @@ export function SolicitudContratoForm({
         </Seccion>
       ))}
 
-      {/* 8. Notificación y observaciones */}
+      {/* 8. Domicilio y datos para la minuta (según el tipo) */}
+      <Seccion titulo="Domicilio y datos para la minuta" ayuda="Jurídica los usa para llenar la minuta del contrato.">
+        <div className="max-w-md space-y-1" data-error={Boolean(errores.departamentoDomicilio)}>
+          <label htmlFor="contrato-departamento" className="text-xs font-medium text-muted-foreground">
+            Departamento de domicilio del contrato *
+          </label>
+          <input
+            id="contrato-departamento"
+            value={f.departamentoDomicilio}
+            onChange={(e) => cambiar("departamentoDomicilio", e.target.value)}
+            placeholder="Ej. Arauca"
+            disabled={enviando}
+            className={claseCampo(Boolean(errores.departamentoDomicilio))}
+          />
+          <MensajeError texto={errores.departamentoDomicilio} />
+        </div>
+
+        {f.tipo === "obra" && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1" data-error={Boolean(errores.pagoCadaDias)}>
+              <label htmlFor="contrato-pago-cada" className="text-xs font-medium text-muted-foreground">
+                Se pagará cada (días) *
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="contrato-pago-cada"
+                  inputMode="numeric"
+                  value={f.pagoCadaDias}
+                  onChange={(e) => cambiar("pagoCadaDias", e.target.value)}
+                  placeholder="Ej. 15"
+                  disabled={enviando}
+                  className={`${claseCampo(Boolean(errores.pagoCadaDias))} w-24 text-right`}
+                />
+                <span className="text-sm text-muted-foreground">días</span>
+              </div>
+              <MensajeError texto={errores.pagoCadaDias} />
+            </div>
+            <div className="space-y-2" data-error={Boolean(errores.retencion)}>
+              <PreguntaSiNo
+                id="contrato-retencion"
+                etiqueta="¿Hay retención en garantía? *"
+                valor={f.retencionGarantia}
+                onChange={(v) => cambiar("retencionGarantia", v, "retencion")}
+                disabled={enviando}
+                conError={Boolean(errores.retencion) && !f.retencionGarantia}
+              />
+              {f.retencionGarantia === "si" && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="contrato-retencion-porcentaje" className="text-sm text-muted-foreground">
+                    Porcentaje
+                  </label>
+                  <input
+                    id="contrato-retencion-porcentaje"
+                    inputMode="decimal"
+                    value={f.retencionPorcentaje}
+                    onChange={(e) => cambiar("retencionPorcentaje", e.target.value, "retencion")}
+                    placeholder="Ej. 5"
+                    disabled={enviando}
+                    className={`${claseCampo(Boolean(errores.retencion))} w-20 text-right`}
+                  />
+                  <span className="text-sm">%</span>
+                </div>
+              )}
+              <MensajeError texto={errores.retencion} />
+            </div>
+          </div>
+        )}
+
+        {f.tipo === "arrendamiento" && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1 sm:col-span-2" data-error={Boolean(errores.inmuebleDireccion)}>
+              <label htmlFor="contrato-inmueble-direccion" className="text-xs font-medium text-muted-foreground">
+                Dirección del inmueble *
+              </label>
+              <input
+                id="contrato-inmueble-direccion"
+                value={f.inmuebleDireccion}
+                onChange={(e) => cambiar("inmuebleDireccion", e.target.value)}
+                placeholder="Ej. Calle 21 # 18-45, bodega 3, Arauca"
+                disabled={enviando}
+                className={claseCampo(Boolean(errores.inmuebleDireccion))}
+              />
+              <MensajeError texto={errores.inmuebleDireccion} />
+            </div>
+            <div className="space-y-1 sm:col-span-2" data-error={Boolean(errores.inmuebleUso)}>
+              <label htmlFor="contrato-inmueble-uso" className="text-xs font-medium text-muted-foreground">
+                Uso del inmueble *
+              </label>
+              <input
+                id="contrato-inmueble-uso"
+                value={f.inmuebleUso}
+                onChange={(e) => cambiar("inmuebleUso", e.target.value)}
+                placeholder="Ej. uso comercial, como almacén de materiales de la obra"
+                disabled={enviando}
+                className={claseCampo(Boolean(errores.inmuebleUso))}
+              />
+              <MensajeError texto={errores.inmuebleUso} />
+            </div>
+            <div className="space-y-1" data-error={Boolean(errores.canonIva)}>
+              <PreguntaSiNo
+                id="contrato-canon-iva"
+                etiqueta="¿El canon incluye el IVA? *"
+                valor={f.canonIva === "incluido" ? "si" : f.canonIva === "mas_iva" ? "no" : ""}
+                onChange={(v) => cambiar("canonIva", v === "si" ? "incluido" : "mas_iva")}
+                disabled={enviando}
+                conError={Boolean(errores.canonIva)}
+                textoSi="Sí, incluye IVA"
+                textoNo="No, más IVA"
+              />
+              <MensajeError texto={errores.canonIva} />
+            </div>
+            <div className="space-y-1" data-error={Boolean(errores.serviciosIncluidos)}>
+              <PreguntaSiNo
+                id="contrato-servicios"
+                etiqueta="¿El canon incluye los servicios públicos? *"
+                valor={f.serviciosIncluidos}
+                onChange={(v) => cambiar("serviciosIncluidos", v)}
+                disabled={enviando}
+                conError={Boolean(errores.serviciosIncluidos)}
+              />
+              <MensajeError texto={errores.serviciosIncluidos} />
+            </div>
+            <div className="max-w-md space-y-1 sm:col-span-2" data-error={Boolean(errores.correoFactura)}>
+              <label htmlFor="contrato-correo-factura" className="text-xs font-medium text-muted-foreground">
+                Correo al que llega la factura *
+              </label>
+              <input
+                id="contrato-correo-factura"
+                inputMode="email"
+                value={f.correoFactura}
+                onChange={(e) => cambiar("correoFactura", e.target.value)}
+                placeholder="Ej. facturacion@conycasoluciones.com"
+                disabled={enviando}
+                className={claseCampo(Boolean(errores.correoFactura))}
+              />
+              <MensajeError texto={errores.correoFactura} />
+            </div>
+          </div>
+        )}
+
+        {f.tipo === "alquiler_vehiculo" && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1" data-error={Boolean(errores.bienNombre)}>
+              <label htmlFor="contrato-bien-nombre" className="text-xs font-medium text-muted-foreground">
+                Nombre corto del vehículo o la maquinaria *
+              </label>
+              <input
+                id="contrato-bien-nombre"
+                value={f.bienNombre}
+                onChange={(e) => cambiar("bienNombre", e.target.value)}
+                placeholder="Ej. retroexcavadora"
+                disabled={enviando}
+                className={claseCampo(Boolean(errores.bienNombre))}
+              />
+              <MensajeError texto={errores.bienNombre} />
+            </div>
+            <div className="space-y-1" data-error={Boolean(errores.actas)}>
+              <label htmlFor="contrato-actas" className="text-xs font-medium text-muted-foreground">
+                Actas parciales *
+              </label>
+              <select
+                id="contrato-actas"
+                value={f.actas}
+                onChange={(e) => cambiar("actas", e.target.value as "" | ActasPeriodicidad)}
+                disabled={enviando}
+                className={claseCampo(Boolean(errores.actas))}
+              >
+                <option value="">— Elige —</option>
+                {OPCIONES_ACTAS.map((a) => (
+                  <option key={a.valor} value={a.valor}>
+                    {a.titulo}
+                  </option>
+                ))}
+              </select>
+              <MensajeError texto={errores.actas} />
+            </div>
+            <div className="space-y-1" data-error={Boolean(errores.exigeGarantia)}>
+              <PreguntaSiNo
+                id="contrato-garantia"
+                etiqueta="¿El contrato tiene garantías (pólizas)? *"
+                valor={f.exigeGarantia}
+                onChange={(v) => cambiar("exigeGarantia", v)}
+                disabled={enviando}
+                conError={Boolean(errores.exigeGarantia)}
+              />
+              <MensajeError texto={errores.exigeGarantia} />
+            </div>
+          </div>
+        )}
+      </Seccion>
+
+      {/* 9. Notificación y observaciones */}
       <Seccion titulo="Notificación y observaciones">
         <div className="max-w-md space-y-1" data-error={Boolean(errores.correoNotificacion)}>
           <label htmlFor="contrato-correo" className="text-xs font-medium text-muted-foreground">
@@ -1031,7 +1292,7 @@ export function SolicitudContratoForm({
         </div>
       </Seccion>
 
-      {/* 9. Documentos del tipo de contrato */}
+      {/* 10. Documentos del tipo de contrato */}
       <Seccion
         titulo="Documentos del contrato"
         ayuda={tipo ? `Específicos de ${tipo.titulo.toLowerCase()}. PDF, JPG o PNG de hasta 10 MB.` : "Elige primero el tipo de contrato."}

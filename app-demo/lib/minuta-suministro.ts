@@ -202,7 +202,7 @@ export function minutaSuministroPorDefecto(d: SolicitudContratoDetalle, extra: D
     contratistaRepresentante: juridica ? (extra.contratistaRepresentante ?? "") : "",
     contratistaTipoDocumento: TIPOS_DOCUMENTO_ARRENDADOR.some((t) => t.valor === tipoDocumento) ? (tipoDocumento as TipoDocumentoArrendador) : "CC",
     contratistaCedula: juridica ? (extra.contratistaRepresentanteDocumento ?? "") : (extra.contratistaNumeroDocumento ?? ""),
-    contratistaCedulaExpedida: "",
+    contratistaCedulaExpedida: extra.contratistaCedulaExpedida ?? "",
     contratistaCiudad: extra.contratistaCiudad ?? "",
     contratistaCorreo: d.correoNotificacion,
     objeto: sinPuntoFinal(d.objeto),
@@ -218,7 +218,7 @@ export function minutaSuministroPorDefecto(d: SolicitudContratoDetalle, extra: D
     amparos: d.tieneAnticipo ? [{ ...AMPARO_ANTICIPO }, ...AMPAROS_PLANTILLA.map((a) => ({ ...a }))] : AMPAROS_PLANTILLA.map((a) => ({ ...a })),
     clausulaPenalPorcentaje: "10",
     multaDiariaPorcentaje: "0,2",
-    domicilioCiudad: ciudadProyecto,
+    domicilioCiudad: [ciudadProyecto, d.domicilioDepartamento].filter(Boolean).join(" – "),
     clausulasAdicionales: [],
   }
 }

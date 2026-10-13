@@ -194,7 +194,7 @@ export function minutaServiciosPorDefecto(d: SolicitudContratoDetalle, extra: Da
     contratistaRepresentante: juridica ? (extra.contratistaRepresentante ?? "") : "",
     contratistaTipoDocumento: TIPOS_DOCUMENTO_ARRENDADOR.some((t) => t.valor === tipoDocumento) ? (tipoDocumento as TipoDocumentoArrendador) : "CC",
     contratistaCedula: juridica ? (extra.contratistaRepresentanteDocumento ?? "") : (extra.contratistaNumeroDocumento ?? ""),
-    contratistaCedulaExpedida: "",
+    contratistaCedulaExpedida: extra.contratistaCedulaExpedida ?? "",
     contratistaCorreo: d.correoNotificacion,
     servicio: servicioDesdeObjeto(d.objeto),
     obra: d.proyectoNombre ?? "",
@@ -211,7 +211,7 @@ export function minutaServiciosPorDefecto(d: SolicitudContratoDetalle, extra: Da
     formaPago: formaPagoPorDefecto(d),
     clausulaPenalPorcentaje: "20",
     municipioEjecucion: ciudadProyecto,
-    departamentoEjecucion: "",
+    departamentoEjecucion: d.domicilioDepartamento ?? "",
     domicilioCiudad: ciudadProyecto,
     clausulasAdicionales: [],
   }

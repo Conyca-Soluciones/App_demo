@@ -116,9 +116,16 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           Relación de paz y salvos del personal retirado durante el periodo de corte. <Text style={s.b}>PARAGRÁFO SEGUNDO:</Text> El contratante se
           reserva el derecho de retener cualquier pago a favor del contratista, si este último incumple cualquiera de las obligaciones contraídas por
           medio del presente contrato, retención que es autorizada por el contratista con la suscripción del presente contrato, hasta que se dé
-          cumplimiento a la obligación que originó la retención. <Text style={s.b}>PARAGRÁFO TERCERO:</Text> Se le hará retención contra pago de recibo
-          de satisfacción de la obra del {res("retencionGarantia", blanco(m.retencionGarantia))} del valor del contrato, el cual será devuelto al contratista con la expedición del
-          acta de liquidación del contrato. <Text style={s.b}>PARAGRÁFO CUARTO:</Text> Los pagos se realizarán mediante transferencia electrónica a la
+          cumplimiento a la obligación que originó la retención. <Text style={s.b}>PARAGRÁFO TERCERO:</Text>{" "}
+          {m.retencion === "no" ? (
+            res("retencion", "No se hará retención en garantía sobre los pagos del contrato.")
+          ) : (
+            <>
+              Se le hará retención contra pago de recibo de satisfacción de la obra del {res("retencionGarantia", blanco(m.retencionGarantia))} del valor
+              del contrato, el cual será devuelto al contratista con la expedición del acta de liquidación del contrato.
+            </>
+          )}{" "}
+          <Text style={s.b}>PARAGRÁFO CUARTO:</Text> Los pagos se realizarán mediante transferencia electrónica a la
           cuenta bancaria acredita por el contratista mediante certificación bancaria en la que éste figure como titular.
         </Clausula>
         {m.condicionesPago.trim() && <P>{res("condicionesPago", m.condicionesPago.trim())}</P>}

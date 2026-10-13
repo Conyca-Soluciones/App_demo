@@ -6,6 +6,7 @@ import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permi
 import { MIME_PERMITIDOS, TAMANO_MAXIMO } from "@/lib/contratistas"
 import {
   TIPO_CONTRATO_POR_VALOR,
+  datosTipoABase,
   validarSolicitud,
   type ItemPresupuestoContrato,
   type SolicitudContratoForm,
@@ -108,6 +109,8 @@ async function guardarSolicitud(
       duracion_unidad: d.duracionUnidad ?? "",
       correo_notificacion: d.correoNotificacion,
       observaciones: d.observaciones ?? "",
+      domicilio_departamento: d.departamentoDomicilio,
+      datos_tipo: datosTipoABase(d.tipo, d.datosTipo),
     },
     p_obligaciones: d.obligaciones,
     p_entregables: d.entregables,

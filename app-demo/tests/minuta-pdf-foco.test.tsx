@@ -44,6 +44,8 @@ const detalle = {
   formaPago: "Contra entrega.",
   correoNotificacion: "c@d.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Retirar los sobrantes."],
   entregables: [],
   items: [],

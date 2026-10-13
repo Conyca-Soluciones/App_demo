@@ -131,5 +131,11 @@ select * from (
          exists (select 1 from pg_trigger where tgname = 'estado_req_pedidos_upd')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'requisiciones' and column_name = 'estado_compra')
+  union all
+  select '20261109000000_datos_minuta_solicitud',
+         exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'contratos' and column_name = 'datos_tipo')
+         and exists (select 1 from pg_proc where proname = 'crear_contratista' and prosrc like '%cedula_expedida_en%')
+         and exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%domicilio_departamento%')
 ) t
 order by 1;

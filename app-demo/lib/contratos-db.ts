@@ -1,5 +1,5 @@
 import type { createClient } from "@/lib/supabase/server"
-import type { SolicitudContratoDetalle, SolicitudContratoFila } from "@/lib/contratos"
+import { datosTipoDesdeBase, type SolicitudContratoDetalle, type SolicitudContratoFila } from "@/lib/contratos"
 
 export type { SolicitudContratoDetalle, SolicitudContratoFila }
 
@@ -60,6 +60,7 @@ export async function cargarDetalleContrato(
     .select(`
       ${SELECT_FILA_CONTRATO},
       anexo_tipo, valor_mensual, tiene_anticipo, anticipo_porcentaje, forma_pago, correo_notificacion, observaciones,
+      domicilio_departamento, datos_tipo,
       contratista_completo:contratistas!contratos_contratista_id_fkey(
         tipo_persona, documentos:contratista_documentos(id, tipo, nombre_archivo, mime)
       ),
@@ -93,6 +94,8 @@ export async function cargarDetalleContrato(
     formaPago: x.forma_pago,
     correoNotificacion: x.correo_notificacion,
     observaciones: x.observaciones,
+    domicilioDepartamento: x.domicilio_departamento ?? null,
+    datosTipo: datosTipoDesdeBase(x.datos_tipo),
     obligaciones: [...(x.obligaciones ?? [])].sort(porOrden).map((o: any) => o.texto),
     entregables: [...(x.entregables ?? [])].sort(porOrden).map((e: any) => e.texto),
     items: [...(x.items ?? [])].sort(porOrden).map((i: any) => ({

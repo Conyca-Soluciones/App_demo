@@ -76,6 +76,8 @@ export type Contratista = {
   representanteNombre: string | null
   representanteTipoDocumento: TipoDocumentoPersona | null
   representanteNumeroDocumento: string | null
+  // Dónde se expidió la cédula: de la persona natural o del representante legal.
+  cedulaExpedidaEn: string | null
   correo: string
   telefono: string
   direccion: string
@@ -107,6 +109,7 @@ export type DatosContratista = {
   representanteNombre: string
   representanteTipoDocumento: TipoDocumentoPersona | ""
   representanteNumeroDocumento: string
+  cedulaExpedidaEn: string
   correo: string
   telefono: string
   direccion: string
@@ -150,6 +153,7 @@ export function validarContratista(crudo: DatosContratista): ResultadoValidacion
     representanteNombre: juridica ? crudo.representanteNombre.trim().replace(/\s+/g, " ") : "",
     representanteTipoDocumento: juridica ? crudo.representanteTipoDocumento : "",
     representanteNumeroDocumento: juridica ? limpiarDocumento(crudo.representanteNumeroDocumento) : "",
+    cedulaExpedidaEn: crudo.cedulaExpedidaEn.trim().replace(/\s+/g, " "),
     correo: crudo.correo.trim().toLowerCase(),
     telefono: limpiarTelefono(crudo.telefono),
     direccion: crudo.direccion.trim(),
@@ -191,6 +195,9 @@ export function validarContratista(crudo: DatosContratista): ResultadoValidacion
     datos.digitoVerificacion = ""
   }
 
+  if (!datos.cedulaExpedidaEn) {
+    errores.cedulaExpedidaEn = juridica ? "Escribe dónde se expidió la cédula del representante." : "Escribe dónde se expidió la cédula."
+  }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(datos.correo)) errores.correo = "Escribe un correo válido."
   if (!/^\+?[0-9]{7,15}$/.test(datos.telefono)) errores.telefono = "Escribe un teléfono de 7 a 15 números."
   if (!datos.direccion) errores.direccion = "Escribe la dirección."

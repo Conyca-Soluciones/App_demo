@@ -47,6 +47,8 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   formaPago: "Mes anticipado.",
   correoNotificacion: "arriendos@ruiz.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Entregar las llaves de la bodega", "No aplica"],
   entregables: [],
   items: [],
@@ -206,4 +208,23 @@ describe("origenCampoArrendamiento", () => {
 
 it("nombre del archivo sin tildes ni símbolos", () => {
   expect(nombreArchivoMinutaArrendamiento(21, "Inversiones Ruiz S.A.S (PRUEBA)")).toBe("minuta-arrendamiento-21-inversiones-ruiz-s-a-s-prueba.pdf")
+})
+
+describe("datos de la solicitud para la minuta de arrendamiento", () => {
+  it("inmueble, uso, IVA, servicios, correo de la factura y cédula expedida", () => {
+    const m = minutaArrendamientoPorDefecto(
+      detalle({
+        datosTipo: { inmuebleDireccion: "Calle 1 # 2-3", inmuebleUso: "campamento de obra", canonIva: "incluido", serviciosIncluidos: false, correoFactura: "f@c.co" },
+      }),
+      { ...extra, contratistaCedulaExpedida: "Medellín" },
+      "2026-10-13"
+    )
+    expect(m.inmuebleDireccion).toBe("Calle 1 # 2-3")
+    expect(m.destinacion).toBe("campamento de obra")
+    expect(m.iva).toBe("incluido")
+    expect(m.serviciosPublicos).toBe("arrendatario")
+    expect(m.correoFacturacion).toBe("f@c.co")
+    expect(m.arrendadorCedulaExpedida).toBe("Medellín")
+    expect(minutaArrendamientoPorDefecto(detalle({ datosTipo: { serviciosIncluidos: true } }), extra, "2026-10-13").serviciosPublicos).toBe("incluidos")
+  })
 })

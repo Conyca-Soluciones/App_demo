@@ -325,7 +325,20 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
         <Seccion titulo="Quinta · Forma de pago">
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("periodicidadPago", "Se pagará cada", { placeholder: "quince (15) días" })}
-            {campo("retencionGarantia", "Retención en garantía (parágrafo tercero)", { placeholder: "5%", ayuda: "«…retención … de la obra del … del valor del contrato»." })}
+            <SelectorMinuta
+              id="minuta-retencion"
+              etiqueta="¿Retención en garantía? (parágrafo tercero)"
+              valor={m.retencion}
+              opciones={[
+                { valor: "si" as const, titulo: "Sí" },
+                { valor: "no" as const, titulo: "No" },
+              ]}
+              origen={!m.retencion ? "vacio" : m.retencion === datos.porDefecto.retencion ? "solicitud" : "editado"}
+              onChange={(retencion) => actualizar({ retencion })}
+              disabled={deshabilitado}
+            />
+            {m.retencion !== "no" &&
+              campo("retencionGarantia", "Porcentaje de retención", { placeholder: "5%", ayuda: "«…retención … de la obra del … del valor del contrato»." })}
             {campo("condicionesPago", "Forma de pago de la solicitud (párrafo aparte, opcional)", { filas: 2 })}
           </div>
         </Seccion>

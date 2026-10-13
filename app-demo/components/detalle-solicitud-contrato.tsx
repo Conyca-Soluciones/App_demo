@@ -16,6 +16,7 @@ import {
   numero,
   pesosEnLetras,
   pesos,
+  datosTipoParaMostrar,
   plazoTexto,
   type SolicitudContratoDetalle,
 } from "@/lib/contratos"
@@ -174,6 +175,8 @@ export function DetalleSolicitudContrato({
                         (detalle.plazoTipo === "duracion" && detalle.fechaInicio ? ` desde ${formatearFechaSinHora(detalle.fechaInicio)} (estimado)` : ""),
                     ],
                     ["Correo de notificación", detalle.correoNotificacion],
+                    ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
+                    ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
                     ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
                   ] as [string, string][]
                 ).map(([k, v]) => (

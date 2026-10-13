@@ -7,6 +7,8 @@ import {
   porcentajeEnLetras,
   totalAnexo,
   validarSolicitud,
+  datosTipoABase,
+  datosTipoDesdeBase,
   type ItemPresupuestoContrato,
   type SolicitudContratoForm,
 } from "@/lib/contratos"
@@ -32,6 +34,18 @@ const base: SolicitudContratoForm = {
   entregables: ["Acta de entrega"],
   correoNotificacion: "Obras@Contratista.co",
   observaciones: "",
+  departamentoDomicilio: "Arauca",
+  pagoCadaDias: "",
+  retencionGarantia: "",
+  retencionPorcentaje: "",
+  inmuebleDireccion: "",
+  inmuebleUso: "",
+  canonIva: "",
+  serviciosIncluidos: "",
+  correoFactura: "",
+  bienNombre: "",
+  actas: "",
+  exigeGarantia: "",
 }
 
 const errores = (f: Partial<SolicitudContratoForm>, catalogo?: Map<string, ItemPresupuestoContrato>) => {
@@ -89,7 +103,8 @@ describe("validarSolicitud", () => {
     it.each(["prestacion_servicios", "alquiler_vehiculo", "arrendamiento"] as const)("es obligatorio en %s", (tipo) => {
       expect(pideValorMensual(tipo)).toBe(true)
       expect(errores({ tipo }).valorMensual).toBeDefined()
-      expect(errores({ tipo, valorMensual: "2.000.000" })).toEqual({})
+      // (arrendamiento y alquiler piden además sus datos de la minuta: aquí solo el pago mensual)
+      expect(errores({ tipo, valorMensual: "2.000.000" }).valorMensual).toBeUndefined()
     })
 
     it("no aplica (ni se guarda) en los demás tipos", () => {
@@ -184,5 +199,61 @@ describe("en letras", () => {
 
   it("un texto real no cuenta como 'no aplica'", () => {
     expect(esNoAplica("No aplica la póliza de cumplimiento")).toBe(false)
+  })
+})
+
+describe("domicilio y datos de la minuta según el tipo", () => {
+  it("el departamento de domicilio es obligatorio en todos los tipos", () => {
+    expect(errores({ departamentoDomicilio: "  " }).departamentoDomicilio).toBeTruthy()
+    expect(errores({}).departamentoDomicilio).toBeUndefined()
+  })
+
+  it("obra: pago cada X días y retención en garantía", () => {
+    const e = errores({ tipo: "obra" })
+    expect(e.pagoCadaDias).toBeTruthy()
+    expect(e.retencion).toBeTruthy()
+    expect(errores({ tipo: "obra", pagoCadaDias: "15.5", retencionGarantia: "no" }).pagoCadaDias).toBeTruthy()
+    expect(errores({ tipo: "obra", pagoCadaDias: "15", retencionGarantia: "si", retencionPorcentaje: "" }).retencion).toBeTruthy()
+    const r = validarSolicitud({ ...base, tipo: "obra", pagoCadaDias: "15", retencionGarantia: "si", retencionPorcentaje: "5%" })
+    expect(r.ok && r.datos.datosTipo).toEqual({ pagoCadaDias: 15, retencionGarantia: true, retencionPorcentaje: 5 })
+    const sin = validarSolicitud({ ...base, tipo: "obra", pagoCadaDias: "30", retencionGarantia: "no" })
+    expect(sin.ok && sin.datos.datosTipo).toEqual({ pagoCadaDias: 30, retencionGarantia: false })
+  })
+
+  it("arrendamiento: inmueble, uso, IVA, servicios y correo de la factura", () => {
+    const e = errores({ tipo: "arrendamiento", valorMensual: "2.000.000" })
+    for (const campo of ["inmuebleDireccion", "inmuebleUso", "canonIva", "serviciosIncluidos", "correoFactura"] as const) expect(e[campo]).toBeTruthy()
+    const r = validarSolicitud({
+      ...base,
+      tipo: "arrendamiento",
+      valorMensual: "2.000.000",
+      inmuebleDireccion: "Calle 1 # 2-3",
+      inmuebleUso: "Campamento de obra",
+      canonIva: "incluido",
+      serviciosIncluidos: "no",
+      correoFactura: " Facturas@Conyca.CO ",
+    })
+    expect(r.ok && r.datos.datosTipo).toEqual({
+      inmuebleDireccion: "Calle 1 # 2-3",
+      inmuebleUso: "Campamento de obra",
+      canonIva: "incluido",
+      serviciosIncluidos: false,
+      correoFactura: "facturas@conyca.co",
+    })
+  })
+
+  it("alquiler: nombre corto, actas y garantías", () => {
+    const e = errores({ tipo: "alquiler_vehiculo", valorMensual: "1.000.000" })
+    expect(e.bienNombre && e.actas && e.exigeGarantia).toBeTruthy()
+    const r = validarSolicitud({ ...base, tipo: "alquiler_vehiculo", valorMensual: "1.000.000", bienNombre: " Volqueta ", actas: "quincenales", exigeGarantia: "si" })
+    expect(r.ok && r.datos.datosTipo).toEqual({ bienNombre: "Volqueta", actas: "quincenales", exigeGarantia: true })
+  })
+
+  it("los demás tipos no llevan datos extra; ida y vuelta con la base", () => {
+    const r = validarSolicitud(base)
+    expect(r.ok && r.datos.datosTipo).toEqual({})
+    expect(datosTipoABase("obra", { pagoCadaDias: 15, retencionGarantia: false })).toEqual({ pago_cada_dias: 15, retencion_garantia: false })
+    expect(datosTipoDesdeBase({ bien_nombre: "Grúa", actas: "otra", exige_garantia: false, raro: 1 })).toEqual({ bienNombre: "Grúa", exigeGarantia: false })
+    expect(datosTipoDesdeBase(null)).toEqual({})
   })
 })

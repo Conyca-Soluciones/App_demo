@@ -296,6 +296,7 @@ function DetalleContratistaDialog({ contratista: c, onCerrar }: { contratista: C
               ["Documento del representante", `${c.representanteTipoDocumento ?? ""} ${c.representanteNumeroDocumento ?? ""}`.trim()],
             ] as [string, string][])
           : []),
+        [c.tipoPersona === "juridica" ? "Cédula del representante expedida en" : "Cédula expedida en", c.cedulaExpedidaEn ?? "—"],
         ["Correo de notificación", c.correo],
         ["Teléfono", c.telefono],
         ["Dirección", c.direccion],
@@ -390,6 +391,7 @@ const FORMULARIO_VACIO: DatosContratista = {
   representanteNombre: "",
   representanteTipoDocumento: "CC",
   representanteNumeroDocumento: "",
+  cedulaExpedidaEn: "",
   correo: "",
   telefono: "",
   direccion: "",
@@ -597,6 +599,7 @@ function NuevoContratistaDialog({
                     {errores.tipoDocumento && <p className="text-xs text-destructive">{errores.tipoDocumento}</p>}
                   </div>
                   {campoTexto("numeroDocumento", "Número de documento *", { ancho: "sm:col-span-3", inputMode: valores.tipoDocumento === "CC" ? "numeric" : undefined })}
+                  {campoTexto("cedulaExpedidaEn", "Cédula expedida en *", { ancho: "sm:col-span-3", placeholder: "Ej. Bogotá" })}
                 </>
               )}
             </div>
@@ -627,6 +630,7 @@ function NuevoContratistaDialog({
                   {errores.representanteTipoDocumento && <p className="text-xs text-destructive">{errores.representanteTipoDocumento}</p>}
                 </div>
                 {campoTexto("representanteNumeroDocumento", "Número de documento *", { ancho: "sm:col-span-3", inputMode: valores.representanteTipoDocumento === "CC" ? "numeric" : undefined })}
+                {campoTexto("cedulaExpedidaEn", "Cédula expedida en *", { ancho: "sm:col-span-3", placeholder: "Ej. Bogotá" })}
               </div>
             </section>
           )}

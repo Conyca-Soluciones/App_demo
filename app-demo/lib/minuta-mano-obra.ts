@@ -87,6 +87,7 @@ export type DatosExtraMinuta = {
   contratistaRepresentante: string | null
   contratistaRepresentanteDocumento: string | null
   contratistaRepresentanteTipoDocumento?: string | null // CC, CE, PPT o PA
+  contratistaCedulaExpedida?: string | null // de la persona natural o del representante
   contratistaCiudad: string | null
 }
 
@@ -236,7 +237,7 @@ export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraM
     contratistaNit: nit,
     contratistaRepresentante: juridica ? (extra.contratistaRepresentante ?? "") : d.contratistaNombre,
     contratistaCedula: juridica ? (extra.contratistaRepresentanteDocumento ?? "") : (extra.contratistaNumeroDocumento ?? ""),
-    contratistaCedulaExpedida: "",
+    contratistaCedulaExpedida: extra.contratistaCedulaExpedida ?? "",
     contratistaCiudad: extra.contratistaCiudad ?? "",
     contratistaCorreo: d.correoNotificacion,
     objeto: `${primeraMinuscula(d.objeto.trim().replace(/\.$/, ""))}, conforme a las actividades descritas en el anexo N° 1 del presente contrato`,
@@ -256,7 +257,7 @@ export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraM
     clausulaPenalPorcentaje: "10",
     polizaPorcentaje: "20",
     domicilioMunicipio: ciudadProyecto,
-    domicilioDepartamento: "",
+    domicilioDepartamento: d.domicilioDepartamento ?? "",
     anexos: "N° 1 (actividades, cantidades y valores)",
     ciudadArbitramento: ciudadProyecto,
     clausulasAdicionales: [],

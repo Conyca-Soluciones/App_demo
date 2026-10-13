@@ -49,6 +49,8 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   formaPago: "Contra entrega de cada piso.",
   correoNotificacion: "ventas@vidrios.co",
   observaciones: null,
+  domicilioDepartamento: null,
+  datosTipo: {},
   obligaciones: ["Retirar los sobrantes", "N/A"],
   entregables: [],
   items: [{ presupuestoItemId: "i1", codigo: "8.2", actividad: "Ventana corrediza", unidad: "m2", cantidad: 40, valorUnitario: 250_000 }],
@@ -174,4 +176,12 @@ it("origen y nombre del archivo", () => {
   expect(origenCampoSuministro("contratistaNombre", d.contratistaNombre, d)).toBe("solicitud")
   expect(origenCampoSuministro("contratanteRepresentante", "", d)).toBe("vacio")
   expect(nombreArchivoMinutaSuministro(31, "Vidrios del Norte S.A.S")).toBe("minuta-suministro-31-vidrios-del-norte-s-a-s.pdf")
+})
+
+describe("datos nuevos de la solicitud y del contratista", () => {
+  it("domicilio con departamento y cédula expedida en", () => {
+    const m = minutaSuministroPorDefecto(detalle({ domicilioDepartamento: "Arauca" }), { ...extra, contratistaCedulaExpedida: "Cúcuta" }, "2026-10-13")
+    expect(m.domicilioCiudad).toBe("Arauca – Arauca")
+    expect(m.contratistaCedulaExpedida).toBe("Cúcuta")
+  })
 })
