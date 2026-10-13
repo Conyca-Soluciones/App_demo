@@ -552,7 +552,7 @@ export const focoDeEvento = (e: React.FocusEvent) => (e.target as HTMLElement).c
 
 // Vista previa: se vuelve a generar un momento después del último cambio, o
 // enseguida al pasar a otro campo (`foco`): ese dato sale resaltado y el
-// visor abre en su página, a su altura. `refrescar` la genera otra vez.
+// visor abre en su página, ajustada a la página completa. `refrescar` la genera otra vez.
 export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string | null) {
   const [vista, setVista] = useState<{ url: string | null; cargando: boolean; error: string | null; pagina: number | null }>({
     url: null,
@@ -573,13 +573,13 @@ export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string 
     const t = setTimeout(() => {
       setVista((v) => ({ ...v, cargando: true, error: null }))
       generarPdfMinuta(id, minuta, control.signal, foco)
-        .then(({ blob, pagina, altura }) => {
+        .then(({ blob, pagina }) => {
           const url = URL.createObjectURL(blob)
           if (urlVista.current) URL.revokeObjectURL(urlVista.current)
           urlVista.current = url
-          // El visor del navegador abre en la página (y la altura, con un
-          // margen arriba) que vienen en la dirección.
-          const destino = pagina ? `#page=${pagina}${altura !== null ? `&view=FitH,${Math.round(altura + 60)}` : ""}` : ""
+          // El visor del navegador abre en la página del dato resaltado,
+          // completa (ajustada a la página, sin acercar).
+          const destino = pagina ? `#page=${pagina}&view=Fit` : ""
           setVista({ url: url + destino, cargando: false, error: null, pagina })
         })
         .catch((e) => {
