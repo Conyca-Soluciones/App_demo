@@ -11,9 +11,10 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { seleccionarProyecto } from "@/app/(app)/inicio/actions"
 import { etiquetaProyecto } from "@/lib/proyecto-actual"
 
-// Selector del proyecto actual en el encabezado de las páginas que trabajan
-// sobre un proyecto. Es un atajo: el proyecto se elige en /inicio (landing)
-// y también se cambia desde el sidebar. Mismo mecanismo que la landing:
+// Selector del proyecto actual en la barra fija de arriba (BarraSuperior): es
+// el ÚNICO lugar donde se cambia de proyecto (además de /inicio, la landing).
+// El botón muestra el código del proyecto; la lista, código y nombre. Mismo
+// mecanismo que la landing:
 // seleccionarProyecto() fija la cookie (validando acceso en el servidor) y
 // router.refresh() vuelve a correr el layout, que recalcula el proyecto.
 export function SelectorProyecto({ className }: { className?: string }) {
@@ -37,17 +38,17 @@ export function SelectorProyecto({ className }: { className?: string }) {
 
   return (
     <div className={`flex items-center gap-1.5 ${className ?? ""}`}>
-      <span className="text-xs text-muted-foreground">Proyecto</span>
+      <span className="hidden text-xs text-muted-foreground lg:inline">Proyecto</span>
       <Select value={proyecto?.id ?? ""} onValueChange={alCambiar} disabled={cambiando}>
         <SelectTrigger
-          className="h-9 w-[min(18rem,calc(100vw-7rem))] rounded-sm"
-          title={error ?? undefined}
+          className="h-9 w-[min(14rem,calc(100vw-16rem))] rounded-sm"
+          title={error ?? (proyecto ? etiquetaProyecto(proyecto) : undefined)}
           aria-invalid={error ? true : undefined}
         >
           <SelectValue placeholder="Selecciona un proyecto">
             <span className="flex min-w-0 items-center gap-1.5">
               {cambiando && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-              <span className="truncate">{proyecto ? etiquetaProyecto(proyecto) : "Selecciona un proyecto"}</span>
+              <span className="truncate">{proyecto ? (proyecto.codigo ?? proyecto.nombre) : "Selecciona un proyecto"}</span>
             </span>
           </SelectValue>
         </SelectTrigger>
@@ -65,7 +66,7 @@ export function SelectorProyecto({ className }: { className?: string }) {
             <Link
               href="/inicio"
               aria-label="Ver todos los proyectos"
-              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              className="hidden rounded-md p-2 text-muted-foreground sm:block transition-colors hover:bg-accent hover:text-accent-foreground"
             />
           }
         >

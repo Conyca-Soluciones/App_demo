@@ -638,7 +638,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                 Se decide por el ANCHO DISPONIBLE de la página (container
                 query), no por el de la pantalla: en una tablet con el menú
                 lateral abierto quedan ~460px y la tabla no cabe bien. */}
-            <div className="hidden max-h-[calc(100svh-15rem)] overflow-auto rounded-lg border @3xl:block">
+            <div className="hidden max-h-[calc(100svh-18.5rem)] overflow-auto rounded-lg border @3xl:block">
               <table className="table-fixed border-separate border-spacing-0 text-sm" style={{ width: ANCHO_TABLA }}>
                 <colgroup>
                   {COLUMNAS.map((c) => (

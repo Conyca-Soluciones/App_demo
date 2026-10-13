@@ -9,7 +9,10 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 // empuja el contenido), así que el que decide el ancho -- AppSidebar -- se lo
 // avisa a este contenedor por contexto.
 
-const ANCHO_BASE = "11rem"
+const ANCHO_BASE = "calc(8rem + 1px)"
+// Alto de la barra fija de arriba (BarraSuperior). El menú lateral empieza
+// debajo y el contenido se corre este alto.
+const ALTO_BARRA = "3.5rem"
 
 const AnchoSidebarContext = createContext<(ancho: string) => void>(() => {})
 
@@ -19,7 +22,7 @@ export function ShellSidebar({ children }: { children: React.ReactNode }) {
   const [ancho, setAncho] = useState(ANCHO_BASE)
   return (
     <AnchoSidebarContext.Provider value={setAncho}>
-      <SidebarProvider style={{ "--sidebar-width": ancho } as React.CSSProperties}>
+      <SidebarProvider style={{ "--sidebar-width": ancho, "--alto-barra": ALTO_BARRA } as React.CSSProperties}>
         {children}
       </SidebarProvider>
     </AnchoSidebarContext.Provider>

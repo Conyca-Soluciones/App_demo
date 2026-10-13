@@ -43,7 +43,6 @@ export default function Almacen() {
       <EncabezadoPagina
         titulo="Elaboración de requisiciones"
         subtitulo="Haz requisiciones de insumos de almacén para el proyecto en el que estás trabajando."
-        conProyecto
       />
 
       {!proyectoActual && <SinProyecto />}

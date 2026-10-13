@@ -7,7 +7,6 @@ export default function InventarioPage() {
       <EncabezadoPagina
         titulo="Inventario"
         subtitulo="Lo que hay en bodega: entradas menos salidas, valorado a costo promedio."
-        conProyecto
       />
       <div className="min-h-0 flex-1 p-4 sm:p-6">
         <InventarioView />

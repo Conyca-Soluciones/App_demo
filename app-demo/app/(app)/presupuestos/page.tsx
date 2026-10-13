@@ -1546,16 +1546,15 @@ export default function Presupuestos() {
   return (
     <>
       <EncabezadoPagina
-        className="sticky top-0 z-20 bg-background"
+        className="sticky top-[var(--alto-barra)] z-20 bg-background"
         titulo="Elaboración de presupuestos"
         subtitulo="Importa o continúa el presupuesto del proyecto en el que estás trabajando."
-        conProyecto
       />
 
       <div className="flex w-full min-w-0 items-start">
       {presupuesto.length > 0 && (
         <aside
-          className={`sticky top-[4.8rem] h-[calc(100vh-4.8rem)] shrink-0 overflow-y-auto p-4 transition-[width] ${
+          className={`sticky top-[calc(var(--alto-barra)+4.8rem)] h-[calc(100vh-var(--alto-barra)-4.8rem)] shrink-0 overflow-y-auto p-4 transition-[width] ${
             arbolPlegado ? "w-[3.75rem]" : "w-72 border-r"
           }`}
         >

@@ -186,7 +186,6 @@ export default function VisualizacionPage() {
     <EncabezadoPagina
       titulo="Estado de obra"
       subtitulo="Presupuestado vs. comprado por proyecto, a partir de las órdenes de compra aprobadas."
-      conProyecto
     />
     <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       {error && (

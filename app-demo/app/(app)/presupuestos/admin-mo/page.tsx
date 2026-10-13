@@ -753,7 +753,7 @@ function CatalogoRecurso({
           onOrdenar={(clave) => alternarOrden(clave as ColumnaOrdenableCatalogo)}
           onDobleClickFila={setCategoriaEditando}
           tituloFila="Doble clic para editar esta categoría"
-          claseAltoMax="max-h-[calc(100svh-20rem)]"
+          claseAltoMax="max-h-[calc(100svh-23.5rem)]"
           tarjeta={{
             titulo: (c) => c.categoria,
             subtitulo: (c) => c.grupo ?? "Sin grupo",

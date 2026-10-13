@@ -6,7 +6,6 @@ export default function EntradasPage() {
     <MarcoPagina
       titulo="Entradas"
       subtitulo="Consulta las órdenes de compra aprobadas del proyecto y selecciona una para registrar el material recibido en bodega."
-      conProyecto
     >
       <EntradasView />
     </MarcoPagina>

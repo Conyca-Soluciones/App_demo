@@ -29,7 +29,6 @@ export function SolicitudesContratosView({ puedeSolicitar, verInicial }: { puede
       <EncabezadoPagina
         titulo="Contratos por grupos"
         subtitulo="Arma la solicitud del contrato y mándala a pre-aprobación de Jurídica."
-        conProyecto
       />
       {proyecto ? (
         // key: al cambiar de proyecto se limpia todo (lista y formulario a medias).

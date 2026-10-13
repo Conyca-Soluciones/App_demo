@@ -1,20 +1,17 @@
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { SelectorProyecto } from "@/components/selector-proyecto"
 
 // Encabezado estándar de TODAS las páginas: botón del menú, título, subtítulo y
-// (si la página trabaja sobre un proyecto) el selector de proyecto a la derecha.
+// acciones a la derecha. El proyecto se cambia solo en la barra de arriba.
 // Margen y alto iguales en todas (el de Salidas). En pantallas chicas el
 // selector baja a su propia línea (flex-wrap).
 export function EncabezadoPagina({
   titulo,
   subtitulo,
-  conProyecto = false,
   className = "",
   children,
 }: {
   titulo: string
   subtitulo?: string
-  conProyecto?: boolean
   // Para casos especiales (ej. encabezado fijo al hacer scroll).
   className?: string
   // Acciones extra a la derecha (ej. un botón "Nuevo").
@@ -29,12 +26,7 @@ export function EncabezadoPagina({
         <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>
         {subtitulo && <p className="text-sm text-muted-foreground">{subtitulo}</p>}
       </div>
-      {(conProyecto || children) && (
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {children}
-          {conProyecto && <SelectorProyecto />}
-        </div>
-      )}
+      {children && <div className="ml-auto flex flex-wrap items-center gap-2">{children}</div>}
     </header>
   )
 }
@@ -45,19 +37,17 @@ export function EncabezadoPagina({
 export function MarcoPagina({
   titulo,
   subtitulo,
-  conProyecto = false,
   scroll = false,
   children,
 }: {
   titulo: string
   subtitulo?: string
-  conProyecto?: boolean
   scroll?: boolean
   children: React.ReactNode
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <EncabezadoPagina titulo={titulo} subtitulo={subtitulo} conProyecto={conProyecto} />
+      <EncabezadoPagina titulo={titulo} subtitulo={subtitulo} />
       <div className={`min-h-0 flex-1 p-4 sm:p-6 ${scroll ? "overflow-auto" : ""}`}>{children}</div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { SidebarInset } from "@/components/ui/sidebar"
 import { ShellSidebar } from "@/components/app-shell"
 import { AppSidebar } from "@/components/app-sidebar"
+import { BarraSuperior } from "@/components/barra-superior"
 import { ProyectoProvider } from "@/components/proyecto-provider"
 import { obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import { createClient } from "@/lib/supabase/server"
@@ -34,7 +35,7 @@ export default async function Layout({
     listarMisProyectos().catch(() => []),
     cookies(),
   ])
-  // Nombre real del usuario para el pie del menú lateral.
+  // Nombre real del usuario para la barra de arriba.
   const nombreUsuario = await obtenerNombreUsuario()
   const idCookie = jar.get(COOKIE_PROYECTO)?.value
   const proyectoActual = proyectos.find((p) => p.id === idCookie) ?? null
@@ -42,9 +43,10 @@ export default async function Layout({
   return (
     <ProyectoProvider proyecto={proyectoActual} proyectos={proyectos}>
       <ShellSidebar>
-        <AppSidebar permisos={permisos} nombreUsuario={nombreUsuario} />
+        <BarraSuperior permisos={permisos} nombreUsuario={nombreUsuario} />
+        <AppSidebar permisos={permisos} />
 
-        <SidebarInset className="min-w-0">{children}</SidebarInset>
+        <SidebarInset className="min-w-0 pt-[var(--alto-barra)]">{children}</SidebarInset>
       </ShellSidebar>
     </ProyectoProvider>
   )

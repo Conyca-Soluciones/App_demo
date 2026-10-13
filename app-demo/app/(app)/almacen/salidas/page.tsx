@@ -7,7 +7,6 @@ export default function SalidasPage() {
       <EncabezadoPagina
         titulo="Salidas"
         subtitulo="Saca insumos de la bodega hacia obra, o corrige y anula las salidas ya registradas."
-        conProyecto
       />
       <div className="min-h-0 flex-1 p-4 sm:p-6">
         <SalidasPagina />
