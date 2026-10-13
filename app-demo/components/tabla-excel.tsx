@@ -62,7 +62,7 @@ export function TablaExcel<T>({
   onDobleClickFila,
   tituloFila,
   tarjeta,
-  claseAltoMax = "max-h-[calc(100svh-16rem)]",
+  claseAltoMax = "max-h-[calc(100svh-19.5rem)]",
 }: Props<T>) {
   // Offset izquierdo de cada columna fija: suma de los anchos anteriores.
   const izquierda = new Map<string, number>()

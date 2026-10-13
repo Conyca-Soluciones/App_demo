@@ -206,7 +206,7 @@ export function PresupuestoTree({
   }
 
   return (
-    <div className="flex max-h-[calc(100vh-16rem)] w-64 shrink-0 flex-col rounded-md border">
+    <div className="flex max-h-[calc(100vh-19.5rem)] w-64 shrink-0 flex-col rounded-md border">
       <div className="flex items-center gap-1.5 border-b p-2">
         <input
           type="text"

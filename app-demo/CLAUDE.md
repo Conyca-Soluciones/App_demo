@@ -2087,6 +2087,19 @@ Resumen para quien (Claude o persona) retome el trabajo. Rama de trabajo: **`lcp
   Entrega Parcial (amarillo), Entrega Completa (verde).
 - **`Select`** (`components/ui/select.tsx`) arma solo las etiquetas desde los
   `SelectItem`: no mostrar el valor interno ("todos") en el botón.
+- **Barra fija de arriba** (2026-10-14, `components/barra-superior.tsx`): a
+  todo el ancho, siempre visible: logo (lleva a /inicio), **selector de
+  proyecto** (muestra el código; la lista, código y nombre), campanita y
+  usuario (iniciales, nombre, rol, cerrar sesión). Es el ÚNICO lugar para
+  cambiar de proyecto (además de /inicio): ya no hay selector en el
+  encabezado de las páginas (`EncabezadoPagina` perdió `conProyecto`). Alto =
+  `--alto-barra` (3,5rem, en `app-shell`): el menú lateral empieza debajo
+  (`ui/sidebar.tsx`, `top-[var(--alto-barra,0px)]`), el contenido lleva
+  `pt-[var(--alto-barra)]` y lo sticky de la página va en
+  `top-[var(--alto-barra)]`. Las alturas `calc(100svh-Xrem)` suman esos
+  3,5rem. Usar `[var(--x)]`, no `(--x)`: con la sintaxis corta Tailwind no
+  generó la clase. La columna de módulos quedó de 8rem (ancho + 1px por el
+  borde, si no sale scroll horizontal).
 - **Menú lateral por módulos** (`lib/pestanas.ts`: `MODULOS`, `construirModulos`):
   **AdPro** (todo lo existente) y **A&F** (nuevo, sin pestañas todavía). Tres
   columnas que se abren a la derecha (módulos → secciones → pestañas), se minimiza

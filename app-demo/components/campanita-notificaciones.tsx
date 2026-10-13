@@ -92,7 +92,7 @@ export function CampanitaNotificaciones() {
         )}
       </PopoverTrigger>
 
-      <PopoverContent side="bottom" align="start" className="w-80 max-w-[calc(100vw-1rem)] gap-0 rounded-md p-1 shadow-lg">
+      <PopoverContent side="bottom" align="end" className="w-80 max-w-[calc(100vw-1rem)] gap-0 rounded-md p-1 shadow-lg">
         <p className="px-2 pt-1.5 pb-1 text-xs font-semibold text-muted-foreground">Notificaciones</p>
         <div className="max-h-96 overflow-auto">
           {error && <div className="px-2 py-3 text-sm text-destructive">{error}</div>}

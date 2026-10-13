@@ -1,34 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
-import {
-  ArrowLeftRight,
-  Building2,
-  ChevronLeft,
-  ChevronRight,
-  HardHat,
-  Landmark,
-  LogOut,
-} from "lucide-react"
+import { ChevronLeft, ChevronRight, HardHat, Landmark } from "lucide-react"
 
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-
-import { handleLogout } from "./logout-button"
-import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
 import { useAnchoSidebar } from "@/components/app-shell"
 import { construirModulos, type ModuloClave, type PermisosRol } from "@/lib/pestanas"
-import { useProyectoActual } from "@/components/proyecto-provider"
 
 // El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
@@ -38,9 +22,8 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 //   2. SECCIONES del módulo elegido   (Presupuestos, Requisiciones, ...)
 //   3. PESTAÑAS de la sección elegida
 // El ancho total crece con cada nivel abierto (ver AnchoSidebar en app-shell).
-const ROL_POR_DEFECTO = "Usuario"
-
-const ANCHO_MODULOS = 11 // rem
+// Logo, proyecto, campanita y usuario están en la barra de arriba (BarraSuperior).
+const ANCHO_MODULOS = 8 // rem
 const ANCHO_SECCIONES = 12
 const ANCHO_PESTANAS = 16
 
@@ -49,29 +32,8 @@ const ICONO_MODULO: Record<ModuloClave, React.ReactNode> = {
   ayf: <Landmark className="size-4" />,
 }
 
-// Hasta dos iniciales del nombre real ("Luis Pérez" -> "LP").
-function iniciales(nombre: string) {
-  const letras = nombre
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("")
-  return letras.toUpperCase() || "?"
-}
-
-export function AppSidebar({
-  permisos,
-  nombreUsuario,
-}: {
-  permisos: PermisosRol | null
-  nombreUsuario: string | null
-}) {
-  const nombre = nombreUsuario ?? "Usuario"
+export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   const modulos = permisos ? construirModulos(permisos) : []
-  const { proyecto } = useProyectoActual()
-  const rolVisible =
-    permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : ROL_POR_DEFECTO)
 
   const router = useRouter()
   const pathname = usePathname()
@@ -98,7 +60,8 @@ export function AppSidebar({
   // El menú se ensancha con cada nivel abierto.
   const ancho = ANCHO_MODULOS + (modulo ? ANCHO_SECCIONES : 0) + (seccion ? ANCHO_PESTANAS : 0)
   useEffect(() => {
-    setAncho(`${ancho}rem`)
+    // + 1px: el borde derecho del contenedor (si no, sale una barra de scroll horizontal).
+    setAncho(`calc(${ancho}rem + 1px)`)
   }, [ancho, setAncho])
 
   function elegirModulo(clave: ModuloClave) {
@@ -147,22 +110,6 @@ export function AppSidebar({
           className="flex h-full min-h-0 shrink-0 flex-col border-r"
           style={{ width: `${ANCHO_MODULOS}rem` }}
         >
-          <SidebarHeader className="border-b px-3 py-4">
-            <div className="flex items-center justify-center">
-              <Image
-                src="/logo-conyca.png"
-                alt="CONYCA Soluciones"
-                width={160}
-                height={45}
-                priority
-                className="h-auto w-full max-w-[130px]"
-              />
-            </div>
-            <div className="mt-2 flex items-center justify-center">
-              <CampanitaNotificaciones />
-            </div>
-          </SidebarHeader>
-
           <SidebarContent>
             <SidebarMenu className="p-2">
               {modulos.map((m) => {
@@ -184,63 +131,6 @@ export function AppSidebar({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="border-t">
-            {/* Proyecto actual + acceso al landing para cambiarlo. Es el ÚNICO
-                lugar de la app desde donde se cambia de proyecto. */}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => router.push("/inicio")}
-                    aria-label="Cambiar proyecto"
-                    className="flex w-full items-center gap-2 rounded-md border bg-sidebar-accent/40 px-2 py-2 text-left transition-colors hover:bg-sidebar-accent"
-                  />
-                }
-              >
-                <Building2 className="size-4 shrink-0" />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-xs font-semibold">
-                    {proyecto ? proyecto.codigo ?? proyecto.nombre : "Sin proyecto"}
-                  </span>
-                  <span className="truncate text-[11px] text-muted-foreground">
-                    {proyecto ? "Cambiar proyecto" : "Seleccionar proyecto"}
-                  </span>
-                </div>
-                <ArrowLeftRight className="size-3.5 shrink-0 text-muted-foreground" />
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {proyecto ? `${proyecto.nombre} — cambiar proyecto` : "Seleccionar proyecto"}
-              </TooltipContent>
-            </Tooltip>
-
-            <div className="flex items-center gap-2 px-1 py-1.5">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-                {iniciales(nombre)}
-              </div>
-
-              <div className="flex min-w-0 flex-1 flex-col text-left">
-                <span className="truncate text-sm font-medium">{nombre}</span>
-                <span className="truncate text-xs text-muted-foreground">{rolVisible}</span>
-              </div>
-
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      aria-label="Cerrar sesión"
-                      className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    />
-                  }
-                >
-                  <LogOut className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent side="right">Cerrar sesión</TooltipContent>
-              </Tooltip>
-            </div>
-          </SidebarFooter>
         </div>
 
         {/* ------------------------------------------------ 2. Secciones */}
