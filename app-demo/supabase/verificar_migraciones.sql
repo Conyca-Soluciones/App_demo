@@ -122,5 +122,14 @@ select * from (
          exists (select 1 from pg_policies where tablename = 'item_apu' and policyname = 'item_apu_insert')
          and not exists (select 1 from pg_policies where tablename = 'apu'
                          and policyname = 'autenticados leen y modifican apu')
+  union all
+  select '20261108000000_buscar_insumos_presupuesto_rapido',
+         exists (select 1 from pg_proc where proname = 'buscar_insumos_presupuesto'
+                 and prosrc like '%offset 0%')
+  union all
+  select '20261108100000_estado_requisiciones_guardado',
+         exists (select 1 from pg_trigger where tgname = 'estado_req_pedidos_upd')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'requisiciones' and column_name = 'estado_compra')
 ) t
 order by 1;
