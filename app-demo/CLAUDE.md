@@ -1896,8 +1896,17 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   no habla de amortización. Garantía (décima quinta): selector entre las dos
   opciones de la plantilla; con "se exige" sale la tabla de amparos
   (`TablaAmparosMinuta`, minuta-comun, también la usa suministro).
+- **Minuta de prestación de servicios** (2026-10-13, plantilla GJ-F-020
+  versión 02): `lib/minuta-servicios.ts`,
+  `components/minuta-servicios-{editor,pdf}.tsx`, tipo `prestacion_servicios`.
+  La plantilla es para persona natural; también se arma para jurídica. El
+  servicio sale del objeto sin "Prestar los servicios profesionales como"
+  (`servicioDesdeObjeto`). Obligaciones específicas (la tercera, que la
+  plantilla deja en blanco) = obligaciones de la solicitud + sus entregables
+  ("Entregar: …"). "Los pagos se realizarán de manera …" = valor mensual,
+  anticipo y forma de pago de la solicitud.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos) y las plantillas de obra y prestación de servicios.
+  contratos) y la plantilla de obra.
 
 ---
 
