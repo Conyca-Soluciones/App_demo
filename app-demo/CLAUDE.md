@@ -2004,8 +2004,10 @@ Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
   insumo guardado por el de hoy), el cupo se revisa sin contar el acta misma y
   vuelve a "por aprobar" con el MISMO número, sin motivo de rechazo
   (`actas.editada_at` / `editada_por`, se ve en el detalle). Crear y editar
-  comparten `_llenar_acta`. Lo puede editar cualquiera con la acción y acceso
-  al proyecto, no solo quien la creó.
+  comparten `_llenar_acta`. **Solo la edita quien la creó**
+  (`20261110300000_editar_acta_solo_creador.sql`: `editar_acta` lo exige;
+  `actas_de_contrato` y `detalle_acta` devuelven `es_mio` para mostrar el
+  botón; `actaEditable({estado, esMio})`).
 - **Avisos**: `resolver_acta` notifica a quien creó el acta (si no fue él
   quien la resolvió): `acta_aprobada` / `acta_rechazada` (con el motivo),
   entidad `acta`. La campanita lleva a `/contratos/actas?ver=<id>`, que escoge

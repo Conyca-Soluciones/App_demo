@@ -48,7 +48,7 @@ import {
 // contrato aprobado se escoge solo; con varios, se elige en la lista). Del
 // contrato se ve su información y sus actas, y "Crear acta nueva" abre la
 // tabla para llenar (hasta 20 líneas). El acta queda por aprobar. Las que no
-// están aprobadas se pueden editar (una rechazada vuelve a aprobación).
+// están aprobadas las puede editar quien las creó (una rechazada vuelve a aprobación).
 // ?ver=<id> (aviso de la campanita) abre el contrato del acta con el acta abierta.
 
 const mensaje = (e: unknown, otro: string) => (e instanceof Error ? e.message : otro)
@@ -401,7 +401,7 @@ function ContratoActas({
                       </td>
                       {puedeElaborar && (
                         <td className="text-right">
-                          {actaEditable(a.estado) && (
+                          {actaEditable(a) && (
                             <Button size="sm" variant="outline" onClick={() => editarDesdeLista(a.id)} disabled={abriendoEdicion != null}>
                               {abriendoEdicion === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                               Editar
@@ -422,7 +422,7 @@ function ContratoActas({
         id={verActa}
         onCerrar={cerrarActa}
         acciones={(a) =>
-          puedeElaborar && actaEditable(a.estado) ? (
+          puedeElaborar && actaEditable(a) ? (
             <Button onClick={() => editar(a)}>
               <Pencil className="size-4" /> {a.estado === "rechazada" ? "Corregir y enviar otra vez" : "Editar acta"}
             </Button>

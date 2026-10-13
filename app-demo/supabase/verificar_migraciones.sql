@@ -155,5 +155,8 @@ select * from (
   select '20261110200000_editar_actas_avisos',
          exists (select 1 from pg_proc where proname = 'editar_acta')
          and exists (select 1 from pg_proc where proname = 'resolver_acta' and prosrc like '%acta_aprobada%')
+  union all
+  select '20261110300000_editar_acta_solo_creador',
+         exists (select 1 from pg_proc where proname = 'editar_acta' and prosrc like '%Solo quien hizo el acta%')
 ) t
 order by 1;

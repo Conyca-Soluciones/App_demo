@@ -49,6 +49,8 @@ export type ActaResumen = {
   createdAt: string
   creadoPorNombre: string | null
   lineas: number
+  // La hizo el usuario actual (solo quien la creó la puede editar).
+  esMio: boolean
 }
 
 // Cupo del contrato: toda acta que no esté rechazada (por aprobar o aprobada)
@@ -90,6 +92,7 @@ export type ActaDetalle = {
   motivoResolucion: string | null
   editadaAt: string | null
   editadaPorNombre: string | null
+  esMio: boolean
   contratoId: string
   numeroContrato: string
   contratoValor: number
@@ -142,8 +145,8 @@ export type LineaActaForm = {
 
 export const lineaActaVacia = (): LineaActaForm => ({ item: null, insumo: null, cantidad: "" })
 
-// Se edita lo que no está aprobado (por aprobar o rechazada).
-export const actaEditable = (estado: EstadoActa) => estado !== "aprobada"
+// La edita solo quien la creó, y solo si no está aprobada (por aprobar o rechazada).
+export const actaEditable = (a: { estado: EstadoActa; esMio: boolean }) => a.esMio && a.estado !== "aprobada"
 
 // Las líneas guardadas, como líneas del formulario para editar el acta. El
 // precio y el IVA son los guardados hasta que la fila carga los del APU de hoy

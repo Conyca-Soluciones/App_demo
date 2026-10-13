@@ -81,6 +81,7 @@ export async function listarActasDeContrato(contratoId: string): Promise<ActaRes
     createdAt: f.created_at,
     creadoPorNombre: f.creado_por_nombre ?? null,
     lineas: Number(f.lineas),
+    esMio: Boolean(f.es_mio),
   }))
 }
 
@@ -135,6 +136,7 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
     motivoResolucion: d.motivo_resolucion ?? null,
     editadaAt: d.editada_at ?? null,
     editadaPorNombre: d.editada_por_nombre ?? null,
+    esMio: Boolean(d.es_mio),
     contratoId: d.contrato_id,
     numeroContrato: d.numero_contrato,
     contratoValor: Number(d.contrato_valor),
@@ -183,7 +185,7 @@ export async function guardarActa(contratoId: string, lineas: LineaActaForm[]): 
   return { id: data.id, numero: Number(data.numero) }
 }
 
-// Corrige un acta que no está aprobada: reemplaza sus líneas y vuelve a
+// Corrige un acta que no está aprobada (solo quien la creó): reemplaza sus líneas y vuelve a
 // "por aprobar" con el mismo número (editar_acta revisa estado y cupo).
 export async function editarActa(actaId: string, lineas: LineaActaForm[]): Promise<{ id: string; numero: number }> {
   await requerirAccion("elaborar_actas")

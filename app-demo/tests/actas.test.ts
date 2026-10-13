@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { leerNumero } from "@/lib/contratos"
-import { calcularLinea, consumidoActas, lineaActaVacia, lineasFormDesdeActa, saldoContrato, type ActaDetalle, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
+import { actaEditable, calcularLinea, consumidoActas, lineaActaVacia, lineasFormDesdeActa, saldoContrato, type ActaDetalle, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
 
 const item: ItemParaActa = { id: "i1", codigo: "1.01", descripcion: "Excavación", unidad: "M3" }
 const insumo = (cambios: Partial<InsumoParaActa> = {}): InsumoParaActa => ({
@@ -71,4 +71,11 @@ describe("lineasFormDesdeActa", () => {
     expect(leerNumero(a.cantidad)).toBe(1250.5)
     expect(b.insumo).toBeNull()
   })
+})
+
+it("actaEditable: solo quien la creó y si no está aprobada", () => {
+  expect(actaEditable({ estado: "pendiente", esMio: true })).toBe(true)
+  expect(actaEditable({ estado: "rechazada", esMio: true })).toBe(true)
+  expect(actaEditable({ estado: "aprobada", esMio: true })).toBe(false)
+  expect(actaEditable({ estado: "pendiente", esMio: false })).toBe(false)
 })
