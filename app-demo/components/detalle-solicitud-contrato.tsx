@@ -82,7 +82,7 @@ export function DetalleSolicitudContrato({
       <DialogContent
         className={
           minuta
-            ? "flex h-[94svh] max-h-[94svh] flex-col gap-4 overflow-y-auto sm:max-w-[min(96vw,1440px)]"
+            ? "flex h-[96svh] max-h-[96svh] w-[calc(100vw-1rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none"
             : `max-h-[92svh] overflow-y-auto ${viendo ? "sm:max-w-5xl" : "sm:max-w-3xl"}`
         }
       >
@@ -122,6 +122,9 @@ export function DetalleSolicitudContrato({
           </div>
         )}
 
+        {/* Con minuta (Pre-aprobación) el encabezado y las pestañas quedan fijos y
+            el cuerpo hace scroll por dentro del borde redondeado. */}
+        <div className={minuta ? "-mx-2 min-h-0 flex-1 overflow-y-auto px-2 [scrollbar-gutter:stable] [scrollbar-width:thin]" : "contents"}>
         {minuta && detalle && !viendo && pestana === "minuta" ? (
           minuta(detalle)
         ) : viendo ? (
@@ -313,6 +316,7 @@ export function DetalleSolicitudContrato({
             </div>
           )
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )

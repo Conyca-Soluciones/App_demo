@@ -100,7 +100,25 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
 
   const columnas: ColumnaExcel<SolicitudContratoFila>[] = useMemo(
     () => [
-      { clave: "numero", titulo: "N°", ancho: 70, fija: true, alinear: "right", texto: (s) => String(s.numero), claseCelda: "tabular-nums" },
+      {
+        clave: "numero",
+        titulo: "N°",
+        ancho: 70,
+        fija: true,
+        alinear: "right",
+        texto: (s) => String(s.numero),
+        // Enlace: abre la solicitud con un clic (la fila sigue abriendo con doble clic).
+        celda: (s) => (
+          <button
+            type="button"
+            onClick={() => setDetalleId(s.id)}
+            title={`Revisar la solicitud N° ${s.numero}`}
+            className="cursor-pointer rounded-sm font-medium tabular-nums text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            {s.numero}
+          </button>
+        ),
+      },
       { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (s) => s.proyectoCodigo ?? s.proyectoNombre ?? "" },
       { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => tituloTipoContrato(s.tipo) },
       { clave: "contratista", titulo: "Contratista", ancho: 200, texto: (s) => s.contratistaNombre },
