@@ -49,13 +49,17 @@ const EVENTOS_REQUISICION: Record<string, { etiqueta: string; tono: "ok" | "malo
   rechazado_por_compras: { etiqueta: "Insumo rechazado por Compras", tono: "malo" },
 }
 
-// Eventos de una SOLICITUD DE CONTRATO (pre-aprobación).
+// Eventos de una SOLICITUD DE CONTRATO (pre-aprobación y minuta).
 const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
   creada: { etiqueta: "Solicitud enviada a pre-aprobación", tono: "neutro" },
   reenviada: { etiqueta: "Solicitud corregida y reenviada", tono: "neutro" },
   aprobada: { etiqueta: "Pre-aprobada por Jurídica", tono: "ok" },
   devuelta: { etiqueta: "Devuelta para corregir", tono: "aviso" },
   rechazada: { etiqueta: "Rechazada", tono: "malo" },
+  minuta_enviada: { etiqueta: "Minuta enviada a Subgerencia", tono: "neutro" },
+  minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
+  minuta_aprobada: { etiqueta: "Minuta aprobada por Subgerencia", tono: "ok" },
+  minuta_devuelta: { etiqueta: "Minuta devuelta por Subgerencia", tono: "aviso" },
 }
 
 const COLOR_PUNTO = {

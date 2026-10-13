@@ -4,15 +4,18 @@ import { datosTipoDesdeBase, type SolicitudContratoDetalle, type SolicitudContra
 export type { SolicitudContratoDetalle, SolicitudContratoFila }
 
 // ---------------------------------------------------------------------------
-// Consultas de contratos compartidas por Solicitud de contratos y
-// Pre-aprobación. Va FUERA de los actions.ts porque un archivo "use server"
-// solo puede exportar funciones asíncronas que el cliente puede invocar --
+// Consultas de contratos compartidas por Solicitud de contratos,
+// Pre-aprobación y Aprobación de minutas. Va FUERA de los actions.ts porque
+// un archivo "use server" solo puede exportar funciones asíncronas que el cliente puede invocar --
 // esto es ayuda interna del servidor (mismo patrón que requisiciones-lineas.ts).
 // ---------------------------------------------------------------------------
 
 export const SELECT_FILA_CONTRATO = `
   id, numero, proyecto_id, tipo, estado, objeto, valor, plazo_tipo, fecha_inicio, fecha_fin, duracion_cantidad,
   duracion_unidad, created_at, enviado_at, motivo_resolucion, resuelto_at,
+  minuta_estado, minuta_enviada_at, minuta_resuelta_at, minuta_motivo, numero_contrato,
+  minuta_enviador:perfiles!contratos_minuta_enviada_por_fkey(nombre),
+  minuta_resolutor:perfiles!contratos_minuta_resuelta_por_fkey(nombre),
   proyecto:proyectos!contratos_proyecto_id_fkey(codigo, nombre),
   contratista:contratistas!contratos_contratista_id_fkey(id, nombre, tipo_documento, numero_documento, digito_verificacion, correo),
   solicitante:perfiles!contratos_solicitado_por_fkey(nombre),
@@ -48,6 +51,13 @@ export function mapFilaContrato(f: any): SolicitudContratoFila {
     motivoResolucion: f.motivo_resolucion,
     resueltoPorNombre: f.resolutor?.nombre ?? null,
     resueltoAt: f.resuelto_at,
+    minutaEstado: f.minuta_estado ?? null,
+    minutaEnviadaAt: f.minuta_enviada_at ?? null,
+    minutaEnviadaPorNombre: f.minuta_enviador?.nombre ?? null,
+    minutaResueltaAt: f.minuta_resuelta_at ?? null,
+    minutaResueltaPorNombre: f.minuta_resolutor?.nombre ?? null,
+    minutaMotivo: f.minuta_motivo ?? null,
+    numeroContrato: f.numero_contrato ?? null,
   }
 }
 

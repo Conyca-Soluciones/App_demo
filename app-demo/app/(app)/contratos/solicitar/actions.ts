@@ -20,14 +20,15 @@ import {
   type SolicitudContratoFila,
 } from "@/lib/contratos-db"
 
-// Ver el detalle de una solicitud: quien la pide (Solicitud de contratos) o
-// quien la revisa (Pre-aprobación). La base además limita por proyecto.
+// Ver el detalle de una solicitud: quien la pide (Solicitud de contratos),
+// quien la revisa (Pre-aprobación) o Subgerencia (Aprobación de minutas). La
+// base además limita por proyecto.
 async function requerirVerContratos() {
   const permisos = await obtenerPermisosRol()
   const ok =
     permisos &&
     (permisos.esAdministrador ||
-      ["contratos.solicitar", "contratos.preaprobacion", "contratos.contratos"].some((t) => permisos.pestanas.includes(t)))
+      ["contratos.solicitar", "contratos.preaprobacion", "contratos.contratos", "contratos.aprobar_minutas"].some((t) => permisos.pestanas.includes(t)))
   if (!ok) throw new Error("No tienes permiso para ver contratos.")
 }
 

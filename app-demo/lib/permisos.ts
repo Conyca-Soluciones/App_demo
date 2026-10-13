@@ -149,6 +149,20 @@ export async function requerirPestana(clave: string) {
   return { id: userId }
 }
 
+// Igual que requerirPestana, pero basta con tener UNA de las pestañas.
+export async function requerirAlgunaPestana(claves: string[]) {
+  const permisos = await obtenerPermisosRol()
+  const userId = permisos ? await obtenerUsuarioId() : null
+
+  if (!permisos || !userId) {
+    throw new Error("No autenticado.")
+  }
+  if (!permisos.esAdministrador && (permisos.sinRol || !claves.some((c) => permisos.pestanas.includes(c)))) {
+    throw new Error("No tienes permiso para esta acción.")
+  }
+  return { id: userId }
+}
+
 // ---------------------------------------------------------------------------
 // AGREGAR esto al final de lib/permisos.ts -- no reemplaza nada de lo que
 // ya existe (obtenerPermisosUsuario y requerirAdmin quedan intactos,

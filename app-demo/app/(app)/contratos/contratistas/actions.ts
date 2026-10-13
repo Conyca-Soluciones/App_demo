@@ -203,8 +203,9 @@ export async function editarContratista(
 }
 
 // Enlace temporal (2 minutos) para ver un documento: el bucket es privado.
-// También desde Pre-aprobación: Jurídica revisa los documentos generales del
-// contratista (igual que la política contratistas_archivos_select).
+// También desde Pre-aprobación y Aprobación de minutas: Jurídica y Subgerencia
+// revisan los documentos generales del contratista (igual que la política
+// contratistas_archivos_select).
 export async function enlaceDocumentoContratista(documentoId: string): Promise<string> {
   const permisos = await obtenerPermisosRol()
   if (
@@ -212,7 +213,8 @@ export async function enlaceDocumentoContratista(documentoId: string): Promise<s
     !(
       permisos.esAdministrador ||
       permisos.pestanas.includes("contratos.contratistas") ||
-      permisos.pestanas.includes("contratos.preaprobacion")
+      permisos.pestanas.includes("contratos.preaprobacion") ||
+      permisos.pestanas.includes("contratos.aprobar_minutas")
     )
   ) {
     throw new Error("No tienes permiso para ver documentos de contratistas.")

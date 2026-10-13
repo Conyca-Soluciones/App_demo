@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import type { EstadoContrato } from "@/lib/contratos"
 import { SELECT_FILA_CONTRATO, cargarDetalleContrato, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 import { hoyColombia } from "@/lib/fechas"
@@ -130,8 +130,9 @@ export type MinutaContratoObra = {
 
 // Lo que necesita cualquier minuta: la solicitud, los datos del contratista y
 // el proyecto que no vienen en el detalle, y lo que Jurídica ya guardó.
+// También la lee Subgerencia (Aprobación de minutas, solo lectura).
 async function cargarBaseMinuta(id: string) {
-  await requerirPestana("contratos.preaprobacion")
+  await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   const supabase = await createClient()
   const [detalle, extra, guardada] = await Promise.all([
     cargarDetalleContrato(supabase, id),
@@ -313,4 +314,45 @@ export async function guardarMinutaObra(id: string, minuta: MinutaObra): Promise
   const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: datos })
   if (error) throw new Error(error.message)
   return { guardadaAt: new Date().toISOString() }
+}
+
+// ---------------------------------------------------------------- enviar a Subgerencia
+// Se envía la minuta GUARDADA, completa (lo calculado de la solicitud + lo
+// editado), para que Subgerencia apruebe exactamente eso aunque después
+// cambien los datos del contratista o del proyecto. La base la guarda y la
+// pasa a revisión en una transacción (enviar_minuta_contrato,
+// 20261111000000_aprobacion_minutas.sql).
+export async function enviarMinutaSubgerencia(id: string): Promise<void> {
+  await requerirAccion("aprobar_contratos")
+  const supabase = await createClient()
+  const { data: contrato, error: errorTipo } = await supabase.from("contratos").select("tipo").eq("id", id).maybeSingle()
+  if (errorTipo) throw new Error(errorTipo.message)
+  if (!contrato) throw new Error("La solicitud no existe o no tienes acceso.")
+
+  let datos: unknown
+  switch (contrato.tipo) {
+    case "mano_obra":
+      datos = limpiarMinuta((await obtenerMinutaContrato(id)).minuta)
+      break
+    case "arrendamiento":
+      datos = limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), (await obtenerMinutaArrendamiento(id)).minuta))
+      break
+    case "suministro_instalacion":
+      datos = limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), (await obtenerMinutaSuministro(id)).minuta))
+      break
+    case "alquiler_vehiculo":
+      datos = limpiarMinutaVehiculo(mezclarMinutaVehiculo(minutaVehiculoVacia(), (await obtenerMinutaVehiculo(id)).minuta))
+      break
+    case "prestacion_servicios":
+      datos = limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), (await obtenerMinutaServicios(id)).minuta))
+      break
+    case "obra":
+      datos = limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), (await obtenerMinutaObra(id)).minuta))
+      break
+    default:
+      throw new Error("Este tipo de contrato todavía no tiene plantilla de minuta.")
+  }
+
+  const { error } = await supabase.rpc("enviar_minuta_contrato", { p_id: id, p_datos: datos })
+  if (error) throw new Error(error.message)
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Loader2, Undo2, XCircle } from "lucide-react"
+import { CheckCircle2, Loader2, Send, Undo2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,21 +10,21 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
-import { MinutaManoObraEditor } from "@/components/minuta-mano-obra-editor"
-import { MinutaArrendamientoEditor } from "@/components/minuta-arrendamiento-editor"
-import { MinutaSuministroEditor } from "@/components/minuta-suministro-editor"
-import { MinutaVehiculoEditor } from "@/components/minuta-vehiculo-editor"
-import { MinutaServiciosEditor } from "@/components/minuta-servicios-editor"
-import { MinutaObraEditor } from "@/components/minuta-obra-editor"
+import { MinutaSegunTipo } from "@/components/minuta-segun-tipo"
 import {
   CLASE_ESTADO_CONTRATO,
+  CLASE_ESTADO_MINUTA,
   ETIQUETA_ESTADO_CONTRATO,
+  ETIQUETA_ESTADO_MINUTA,
+  TIPOS_CON_MINUTA,
+  minutaEditable,
   pesos,
   type EstadoContrato,
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
 } from "@/lib/contratos"
 import {
+  enviarMinutaSubgerencia,
   listarSolicitudesPreaprobacion,
   resolverSolicitudContrato,
   type AccionPreaprobacion,
@@ -32,7 +32,8 @@ import {
 
 // ---------------------------------------------------------------------------
 // Pre-aprobación: Jurídica revisa solicitudes de todos sus proyectos (no
-// depende del proyecto actual) y las aprueba, devuelve o rechaza.
+// depende del proyecto actual) y las aprueba, devuelve o rechaza. Después
+// arma la minuta y la envía a Subgerencia (Aprobación de minutas).
 // ---------------------------------------------------------------------------
 
 const FILTROS: { valor: EstadoContrato | "todas"; etiqueta: string }[] = [
@@ -43,7 +44,9 @@ const FILTROS: { valor: EstadoContrato | "todas"; etiqueta: string }[] = [
   { valor: "todas", etiqueta: "Todas" },
 ]
 
-const TEXTO_ACCION: Record<AccionPreaprobacion, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
+type AccionVista = AccionPreaprobacion | "enviar"
+
+const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
   aprobar: {
     titulo: "Pre-aprobar solicitud",
     explicacion: "Pasa a elaboración de la minuta. Quien la solicitó recibe una notificación.",
@@ -62,6 +65,13 @@ const TEXTO_ACCION: Record<AccionPreaprobacion, { titulo: string; explicacion: s
     boton: "Rechazar",
     pideMotivo: true,
   },
+  enviar: {
+    titulo: "Enviar minuta a Subgerencia",
+    explicacion:
+      "Se envía la minuta GUARDADA (guarda antes los cambios que tengas en pantalla). Mientras Subgerencia la revisa no se puede editar; si la devuelve, la corriges y la envías otra vez.",
+    boton: "Enviar",
+    pideMotivo: false,
+  },
 }
 
 export function PreaprobacionContratosView({ puedeResolver, verInicial }: { puedeResolver: boolean; verInicial: string | null }) {
@@ -73,7 +83,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [detalleId, setDetalleId] = useState<string | null>(verInicial)
-  const [accion, setAccion] = useState<{ tipo: AccionPreaprobacion; detalle: SolicitudContratoDetalle } | null>(null)
+  const [accion, setAccion] = useState<{ tipo: AccionVista; detalle: SolicitudContratoDetalle } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
@@ -136,6 +146,19 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
           </Badge>
         ),
       },
+      {
+        clave: "minuta",
+        titulo: "Minuta",
+        ancho: 170,
+        alinear: "center",
+        texto: (s) => (s.estado === "aprobada" ? ETIQUETA_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"] : ""),
+        celda: (s) =>
+          s.estado === "aprobada" ? (
+            <Badge variant="outline" className={CLASE_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]}>
+              {ETIQUETA_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]}
+            </Badge>
+          ) : null,
+      },
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
       { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },
     ],
@@ -157,10 +180,13 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
     setProcesando(true)
     setErrorAccion(null)
     try {
-      await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
+      if (accion.tipo === "enviar") await enviarMinutaSubgerencia(accion.detalle.id)
+      else await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
       const n = accion.detalle.numero
       setAviso(
-        accion.tipo === "aprobar"
+        accion.tipo === "enviar"
+          ? `Minuta de la solicitud N° ${n} enviada a Subgerencia.`
+          : accion.tipo === "aprobar"
           ? `Solicitud N° ${n} pre-aprobada.`
           : accion.tipo === "devolver"
             ? `Solicitud N° ${n} devuelta al director.`
@@ -253,25 +279,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
       <DetalleSolicitudContrato
         id={detalleId}
         onCerrar={cerrarDetalle}
-        minuta={(d) =>
-          d.tipo === "mano_obra" ? (
-            <MinutaManoObraEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "arrendamiento" ? (
-            <MinutaArrendamientoEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "suministro_instalacion" ? (
-            <MinutaSuministroEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "alquiler_vehiculo" ? (
-            <MinutaVehiculoEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "prestacion_servicios" ? (
-            <MinutaServiciosEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "obra" ? (
-            <MinutaObraEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : (
-            <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              El tipo {tituloTipoContrato(d.tipo).toLowerCase()} todavía no tiene plantilla de minuta.
-            </p>
-          )
-        }
+        minuta={(d) => <MinutaSegunTipo detalle={d} puedeEditar={puedeResolver && minutaEditable(d)} />}
         acciones={(d) =>
           d.estado === "pre_aprobacion" && puedeResolver ? (
             <>
@@ -285,6 +293,10 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
                 <CheckCircle2 className="size-4" /> Pre-aprobar
               </Button>
             </>
+          ) : d.estado === "aprobada" && puedeResolver && minutaEditable(d) && TIPOS_CON_MINUTA.has(d.tipo) ? (
+            <Button onClick={() => setAccion({ tipo: "enviar", detalle: d })}>
+              <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Subgerencia" : "Enviar a Subgerencia"}
+            </Button>
           ) : null
         }
       />

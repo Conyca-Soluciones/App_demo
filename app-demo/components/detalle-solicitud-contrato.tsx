@@ -10,7 +10,9 @@ import { HistorialTimeline } from "@/components/historial-timeline"
 import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
 import {
   CLASE_ESTADO_CONTRATO,
+  CLASE_ESTADO_MINUTA,
   ETIQUETA_ESTADO_CONTRATO,
+  ETIQUETA_ESTADO_MINUTA,
   TIPO_CONTRATO_POR_VALOR,
   anticipoEnLetras,
   numero,
@@ -26,9 +28,10 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 
 // ---------------------------------------------------------------------------
 // Detalle de una solicitud de contrato, compartido por Solicitud de contratos
-// (el director) y Pre-aprobación (Jurídica). Cada pantalla pone sus botones
-// con `acciones` (corregir y reenviar / aprobar, devolver, rechazar).
-// Con `minuta` (Pre-aprobación) el diálogo se agranda y suma la pestaña
+// (el director), Pre-aprobación (Jurídica) y Aprobación de minutas
+// (Subgerencia). Cada pantalla pone sus botones con `acciones` (corregir y
+// reenviar / aprobar, devolver, rechazar, enviar a Subgerencia), que salen en
+// las dos pestañas. Con `minuta` el diálogo se agranda y suma la pestaña
 // "Minuta" junto a "Solicitud".
 // ---------------------------------------------------------------------------
 
@@ -95,6 +98,12 @@ export function DetalleSolicitudContrato({
                 {ETIQUETA_ESTADO_CONTRATO[detalle.estado]}
               </Badge>
             )}
+            {detalle?.estado === "aprobada" && (
+              <Badge variant="outline" className={CLASE_ESTADO_MINUTA[detalle.minutaEstado ?? "elaboracion"]}>
+                {ETIQUETA_ESTADO_MINUTA[detalle.minutaEstado ?? "elaboracion"]}
+              </Badge>
+            )}
+            {detalle?.numeroContrato && <span className="text-sm font-normal text-muted-foreground">Contrato {detalle.numeroContrato}</span>}
           </DialogTitle>
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -127,7 +136,11 @@ export function DetalleSolicitudContrato({
             el cuerpo hace scroll por dentro del borde redondeado. */}
         <div className={minuta ? "-mx-2 min-h-0 flex-1 overflow-y-auto px-2 [scrollbar-gutter:stable] [scrollbar-width:thin]" : "contents"}>
         {minuta && detalle && !viendo && pestana === "minuta" ? (
-          minuta(detalle)
+          <>
+            <AvisoMinutaDevuelta detalle={detalle} />
+            {minuta(detalle)}
+            {acciones && <div className="mt-4 flex flex-wrap justify-end gap-2 border-t pt-4">{acciones(detalle)}</div>}
+          </>
         ) : viendo ? (
           <VisorDocumento
             titulo={viendo.titulo}
@@ -157,6 +170,8 @@ export function DetalleSolicitudContrato({
                   <p className="whitespace-pre-line">Motivo: {detalle.motivoResolucion}</p>
                 </div>
               )}
+
+              <AvisoMinutaDevuelta detalle={detalle} />
 
               <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
                 {(
@@ -322,6 +337,21 @@ export function DetalleSolicitudContrato({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Subgerencia devolvió la minuta: el motivo, para que Jurídica la corrija.
+function AvisoMinutaDevuelta({ detalle }: { detalle: SolicitudContratoDetalle }) {
+  if (detalle.minutaEstado !== "devuelta" || !detalle.minutaMotivo) return null
+  return (
+    <div className="mb-4 rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+      <p className="font-medium">
+        Minuta devuelta por Subgerencia
+        {detalle.minutaResueltaPorNombre && ` (${detalle.minutaResueltaPorNombre})`}
+        {detalle.minutaResueltaAt && ` el ${fechaContrato(detalle.minutaResueltaAt)}`}
+      </p>
+      <p className="whitespace-pre-line">Motivo: {detalle.minutaMotivo}</p>
+    </div>
   )
 }
 

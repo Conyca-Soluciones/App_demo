@@ -2,7 +2,7 @@ import path from "path"
 import { NextRequest, NextResponse } from "next/server"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { createClient } from "@/lib/supabase/server"
-import { requerirPestana } from "@/lib/permisos"
+import { requerirAlgunaPestana } from "@/lib/permisos"
 import { limpiarMinuta, mezclarMinuta, minutaVacia, nombreArchivoMinuta } from "@/lib/minuta-mano-obra"
 import { MinutaManoObraPDF } from "@/components/minuta-mano-obra-pdf"
 import {
@@ -36,7 +36,8 @@ const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    await requerirPestana("contratos.preaprobacion")
+    // Jurídica (Pre-aprobación) y Subgerencia (Aprobación de minutas).
+    await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Sin permiso." }, { status: 403 })
   }

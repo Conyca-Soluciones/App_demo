@@ -236,6 +236,14 @@ export type SolicitudContratoFila = {
   motivoResolucion: string | null
   resueltoPorNombre: string | null
   resueltoAt: string | null
+  // Minuta (Subgerencia, 20261111000000_aprobacion_minutas.sql). null = Jurídica la está armando.
+  minutaEstado: EstadoMinuta | null
+  minutaEnviadaAt: string | null
+  minutaEnviadaPorNombre: string | null
+  minutaResueltaAt: string | null
+  minutaResueltaPorNombre: string | null
+  minutaMotivo: string | null
+  numeroContrato: string | null
 }
 
 export type SolicitudContratoDetalle = SolicitudContratoFila & {
@@ -280,6 +288,28 @@ export const CLASE_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
   rechazada: "border-transparent bg-red-100 text-red-800",
   aprobada: "border-transparent bg-emerald-100 text-emerald-800",
 }
+
+// Estado de la minuta de una solicitud pre-aprobada (sin estado = en elaboración).
+export type EstadoMinuta = "en_revision" | "devuelta" | "aprobada"
+export const ETIQUETA_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> = {
+  elaboracion: "Minuta en elaboración",
+  en_revision: "Minuta en Subgerencia",
+  devuelta: "Minuta devuelta",
+  aprobada: "Minuta aprobada",
+}
+export const CLASE_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> = {
+  elaboracion: "border-transparent bg-slate-100 text-slate-700",
+  en_revision: "border-transparent bg-amber-100 text-amber-800",
+  devuelta: "border-transparent bg-orange-100 text-orange-800",
+  aprobada: "border-transparent bg-emerald-100 text-emerald-800",
+}
+// Tipos con plantilla de minuta (components/minuta-segun-tipo.tsx).
+export const TIPOS_CON_MINUTA: ReadonlySet<TipoContrato> = new Set<TipoContrato>([
+  "mano_obra", "arrendamiento", "suministro_instalacion", "alquiler_vehiculo", "prestacion_servicios", "obra",
+])
+// Jurídica edita y envía la minuta mientras no esté en Subgerencia ni aprobada.
+export const minutaEditable = (c: { estado: EstadoContrato; minutaEstado: EstadoMinuta | null }) =>
+  c.estado !== "rechazada" && c.minutaEstado !== "en_revision" && c.minutaEstado !== "aprobada"
 
 // ---------------------------------------------------------------- números
 // Formato colombiano: punto de miles y coma decimal ("1.500.000,50"). Un punto
