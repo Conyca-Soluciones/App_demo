@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Search, X, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { DropdownFlotante } from "@/components/dropdown-flotante"
 import { puedeBuscar, COMODIN_LISTAR } from "@/lib/busqueda"
 
 export type OpcionBuscador = {
@@ -21,6 +22,9 @@ type BuscadorAsyncProps = {
   // Para enfocar el campo desde fuera (llenado rápido con teclado).
   inputId?: string
   autoFocus?: boolean
+  // Dentro de una tabla con scroll: la lista sale encima de todo (portal) en
+  // vez de quedar recortada por el borde del contenedor.
+  flotante?: boolean
 }
 
 /**
@@ -40,6 +44,7 @@ export function BuscadorAsync({
   disabled,
   inputId,
   autoFocus,
+  flotante = false,
 }: BuscadorAsyncProps) {
   const [termino, setTermino] = useState("")
   const [abierto, setAbierto] = useState(false)
@@ -47,6 +52,7 @@ export function BuscadorAsync({
   const [cargando, setCargando] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const contenedorRef = useRef<HTMLDivElement>(null)
+  const listaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -74,7 +80,8 @@ export function BuscadorAsync({
 
   useEffect(() => {
     function alHacerClicAfuera(e: MouseEvent) {
-      if (contenedorRef.current && !contenedorRef.current.contains(e.target as Node)) {
+      const objetivo = e.target as Node
+      if (contenedorRef.current && !contenedorRef.current.contains(objetivo) && !listaRef.current?.contains(objetivo)) {
         setAbierto(false)
       }
     }
@@ -128,36 +135,45 @@ export function BuscadorAsync({
         )}
       </div>
 
-      {abierto && !disabled && (
-        <div className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-          {!puedeBuscar(termino, minCaracteres) && (
-            <div className="px-2 py-3 text-sm text-muted-foreground">
-              Escribe al menos {minCaracteres} caracteres, o {COMODIN_LISTAR} para ver las opciones disponibles.
-            </div>
-          )}
-          {puedeBuscar(termino, minCaracteres) && !cargando && opciones.length === 0 && (
-            <div className="px-2 py-3 text-sm text-muted-foreground">Sin resultados.</div>
-          )}
-          {!cargando &&
-            opciones.map((opcion) => (
-              <button
-                key={opcion.id}
-                type="button"
-                onClick={() => {
-                  onSeleccionar(opcion)
-                  setTermino("")
-                  setAbierto(false)
-                }}
-                className="flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
-              >
-                <span>{opcion.etiqueta}</span>
-                {opcion.subetiqueta && (
-                  <span className="text-xs text-muted-foreground">{opcion.subetiqueta}</span>
-                )}
-              </button>
-            ))}
-        </div>
+      {abierto && !disabled && flotante && (
+        <DropdownFlotante anchorRef={contenedorRef} abierto anchoMinimo={360}>
+          <div ref={listaRef}>{lista("max-h-72 w-full")}</div>
+        </DropdownFlotante>
       )}
+      {abierto && !disabled && !flotante && lista("absolute z-50 mt-1 max-h-72 w-full")}
     </div>
   )
+
+  function lista(posicion: string) {
+    return (
+      <div className={`${posicion} overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md`}>
+        {!puedeBuscar(termino, minCaracteres) && (
+          <div className="px-2 py-3 text-sm text-muted-foreground">
+            Escribe al menos {minCaracteres} caracteres, o {COMODIN_LISTAR} para ver las opciones disponibles.
+          </div>
+        )}
+        {puedeBuscar(termino, minCaracteres) && !cargando && opciones.length === 0 && (
+          <div className="px-2 py-3 text-sm text-muted-foreground">Sin resultados.</div>
+        )}
+        {!cargando &&
+          opciones.map((opcion) => (
+            <button
+              key={opcion.id}
+              type="button"
+              onClick={() => {
+                onSeleccionar(opcion)
+                setTermino("")
+                setAbierto(false)
+              }}
+              className="flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <span>{opcion.etiqueta}</span>
+              {opcion.subetiqueta && (
+                <span className="text-xs text-muted-foreground">{opcion.subetiqueta}</span>
+              )}
+            </button>
+          ))}
+      </div>
+    )
+  }
 }

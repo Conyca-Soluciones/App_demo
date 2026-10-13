@@ -1948,6 +1948,47 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
   contratos).
 
+
+## Elaboración de actas `/contratos/actas` (2026-10-14)
+
+Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
+
+- **Número de contrato**: `contratos.numero_contrato` = "CJ-<número de la
+  solicitud>-<año>" (el que imprimen las minutas). Lo pone el trigger
+  `contratos_numero_contrato` al pasar a `aprobada` (año de `resuelto_at`,
+  hora Colombia); la migración llena los ya aprobados.
+- **Buscar**: dos campos, Contratista y Contrato, sobre todos los proyectos que
+  el usuario ve (no usa el proyecto actual) y solo contratos `aprobada`.
+  Contratista con un contrato -> se escoge solo; con varios -> lista
+  desplegable. Escoger un contrato llena el contratista. Funciones
+  `buscar_contratistas_para_acta` y `buscar_contratos_para_acta` (con
+  `p_contratista_id` lista los de ese contratista).
+- **Contrato**: tabla con contratista, número, valor, tipo, proyecto y objeto,
+  y la lista de actas (`actas_de_contrato`). "Crear acta nueva" abre la tabla
+  del acta (hasta 20 líneas): Ítem (buscador sobre el presupuesto vigente del
+  proyecto del contrato, ítems con APU: `items_para_acta`), Insumo (lista de
+  las líneas del APU: `insumos_item_para_acta`), Cantidad (formato
+  colombiano), Precio, Base IVA, IVA %, Total y el total del acta.
+- **Precio e IVA**: `_lineas_apu_para_acta`. Precio = el del APU (congelado, o
+  el de la maestra dividido por el factor de unidad; mano de obra, equipo y
+  transporte con el valor de su categoría); IVA % = el de la maestra de
+  insumos (0 para lo que no es insumo). Sin "herramienta menor %". Base =
+  cantidad × precio, IVA = base × %, total = base + IVA, cada uno redondeado a
+  centavos (`calcularLinea` en `lib/actas.ts`, igual en la base).
+- **Guardar**: `crear_acta(contrato, lineas)` (acción `elaborar_actas`):
+  bloquea el contrato (número del acta = máximo + 1), exige contrato
+  aprobado, 1 a 20 líneas sin repetir ítem + insumo, ítem del presupuesto
+  vigente e insumo de su APU, y pone precio e IVA ella misma. Copia código,
+  descripción, unidad y precios en `acta_lineas` (el acta no cambia si se
+  edita el presupuesto). El acta nace `pendiente` ("Por aprobar").
+- **Permisos**: ver = pestaña `contratos.cortes` + acceso al proyecto
+  (`puede_ver_actas`, RLS de `actas` y `acta_lineas`); crear = acción
+  `elaborar_actas`. Por defecto el Director de obra tiene las dos.
+- `BuscadorAsync` tiene `flotante` (la lista sale en portal, para usarlo
+  dentro de tablas con scroll).
+- **Pendiente**: la pantalla de Aprobación de actas (estados `aprobada` /
+  `rechazada` ya existen en la tabla), ver el detalle de un acta, y el PDF.
+
 ---
 
 # TRASPASO DE SESIÓN (2026-10-02) — leer esto primero

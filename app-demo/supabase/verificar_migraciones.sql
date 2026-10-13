@@ -142,5 +142,10 @@ select * from (
          exists (select 1 from pg_proc where proname = 'editar_contratista')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'contratistas' and column_name = 'updated_by')
+  union all
+  select '20261110000000_actas_contratos',
+         exists (select 1 from pg_proc where proname = 'crear_acta')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'contratos' and column_name = 'numero_contrato')
 ) t
 order by 1;
