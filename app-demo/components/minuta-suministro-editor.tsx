@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Download, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
+import { Download, Loader2, RotateCcw, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   CampoMinuta,
@@ -9,10 +9,10 @@ import {
   ClausulasAdicionalesEditor,
   LeyendaOrigen,
   ListaEditable,
-  ORIGEN,
   PanelVistaPrevia,
   Seccion,
   SelectorMinuta,
+  TablaAmparosMinuta,
   TablaItemsMinuta,
   claseCampo,
   descargarPdfMinuta,
@@ -29,7 +29,6 @@ import {
   PRIMERA_CLAUSULA_ADICIONAL_SUMINISTRO,
   nombreArchivoMinutaSuministro,
   origenCampoSuministro,
-  type AmparoGarantia,
   type MinutaSuministro,
 } from "@/lib/minuta-suministro"
 import { guardarMinutaSuministro, obtenerMinutaSuministro, type MinutaContratoSuministro } from "@/app/(app)/contratos/pre-aprobacion/actions"
@@ -46,9 +45,6 @@ type CampoLista = "obligacionesContratante" | "obligacionesContratista"
 
 const formatoValor = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 const letra = (i: number) => `${String.fromCharCode(97 + i)})`
-const mismoAmparo = (a: AmparoGarantia, b: AmparoGarantia | undefined) =>
-  Boolean(b) && a.amparo === b!.amparo && a.porcentaje === b!.porcentaje && a.vigencia === b!.vigencia
-
 export function MinutaSuministroEditor({ detalle, puedeEditar }: { detalle: SolicitudContratoDetalle; puedeEditar: boolean }) {
   const [datos, setDatos] = useState<MinutaContratoSuministro | null>(null)
   const [m, setM] = useState<MinutaSuministro | null>(null)
@@ -128,8 +124,6 @@ export function MinutaSuministroEditor({ detalle, puedeEditar }: { detalle: Soli
       />
     )
   }
-
-  const cambiarAmparo = (i: number, cambio: Partial<AmparoGarantia>) => actualizar({ amparos: m.amparos.map((a, j) => (j === i ? { ...a, ...cambio } : a)) })
 
   async function guardar() {
     if (!m) return
@@ -322,67 +316,13 @@ export function MinutaSuministroEditor({ detalle, puedeEditar }: { detalle: Soli
         </Seccion>
 
         <Seccion titulo="Novena · Garantía" ayuda="Amparos que debe cubrir la póliza. El de buen manejo de anticipo sale solo si la solicitud tiene anticipo.">
-          <div className="space-y-2">
-            {m.amparos.map((a, i) => {
-              const original = datos.porDefecto.amparos[i]
-              const origen: OrigenDato = !a.amparo.trim() || !a.porcentaje.trim() ? "vacio" : mismoAmparo(a, original) ? "plantilla" : "editado"
-              return (
-                <div key={i} className={`grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1.2fr)_6rem_minmax(0,1.5fr)_auto] ${ORIGEN[origen].borde}`}>
-                  <input
-                    aria-label={`Amparo ${i + 1}`}
-                    value={a.amparo}
-                    onChange={(e) => cambiarAmparo(i, { amparo: e.target.value })}
-                    disabled={deshabilitado}
-                    placeholder="Amparo"
-                    className={claseCampo}
-                  />
-                  <input
-                    aria-label={`Porcentaje del amparo ${i + 1}`}
-                    inputMode="decimal"
-                    value={a.porcentaje}
-                    onChange={(e) => cambiarAmparo(i, { porcentaje: e.target.value })}
-                    disabled={deshabilitado}
-                    placeholder="%"
-                    className={`${claseCampo} text-right`}
-                  />
-                  <input
-                    aria-label={`Vigencia del amparo ${i + 1}`}
-                    value={a.vigencia}
-                    onChange={(e) => cambiarAmparo(i, { vigencia: e.target.value })}
-                    disabled={deshabilitado}
-                    placeholder="Vigencia"
-                    className={claseCampo}
-                  />
-                  <div className="flex items-center gap-1">
-                    <ChipOrigen origen={origen} />
-                    {editable && (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="Quitar amparo"
-                        disabled={guardando}
-                        onClick={() => actualizar({ amparos: m.amparos.filter((_, j) => j !== i) })}
-                      >
-                        <Trash2 className="size-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-            {editable && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={guardando}
-                onClick={() => actualizar({ amparos: [...m.amparos, { amparo: "", porcentaje: "", vigencia: "" }] })}
-              >
-                <Plus className="size-4" /> Agregar amparo
-              </Button>
-            )}
-          </div>
+          <TablaAmparosMinuta
+            amparos={m.amparos}
+            porDefecto={datos.porDefecto.amparos}
+            onChange={(amparos) => actualizar({ amparos })}
+            editable={editable}
+            guardando={guardando}
+          />
         </Seccion>
 
         <Seccion titulo="Décima · Cláusula penal y multas">

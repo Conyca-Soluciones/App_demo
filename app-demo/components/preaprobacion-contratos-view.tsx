@@ -13,6 +13,7 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { MinutaManoObraEditor } from "@/components/minuta-mano-obra-editor"
 import { MinutaArrendamientoEditor } from "@/components/minuta-arrendamiento-editor"
 import { MinutaSuministroEditor } from "@/components/minuta-suministro-editor"
+import { MinutaVehiculoEditor } from "@/components/minuta-vehiculo-editor"
 import {
   CLASE_ESTADO_CONTRATO,
   ETIQUETA_ESTADO_CONTRATO,
@@ -239,9 +240,11 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
             <MinutaArrendamientoEditor detalle={d} puedeEditar={puedeResolver} />
           ) : d.tipo === "suministro_instalacion" ? (
             <MinutaSuministroEditor detalle={d} puedeEditar={puedeResolver} />
+          ) : d.tipo === "alquiler_vehiculo" ? (
+            <MinutaVehiculoEditor detalle={d} puedeEditar={puedeResolver} />
           ) : (
             <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Por ahora están las plantillas de mano de obra (GJ-F-003), arrendamiento (GJ-F-014) y suministro (GJ-F-012). Las de {tituloTipoContrato(d.tipo).toLowerCase()} se agregan
+              Por ahora están las plantillas de mano de obra (GJ-F-003), arrendamiento (GJ-F-014), suministro (GJ-F-012) y alquiler de vehículo o maquinaria. Las de {tituloTipoContrato(d.tipo).toLowerCase()} se agregan
               cuando Jurídica las entregue.
             </p>
           )

@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RefreshCw, Trash2 } fr
 import { Button, buttonVariants } from "@/components/ui/button"
 import { leerNumero, pesos } from "@/lib/contratos"
 import { ordinalClausula, totalItemsMinuta, type ClausulaAdicional, type ItemAnexoMinuta, type OrigenDato } from "@/lib/minuta-mano-obra"
+import type { AmparoGarantia } from "@/lib/minuta-suministro"
 
 // ---------------------------------------------------------------------------
 // Piezas comunes de los editores de minuta (mano de obra, arrendamiento...):
@@ -413,6 +414,85 @@ export function TablaItemsMinuta(props: {
       </Button>
     )}
     </>
+  )
+}
+
+// Tabla de amparos de la garantía (amparo, % y vigencia). Origen por fila:
+// igual a la plantilla, editada o incompleta.
+export function TablaAmparosMinuta(props: {
+  amparos: AmparoGarantia[]
+  porDefecto: AmparoGarantia[]
+  onChange: (amparos: AmparoGarantia[]) => void
+  editable: boolean
+  guardando: boolean
+}) {
+  const { amparos, porDefecto, onChange, editable, guardando } = props
+  const deshabilitado = !editable || guardando
+  const mismoAmparo = (a: AmparoGarantia, b: AmparoGarantia | undefined) =>
+    Boolean(b) && a.amparo === b!.amparo && a.porcentaje === b!.porcentaje && a.vigencia === b!.vigencia
+  const cambiarAmparo = (i: number, cambio: Partial<AmparoGarantia>) => onChange(amparos.map((a, j) => (j === i ? { ...a, ...cambio } : a)))
+  return (
+    <div className="space-y-2">
+      {amparos.map((a, i) => {
+        const original = porDefecto[i]
+        const origen: OrigenDato = !a.amparo.trim() || !a.porcentaje.trim() ? "vacio" : mismoAmparo(a, original) ? "plantilla" : "editado"
+        return (
+          <div key={i} className={`grid gap-2 rounded-md border p-2 sm:grid-cols-[minmax(0,1.2fr)_6rem_minmax(0,1.5fr)_auto] ${ORIGEN[origen].borde}`}>
+            <input
+              aria-label={`Amparo ${i + 1}`}
+              value={a.amparo}
+              onChange={(e) => cambiarAmparo(i, { amparo: e.target.value })}
+              disabled={deshabilitado}
+              placeholder="Amparo"
+              className={claseCampo}
+            />
+            <input
+              aria-label={`Porcentaje del amparo ${i + 1}`}
+              inputMode="decimal"
+              value={a.porcentaje}
+              onChange={(e) => cambiarAmparo(i, { porcentaje: e.target.value })}
+              disabled={deshabilitado}
+              placeholder="%"
+              className={`${claseCampo} text-right`}
+            />
+            <input
+              aria-label={`Vigencia del amparo ${i + 1}`}
+              value={a.vigencia}
+              onChange={(e) => cambiarAmparo(i, { vigencia: e.target.value })}
+              disabled={deshabilitado}
+              placeholder="Vigencia"
+              className={claseCampo}
+            />
+            <div className="flex items-center gap-1">
+              <ChipOrigen origen={origen} />
+              {editable && (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Quitar amparo"
+                  disabled={guardando}
+                  onClick={() => onChange(amparos.filter((_, j) => j !== i))}
+                >
+                  <Trash2 className="size-3.5 text-destructive" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )
+      })}
+      {editable && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={guardando}
+          onClick={() => onChange([...amparos, { amparo: "", porcentaje: "", vigencia: "" }])}
+        >
+          <Plus className="size-4" /> Agregar amparo
+        </Button>
+      )}
+    </div>
   )
 }
 

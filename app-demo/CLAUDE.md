@@ -1884,9 +1884,20 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   (`{blanco(m.obra)}.`), al partir la línea entre los dos @react-pdf pone un
   guion ("COMFIAR-" / ". De conformidad"). Los párrafos nuevos van con `<P>`;
   dentro de una negrilla, la puntuación va dentro del mismo `<Text>`.
+- **Minuta de alquiler de vehículo o maquinaria** (2026-10-13, plantilla
+  versión 04; su encabezado trae el código GJ-F-003, igual que mano de obra):
+  `lib/minuta-vehiculo.ts`, `components/minuta-vehiculo-{editor,pdf}.tsx`,
+  tipo `alquiler_vehiculo`. Lo que la plantilla traía de un contrato real se
+  volvió campo: número de la oferta mercantil (primera, octava 7.ª y décima
+  octava), nombre corto del bien (décima sexta, decía "AUTOHORMIGONERA") y
+  domicilio (décima séptima, por defecto "Barranquilla – Atlántico"). El bien
+  sale del objeto sin el verbo inicial (`bienDesdeObjeto`). Anticipo = % de la
+  solicitud × valor; vacío = la cuarta dice que no hay anticipo y la quinta
+  no habla de amortización. Garantía (décima quinta): selector entre las dos
+  opciones de la plantilla; con "se exige" sale la tabla de amparos
+  (`TablaAmparosMinuta`, minuta-comun, también la usa suministro).
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
-  contratos) y las plantillas de obra, alquiler de vehículo y prestación de
-  servicios.
+  contratos) y las plantillas de obra y prestación de servicios.
 
 ---
 

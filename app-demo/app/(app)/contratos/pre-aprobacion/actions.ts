@@ -21,6 +21,13 @@ import {
   minutaSuministroVacia,
   type MinutaSuministro,
 } from "@/lib/minuta-suministro"
+import {
+  limpiarMinutaVehiculo,
+  mezclarMinutaVehiculo,
+  minutaVehiculoPorDefecto,
+  minutaVehiculoVacia,
+  type MinutaVehiculo,
+} from "@/lib/minuta-vehiculo"
 
 // ---------------------------------------------------------------------------
 // Pre-aprobación de contratos: Jurídica revisa las solicitudes de TODOS los
@@ -88,6 +95,13 @@ export type MinutaContratoArrendamiento = {
 export type MinutaContratoSuministro = {
   minuta: MinutaSuministro
   porDefecto: MinutaSuministro
+  guardadaAt: string | null
+  guardadaPorNombre: string | null
+}
+
+export type MinutaContratoVehiculo = {
+  minuta: MinutaVehiculo
+  porDefecto: MinutaVehiculo
   guardadaAt: string | null
   guardadaPorNombre: string | null
 }
@@ -204,6 +218,29 @@ export async function guardarMinutaSuministro(id: string, minuta: MinutaSuminist
   await requerirAccion("aprobar_contratos")
   const supabase = await createClient()
   const datos = limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), minuta))
+  const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: datos })
+  if (error) throw new Error(error.message)
+  return { guardadaAt: new Date().toISOString() }
+}
+
+// ---------------------------------------------------------------- minuta de alquiler de vehículo
+// Solicitudes de "Alquiler de vehículo" (plantilla lib/minuta-vehiculo.ts).
+
+export async function obtenerMinutaVehiculo(id: string): Promise<MinutaContratoVehiculo> {
+  const base = await cargarBaseMinuta(id)
+  const defecto = minutaVehiculoPorDefecto(base.detalle, base.datosExtra, hoyColombia())
+  return {
+    minuta: mezclarMinutaVehiculo(defecto, base.guardadaDatos),
+    porDefecto: defecto,
+    guardadaAt: base.guardadaAt,
+    guardadaPorNombre: base.guardadaPorNombre,
+  }
+}
+
+export async function guardarMinutaVehiculo(id: string, minuta: MinutaVehiculo): Promise<{ guardadaAt: string }> {
+  await requerirAccion("aprobar_contratos")
+  const supabase = await createClient()
+  const datos = limpiarMinutaVehiculo(mezclarMinutaVehiculo(minutaVehiculoVacia(), minuta))
   const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: datos })
   if (error) throw new Error(error.message)
   return { guardadaAt: new Date().toISOString() }
