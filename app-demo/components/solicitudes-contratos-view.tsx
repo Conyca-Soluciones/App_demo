@@ -27,7 +27,7 @@ export function SolicitudesContratosView({ puedeSolicitar, verInicial }: { puede
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
-        titulo="Solicitud de contratos"
+        titulo="Contratos por grupos"
         subtitulo="Arma la solicitud del contrato y mándala a pre-aprobación de Jurídica."
         conProyecto
       />

@@ -43,6 +43,10 @@ export type Pestana = {
   // Módulo al que pertenece (por omisión AdPro).
   modulo?: ModuloClave
   seccion: string
+  // Subgrupo dentro de la sección (p. ej. "Actas" en Contratos): en el menú
+  // sale como encabezado sobre sus pestañas. Las pestañas de un subgrupo van
+  // seguidas en PESTANAS.
+  subseccion?: string
   // A dónde lleva en el menú.
   url: string
   // Rutas (y todo lo que cuelga de ellas) que esta pestaña habilita. Vacío =
@@ -74,12 +78,18 @@ export const PESTANAS: Pestana[] = [
   { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Compras", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
 
+  // Contratos: Contratistas, el subgrupo Contratos, el subgrupo Actas e Informes.
+  // Claves de antes con nombre nuevo: solicitar = Contratos por grupos,
+  // contratos = Contratos generales, preaprobacion = Aprobación de contratos,
+  // cortes = Actas por grupos.
   { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
-  { clave: "contratos.solicitar", titulo: "Solicitud de contratos", seccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
-  { clave: "contratos.preaprobacion", titulo: "Pre-aprobación de contratos", seccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
-  { clave: "contratos.contratos", titulo: "Elaboración de contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
-  { clave: "contratos.cortes", titulo: "Elaboración de actas", seccion: "Contratos", url: "/contratos/actas", rutas: ["/contratos/actas"] },
-  { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas"] },
+  { clave: "contratos.solicitar", titulo: "Contratos por grupos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
+  { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
+  { clave: "contratos.preaprobacion", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
+  { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas"] },
+  { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/", rutas: [], nota: "Todavía sin página." },
+  { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas"] },
+  { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
   { clave: "admin.visualizacion", titulo: "Visualización", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
 
@@ -202,7 +212,7 @@ export function rutaPrimeraPestana(permisos: PermisosRol): string {
 // Menú lateral
 // ---------------------------------------------------------------------------
 
-export type GrupoMenu = { titulo: string; items: { titulo: string; url: string }[] }
+export type GrupoMenu = { titulo: string; items: { titulo: string; url: string; subseccion?: string }[] }
 
 // Secciones y pestañas de UN módulo, filtradas por el rol del usuario.
 export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpro"): GrupoMenu[] {
@@ -216,7 +226,7 @@ export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpr
     // rutas les están bloqueadas).
     if (permisos.sinRol && !permisos.esAdministrador && p.seccion === "Control") continue
     const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
-    g.items.push({ titulo: p.titulo, url: p.url })
+    g.items.push({ titulo: p.titulo, url: p.url, subseccion: p.subseccion })
     grupos.set(p.seccion, g)
   }
 

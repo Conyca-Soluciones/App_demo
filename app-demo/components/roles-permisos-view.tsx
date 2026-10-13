@@ -30,7 +30,8 @@ function construirFilas(): FilaMatriz[] {
       seccionActual = p.seccion
       filas.push({ tipo: "seccion", titulo: p.seccion })
     }
-    filas.push({ tipo: "permiso", permiso: permisoPestana(p.clave), titulo: p.titulo, detalle: p.nota })
+    const titulo = p.subseccion ? `${p.subseccion} › ${p.titulo}` : p.titulo
+    filas.push({ tipo: "permiso", permiso: permisoPestana(p.clave), titulo, detalle: p.nota })
   }
 
   filas.push({ tipo: "seccion", titulo: "ACCIONES — qué puede hacer dentro de las pestañas" })

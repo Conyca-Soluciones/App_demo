@@ -293,10 +293,18 @@ export function AppSidebar({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
               <SidebarMenu>
-                {seccion.items.map((item) => (
+                {seccion.items.map((item, i) => (
                   <SidebarMenuItem key={`${seccion.titulo}-${item.titulo}`}>
+                    {/* Encabezado del subgrupo (p. ej. "Actas") sobre su primera pestaña. */}
+                    {item.subseccion && item.subseccion !== seccion.items[i - 1]?.subseccion && (
+                      <p className={`px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground ${i > 0 ? "pt-3" : ""}`}>
+                        {item.subseccion}
+                      </p>
+                    )}
+                    {!item.subseccion && i > 0 && seccion.items[i - 1]?.subseccion && <div className="pt-2" />}
                     <SidebarMenuButton
                       isActive={pathname === item.url}
+                      className={item.subseccion ? "pl-4" : undefined}
                       onClick={() => {
                         router.push(item.url)
                         // Al elegir una pestaña el menú se minimiza a solo los módulos.

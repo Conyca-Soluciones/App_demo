@@ -135,7 +135,7 @@ export function ActasContratosView({ puedeElaborar, verInicial }: { puedeElabora
   const variosContratos = contratosContratista != null && contratosContratista.length > 1
 
   return (
-    <MarcoPagina titulo="Elaboración de actas" subtitulo="Busca el contrato o el contratista y crea sus actas." scroll>
+    <MarcoPagina titulo="Actas por grupos" subtitulo="Busca el contrato o el contratista y crea sus actas." scroll>
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
         <section className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
           <div className="space-y-1.5">

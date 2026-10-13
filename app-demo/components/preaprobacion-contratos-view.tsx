@@ -180,7 +180,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
-        titulo="Pre-aprobación de contratos"
+        titulo="Aprobación de contratos"
         subtitulo="Revisa las solicitudes de los directores: pre-aprueba, devuelve para corregir o rechaza."
       />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">

@@ -1949,6 +1949,20 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   contratos).
 
 
+## Menú de Contratos (2026-10-14)
+
+La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
+por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
+sin página, Aprobación de contratos = `contratos.preaprobacion`); subgrupo
+**Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
+`contratos.actas_generales` sin página, Aprobación de actas =
+`contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
+Los subgrupos son `subseccion` en `PESTANAS` (encabezado en la tercera columna
+del menú y "Subgrupo › Pestaña" en la matriz de roles). Las claves y las rutas
+no cambiaron; solo títulos (también el título de cada página). Los textos de
+dentro (botón "Pre-aprobar", avisos de la base) siguen diciendo
+pre-aprobación.
+
 ## Elaboración de actas `/contratos/actas` (2026-10-14)
 
 Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
