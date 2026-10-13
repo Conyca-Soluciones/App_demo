@@ -1,10 +1,11 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
 import {
   validarActa,
+  type ActaDetalle,
   type ActaResumen,
   type ContratistaParaActa,
   type ContratoParaActa,
@@ -110,6 +111,53 @@ export async function insumosDeItemParaActa(contratoId: string, itemId: string):
     precio: f.precio == null ? null : Number(f.precio),
     ivaPorcentaje: Number(f.iva_porcentaje ?? 0),
   }))
+}
+// Detalle de un acta: lo usan Elaboración y Aprobación de actas (la base
+// revisa cualquiera de las dos pestañas y el acceso al proyecto).
+export async function obtenerActa(id: string): Promise<ActaDetalle> {
+  const permisos = await obtenerPermisosRol()
+  const ok =
+    permisos?.esAdministrador ||
+    (!permisos?.sinRol && (permisos?.pestanas.includes("contratos.cortes") || permisos?.pestanas.includes("contratos.aprobar_actas")))
+  if (!ok) throw new Error("No tienes permiso para ver actas.")
+  const supabase = await createClient()
+  const { data: d, error } = await supabase.rpc("detalle_acta", { p_acta_id: id })
+  if (error) throw new Error(error.message)
+  return {
+    id: d.id,
+    numero: Number(d.numero),
+    estado: d.estado,
+    total: Number(d.total),
+    createdAt: d.created_at,
+    creadoPorNombre: d.creado_por_nombre ?? null,
+    resueltoAt: d.resuelto_at ?? null,
+    resueltoPorNombre: d.resuelto_por_nombre ?? null,
+    motivoResolucion: d.motivo_resolucion ?? null,
+    contratoId: d.contrato_id,
+    numeroContrato: d.numero_contrato,
+    contratoValor: Number(d.contrato_valor),
+    objeto: d.objeto,
+    tipo: d.tipo,
+    proyectoCodigo: d.proyecto_codigo,
+    proyectoNombre: d.proyecto_nombre,
+    contratistaNombre: d.contratista_nombre,
+    contratistaDocumento: d.contratista_documento,
+    otrasActas: Number(d.otras_actas),
+    lineas: (d.lineas ?? []).map((l: any) => ({
+      orden: Number(l.orden),
+      itemCodigo: l.item_codigo ?? null,
+      itemDescripcion: l.item_descripcion ?? null,
+      insumoCodigo: l.insumo_codigo ?? null,
+      insumoDescripcion: l.insumo_descripcion,
+      unidad: l.unidad ?? null,
+      cantidad: Number(l.cantidad),
+      precio: Number(l.precio),
+      ivaPorcentaje: Number(l.iva_porcentaje),
+      baseIva: Number(l.base_iva),
+      iva: Number(l.iva),
+      total: Number(l.total),
+    })),
+  }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

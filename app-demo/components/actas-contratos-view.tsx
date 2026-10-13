@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MarcoPagina } from "@/components/encabezado-pagina"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
+import { DetalleActa } from "@/components/detalle-acta"
 import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos, numero } from "@/lib/contratos"
@@ -16,7 +17,9 @@ import {
   ETIQUETA_ESTADO_ACTA,
   MAX_LINEAS_ACTA,
   calculoLineaForm,
+  consumidoActas,
   lineaActaVacia,
+  saldoContrato,
   totalActa,
   validarActa,
   type ActaResumen,
@@ -178,7 +181,12 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
   }, [contrato.id])
   useEffect(cargar, [cargar])
 
+  const [verActa, setVerActa] = useState<string | null>(null)
+
   const siguiente = (actas?.reduce((max, a) => Math.max(max, a.numero), 0) ?? 0) + 1
+  // Cupo: las actas por aprobar y aprobadas descuentan del valor del contrato.
+  const consumido = actas ? consumidoActas(actas) : null
+  const saldo = consumido == null ? null : saldoContrato(contrato.valor, consumido)
 
   return (
     <>
@@ -198,6 +206,19 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
             <tr>
               <th>Valor del contrato</th>
               <td className="font-medium tabular-nums">{pesos(contrato.valor)}</td>
+            </tr>
+            <tr>
+              <th>Valor en actas</th>
+              <td className="tabular-nums">
+                {consumido == null ? "…" : pesos(consumido)}{" "}
+                <span className="text-muted-foreground">(por aprobar y aprobadas)</span>
+              </td>
+            </tr>
+            <tr>
+              <th>Saldo del contrato</th>
+              <td className={`font-medium tabular-nums ${saldo != null && saldo <= 0 ? "text-destructive" : ""}`}>
+                {saldo == null ? "…" : pesos(saldo)}
+              </td>
             </tr>
             <tr>
               <th>Tipo</th>
@@ -227,6 +248,7 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
         <FormularioActa
           contrato={contrato}
           numero={siguiente}
+          saldo={saldo ?? 0}
           onCancelar={() => setCreando(false)}
           onGuardada={(n) => {
             setCreando(false)
@@ -244,7 +266,8 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
                   setAviso(null)
                   setCreando(true)
                 }}
-                disabled={actas == null}
+                disabled={actas == null || saldo == null || saldo <= 0}
+                title={saldo != null && saldo <= 0 ? "El contrato ya no tiene saldo para más actas." : undefined}
               >
                 <Plus className="mr-1 h-4 w-4" /> Crear acta nueva
               </Button>
@@ -274,7 +297,16 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
                 <tbody>
                   {actas.map((a) => (
                     <tr key={a.id} className="border-t [&_td]:px-4 [&_td]:py-2">
-                      <td className="font-medium">Acta {a.numero}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => setVerActa(a.id)}
+                          title={`Ver el acta ${a.numero}`}
+                          className="cursor-pointer rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+                        >
+                          Acta {a.numero}
+                        </button>
+                      </td>
                       <td>{formatearFechaSinHora(a.createdAt)}</td>
                       <td>{a.creadoPorNombre ?? "—"}</td>
                       <td className="text-right tabular-nums">{a.lineas}</td>
@@ -290,6 +322,8 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
           )}
         </section>
       )}
+
+      <DetalleActa id={verActa} onCerrar={() => setVerActa(null)} />
     </>
   )
 }
@@ -297,11 +331,13 @@ function ContratoActas({ contrato, puedeElaborar }: { contrato: ContratoParaActa
 function FormularioActa({
   contrato,
   numero: numeroActa,
+  saldo,
   onCancelar,
   onGuardada,
 }: {
   contrato: ContratoParaActa
   numero: number
+  saldo: number
   onCancelar: () => void
   onGuardada: (numero: number) => void
 }) {
@@ -315,10 +351,17 @@ function FormularioActa({
   const cambiar = (i: number, cambios: Partial<LineaActaForm>) =>
     setLineas((ls) => ls.map((l, k) => (k === i ? { ...l, ...cambios } : l)))
 
+  const total = totalActa(lineas)
+  const excede = total > saldo
+
   async function guardar() {
     const r = validarActa(lineas)
     if (!r.ok) {
       setError(r.error)
+      return
+    }
+    if (excede) {
+      setError(`El acta suma ${pesos(total)} y el saldo del contrato es ${pesos(saldo)}. Las actas no pueden superar el valor del contrato.`)
       return
     }
     setGuardando(true)
@@ -380,7 +423,14 @@ function FormularioActa({
               <td colSpan={7} className="px-2 py-3 text-right font-semibold">
                 Total del acta
               </td>
-              <td className="px-2 py-3 text-right text-base font-semibold tabular-nums">{pesos(totalActa(lineas))}</td>
+              <td className={`px-2 py-3 text-right text-base font-semibold tabular-nums ${excede ? "text-destructive" : ""}`}>{pesos(total)}</td>
+              <td />
+            </tr>
+            <tr>
+              <td colSpan={7} className="px-2 pb-3 text-right text-muted-foreground">
+                Saldo del contrato
+              </td>
+              <td className="px-2 pb-3 text-right tabular-nums text-muted-foreground">{pesos(saldo)}</td>
               <td />
             </tr>
           </tfoot>
@@ -401,11 +451,16 @@ function FormularioActa({
           <Button variant="outline" onClick={onCancelar} disabled={guardando}>
             Cancelar
           </Button>
-          <Button onClick={guardar} disabled={guardando}>
+          <Button onClick={guardar} disabled={guardando || excede}>
             {guardando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Guardar acta
           </Button>
         </div>
       </div>
+      {excede && !error && (
+        <p className="px-4 pb-3 text-sm text-destructive">
+          El acta supera el saldo del contrato por {pesos(total - saldo)}. Ajusta las cantidades para poder guardarla.
+        </p>
+      )}
       {error && <p className="px-4 pb-3 text-sm text-destructive">{error}</p>}
     </section>
   )

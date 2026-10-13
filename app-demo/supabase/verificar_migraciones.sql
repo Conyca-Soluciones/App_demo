@@ -147,5 +147,9 @@ select * from (
          exists (select 1 from pg_proc where proname = 'crear_acta')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'contratos' and column_name = 'numero_contrato')
+  union all
+  select '20261110100000_aprobacion_actas',
+         exists (select 1 from pg_proc where proname = 'resolver_acta')
+         and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%_consumido_actas_contrato%')
 ) t
 order by 1;

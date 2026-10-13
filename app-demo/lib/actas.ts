@@ -51,6 +51,71 @@ export type ActaResumen = {
   lineas: number
 }
 
+// Cupo del contrato: toda acta que no esté rechazada (por aprobar o aprobada)
+// consume valor; las actas no pueden sumar más que el contrato (crear_acta).
+export function consumidoActas(actas: { estado: EstadoActa; total: number }[]): number {
+  let suma = 0
+  for (const a of actas) if (a.estado !== "rechazada") suma += a.total
+  return aCentavos(suma)
+}
+export const saldoContrato = (valor: number, consumido: number) => aCentavos(valor - consumido)
+
+export type LineaActaDetalle = {
+  orden: number
+  itemCodigo: string | null
+  itemDescripcion: string | null
+  insumoCodigo: number | null
+  insumoDescripcion: string
+  unidad: string | null
+  cantidad: number
+  precio: number
+  ivaPorcentaje: number
+  baseIva: number
+  iva: number
+  total: number
+}
+
+export type ActaDetalle = {
+  id: string
+  numero: number
+  estado: EstadoActa
+  total: number
+  createdAt: string
+  creadoPorNombre: string | null
+  resueltoAt: string | null
+  resueltoPorNombre: string | null
+  motivoResolucion: string | null
+  contratoId: string
+  numeroContrato: string
+  contratoValor: number
+  objeto: string
+  tipo: TipoContrato
+  proyectoCodigo: string
+  proyectoNombre: string
+  contratistaNombre: string
+  contratistaDocumento: string
+  // Lo que usan las demás actas del contrato (por aprobar + aprobadas).
+  otrasActas: number
+  lineas: LineaActaDetalle[]
+}
+
+export type ActaAprobacionFila = {
+  id: string
+  numero: number
+  estado: EstadoActa
+  total: number
+  createdAt: string
+  creadoPorNombre: string | null
+  contratoId: string
+  numeroContrato: string
+  contratoValor: number
+  proyectoCodigo: string
+  proyectoNombre: string
+  contratistaNombre: string
+  resueltoPorNombre: string | null
+  resueltoAt: string | null
+}
+
 export type ItemParaActa = { id: string; codigo: string; descripcion: string; unidad: string | null }
 
 export type InsumoParaActa = {

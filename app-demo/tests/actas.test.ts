@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { calcularLinea, lineaActaVacia, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
+import { calcularLinea, consumidoActas, lineaActaVacia, saldoContrato, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
 
 const item: ItemParaActa = { id: "i1", codigo: "1.01", descripcion: "Excavación", unidad: "M3" }
 const insumo = (cambios: Partial<InsumoParaActa> = {}): InsumoParaActa => ({
@@ -40,5 +40,17 @@ describe("validarActa", () => {
   it("máximo 20 líneas", () => {
     const muchas = Array.from({ length: 21 }, (_, i) => linea("1", { insumo: insumo({ itemApuId: `a${i}` }) }))
     expect(validarActa(muchas)).toEqual({ ok: false, error: "Un acta tiene como máximo 20 líneas." })
+  })
+})
+
+describe("cupo del contrato", () => {
+  it("las rechazadas no consumen; saldo = valor - consumido", () => {
+    const consumido = consumidoActas([
+      { estado: "aprobada", total: 1_000_000 },
+      { estado: "pendiente", total: 250_000.5 },
+      { estado: "rechazada", total: 9_000_000 },
+    ])
+    expect(consumido).toBe(1_250_000.5)
+    expect(saldoContrato(2_000_000, consumido)).toBe(749_999.5)
   })
 })

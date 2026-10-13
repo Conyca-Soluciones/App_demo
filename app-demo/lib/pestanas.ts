@@ -79,6 +79,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.preaprobacion", titulo: "Pre-aprobación de contratos", seccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
   { clave: "contratos.contratos", titulo: "Elaboración de contratos", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.cortes", titulo: "Elaboración de actas", seccion: "Contratos", url: "/contratos/actas", rutas: ["/contratos/actas"] },
+  { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas"] },
 
   { clave: "admin.visualizacion", titulo: "Visualización", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
 
@@ -118,6 +119,7 @@ export const ACCIONES: Accion[] = [
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Aprobar, devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "elaborar_actas", titulo: "Elaborar actas", descripcion: "Crear actas de los contratos aprobados de los proyectos a los que tiene acceso.", seccion: "Contratos" },
+  { clave: "aprobar_actas", titulo: "Aprobar actas", descripcion: "Aprobar o rechazar con motivo las actas de los contratos de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
   { clave: "aprobar_pagos", titulo: "Aprobar pagos", descripcion: "Aprobar o rechazar los pagos pendientes (por ahora, los saldos de órdenes de compra con anticipo).", seccion: "A&F" },
   { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, y generar los pagos de una orden ya aprobada.", seccion: "A&F" },

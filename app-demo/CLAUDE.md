@@ -1986,8 +1986,36 @@ Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
   `elaborar_actas`. Por defecto el Director de obra tiene las dos.
 - `BuscadorAsync` tiene `flotante` (la lista sale en portal, para usarlo
   dentro de tablas con scroll).
-- **Pendiente**: la pantalla de Aprobación de actas (estados `aprobada` /
-  `rechazada` ya existen en la tabla), ver el detalle de un acta, y el PDF.
+- **Cupo del contrato** (`20261110100000_aprobacion_actas.sql`): las actas no
+  pueden sumar más que el valor del contrato. Consumen cupo las actas por
+  aprobar y las aprobadas; rechazar una lo devuelve
+  (`_consumido_actas_contrato`; en TS `consumidoActas` / `saldoContrato`).
+  `crear_acta` lo revisa con el contrato bloqueado; la pantalla muestra "Valor
+  en actas" y "Saldo del contrato", no deja crear acta sin saldo y no deja
+  guardar si el total lo supera.
+- **Detalle de un acta** (`components/detalle-acta.tsx`, función
+  `detalle_acta`): contrato, cupo (valor, otras actas, esta acta, saldo) y
+  líneas. Se abre desde la lista de actas en Elaboración y en Aprobación.
+- **Pendiente**: el PDF del acta; notificaciones (a quien aprueba cuando llega
+  un acta, a quien la hizo cuando se resuelve).
+
+
+## Aprobación de actas `/contratos/aprobacion-actas` (2026-10-14)
+
+Pestaña `contratos.aprobar_actas` y acción `aprobar_actas`
+(`20261110100000_aprobacion_actas.sql`; por defecto Gerencia).
+
+- Lista de las actas de TODOS los proyectos que el usuario ve (no usa el
+  proyecto actual): filtro Por aprobar / Aprobadas / Rechazadas / Todas y por
+  proyecto (`listar_actas_aprobacion`, más antiguas primero). Igual que
+  Pre-aprobación de contratos: el número del acta es enlace y doble clic en la
+  fila también abre el detalle.
+- En el detalle: **Aprobar** o **Rechazar** con motivo obligatorio
+  (`resolver_acta`: bloquea el acta y exige estado `pendiente`, así dos
+  personas no la resuelven a la vez). Rechazar es definitivo y devuelve el
+  valor al saldo del contrato.
+- `puede_ver_actas` acepta cualquiera de las dos pestañas (cortes o
+  aprobar_actas) más el acceso al proyecto.
 
 ---
 
