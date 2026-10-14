@@ -174,5 +174,12 @@ select * from (
   union all
   select '20261112100000_actas_aprobacion_por_pago',
          exists (select 1 from pg_trigger where tgname = 'trg_acta_sigue_pago')
+  union all
+  select '20261112200000_historial_actas_otra_vez',
+         position('''acta''' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
+         and position('o.id <> v.id' in pg_get_functiondef('public.detalle_acta(uuid)'::regprocedure)) = 0
+  union all
+  select '20261112300000_acta_exige_factura',
+         position('exige.' in pg_get_functiondef('public._pago_de_acta(uuid)'::regprocedure)) > 0
 ) t
 order by 1;

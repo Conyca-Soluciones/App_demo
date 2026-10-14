@@ -2232,6 +2232,13 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   anteriores". OJO: main tiene 20261112000000 y 20261112100000 con los mismos
   números que las de lcpr (otros nombres): al mezclar no chocan como archivos,
   pero cualquier función que las dos toquen hay que juntarla a mano.
+- **Factura obligatoria** (`20261112300000_acta_exige_factura.sql`, decisión
+  del usuario): un acta con pago (neto redondeado > 0) necesita al menos un
+  soporte tipo `factura`; lo revisa el formulario y `_pago_de_acta` (al final
+  de crear/editar). La liquidación con neto $ 0 no la pide. Decisiones del
+  usuario: se permiten períodos que se cruzan entre actas; la liquidación se
+  puede hacer sin actas de avance (terminación anticipada); no se bloquea una
+  solicitud con fecha de fin ya pasada.
 - **Pendiente**: otrosí (ampliar plazo/valor, cuando haya minuta de otrosí),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo

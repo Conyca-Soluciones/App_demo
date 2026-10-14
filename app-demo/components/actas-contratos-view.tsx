@@ -544,6 +544,15 @@ function FormularioActa({
       setError(v.error)
       return
     }
+    // Un acta con pago (neto > 0) exige al menos la factura del contratista
+    // (decisión del usuario; la base lo revisa otra vez en _pago_de_acta).
+    const hayFactura =
+      nuevos.some((n) => n.tipo === "factura") ||
+      (edicion?.soportes ?? []).some((s) => s.tipo === "factura" && !quitarSoportes.has(s.id))
+    if (!sinPago && !hayFactura) {
+      setError("Adjunta la factura del contratista: el acta con pago la exige.")
+      return
+    }
     const actaId = edicion?.id ?? crypto.randomUUID()
     const supabase = createClient()
     const subidos: SoporteSubido[] = []
