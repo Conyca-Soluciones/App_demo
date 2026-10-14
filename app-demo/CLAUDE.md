@@ -1696,6 +1696,17 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   la misma `consultaRequisiciones` que la lista, con el acceso por proyecto);
   archivo: `lib/exportar-requisiciones.ts` (exceljs en el navegador, encabezado
   con logo, filtro de Excel y encabezados fijos).
+- **Órdenes de compra: vista y Excel** (2026-10-14, `/almacen/ordenes-compra`):
+  filtro **Vista** = resumida (una fila por orden + **Valor total**) o detallada
+  (cada orden con todos sus insumos: UM, cantidad, precio, descuento, IVA y valor,
+  y una fila "Total de la orden"). Cambiar la vista no vuelve a consultar: el
+  listado ya trae las líneas de cada orden (`consultaOrdenesCompra` embebe
+  `ordenes_compra_items`; el total = suma de `calcularLinea`, igual que el PDF y
+  el detalle). Cantidad, UM y precio van en la presentación de compra si la línea
+  la tiene (como el PDF). **Descargar Excel** baja TODAS las órdenes de la
+  consulta en la vista elegida (`exportarOrdenesCompra` +
+  `lib/exportar-ordenes-compra.ts`, mismo formato que el de requisiciones; la
+  detallada, una fila por insumo).
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 

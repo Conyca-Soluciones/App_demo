@@ -3,6 +3,7 @@
 import { unidadesDeCompra } from "@/lib/unidades"
 import { conversionValida, type PresentacionLinea } from "@/lib/presentacion-compra"
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
+import { calcularLinea } from "@/lib/ordenes-compra-calculos"
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -825,6 +826,21 @@ export async function cancelarOrdenCompra(ordenId: string, motivo: string): Prom
   if (error) throw new Error(error.message)
 }
 
+// Un insumo de la orden en el listado detallado. Cantidad, UM y precio van en
+// la presentación de compra si la línea la tiene (como en el PDF); el total de
+// la línea sale de la unidad del insumo (calcularLinea, igual que el detalle).
+export type LineaOrdenListado = {
+  id: string
+  insumoCodigo: number | null
+  insumoDescripcion: string
+  um: string | null
+  cantidad: number
+  precioUnitario: number
+  porcentajeDescuento: number
+  porcentajeIva: number
+  total: number
+}
+
 export type OrdenCompraListado = {
   id: string
   numero: number
@@ -839,6 +855,9 @@ export type OrdenCompraListado = {
   creadaPorId: string | null
   createdAt: string
   tieneSobrecostoPrecio: boolean
+  // Suma de las líneas (descuento e IVA incluidos), como el total del PDF.
+  valorTotal: number
+  lineas: LineaOrdenListado[]
 }
 
 // Sin requerirScope a propósito -- la RLS (ordenes_compra_select_proyecto +
@@ -859,69 +878,99 @@ export type FiltrosOrdenesCompra = {
   hasta?: string // YYYY-MM-DD, inclusive
 }
 
-export async function listarTodasLasOrdenesCompra(
-  filtros: FiltrosOrdenesCompra = {},
-  pagina = 0
-): Promise<{ ordenes: OrdenCompraListado[]; hayMas: boolean }> {
-  const supabase = await createClient()
-  const userId = await obtenerUsuarioId()
-  if (!userId) throw new Error("No autenticado.")
-
+// La consulta del listado con los filtros, sin paginar (la usan la lista, por
+// páginas, y la descarga a Excel, completa). Trae las líneas de cada orden en
+// el mismo viaje: de ahí salen el valor total y el detalle de insumos.
+function consultaOrdenesCompra(supabase: Awaited<ReturnType<typeof createClient>>, filtros: FiltrosOrdenesCompra) {
   // Proveedor por nombre: se filtra con un join (!inner) dentro de la misma
   // consulta. Antes se traían sus ids y se mandaban en un IN dentro de la URL,
   // que falla con muchos proveedores o corta el resultado.
   const proveedor = filtros.proveedor?.trim()
 
-  const consulta = () => {
-    // Dos formas del select (literales, para que el cliente infiera bien): con
-    // el join !inner a proveedores solo cuando se filtra por proveedor.
-    let query = (proveedor
-      ? supabase
-          .from("ordenes_compra")
-          .select(
-            `
-        id, numero, estado, estado_entrega, created_at, proyecto_id,
-        proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
-        proveedor:proveedores!ordenes_compra_proveedor_id_fkey!inner(nombre),
-        created_by,
-        creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
-      `
-          )
-          .ilike("proveedor.nombre", `%${proveedor}%`)
-      : supabase
-          .from("ordenes_compra")
-          .select(
-            `
-        id, numero, estado, estado_entrega, created_at, proyecto_id,
-        proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
-        proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
-        created_by,
-        creado_por:perfiles!ordenes_compra_created_by_fkey(nombre)
-      `
-          )
-    )
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
+  // Dos formas del select (literales, para que el cliente infiera bien): con
+  // el join !inner a proveedores solo cuando se filtra por proveedor.
+  let query = (proveedor
+    ? supabase
+        .from("ordenes_compra")
+        .select(
+          `
+      id, numero, estado, estado_entrega, created_at, proyecto_id,
+      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
+      proveedor:proveedores!ordenes_compra_proveedor_id_fkey!inner(nombre),
+      created_by,
+      creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
+      lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
+        id, created_at, cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva,
+        um_compra, cantidad_compra, precio_compra,
+        pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(
+          insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m)
+        )
+      )
+    `
+        )
+        .ilike("proveedor.nombre", `%${proveedor}%`)
+    : supabase
+        .from("ordenes_compra")
+        .select(
+          `
+      id, numero, estado, estado_entrega, created_at, proyecto_id,
+      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
+      proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+      created_by,
+      creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
+      lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
+        id, created_at, cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva,
+        um_compra, cantidad_compra, precio_compra,
+        pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(
+          insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m)
+        )
+      )
+    `
+        )
+  )
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
 
-    if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
-    if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
-    if (filtros.creadaPorId) query = query.eq("created_by", filtros.creadaPorId)
-    // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
-    if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
-    if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+  if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
+  if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
+  if (filtros.creadaPorId) query = query.eq("created_by", filtros.creadaPorId)
+  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+  if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+  if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
 
-    // El estado visible de una orden es solo el de aprobación (ver
-    // lib/ordenes-compra-estado.ts).
-    if (filtros.estado) query = query.eq("estado", filtros.estado)
-    else if (filtros.incluirCanceladas === false) query = query.neq("estado", "cancelada")
-    return query.range(...rangoPagina(pagina))
-  }
+  // El estado visible de una orden es solo el de aprobación (ver
+  // lib/ordenes-compra-estado.ts).
+  if (filtros.estado) query = query.eq("estado", filtros.estado)
+  else if (filtros.incluirCanceladas === false) query = query.neq("estado", "cancelada")
+  return query
+}
 
-  const { data: filasPagina, error } = await consulta()
-  if (error) throw new Error(error.message)
-  const { filas: data, hayMas } = cortarPagina((filasPagina ?? []) as any[])
-
-  const ordenes = (data ?? []).map((o: any) => ({
+function mapOrdenListado(o: any): Omit<OrdenCompraListado, "tieneSobrecostoPrecio"> {
+  // Líneas en el orden en que se agregaron (el embebido no garantiza orden).
+  const crudas = [...(o.lineas ?? [])].sort((a: any, b: any) =>
+    a.created_at === b.created_at ? (a.id < b.id ? -1 : 1) : a.created_at < b.created_at ? -1 : 1
+  )
+  const lineas: LineaOrdenListado[] = crudas.map((l: any) => {
+    const base = {
+      cantidad: Number(l.cantidad),
+      precioUnitario: Number(l.precio_unitario),
+      porcentajeDescuento: Number(l.porcentaje_descuento),
+      porcentajeIva: Number(l.porcentaje_iva),
+    }
+    const conPresentacion = Boolean(l.um_compra)
+    return {
+      id: l.id,
+      insumoCodigo: l.pedido?.insumo?.codigo ?? null,
+      insumoDescripcion: l.pedido?.insumo?.descripcion ?? "(insumo eliminado)",
+      um: conPresentacion ? l.um_compra : (l.pedido?.insumo?.u_m ?? null),
+      cantidad: conPresentacion ? Number(l.cantidad_compra) : base.cantidad,
+      precioUnitario: conPresentacion ? Number(l.precio_compra) : base.precioUnitario,
+      porcentajeDescuento: base.porcentajeDescuento,
+      porcentajeIva: base.porcentajeIva,
+      total: calcularLinea(base).total,
+    }
+  })
+  return {
     id: o.id,
     numero: o.numero,
     estado: o.estado,
@@ -934,9 +983,33 @@ export async function listarTodasLasOrdenesCompra(
     creadaPorNombre: o.creado_por?.nombre ?? null,
     creadaPorId: o.created_by ?? null,
     createdAt: o.created_at,
-  }))
+    valorTotal: lineas.reduce((acc, l) => acc + l.total, 0),
+    lineas,
+  }
+}
 
-  return { ordenes: await conSobrecostoPrecio(ordenes), hayMas }
+export async function listarTodasLasOrdenesCompra(
+  filtros: FiltrosOrdenesCompra = {},
+  pagina = 0
+): Promise<{ ordenes: OrdenCompraListado[]; hayMas: boolean }> {
+  if (!(await obtenerUsuarioId())) throw new Error("No autenticado.")
+  const supabase = await createClient()
+  const { data: filasPagina, error } = await consultaOrdenesCompra(supabase, filtros).range(...rangoPagina(pagina))
+  if (error) throw new Error(error.message)
+  const { filas: data, hayMas } = cortarPagina((filasPagina ?? []) as any[])
+  return { ordenes: await conSobrecostoPrecio((data ?? []).map(mapOrdenListado)), hayMas }
+}
+
+// Descarga a Excel: TODAS las órdenes que cumplen los filtros (todas las
+// páginas), con sus líneas. Sin la marca de sobrecosto (no va en el Excel).
+export async function exportarOrdenesCompra(
+  filtros: FiltrosOrdenesCompra = {}
+): Promise<Omit<OrdenCompraListado, "tieneSobrecostoPrecio">[]> {
+  if (!(await obtenerUsuarioId())) throw new Error("No autenticado.")
+  const supabase = await createClient()
+  // Una consulta nueva por página (el constructor de supabase-js no se reutiliza).
+  const filas = await traerTodo<any>((desde, hasta) => consultaOrdenesCompra(supabase, filtros).range(desde, hasta))
+  return filas.map(mapOrdenListado)
 }
 
 // Marca, para cada orden, si alguna de sus líneas tiene precio_unitario por
