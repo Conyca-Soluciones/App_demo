@@ -169,5 +169,8 @@ select * from (
   union all
   select '20261112000000_control_proyecto',
          exists (select 1 from pg_proc where proname = 'control_proyecto')
+  union all
+  select '20261112100000_visualizacion_ver_contratos',
+         exists (select 1 from pg_policies where policyname = 'contratos_select' and qual like '%admin.visualizacion%')
 ) t
 order by 1;

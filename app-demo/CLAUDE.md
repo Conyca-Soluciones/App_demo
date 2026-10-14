@@ -1734,7 +1734,14 @@ Decisiones del usuario:
 - **Pestaña Órdenes de compra**: filtro Desde/Hasta (por defecto el mes en
   curso, fecha de creación, hora Colombia; se consulta al pulsar Consultar),
   todas las órdenes del rango con su estado y el total de las aprobadas; cada
-  una enlaza a su detalle (`listarOrdenesControl`).
+  una abre su detalle en un diálogo (`OrdenCompraDetalleView`, el mismo de
+  Órdenes de compra) (`listarOrdenesControl`).
+- **Contratos › Ver**: `DetalleSolicitudContrato` con `resumen` (datos
+  generales, objeto y alcance, valor y pago, historial; sin documentos). Para
+  que quien solo tiene `admin.visualizacion` lo pueda leer,
+  `20261112100000_visualizacion_ver_contratos.sql` suma esa pestaña a
+  `contratos_select`, `contratistas_select` e `historial_entidad` (solo
+  lectura, solo sus proyectos; no a los documentos).
 - **Gasto por capítulo**: línea de OC -> línea de requisición -> su ítem; las
   actas tienen su ítem. Se cruza por CÓDIGO contra la versión vigente; lo que
   no cuadra sale como "sin ítem". Capítulo = ítem raíz (`padre_id` null).

@@ -1,12 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, ChevronDown, ChevronUp, Loader2, Search } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronUp, Eye, Loader2, Search } from "lucide-react"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import { Input } from "@/components/ui/input"
-import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
+import { DetalleSolicitudContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
+import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { ZONA_HORARIA, hoyColombia } from "@/lib/fechas"
 import { Badge } from "@/components/ui/badge"
 import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
@@ -412,6 +415,7 @@ function Proveedores({ datos }: { datos: ControlProyecto }) {
           </ul>
         </>
       )}
+
     </section>
   )
 }
@@ -419,34 +423,41 @@ function Proveedores({ datos }: { datos: ControlProyecto }) {
 // ---------------------------------------------------------------- contratos
 
 function Contratos({ datos }: { datos: ControlProyecto }) {
+  const [viendo, setViendo] = useState<string | null>(null)
   if (datos.contratos.length === 0) {
     return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Este proyecto no tiene contratos aprobados.</p>
   }
   return (
-    <ul className="divide-y rounded-lg border">
-      {datos.contratos.map((c) => {
-        const p = porcentaje(c.actasAprobadas, c.valor)
-        return (
-          <li key={c.id} className="px-3 py-2.5">
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 font-medium">{c.numeroContrato ?? `Solicitud N° ${c.numero}`}</span>
-              <span className="shrink-0 tabular-nums">{pesosCortos(c.valor)}</span>
-            </div>
-            <p className="truncate text-xs text-muted-foreground">
-              {c.contratista} · {tituloTipoContrato(c.tipo)}
-              {!c.minutaAprobada && " · minuta sin aprobar"}
-            </p>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-              <div className={`h-full ${COLOR.actas}`} style={{ width: `${Math.min(p, 100)}%` }} />
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Actas aprobadas {pesosCortos(c.actasAprobadas)} ({pct(p)}) · saldo {pesosCortos(Math.max(c.valor - c.actasAprobadas, 0))}
-              {c.actasPorAprobar > 0 && ` · ${pesosCortos(c.actasPorAprobar)} por aprobar`}
-            </p>
-          </li>
-        )
-      })}
-    </ul>
+    <>
+      <ul className="divide-y rounded-lg border">
+        {datos.contratos.map((c) => {
+          const p = porcentaje(c.actasAprobadas, c.valor)
+          return (
+            <li key={c.id} className="px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 font-medium">{c.numeroContrato ?? `Solicitud N° ${c.numero}`}</span>
+                <span className="ml-auto shrink-0 tabular-nums">{pesosCortos(c.valor)}</span>
+                <Button size="sm" variant="outline" onClick={() => setViendo(c.id)}>
+                  <Eye className="size-4" /> Ver
+                </Button>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {c.contratista} · {tituloTipoContrato(c.tipo)}
+                {!c.minutaAprobada && " · minuta sin aprobar"}
+              </p>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                <div className={`h-full ${COLOR.actas}`} style={{ width: `${Math.min(p, 100)}%` }} />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Actas aprobadas {pesosCortos(c.actasAprobadas)} ({pct(p)}) · saldo {pesosCortos(Math.max(c.valor - c.actasAprobadas, 0))}
+                {c.actasPorAprobar > 0 && ` · ${pesosCortos(c.actasPorAprobar)} por aprobar`}
+              </p>
+            </li>
+          )
+        })}
+      </ul>
+      <DetalleSolicitudContrato id={viendo} onCerrar={() => setViendo(null)} resumen />
+    </>
   )
 }
 
@@ -461,6 +472,7 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
   // Resultado con el rango para el que se pidió ("cargando" = aún no llega).
   const [consulta, setConsulta] = useState<{ clave: string; ordenes: OrdenControl[] | null; error: string | null } | null>(null)
   const [pedida, setPedida] = useState(`${inicioDeMes(hoy)}|${hoy}`)
+  const [abierta, setAbierta] = useState<string | null>(null)
   const vigente = consulta?.clave === pedida ? consulta : null
 
   useEffect(() => {
@@ -523,7 +535,7 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
               const badge = ESTADO_VISIBLE_BADGE[o.estado]
               return (
                 <li key={o.id}>
-                  <a href={`/almacen/ordenes-compra/${o.id}`} className="block px-3 py-2.5 hover:bg-muted/40">
+                  <button type="button" onClick={() => setAbierta(o.id)} className="block w-full px-3 py-2.5 text-left hover:bg-muted/40">
                     <div className="flex items-baseline justify-between gap-3 text-sm">
                       <span className="min-w-0 truncate font-medium">
                         OC {o.numero} · {o.proveedor}
@@ -537,13 +549,20 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
                         {badge.label}
                       </Badge>
                     </div>
-                  </a>
+                  </button>
                 </li>
               )
             })}
           </ul>
         </>
       )}
+      {/* El mismo detalle que en Órdenes de compra, en un diálogo encima. */}
+      <Dialog open={abierta !== null} onOpenChange={(abiertoDialogo) => !abiertoDialogo && setAbierta(null)}>
+        <DialogContent className="flex h-[90vh] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden sm:w-[90vw] sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de orden de compra</DialogTitle>
+          {abierta && <OrdenCompraDetalleView ordenId={abierta} onCerrar={() => setAbierta(null)} />}
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }

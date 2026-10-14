@@ -46,9 +46,12 @@ export function DetalleSolicitudContrato({
   onCerrar,
   acciones,
   minuta,
+  resumen = false,
 }: {
   id: string | null
   onCerrar: () => void
+  // Solo datos generales, objeto y alcance, valor e historial (sin documentos).
+  resumen?: boolean
   acciones?: (detalle: SolicitudContratoDetalle) => React.ReactNode
   minuta?: (detalle: SolicitudContratoDetalle) => React.ReactNode
 }) {
@@ -250,61 +253,66 @@ export function DetalleSolicitudContrato({
               )}
 
 
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>
-                <TablaDocumentos>
-                  {tipo?.documentos.map((req) => {
-                    const doc = docPorTipo.get(req.tipo)
-                    return (
-                      <FilaDocumento
-                        key={req.tipo}
-                        titulo={req.titulo}
-                        nombreArchivo={doc?.nombreArchivo}
-                        sinArchivo="No aplica"
-                        onVer={
-                          doc
-                            ? () =>
-                                setViendo({
-                                  titulo: req.titulo,
-                                  nombreArchivo: doc.nombreArchivo,
-                                  mime: doc.mime,
-                                  cargarUrl: () => enlaceDocumentoContrato(doc.id),
-                                })
-                            : undefined
-                        }
-                      />
-                    )
-                  })}
-                </TablaDocumentos>
-              </div>
+              {/* En modo resumen (Control del proyecto) no salen los documentos. */}
+              {!resumen && (
+                <>
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>
+                  <TablaDocumentos>
+                    {tipo?.documentos.map((req) => {
+                      const doc = docPorTipo.get(req.tipo)
+                      return (
+                        <FilaDocumento
+                          key={req.tipo}
+                          titulo={req.titulo}
+                          nombreArchivo={doc?.nombreArchivo}
+                          sinArchivo="No aplica"
+                          onVer={
+                            doc
+                              ? () =>
+                                  setViendo({
+                                    titulo: req.titulo,
+                                    nombreArchivo: doc.nombreArchivo,
+                                    mime: doc.mime,
+                                    cargarUrl: () => enlaceDocumentoContrato(doc.id),
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </TablaDocumentos>
+                </div>
 
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos generales del contratista</h3>
-                <TablaDocumentos>
-                  {DOCUMENTOS_POR_PERSONA[detalle.contratistaTipoPersona].map((req) => {
-                    const doc = docContratistaPorTipo.get(req.tipo)
-                    return (
-                      <FilaDocumento
-                        key={req.tipo}
-                        titulo={req.titulo}
-                        nombreArchivo={doc?.nombreArchivo}
-                        sinArchivo={req.obligatorio ? "Falta" : "No aplica"}
-                        onVer={
-                          doc
-                            ? () =>
-                                setViendo({
-                                  titulo: req.titulo,
-                                  nombreArchivo: doc.nombreArchivo,
-                                  mime: doc.mime,
-                                  cargarUrl: () => enlaceDocumentoContratista(doc.id),
-                                })
-                            : undefined
-                        }
-                      />
-                    )
-                  })}
-                </TablaDocumentos>
-              </div>
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos generales del contratista</h3>
+                  <TablaDocumentos>
+                    {DOCUMENTOS_POR_PERSONA[detalle.contratistaTipoPersona].map((req) => {
+                      const doc = docContratistaPorTipo.get(req.tipo)
+                      return (
+                        <FilaDocumento
+                          key={req.tipo}
+                          titulo={req.titulo}
+                          nombreArchivo={doc?.nombreArchivo}
+                          sinArchivo={req.obligatorio ? "Falta" : "No aplica"}
+                          onVer={
+                            doc
+                              ? () =>
+                                  setViendo({
+                                    titulo: req.titulo,
+                                    nombreArchivo: doc.nombreArchivo,
+                                    mime: doc.mime,
+                                    cargarUrl: () => enlaceDocumentoContratista(doc.id),
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </TablaDocumentos>
+                </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase">Historial</h3>
