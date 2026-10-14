@@ -149,19 +149,24 @@ select * from (
                      where table_schema = 'public' and table_name = 'contratos' and column_name = 'numero_contrato')
   union all
   select '20261110100000_aprobacion_actas',
-         exists (select 1 from pg_proc where proname = 'resolver_acta')
-         and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%_consumido_actas_contrato%')
+         -- (crear_acta se reescribió después: se mira lo que esta migración crea)
+         exists (select 1 from pg_proc where proname = '_consumido_actas_contrato')
+         and exists (select 1 from pg_proc where proname = 'listar_actas_aprobacion')
   union all
   select '20261110200000_editar_actas_avisos',
+         -- (el aviso pasó de resolver_acta a _aprobar_acta en 20261112100000)
          exists (select 1 from pg_proc where proname = 'editar_acta')
-         and exists (select 1 from pg_proc where proname = 'resolver_acta' and prosrc like '%acta_aprobada%')
+         and exists (select 1 from pg_proc where proname in ('resolver_acta', '_aprobar_acta')
+                     and prosrc like '%acta_aprobada%')
   union all
   select '20261110300000_editar_acta_solo_creador',
          exists (select 1 from pg_proc where proname = 'editar_acta' and prosrc like '%Solo quien hizo el acta%')
   union all
   select '20261111000000_aprobacion_minutas',
          exists (select 1 from pg_proc where proname = 'resolver_minuta_contrato')
-         and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%minuta_estado%')
+         -- (la regla de minuta aprobada vive ahora en contrato_para_acta)
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'contratos' and column_name = 'minuta_estado')
          and exists (select 1 from roles where clave = 'subgerencia')
   union all
   select '20261111100000_preaprobar_y_enviar_minuta',
