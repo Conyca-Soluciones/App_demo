@@ -349,7 +349,7 @@ export default function MaestroInsumos() {
   return (
     <>
       <EncabezadoPagina
-        titulo="Maestro de insumos"
+        titulo="Maestra de insumos"
         subtitulo="Valor unitario vigente: promedio de compra real, o precio de respaldo si el insumo no tiene historial."
       />
 

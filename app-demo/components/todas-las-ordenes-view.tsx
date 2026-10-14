@@ -557,7 +557,7 @@ export function TodasLasOrdenesView() {
             <DialogTitle>Cancelar orden de compra #{cancelando?.numero}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            La orden queda cancelada y sus pedidos vuelven a &ldquo;Comprar pedidos&rdquo; para poder
+            La orden queda cancelada y sus requisiciones vuelven a &ldquo;Requisiciones por comprar&rdquo; para poder
             comprarse de nuevo. No se puede cancelar una orden con entrega parcial o entregada.
             <strong className="mt-2 block text-foreground">
               Esta orden ya fue creada: avísale al proveedor de la cancelación.

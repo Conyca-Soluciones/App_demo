@@ -375,7 +375,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
         <p>No hay requisiciones seleccionadas para generar una orden de compra.</p>
         <Button variant="outline" onClick={() => router.push("/almacen/comprar-pedidos")}>
-          Volver a Comprar pedidos
+          Volver a Requisiciones por comprar
         </Button>
       </div>
     )
@@ -390,7 +390,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
           Se creó correctamente para el proveedor {detalleProveedor?.nombre}. Queda pendiente de
           aprobación.
         </p>
-        <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Comprar requisiciones</Button>
+        <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Requisiciones por comprar</Button>
       </div>
     )
   }

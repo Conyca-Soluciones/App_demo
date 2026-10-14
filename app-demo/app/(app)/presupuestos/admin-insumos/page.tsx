@@ -122,7 +122,7 @@ function AdminInsumosContent() {
 
   return (
     <>
-    <EncabezadoPagina titulo="Solicitudes de insumos" subtitulo="Insumos nuevos pedidos por ingenieros" />
+    <EncabezadoPagina titulo="Aprobación de insumos" subtitulo="Solicitudes de insumos nuevos pedidos por ingenieros" />
     <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-4 sm:p-6">
 
           {mostrarNoAutorizado && (

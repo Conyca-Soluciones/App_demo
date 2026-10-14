@@ -2155,6 +2155,26 @@ no cambiaron; solo títulos (también el título de cada página). Los textos de
 dentro (botón "Pre-aprobar", avisos de la base) siguen diciendo
 pre-aprobación.
 
+## Menú de AdPro reorganizado (2026-10-14)
+
+Mismo método que Contratos (secciones con `subseccion`; claves y rutas sin
+cambios, solo títulos, orden y sección; también el título de cada página):
+- **Presupuestos**: Elaboración de presupuestos; subgrupo **Insumos y APU**:
+  Maestra de insumos, Aprobación de insumos (antes en Compras) y Aprobación de
+  mano de obra y equipos (`tecnico.aprobar_mano_obra`, antes en Requisiciones).
+- **Requisiciones**: Elaboración, Registro y Aprobación de requisiciones.
+- **Compras**: subgrupo **Requisiciones** (Requisiciones por comprar =
+  `compras.comprar_pedidos`, Saldos pendientes); subgrupo **Órdenes de compra**
+  (Registro de órdenes de compra = `compras.ordenes`, Aprobación de órdenes de
+  compra); Proveedores.
+- **Almacén**: Entradas, Salidas, Inventario (orden de trabajo).
+- **Control**: Control del proyecto (`admin.visualizacion`, antes "Visualización").
+- Acciones de la matriz en el mismo orden de secciones; `aprobar_insumos` y
+  `aprobar_mano_obra` pasaron a Presupuestos.
+- Efecto: la primera pestaña del rol (a donde se llega al elegir proyecto) sale
+  del orden de `PESTANAS`; Compras y Líder Compras llegan ahora a Maestra de
+  insumos (antes Inventario).
+
 ## Elaboración de actas `/contratos/actas` (2026-10-14)
 
 Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).

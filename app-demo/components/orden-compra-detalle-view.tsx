@@ -448,7 +448,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Las líneas de esta orden se mantienen para revisión manual — los pedidos no vuelven
-            automáticamente a la cola de &quot;Comprar requisiciones&quot;.
+            automáticamente a la cola de &quot;Requisiciones por comprar&quot;.
           </p>
           <Textarea
             placeholder="Motivo del rechazo (obligatorio)"
@@ -489,7 +489,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           <p className="text-sm text-muted-foreground">
             {accionAbierta === "desaprobar"
               ? "La orden vuelve a “Pendiente” y se podrá aprobar o rechazar de nuevo."
-              : "La orden queda cancelada y sus requisiciones vuelven a “Comprar requisiciones” para poder comprarse de nuevo."}
+              : "La orden queda cancelada y sus requisiciones vuelven a “Requisiciones por comprar” para poder comprarse de nuevo."}
           </p>
           {accionAbierta === "cancelar" && (
             <p className="text-sm font-medium">
