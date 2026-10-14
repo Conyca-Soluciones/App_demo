@@ -1171,6 +1171,33 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   que ese rol tenga `editar_presupuestos`, o pasar por una función SECURITY DEFINER.
 - **Pendiente (opción B)**: restringir por proyecto.
 
+## IVA en el maestro de insumos (2026-10-15)
+
+Decisión del usuario: el presupuesto va CON IVA (contratos con AIU: el IVA de
+materiales es costo; la lista oficial del Malecón ya lo trae en el precio
+unitario). El maestro tenía el IVA doble: en casi todos los insumos con
+historial (`historico_precios_compra`, Excel de compras sept. 2026),
+`vr_unitario` era lo pagado CON IVA y `vr_neto` le sumaba el IVA otra vez
+(BROCA 5/16: compra $3.697 + $703 = $4.400 = vr_unitario; vr_neto $5.236).
+- **Corregido** (`20261114100000_maestro_iva_doble.sql`, aplicada): desde aquí
+  `vr_unitario` = SIN IVA y `vr_neto` = CON IVA una vez. G1 (859, todas las
+  compras al 19 % y precio con IVA): iva 19 %, vr_unitario ÷ 1,19. G2 (9, todas
+  al 19 % y precio ya sin IVA): iva 19 %, vr_neto × 1,19. G3 (116, compras
+  mezcladas con IVA > 0): se quitó el IVA doble con su % de antes; el % queda
+  por confirmar. Copia de lo de antes en `maestro_insumos_respaldo_iva_20261015`
+  (sin acceso por la API; el comentario de la migración dice cómo deshacer).
+- **Por confirmar con el usuario** (`docs/confirmar-iva-insumos.xlsx`, hoja
+  "Para confirmar", 494): los 116 de G3, 117 con todas las compras al 19 % pero
+  precio que no coincide con lo pagado, 118 mezclas 19 %/sin IVA, 139 todas sin
+  IVA y 4 todas al 5 %. Regla del usuario: NO poner 19 % donde no es seguro.
+- **Sin historial (417, hoja "Sin historial")**: se dejan como están por ahora y
+  quedan PENDIENTES de confirmar si su precio trae IVA.
+- Los precios ya congelados en los APU no cambiaron.
+- `precios_efectivos_insumos` promedia también las OC aprobadas de la app, que
+  hoy son de prueba: no usarlas para precios mientras sea así.
+- Migración preparada, sin aplicar: `20261114000000_presupuesto_con_iva.sql`
+  (el APU toma el precio con IVA). Aplicarla cuando el usuario lo pida.
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)

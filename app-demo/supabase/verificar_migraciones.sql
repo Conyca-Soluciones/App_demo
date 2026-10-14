@@ -196,5 +196,12 @@ select * from (
   select '20261113100000_contratos_generales_tipo',
          exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'tipo_detalle')
+  union all
+  select '20261114000000_presupuesto_con_iva',
+         exists (select 1 from pg_proc where proname = 'precios_presupuesto_insumos')
+  union all
+  select '20261114100000_maestro_iva_doble',
+         exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'maestro_insumos_respaldo_iva_20261015')
 ) t
 order by 1;
