@@ -1717,6 +1717,40 @@ Quitar los `any` de verdad pide tipar el cliente de Supabase con los tipos de
 la base (`generate_typescript_types`): sin eso supabase-js deduce mal los
 embebidos (los toma como listas) y por eso el código usa `any`.
 
+## Control del proyecto `/admin/visualizacion` (2026-10-15)
+
+Reemplaza la vieja "Estado de obra" (pestaña `admin.visualizacion`, misma ruta).
+Para Gerencia: a dónde va la plata del proyecto actual (barra de arriba), una
+página por proyecto, pensada para celular. Todo sale de UNA función,
+`control_proyecto(p_proyecto_id)` (`20261112000000_control_proyecto.sql`, un
+jsonb; valida pestaña y acceso al proyecto). Tipos y cálculos puros en
+`lib/control-proyecto.ts` (pruebas en `tests/control-proyecto.test.ts`); vista
+en `components/control-proyecto-view.tsx`.
+
+Decisiones del usuario:
+- **Gastado = solo lo aprobado**: órdenes de compra aprobadas (con descuento e
+  IVA) + actas aprobadas. "Por comprar" (requisiciones aprobadas sin orden, al
+  precio del maestro con IVA) va aparte, no es gastado.
+- **Gasto por capítulo**: línea de OC -> línea de requisición -> su ítem; las
+  actas tienen su ítem. Se cruza por CÓDIGO contra la versión vigente; lo que
+  no cuadra sale como "sin ítem". Capítulo = ítem raíz (`padre_id` null).
+  Presupuesto = suma de `valor_total` de las hojas.
+- **Dos avances globales, cada uno contra su propio total** (no por ítem):
+  bodega = salidas valoradas al precio PROMEDIO de compra del proyecto (sin
+  IVA; sin compras, al del maestro) ÷ presupuesto de materiales (líneas de
+  insumo de los APU: cantidad × rendimiento × precio congelado); actas = actas
+  aprobadas ÷ valor de los contratos con minuta aprobada. Se muestra además
+  "contratado: X % del presupuesto de mano de obra".
+- **Proveedores sin tabla grande**: ranking de los 5 primeros + "N más"; tocar
+  uno abre sus insumos. Buscar un insumo muestra cada proveedor con su precio
+  PROMEDIO (sin IVA) en verde (≤ presupuesto) o ámbar (> presupuesto).
+- Aviso de ítems sobre presupuesto (gastado > `valor_total` del ítem), los 50
+  con más exceso.
+- Ojo: el gastado incluye IVA y el presupuesto es el de los APU (sin IVA), así
+  que el % gastado se infla un poco por el IVA.
+- La función vieja `resumen_ejecucion_proyecto_completo` ya no la usa ninguna
+  pantalla (sigue en la base).
+
 ## Regla de rendimiento: todo en tiempo lineal
 
 La app va a manejar mucho volumen, así que ningún cambio puede ser O(n²):

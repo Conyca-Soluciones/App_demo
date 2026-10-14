@@ -166,5 +166,8 @@ select * from (
   union all
   select '20261111100000_preaprobar_y_enviar_minuta',
          exists (select 1 from pg_proc where proname = 'preaprobar_y_enviar_minuta')
+  union all
+  select '20261112000000_control_proyecto',
+         exists (select 1 from pg_proc where proname = 'control_proyecto')
 ) t
 order by 1;
