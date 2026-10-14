@@ -80,13 +80,14 @@ export const PESTANAS: Pestana[] = [
 
   // Contratos: Contratistas, el subgrupo Contratos, el subgrupo Actas e Informes.
   // Claves de antes con nombre nuevo: solicitar = Contratos por grupos,
-  // contratos = Contratos generales, preaprobacion = Aprobación de contratos,
+  // contratos = Contratos generales, preaprobacion = Pre aprobación de contratos,
+  // aprobar_minutas = Aprobación de contratos (Subgerencia),
   // cortes = Actas por grupos.
   { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
   { clave: "contratos.solicitar", titulo: "Contratos por grupos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
   { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
-  { clave: "contratos.preaprobacion", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
-  { clave: "contratos.aprobar_minutas", titulo: "Aprobación de minutas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas"] },
+  { clave: "contratos.preaprobacion", titulo: "Pre aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
+  { clave: "contratos.aprobar_minutas", titulo: "Aprobación de Contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas"] },
   { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas"] },
   { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas"] },
@@ -128,8 +129,8 @@ export const ACCIONES: Accion[] = [
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
-  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Aprobar, devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
-  { clave: "aprobar_minutas", titulo: "Aprobar minutas", descripcion: "Aprobar o devolver con motivo las minutas que Jurídica envía a Subgerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas.", seccion: "Contratos" },
+  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
+  { clave: "aprobar_minutas", titulo: "Aprobar contratos (Subgerencia)", descripcion: "Aprobar o devolver con motivo la minuta de los contratos que Jurídica pre-aprueba y envía a Subgerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas.", seccion: "Contratos" },
   { clave: "elaborar_actas", titulo: "Elaborar actas", descripcion: "Crear actas de los contratos con minuta aprobada de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_actas", titulo: "Aprobar actas", descripcion: "Aprobar o rechazar con motivo las actas de los contratos de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },

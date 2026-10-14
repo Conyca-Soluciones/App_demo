@@ -22,7 +22,8 @@ import {
 import { listarMinutasSubgerencia, resolverMinutaContrato, type AccionMinuta } from "@/app/(app)/contratos/aprobacion-minutas/actions"
 
 // ---------------------------------------------------------------------------
-// Aprobación de minutas: Subgerencia revisa las minutas que envía Jurídica, de
+// Aprobación de contratos (ruta /contratos/aprobacion-minutas): Subgerencia
+// revisa las minutas que envía Jurídica, de
 // todos sus proyectos (no depende del proyecto actual), y las aprueba o las
 // devuelve con motivo. Al aprobar, el contrato recibe su número CJ y ya se le
 // pueden hacer actas. La minuta se ve en solo lectura (con su PDF).
@@ -159,7 +160,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <EncabezadoPagina titulo="Aprobación de minutas" subtitulo="Revisa las minutas que envía Jurídica: aprueba o devuelve para corregir." />
+      <EncabezadoPagina titulo="Aprobación de contratos" subtitulo="Subgerencia: revisa la minuta de los contratos que pre-aprobó Jurídica y apruébala o devuélvela para corregir." />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1" role="tablist" aria-label="Estado de la minuta">

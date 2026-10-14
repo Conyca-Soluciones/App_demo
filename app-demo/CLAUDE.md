@@ -1950,7 +1950,11 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   contratos).
 
 
-## Aprobación de minutas `/contratos/aprobacion-minutas` (2026-10-13)
+## Aprobación de contratos por Subgerencia `/contratos/aprobacion-minutas` (2026-10-13)
+
+En el menú: **Pre aprobación de contratos** (`contratos.preaprobacion`, Jurídica)
+y **Aprobación de contratos** (`contratos.aprobar_minutas`, Subgerencia). La
+ruta y las claves siguen diciendo "minutas".
 
 Subgerencia aprueba las minutas que arma Jurídica
 (`20261111000000_aprobacion_minutas.sql`; decisiones del usuario: Jurídica la
@@ -1961,9 +1965,14 @@ aprobada).
   `en_revision` | `devuelta` | `aprobada`), con `minuta_enviada_at/por`,
   `minuta_resuelta_at/por` y `minuta_motivo`. `contratos.estado` no cambia
   (sigue `aprobada` = solicitud pre-aprobada).
-- **Enviar** (Jurídica, acción `aprobar_contratos`): botón "Enviar a
-  Subgerencia" en el detalle de Pre-aprobación cuando la solicitud está
-  pre-aprobada. `enviarMinutaSubgerencia` arma la minuta GUARDADA completa (lo
+- **Pre-aprobar = enviar** (decisión del usuario, 2026-10-14): el botón
+  "Pre-aprobar y enviar a Subgerencia" (`preaprobarYEnviarMinuta` ->
+  `preaprobar_y_enviar_minuta`, `20261111100000_preaprobar_y_enviar_minuta.sql`)
+  pre-aprueba la solicitud y envía su minuta en UNA transacción (llama
+  `resolver_solicitud_contrato` y `enviar_minuta_contrato`). Ya no hay paso
+  intermedio "pre-aprobada sin enviar"; "Enviar otra vez a Subgerencia" queda
+  solo para una minuta devuelta (o una pre-aprobada de antes que nunca se envió).
+- **Enviar** (Jurídica, acción `aprobar_contratos`): `minutaParaEnviar` arma la minuta GUARDADA completa (lo
   calculado + lo editado, igual que la ve Jurídica) y `enviar_minuta_contrato`
   la guarda en `minuta_datos` y la pasa a `en_revision` en una transacción: lo
   que aprueba Subgerencia no cambia aunque después cambien el contratista o el
@@ -1995,8 +2004,8 @@ aprobada).
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
-sin página, Aprobación de contratos = `contratos.preaprobacion`, Aprobación
-de minutas = `contratos.aprobar_minutas`); subgrupo
+sin página, Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
+de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).

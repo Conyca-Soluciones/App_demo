@@ -163,5 +163,8 @@ select * from (
          exists (select 1 from pg_proc where proname = 'resolver_minuta_contrato')
          and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%minuta_estado%')
          and exists (select 1 from roles where clave = 'subgerencia')
+  union all
+  select '20261111100000_preaprobar_y_enviar_minuta',
+         exists (select 1 from pg_proc where proname = 'preaprobar_y_enviar_minuta')
 ) t
 order by 1;

@@ -322,37 +322,47 @@ export async function guardarMinutaObra(id: string, minuta: MinutaObra): Promise
 // cambien los datos del contratista o del proyecto. La base la guarda y la
 // pasa a revisión en una transacción (enviar_minuta_contrato,
 // 20261111000000_aprobacion_minutas.sql).
-export async function enviarMinutaSubgerencia(id: string): Promise<void> {
-  await requerirAccion("aprobar_contratos")
+// Minuta completa de la solicitud, lista para enviar (según su tipo).
+async function minutaParaEnviar(id: string): Promise<unknown> {
   const supabase = await createClient()
-  const { data: contrato, error: errorTipo } = await supabase.from("contratos").select("tipo").eq("id", id).maybeSingle()
-  if (errorTipo) throw new Error(errorTipo.message)
+  const { data: contrato, error } = await supabase.from("contratos").select("tipo").eq("id", id).maybeSingle()
+  if (error) throw new Error(error.message)
   if (!contrato) throw new Error("La solicitud no existe o no tienes acceso.")
 
-  let datos: unknown
   switch (contrato.tipo) {
     case "mano_obra":
-      datos = limpiarMinuta((await obtenerMinutaContrato(id)).minuta)
-      break
+      return limpiarMinuta((await obtenerMinutaContrato(id)).minuta)
     case "arrendamiento":
-      datos = limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), (await obtenerMinutaArrendamiento(id)).minuta))
-      break
+      return limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), (await obtenerMinutaArrendamiento(id)).minuta))
     case "suministro_instalacion":
-      datos = limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), (await obtenerMinutaSuministro(id)).minuta))
-      break
+      return limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), (await obtenerMinutaSuministro(id)).minuta))
     case "alquiler_vehiculo":
-      datos = limpiarMinutaVehiculo(mezclarMinutaVehiculo(minutaVehiculoVacia(), (await obtenerMinutaVehiculo(id)).minuta))
-      break
+      return limpiarMinutaVehiculo(mezclarMinutaVehiculo(minutaVehiculoVacia(), (await obtenerMinutaVehiculo(id)).minuta))
     case "prestacion_servicios":
-      datos = limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), (await obtenerMinutaServicios(id)).minuta))
-      break
+      return limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), (await obtenerMinutaServicios(id)).minuta))
     case "obra":
-      datos = limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), (await obtenerMinutaObra(id)).minuta))
-      break
+      return limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), (await obtenerMinutaObra(id)).minuta))
     default:
       throw new Error("Este tipo de contrato todavía no tiene plantilla de minuta.")
   }
+}
 
+// Enviar otra vez una minuta devuelta (o una pre-aprobada que nunca se envió).
+export async function enviarMinutaSubgerencia(id: string): Promise<void> {
+  await requerirAccion("aprobar_contratos")
+  const datos = await minutaParaEnviar(id)
+  const supabase = await createClient()
   const { error } = await supabase.rpc("enviar_minuta_contrato", { p_id: id, p_datos: datos })
+  if (error) throw new Error(error.message)
+}
+
+// Pre-aprobar la solicitud y enviar su minuta a Subgerencia en un solo paso
+// (una transacción: preaprobar_y_enviar_minuta,
+// 20261111100000_preaprobar_y_enviar_minuta.sql).
+export async function preaprobarYEnviarMinuta(id: string): Promise<void> {
+  await requerirAccion("aprobar_contratos")
+  const datos = await minutaParaEnviar(id)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("preaprobar_y_enviar_minuta", { p_id: id, p_datos: datos })
   if (error) throw new Error(error.message)
 }

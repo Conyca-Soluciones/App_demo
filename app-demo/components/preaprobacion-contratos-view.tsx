@@ -26,14 +26,16 @@ import {
 import {
   enviarMinutaSubgerencia,
   listarSolicitudesPreaprobacion,
+  preaprobarYEnviarMinuta,
   resolverSolicitudContrato,
   type AccionPreaprobacion,
 } from "@/app/(app)/contratos/pre-aprobacion/actions"
 
 // ---------------------------------------------------------------------------
 // Pre-aprobación: Jurídica revisa solicitudes de todos sus proyectos (no
-// depende del proyecto actual) y las aprueba, devuelve o rechaza. Después
-// arma la minuta y la envía a Subgerencia (Aprobación de minutas).
+// depende del proyecto actual) y las devuelve, rechaza o pre-aprueba. Pre-aprobar
+// envía también la minuta a Subgerencia (Aprobación de contratos) en el mismo
+// paso; una minuta devuelta se corrige y se envía otra vez.
 // ---------------------------------------------------------------------------
 
 const FILTROS: { valor: EstadoContrato | "todas"; etiqueta: string }[] = [
@@ -48,9 +50,10 @@ type AccionVista = AccionPreaprobacion | "enviar"
 
 const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
   aprobar: {
-    titulo: "Pre-aprobar solicitud",
-    explicacion: "Pasa a elaboración de la minuta. Quien la solicitó recibe una notificación.",
-    boton: "Pre-aprobar",
+    titulo: "Pre-aprobar y enviar a Subgerencia",
+    explicacion:
+      "La solicitud queda pre-aprobada y su minuta pasa a Subgerencia (Aprobación de contratos). Se envía la minuta GUARDADA: revisa la pestaña Minuta y guarda los cambios antes. Mientras Subgerencia la revisa no se puede editar.",
+    boton: "Pre-aprobar y enviar",
     pideMotivo: false,
   },
   devolver: {
@@ -66,7 +69,7 @@ const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; b
     pideMotivo: true,
   },
   enviar: {
-    titulo: "Enviar minuta a Subgerencia",
+    titulo: "Enviar minuta otra vez a Subgerencia",
     explicacion:
       "Se envía la minuta GUARDADA (guarda antes los cambios que tengas en pantalla). Mientras Subgerencia la revisa no se puede editar; si la devuelve, la corriges y la envías otra vez.",
     boton: "Enviar",
@@ -181,13 +184,14 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
     setErrorAccion(null)
     try {
       if (accion.tipo === "enviar") await enviarMinutaSubgerencia(accion.detalle.id)
+      else if (accion.tipo === "aprobar") await preaprobarYEnviarMinuta(accion.detalle.id)
       else await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
       const n = accion.detalle.numero
       setAviso(
         accion.tipo === "enviar"
           ? `Minuta de la solicitud N° ${n} enviada a Subgerencia.`
           : accion.tipo === "aprobar"
-          ? `Solicitud N° ${n} pre-aprobada.`
+          ? `Solicitud N° ${n} pre-aprobada y enviada a Subgerencia.`
           : accion.tipo === "devolver"
             ? `Solicitud N° ${n} devuelta al director.`
             : `Solicitud N° ${n} rechazada.`
@@ -206,8 +210,8 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
-        titulo="Aprobación de contratos"
-        subtitulo="Revisa las solicitudes de los directores: pre-aprueba, devuelve para corregir o rechaza."
+        titulo="Pre aprobación de contratos"
+        subtitulo="Revisa las solicitudes de los directores: pre-aprueba y envía a Subgerencia, devuelve para corregir o rechaza."
       />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
@@ -290,7 +294,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
                 <Undo2 className="size-4" /> Devolver
               </Button>
               <Button onClick={() => setAccion({ tipo: "aprobar", detalle: d })}>
-                <CheckCircle2 className="size-4" /> Pre-aprobar
+                <CheckCircle2 className="size-4" /> Pre-aprobar y enviar a Subgerencia
               </Button>
             </>
           ) : d.estado === "aprobada" && puedeResolver && minutaEditable(d) && TIPOS_CON_MINUTA.has(d.tipo) ? (
