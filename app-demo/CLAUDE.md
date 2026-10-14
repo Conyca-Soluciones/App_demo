@@ -1717,6 +1717,51 @@ Quitar los `any` de verdad pide tipar el cliente de Supabase con los tipos de
 la base (`generate_typescript_types`): sin eso supabase-js deduce mal los
 embebidos (los toma como listas) y por eso el código usa `any`.
 
+## Control del proyecto `/admin/visualizacion` (2026-10-15)
+
+Reemplaza la vieja "Estado de obra" (pestaña `admin.visualizacion`, misma ruta).
+Para Gerencia: a dónde va la plata del proyecto actual (barra de arriba), una
+página por proyecto, pensada para celular. Todo sale de UNA función,
+`control_proyecto(p_proyecto_id)` (`20261112000000_control_proyecto.sql`, un
+jsonb; valida pestaña y acceso al proyecto). Tipos y cálculos puros en
+`lib/control-proyecto.ts` (pruebas en `tests/control-proyecto.test.ts`); vista
+en `components/control-proyecto-view.tsx`.
+
+Decisiones del usuario:
+- **Gastado = solo lo aprobado**: órdenes de compra aprobadas (con descuento e
+  IVA) + actas aprobadas. Disponible = presupuesto − gastado: las requisiciones
+  sin orden de compra NO se descuentan (pueden no aprobarse o cambiar).
+- **Pestaña Órdenes de compra**: filtro Desde/Hasta (por defecto el mes en
+  curso, fecha de creación, hora Colombia; se consulta al pulsar Consultar),
+  todas las órdenes del rango con su estado y el total de las aprobadas; cada
+  una abre su detalle en un diálogo (`OrdenCompraDetalleView`, el mismo de
+  Órdenes de compra) (`listarOrdenesControl`).
+- **Contratos › Ver**: `DetalleSolicitudContrato` con `resumen` (datos
+  generales, objeto y alcance, valor y pago, historial; sin documentos). Para
+  que quien solo tiene `admin.visualizacion` lo pueda leer,
+  `20261112100000_visualizacion_ver_contratos.sql` suma esa pestaña a
+  `contratos_select`, `contratistas_select` e `historial_entidad` (solo
+  lectura, solo sus proyectos; no a los documentos).
+- **Gasto por capítulo**: línea de OC -> línea de requisición -> su ítem; las
+  actas tienen su ítem. Se cruza por CÓDIGO contra la versión vigente; lo que
+  no cuadra sale como "sin ítem". Capítulo = ítem raíz (`padre_id` null).
+  Presupuesto = suma de `valor_total` de las hojas.
+- **Dos avances globales, cada uno contra su propio total** (no por ítem):
+  bodega = salidas valoradas al precio PROMEDIO de compra del proyecto (sin
+  IVA; sin compras, al del maestro) ÷ presupuesto de materiales (líneas de
+  insumo de los APU: cantidad × rendimiento × precio congelado); actas = actas
+  aprobadas ÷ valor de los contratos con minuta aprobada. Se muestra además
+  "contratado: X % del presupuesto de mano de obra".
+- **Proveedores sin tabla grande**: ranking de los 5 primeros + "N más"; tocar
+  uno abre sus insumos. Buscar un insumo muestra cada proveedor con su precio
+  PROMEDIO (sin IVA) en verde (≤ presupuesto) o ámbar (> presupuesto).
+- Aviso de ítems sobre presupuesto (gastado > `valor_total` del ítem), los 50
+  con más exceso.
+- Ojo: el gastado incluye IVA y el presupuesto es el de los APU (sin IVA), así
+  que el % gastado se infla un poco por el IVA.
+- La función vieja `resumen_ejecucion_proyecto_completo` ya no la usa ninguna
+  pantalla (sigue en la base).
+
 ## Regla de rendimiento: todo en tiempo lineal
 
 La app va a manejar mucho volumen, así que ningún cambio puede ser O(n²):
@@ -2040,11 +2085,48 @@ aprobada).
   `historial_entidad`), como la de Pre-aprobación.
 
 
+## Contratos generales `/contratos/generales` (2026-10-15)
+
+Pestaña `contratos.contratos` (`20261113000000_contratos_generales.sql`). Como
+el "Contrato General" de Sinco: contrato sin ítems del presupuesto. Decisiones
+del usuario: mismo camino que por grupos; solo valor global; el documento es la
+hoja PDF (no minuta larga); actas generales después.
+- **Misma tabla** `contratos` con `clase` ('grupo' | 'general'); columnas nuevas
+  `referencia`, `retencion_garantia_pct`, `retencion_anticipo_pct`,
+  `retencion_fic_pct`. La descripción del general va en `objeto` y NO necesita
+  empezar por verbo (`contratos_objeto_check` lo exige solo a 'grupo').
+  Plazo siempre por fechas; sin anticipo, obligaciones, entregables ni anexo.
+- **Tipo y documentos** (`20261113100000_contratos_generales_tipo.sql`,
+  decisión del usuario: "son solo un papelito con info y observaciones"): el
+  tipo de un general es Servicios u Otro (`contratos.tipo` = 'servicios' |
+  'otro'; con 'otro', `tipo_detalle` dice cuál) y NO lleva documentos.
+  `nombreTipoContrato` lo muestra.
+- **Guardar**: `crear_contrato_general` / `reenviar_contrato_general` (sobre
+  `_guardar_contrato_general`): valida todo, notifica a Jurídica, historial
+  (`p_documentos` se acepta y se ignora). TS: `validarContratoGeneral` en
+  `lib/contratos.ts`; formulario `components/contrato-general-form.tsx` (mismo
+  buscador de contratistas que por grupos); vista
+  `components/contratos-generales-view.tsx`.
+- **Flujo**: llega a Pre aprobación y a Aprobación de contratos marcado
+  "· General". "Pre-aprobar y enviar" manda `{clase: "general"}` como minuta
+  (`minutaParaEnviar`); la pestaña "Hoja en PDF" (`MinutaSegunTipo` ->
+  `MinutaSoloPdf`) y la ruta del PDF arman la hoja desde la base
+  (`lib/contrato-general-hoja.ts`, `components/contrato-general-pdf.tsx`):
+  empresa, número (CJ al aprobarse), contratista, datos, descripción,
+  observaciones y elaboró / pre-aprobó / aprobó con fecha y hora.
+- Contratos por grupos solo lista 'grupo'; Actas por grupos solo busca 'grupo'
+  (`buscar_*_para_acta`).
+- **Pendiente**: la tabla `empresas` no tiene dirección ni teléfono (la hoja
+  muestra razón social, NIT y la ciudad del proyecto); actas de contratos
+  generales; la campanita lleva al director a Contratos por grupos aunque el
+  contrato sea general (el detalle abre bien, pero "Corregir" está en
+  Contratos generales).
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
-sin página, Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
+(`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
 de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =

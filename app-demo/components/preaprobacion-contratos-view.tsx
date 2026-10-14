@@ -17,6 +17,7 @@ import {
   TIPOS_CON_MINUTA,
   etapaContrato,
   minutaEditable,
+  nombreTipoContrato,
   pesos,
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
@@ -135,7 +136,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
         ),
       },
       { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (s) => s.proyectoCodigo ?? s.proyectoNombre ?? "" },
-      { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => tituloTipoContrato(s.tipo) },
+      { clave: "tipo", titulo: "Tipo", ancho: 190, texto: (s) => (s.clase === "general" ? `General · ${nombreTipoContrato(s)}` : tituloTipoContrato(s.tipo)) },
       { clave: "contratista", titulo: "Contratista", ancho: 200, texto: (s) => s.contratistaNombre },
       { clave: "objeto", titulo: "Objeto", ancho: 240, flexible: true, texto: (s) => s.objeto },
       { clave: "valor", titulo: "Valor", ancho: 150, alinear: "right", texto: (s) => pesos(s.valor), claseCelda: "tabular-nums" },
@@ -286,7 +287,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
                 <CheckCircle2 className="size-4" /> Pre-aprobar y enviar a Subgerencia
               </Button>
             </>
-          ) : d.estado === "aprobada" && puedeResolver && minutaEditable(d) && TIPOS_CON_MINUTA.has(d.tipo) ? (
+          ) : d.estado === "aprobada" && puedeResolver && minutaEditable(d) && (d.clase === "general" || TIPOS_CON_MINUTA.has(d.tipo)) ? (
             <Button onClick={() => setAccion({ tipo: "enviar", detalle: d })}>
               <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Subgerencia" : "Enviar a Subgerencia"}
             </Button>

@@ -21,14 +21,14 @@ import {
 } from "@/lib/contratos-db"
 
 // Ver el detalle de una solicitud: quien la pide (Solicitud de contratos),
-// quien la revisa (Pre-aprobación) o Subgerencia (Aprobación de minutas). La
-// base además limita por proyecto.
+// quien la revisa (Pre-aprobación), Subgerencia (Aprobación de minutas) o
+// Gerencia desde Control del proyecto. La base además limita por proyecto.
 async function requerirVerContratos() {
   const permisos = await obtenerPermisosRol()
   const ok =
     permisos &&
     (permisos.esAdministrador ||
-      ["contratos.solicitar", "contratos.preaprobacion", "contratos.contratos", "contratos.aprobar_minutas"].some((t) => permisos.pestanas.includes(t)))
+      ["contratos.solicitar", "contratos.preaprobacion", "contratos.contratos", "contratos.aprobar_minutas", "admin.visualizacion"].some((t) => permisos.pestanas.includes(t)))
   if (!ok) throw new Error("No tienes permiso para ver contratos.")
 }
 
@@ -41,6 +41,7 @@ export async function listarSolicitudesContrato(proyectoId: string): Promise<Sol
       .from("contratos")
       .select(SELECT_FILA_CONTRATO)
       .eq("proyecto_id", proyectoId)
+      .eq("clase", "grupo") // los generales van en Contratos generales
       .order("numero", { ascending: false })
       .range(desde, hasta)
   )

@@ -3,121 +3,67 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirPestana } from "@/lib/permisos"
 import { traerTodo } from "@/lib/supabase/traer-todo"
+import { mapControlProyecto, totalOrden, type ControlProyecto, type OrdenControl } from "@/lib/control-proyecto"
 
 // ---------------------------------------------------------------------------
-// Panel admin/visualizacion -- estado de obra: cuánto se ha comprado (vía OC
-// aprobadas) y cuánto ha SALIDO de bodega hacia obra (vía salidas_insumos)
-// frente a lo presupuestado, por proyecto y por insumo. Comprado != avance
-// real: lo que de verdad mide ejecución de obra es lo que salió de bodega.
-//
-// El cruce presupuesto_items + item_apu + pedidos_insumos + ordenes_compra
-// vive en la función SQL `resumen_ejecucion_proyecto` (security definer).
-// Es un agregado a través de tablas con RLS pensada para flujos distintos
-// (ingeniero/compras/admin), no para esta vista cruzada -- el gate de
-// autorización (solo admin) vive acá, no en la función SQL.
-//
-// Importante (corregido en la migración `fix_valor_presupuestado_resumen_
-// ejecucion`): el valor presupuestado por insumo se calcula como
-// cantidad_item × cantidad_apu × precio_unitario_del_insumo (con IVA, vía
-// maestro_insumos.vr_neto) -- NO como una porción de
-// presupuesto_items.valor_total, que es el total del ítem completo (mano
-// de obra + equipo + transporte + materiales) y se estaba sumando
-// completo una vez por cada insumo del ítem cuando el ítem tenía varios
-// materiales. Se usa vr_neto (con IVA) para que sea comparable contra
-// "comprado", que ya incluye IVA de la orden de compra.
+// Control del proyecto (Control › Visualización): a dónde va la plata de un
+// proyecto. Todo sale de UNA función de la base, control_proyecto
+// (20261112000000_control_proyecto.sql), que valida la pestaña
+// admin.visualizacion y el acceso al proyecto y devuelve un solo jsonb. Las
+// definiciones (gastado, avance de bodega y de actas, precio promedio) están
+// en el encabezado de esa migración.
 // ---------------------------------------------------------------------------
 
-export type ProyectoParaVisualizacion = { id: string; codigo: string | null; nombre: string }
-
-export async function listarProyectosParaVisualizacion(): Promise<ProyectoParaVisualizacion[]> {
+export async function obtenerControlProyecto(proyectoId: string): Promise<ControlProyecto> {
   await requerirPestana("admin.visualizacion")
   const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("proyectos")
-    .select("id, codigo, nombre")
-    .order("codigo", { ascending: false, nullsFirst: false })
-
+  const { data, error } = await supabase.rpc("control_proyecto", { p_proyecto_id: proyectoId })
   if (error) throw new Error(error.message)
-  return data ?? []
+  return mapControlProyecto(data)
 }
 
-export type InsumoEjecucion = {
-  insumoId: string
-  insumoCodigo: number
-  insumoDescripcion: string
-  insumoUm: string | null
-  cantidadPresupuestada: number
-  valorPresupuestado: number
-  cantidadPedida: number
-  cantidadComprada: number
-  valorComprado: number
-  cantidadSalida: number
-  valorSalida: number
-}
-
-export type OrdenCompraEstado = "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
-
-export type OrdenCompraResumenEstado = {
-  id: string
-  numero: number
-  estado: OrdenCompraEstado
-  proveedorNombre: string
-  createdAt: string
-}
-
-export type ResumenEjecucionProyecto = {
-  insumos: InsumoEjecucion[]
-  ordenes: OrdenCompraResumenEstado[]
-}
-
-export async function obtenerResumenEjecucion(proyectoId: string): Promise<ResumenEjecucionProyecto> {
+// Órdenes de compra del proyecto creadas entre dos fechas (AAAA-MM-DD,
+// ambas incluidas, hora Colombia), las más nuevas primero. Todas, con su
+// estado: el total del período en la pantalla suma solo las aprobadas.
+export async function listarOrdenesControl(proyectoId: string, desde: string, hasta: string): Promise<OrdenControl[]> {
   await requerirPestana("admin.visualizacion")
+  const fecha = /^\d{4}-\d{2}-\d{2}$/
+  if (!fecha.test(desde) || !fecha.test(hasta)) throw new Error("Escoge las dos fechas.")
+  if (desde > hasta) throw new Error("La fecha inicial es posterior a la final.")
   const supabase = await createClient()
-
-  // Completo: los totales de la pantalla se suman sobre esta lista, así que
-  // cortada en 1000 filas daban mal. El resumen llega como un solo jsonb
-  // (calculado una vez) y las órdenes por páginas.
-  const [{ data: insumos, error: errorInsumos }, ordenes] = await Promise.all([
-    supabase.rpc("resumen_ejecucion_proyecto_completo", { p_proyecto_id: proyectoId }),
-    traerTodo((desde, hasta) =>
-      supabase
-        .from("ordenes_compra")
-        .select(
-          `
-        id, numero, estado, created_at,
-        proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre)
-      `
-        )
-        .eq("proyecto_id", proyectoId)
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .range(desde, hasta)
-    ),
-  ])
-
-  if (errorInsumos) throw new Error(errorInsumos.message)
-
-  return {
-    insumos: ((insumos ?? []) as any[]).map((i: any) => ({
-      insumoId: i.insumo_id,
-      insumoCodigo: i.insumo_codigo,
-      insumoDescripcion: i.insumo_descripcion,
-      insumoUm: i.insumo_um,
-      cantidadPresupuestada: Number(i.cantidad_presupuestada),
-      valorPresupuestado: Number(i.valor_presupuestado),
-      cantidadPedida: Number(i.cantidad_pedida),
-      cantidadComprada: Number(i.cantidad_comprada),
-      valorComprado: Number(i.valor_comprado),
-      cantidadSalida: Number(i.cantidad_salida),
-      valorSalida: Number(i.valor_salida),
-    })),
-    ordenes: ordenes.map((o: any) => ({
-      id: o.id,
-      numero: o.numero,
-      estado: o.estado,
-      proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",
-      createdAt: o.created_at,
-    })),
+  type FilaOrden = {
+    id: string
+    numero: number
+    estado: OrdenControl["estado"]
+    created_at: string
+    proveedor: { nombre: string } | null
+    lineas: Parameters<typeof totalOrden>[0] | null
   }
+  const filas = await traerTodo<FilaOrden>((d, h) =>
+    supabase
+      .from("ordenes_compra")
+      .select(`
+        id, numero, estado, created_at,
+        proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
+        lineas:ordenes_compra_items(cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva)
+      `)
+      .eq("proyecto_id", proyectoId)
+      .gte("created_at", `${desde}T00:00:00-05:00`)
+      .lte("created_at", `${hasta}T23:59:59.999-05:00`)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(d, h)
+      // Los embebidos son a-uno (proveedor) y a-muchos (lineas); sin los tipos
+      // de la base, supabase-js toma todos como listas.
+      .overrideTypes<FilaOrden[], { merge: false }>()
+  )
+  return filas.map((o) => ({
+    id: o.id,
+    numero: Number(o.numero),
+    estado: o.estado,
+    fecha: o.created_at,
+    proveedor: o.proveedor?.nombre ?? "(proveedor eliminado)",
+    total: totalOrden(o.lineas ?? []),
+    lineas: (o.lineas ?? []).length,
+  }))
 }

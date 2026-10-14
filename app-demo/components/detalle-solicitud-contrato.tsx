@@ -18,6 +18,7 @@ import {
   pesosEnLetras,
   pesos,
   datosTipoParaMostrar,
+  nombreTipoContrato,
   plazoTexto,
   type SolicitudContratoDetalle,
 } from "@/lib/contratos"
@@ -37,7 +38,8 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 export const fechaContrato = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
 
-export const tituloTipoContrato = (t: string) => TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t
+// Los generales guardan "servicios" u "otro" (con su detalle, ver nombreTipoContrato).
+export const tituloTipoContrato = (t: string) => (t === "servicios" ? "Servicios" : t === "otro" ? "Otro" : TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t)
 
 type DocumentoAbierto = { titulo: string; nombreArchivo: string; mime: string; cargarUrl: () => Promise<string> }
 
@@ -46,9 +48,12 @@ export function DetalleSolicitudContrato({
   onCerrar,
   acciones,
   minuta,
+  resumen = false,
 }: {
   id: string | null
   onCerrar: () => void
+  // Solo datos generales, objeto y alcance, valor e historial (sin documentos).
+  resumen?: boolean
   acciones?: (detalle: SolicitudContratoDetalle) => React.ReactNode
   minuta?: (detalle: SolicitudContratoDetalle) => React.ReactNode
 }) {
@@ -69,6 +74,8 @@ export function DetalleSolicitudContrato({
   }, [id])
 
   const tipo = detalle ? TIPO_CONTRATO_POR_VALOR.get(detalle.tipo) : null
+  // Contrato general: sin minuta ni ítems; lleva referencia y retenciones.
+  const general = detalle?.clase === "general"
   const docPorTipo = new Map(detalle?.documentos.map((d) => [d.tipo, d]) ?? [])
   const docContratistaPorTipo = new Map(detalle?.contratistaDocumentos.map((d) => [d.tipo, d]) ?? [])
 
@@ -91,7 +98,9 @@ export function DetalleSolicitudContrato({
       >
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            {detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}` : "Solicitud de contrato"}
+            {detalle
+              ? `${detalle.clase === "general" ? "Contrato general" : "Solicitud"} N° ${detalle.numero} · ${nombreTipoContrato(detalle)}`
+              : "Solicitud de contrato"}
             {detalle && (
               <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(detalle)]}>
                 {ETIQUETA_ETAPA_CONTRATO[etapaContrato(detalle)]}
@@ -106,8 +115,8 @@ export function DetalleSolicitudContrato({
           <div className="-mt-1 flex gap-1 border-b" role="tablist" aria-label="Secciones">
             {(
               [
-                ["solicitud", "Solicitud"],
-                ["minuta", "Minuta"],
+                ["solicitud", general ? "Contrato" : "Solicitud"],
+                ["minuta", general ? "Hoja en PDF" : "Minuta"],
               ] as const
             ).map(([valor, etiqueta]) => (
               <button
@@ -170,24 +179,35 @@ export function DetalleSolicitudContrato({
               <TablaDatos
                 titulo="Datos generales"
                 filas={[
-                  ["Tipo de contrato", tituloTipoContrato(detalle.tipo)],
+                  ["Tipo de contrato", nombreTipoContrato(detalle)],
                   ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                   ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
                   ["Correo de notificación", detalle.correoNotificacion],
-                  ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
-                  ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
+                  ...(general
+                    ? ([["Referencia", detalle.referencia ?? "—"]] as FilaDatos[])
+                    : ([
+                        ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
+                        ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
+                      ] as FilaDatos[])),
                   ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
                 ]}
               />
 
               <TablaDatos
-                titulo="Objeto y alcance"
-                filas={[
-                  ["Objeto", detalle.objeto],
-                  ["Obligaciones específicas", <ListaNumerada key="o" items={detalle.obligaciones} />],
-                  ["Entregables", <ListaNumerada key="e" items={detalle.entregables} />],
-                  ...(detalle.observaciones ? ([["Observaciones", detalle.observaciones]] as FilaDatos[]) : []),
-                ]}
+                titulo={general ? "Descripción" : "Objeto y alcance"}
+                filas={
+                  general
+                    ? [
+                        ["Descripción", detalle.objeto],
+                        ["Observaciones", detalle.observaciones ?? "—"],
+                      ]
+                    : [
+                        ["Objeto", detalle.objeto],
+                        ["Obligaciones específicas", <ListaNumerada key="o" items={detalle.obligaciones} />],
+                        ["Entregables", <ListaNumerada key="e" items={detalle.entregables} />],
+                        ...(detalle.observaciones ? ([["Observaciones", detalle.observaciones]] as FilaDatos[]) : []),
+                      ]
+                }
               />
 
               <TablaDatos
@@ -196,7 +216,14 @@ export function DetalleSolicitudContrato({
                   ["Valor", <span key="v" className="font-medium tabular-nums">{pesos(detalle.valor)}</span>],
                   ["Modalidad", detalle.anexoTipo === "valor_global" ? "Valor global" : "Valores unitarios (anexo abajo)"],
                   ...(detalle.valorMensual !== null ? ([["Pago mensual", pesosEnLetras(detalle.valorMensual)]] as FilaDatos[]) : []),
-                  ["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"],
+                  ...(general
+                    ? ([
+                        [
+                          "Retenciones",
+                          `Garantías ${porcentajeTexto(detalle.retencionGarantiaPct)} · Anticipo ${porcentajeTexto(detalle.retencionAnticipoPct)} · FIC ${porcentajeTexto(detalle.retencionFicPct)}`,
+                        ],
+                      ] as FilaDatos[])
+                    : ([["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"]] as FilaDatos[])),
                   ["Forma de pago", detalle.formaPago],
                   [
                     "Plazo",
@@ -250,61 +277,68 @@ export function DetalleSolicitudContrato({
               )}
 
 
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>
-                <TablaDocumentos>
-                  {tipo?.documentos.map((req) => {
-                    const doc = docPorTipo.get(req.tipo)
-                    return (
-                      <FilaDocumento
-                        key={req.tipo}
-                        titulo={req.titulo}
-                        nombreArchivo={doc?.nombreArchivo}
-                        sinArchivo="No aplica"
-                        onVer={
-                          doc
-                            ? () =>
-                                setViendo({
-                                  titulo: req.titulo,
-                                  nombreArchivo: doc.nombreArchivo,
-                                  mime: doc.mime,
-                                  cargarUrl: () => enlaceDocumentoContrato(doc.id),
-                                })
-                            : undefined
-                        }
-                      />
-                    )
-                  })}
-                </TablaDocumentos>
-              </div>
+              {/* En modo resumen (Control del proyecto) no salen los documentos. */}
+              {/* Sin documentos: en modo resumen (Control del proyecto) y en los
+                  contratos generales, que son solo una hoja con datos. */}
+              {!resumen && !general && (
+                <>
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>
+                  <TablaDocumentos>
+                    {tipo?.documentos.map((req) => {
+                      const doc = docPorTipo.get(req.tipo)
+                      return (
+                        <FilaDocumento
+                          key={req.tipo}
+                          titulo={req.titulo}
+                          nombreArchivo={doc?.nombreArchivo}
+                          sinArchivo="No aplica"
+                          onVer={
+                            doc
+                              ? () =>
+                                  setViendo({
+                                    titulo: req.titulo,
+                                    nombreArchivo: doc.nombreArchivo,
+                                    mime: doc.mime,
+                                    cargarUrl: () => enlaceDocumentoContrato(doc.id),
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </TablaDocumentos>
+                </div>
 
-              <div className="space-y-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos generales del contratista</h3>
-                <TablaDocumentos>
-                  {DOCUMENTOS_POR_PERSONA[detalle.contratistaTipoPersona].map((req) => {
-                    const doc = docContratistaPorTipo.get(req.tipo)
-                    return (
-                      <FilaDocumento
-                        key={req.tipo}
-                        titulo={req.titulo}
-                        nombreArchivo={doc?.nombreArchivo}
-                        sinArchivo={req.obligatorio ? "Falta" : "No aplica"}
-                        onVer={
-                          doc
-                            ? () =>
-                                setViendo({
-                                  titulo: req.titulo,
-                                  nombreArchivo: doc.nombreArchivo,
-                                  mime: doc.mime,
-                                  cargarUrl: () => enlaceDocumentoContratista(doc.id),
-                                })
-                            : undefined
-                        }
-                      />
-                    )
-                  })}
-                </TablaDocumentos>
-              </div>
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos generales del contratista</h3>
+                  <TablaDocumentos>
+                    {DOCUMENTOS_POR_PERSONA[detalle.contratistaTipoPersona].map((req) => {
+                      const doc = docContratistaPorTipo.get(req.tipo)
+                      return (
+                        <FilaDocumento
+                          key={req.tipo}
+                          titulo={req.titulo}
+                          nombreArchivo={doc?.nombreArchivo}
+                          sinArchivo={req.obligatorio ? "Falta" : "No aplica"}
+                          onVer={
+                            doc
+                              ? () =>
+                                  setViendo({
+                                    titulo: req.titulo,
+                                    nombreArchivo: doc.nombreArchivo,
+                                    mime: doc.mime,
+                                    cargarUrl: () => enlaceDocumentoContratista(doc.id),
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </TablaDocumentos>
+                </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase">Historial</h3>
@@ -337,6 +371,8 @@ function AvisoMinutaDevuelta({ detalle }: { detalle: SolicitudContratoDetalle })
 }
 
 type FilaDatos = [string, React.ReactNode]
+
+const porcentajeTexto = (v: number) => `${String(v).replace(".", ",")} %`
 
 // Tabla de dos columnas (dato | valor) con su título; la columna del dato es
 // fija y gris para leer rápido de arriba abajo.

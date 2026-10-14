@@ -21,6 +21,13 @@ import { MinutaServiciosPDF } from "@/components/minuta-servicios-pdf"
 import { limpiarMinutaObra, mezclarMinutaObra, minutaObraVacia, nombreArchivoMinutaObra } from "@/lib/minuta-obra"
 import { MinutaObraPDF } from "@/components/minuta-obra-pdf"
 import { buscarMarcaEnPdf } from "@/lib/minuta-pdf-foco"
+import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
+import {
+  SELECT_HOJA_CONTRATO_GENERAL,
+  armarHojaContratoGeneral,
+  nombreArchivoContratoGeneral,
+  type FilaHojaContratoGeneral,
+} from "@/lib/contrato-general-hoja"
 
 // @react-pdf/renderer usa APIs de Node -- no corre en el edge runtime.
 export const runtime = "nodejs"
@@ -43,9 +50,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const supabase = await createClient()
-  const { data: contrato, error } = await supabase.from("contratos").select("numero, tipo").eq("id", id).maybeSingle()
+  const { data: contrato, error } = await supabase.from("contratos").select("numero, tipo, clase").eq("id", id).maybeSingle()
   if (error || !contrato) {
     return NextResponse.json({ error: "La solicitud no existe o no tienes acceso." }, { status: 404 })
+  }
+
+  // Contrato general: no hay minuta editable; la hoja sale de la base (el
+  // cuerpo de la petición no se usa).
+  if (contrato.clase === "general") {
+    const { data: fila, error: errorFila } = await supabase
+      .from("contratos")
+      .select(SELECT_HOJA_CONTRATO_GENERAL)
+      .eq("id", id)
+      .maybeSingle()
+      .overrideTypes<FilaHojaContratoGeneral, { merge: false }>()
+    if (errorFila || !fila) {
+      return NextResponse.json({ error: "El contrato no existe o no tienes acceso." }, { status: 404 })
+    }
+    const hoja = armarHojaContratoGeneral(fila, new Date())
+    const pdf = await renderToBuffer(<ContratoGeneralPDF hoja={hoja} logo={LOGO_CONYCA_PATH} />)
+    return new NextResponse(new Uint8Array(pdf), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${nombreArchivoContratoGeneral(hoja.numero, hoja.contratista.nombre)}"`,
+        "Cache-Control": "no-store",
+      },
+    })
   }
 
   // Tope de tamaño (el mismo que guardar_minuta_contrato): sin él, un cuerpo
