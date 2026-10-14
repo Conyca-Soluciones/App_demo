@@ -1975,17 +1975,77 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   `unirTexto` además aplana un `<Text>` con otros `<Text>` adentro: @react-pdf
   no dibuja texto anidado en tres niveles (negrilla con el dato resaltado
   dentro de un párrafo).
-- **Las 6 plantillas están hechas**; la rama final de
-  `preaprobacion-contratos-view.tsx` solo aplica a un tipo nuevo.
+- **Las 6 plantillas están hechas**; qué editor sale según el tipo está en
+  `components/minuta-segun-tipo.tsx` (lo usan Pre-aprobación y Aprobación de
+  minutas); la rama final solo aplica a un tipo nuevo.
 - **Pendiente**: la pantalla de minutas para las `aprobada` (Elaboración de
   contratos).
+
+
+## Aprobación de contratos por Subgerencia `/contratos/aprobacion-minutas` (2026-10-13)
+
+En el menú: **Pre aprobación de contratos** (`contratos.preaprobacion`, Jurídica)
+y **Aprobación de contratos** (`contratos.aprobar_minutas`, Subgerencia). La
+ruta y las claves siguen diciendo "minutas".
+
+Subgerencia aprueba las minutas que arma Jurídica
+(`20261111000000_aprobacion_minutas.sql`; decisiones del usuario: Jurídica la
+envía, Subgerencia aprueba o devuelve, rol nuevo, actas solo con minuta
+aprobada).
+
+- **Estado aparte**: `contratos.minuta_estado` (null = Jurídica la arma |
+  `en_revision` | `devuelta` | `aprobada`), con `minuta_enviada_at/por`,
+  `minuta_resuelta_at/por` y `minuta_motivo`. `contratos.estado` no cambia
+  (sigue `aprobada` = solicitud pre-aprobada).
+- **Pre-aprobar = enviar** (decisión del usuario, 2026-10-14): el botón
+  "Pre-aprobar y enviar a Subgerencia" (`preaprobarYEnviarMinuta` ->
+  `preaprobar_y_enviar_minuta`, `20261111100000_preaprobar_y_enviar_minuta.sql`)
+  pre-aprueba la solicitud y envía su minuta en UNA transacción (llama
+  `resolver_solicitud_contrato` y `enviar_minuta_contrato`). Ya no hay paso
+  intermedio "pre-aprobada sin enviar"; "Enviar otra vez a Subgerencia" queda
+  solo para una minuta devuelta (o una pre-aprobada de antes que nunca se envió).
+- **Enviar** (Jurídica, acción `aprobar_contratos`): `minutaParaEnviar` arma la minuta GUARDADA completa (lo
+  calculado + lo editado, igual que la ve Jurídica) y `enviar_minuta_contrato`
+  la guarda en `minuta_datos` y la pasa a `en_revision` en una transacción: lo
+  que aprueba Subgerencia no cambia aunque después cambien el contratista o el
+  proyecto. Lo que esté en pantalla sin guardar NO se envía (el diálogo lo avisa).
+- **Estado en Pre aprobación** (`etapaContrato` en `lib/contratos.ts`, junta la
+  solicitud y la minuta): Por revisar, Devuelta al director, Pre-aprobada sin
+  enviar, En Subgerencia, Devuelta por Subgerencia, Aprobado, Rechazada. El
+  filtro "Devueltas" trae las dos devueltas; "Por revisar" incluye las
+  pre-aprobadas sin enviar (`listarSolicitudesPreaprobacion`, `grupo`). El
+  detalle muestra la misma etiqueta.
+- **Subgerencia ve la minuta solo en PDF** (`components/minuta-solo-pdf.tsx`,
+  `obtenerMinutaParaRevision`), sin el editor de Jurídica.
+- **Editar**: `guardar_minuta_contrato` se niega en `en_revision` y `aprobada`;
+  los editores quedan en solo lectura (`minutaEditable` en `lib/contratos.ts`).
+  Devuelta: Jurídica corrige y la envía otra vez (evento `minuta_reenviada`).
+- **Resolver** (acción `aprobar_minutas`): `resolver_minuta_contrato(id,
+  'aprobar' | 'devolver', motivo)`; bloquea la fila y exige `en_revision`.
+  Devolver pide motivo. Subgerencia ve la minuta en solo lectura con su PDF (la
+  ruta del PDF y `cargarBaseMinuta` aceptan las dos pestañas).
+- **Número de contrato y actas**: el número CJ ahora se asigna al APROBAR LA
+  MINUTA (año de `minuta_resuelta_at`), y `buscar_contratos_para_acta`,
+  `buscar_contratistas_para_acta`, `crear_acta` y `editar_acta` exigen
+  `minuta_estado = 'aprobada'`. Los 2 contratos que ya estaban aprobados con
+  número (CJ-10 y CJ-14, este con un acta) quedaron con la minuta aprobada.
+- **Avisos**: al enviar, a quienes tienen `aprobar_minutas` y ven el proyecto,
+  menos los Administradores (`minuta_por_revisar` -> Aprobación de minutas).
+  Al resolver, a quien la envió (`minuta_aprobada` / `minuta_devuelta` ->
+  Pre-aprobación); al aprobar, también al director que la pidió
+  (`contrato_aprobado` -> Contratos por grupos).
+- **Permisos**: pestaña `contratos.aprobar_minutas` y acción `aprobar_minutas`,
+  del rol de sistema **Subgerencia** (`subgerencia`). La pestaña también deja ver
+  los contratos, los contratistas y sus documentos (RLS e
+  `historial_entidad`), como la de Pre-aprobación.
 
 
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
-sin página, Aprobación de contratos = `contratos.preaprobacion`); subgrupo
+sin página, Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
+de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
@@ -2001,10 +2061,11 @@ Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
 
 - **Número de contrato**: `contratos.numero_contrato` = "CJ-<número de la
   solicitud>-<año>" (el que imprimen las minutas). Lo pone el trigger
-  `contratos_numero_contrato` al pasar a `aprobada` (año de `resuelto_at`,
-  hora Colombia); la migración llena los ya aprobados.
+  `contratos_numero_contrato` cuando Subgerencia aprueba la minuta (ver
+  "Aprobación de minutas"; antes era al pre-aprobar la solicitud).
 - **Buscar**: dos campos, Contratista y Contrato, sobre todos los proyectos que
-  el usuario ve (no usa el proyecto actual) y solo contratos `aprobada`.
+  el usuario ve (no usa el proyecto actual) y solo contratos `aprobada` con
+  la minuta aprobada.
   Contratista con un contrato -> se escoge solo; con varios -> lista
   desplegable. Escoger un contrato llena el contratista. Funciones
   `buscar_contratistas_para_acta` y `buscar_contratos_para_acta` (con

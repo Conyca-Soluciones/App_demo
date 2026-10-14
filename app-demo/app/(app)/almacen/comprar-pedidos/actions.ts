@@ -977,6 +977,9 @@ export type NotificacionTipo =
   | "contrato_rechazado"
   | "acta_aprobada"
   | "acta_rechazada"
+  | "minuta_por_revisar"
+  | "minuta_aprobada"
+  | "minuta_devuelta"
 export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta"
 
 export type Notificacion = {

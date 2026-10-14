@@ -158,5 +158,13 @@ select * from (
   union all
   select '20261110300000_editar_acta_solo_creador',
          exists (select 1 from pg_proc where proname = 'editar_acta' and prosrc like '%Solo quien hizo el acta%')
+  union all
+  select '20261111000000_aprobacion_minutas',
+         exists (select 1 from pg_proc where proname = 'resolver_minuta_contrato')
+         and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%minuta_estado%')
+         and exists (select 1 from roles where clave = 'subgerencia')
+  union all
+  select '20261111100000_preaprobar_y_enviar_minuta',
+         exists (select 1 from pg_proc where proname = 'preaprobar_y_enviar_minuta')
 ) t
 order by 1;

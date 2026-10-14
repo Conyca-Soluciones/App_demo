@@ -2,8 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
-import type { EstadoContrato } from "@/lib/contratos"
+import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { SELECT_FILA_CONTRATO, cargarDetalleContrato, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 import { hoyColombia } from "@/lib/fechas"
 import { limpiarMinuta, mezclarMinuta, minutaPorDefecto, type DatosExtraMinuta, type MinutaManoObra } from "@/lib/minuta-mano-obra"
@@ -44,8 +43,12 @@ import { limpiarMinutaObra, mezclarMinutaObra, minutaObraPorDefecto, minutaObraV
 // (resolver_solicitud_contrato, 20261014000000_preaprobacion_contratos.sql).
 // ---------------------------------------------------------------------------
 
+// Grupos del filtro de Estado (juntan la solicitud y la minuta, ver
+// etapaContrato en lib/contratos.ts). Sin grupo = todas.
+export type GrupoPreaprobacion = "por_revisar" | "devueltas" | "en_subgerencia" | "aprobados" | "rechazadas"
+
 export type FiltrosPreaprobacion = {
-  estado?: EstadoContrato // sin estado = todas
+  grupo?: GrupoPreaprobacion
   proyectoId?: string
 }
 
@@ -54,11 +57,27 @@ export async function listarSolicitudesPreaprobacion(filtros: FiltrosPreaprobaci
   const supabase = await createClient()
   const filas = await traerTodo<any>((desde, hasta) => {
     let q = supabase.from("contratos").select(SELECT_FILA_CONTRATO)
-    if (filtros.estado) q = q.eq("estado", filtros.estado)
+    switch (filtros.grupo) {
+      case "por_revisar": // por revisar, o pre-aprobada que nunca se envió a Subgerencia
+        q = q.or("estado.eq.pre_aprobacion,and(estado.eq.aprobada,minuta_estado.is.null)")
+        break
+      case "devueltas": // al director, o la minuta por Subgerencia
+        q = q.or("estado.eq.devuelta,and(estado.eq.aprobada,minuta_estado.eq.devuelta)")
+        break
+      case "en_subgerencia":
+        q = q.eq("estado", "aprobada").eq("minuta_estado", "en_revision")
+        break
+      case "aprobados":
+        q = q.eq("estado", "aprobada").eq("minuta_estado", "aprobada")
+        break
+      case "rechazadas":
+        q = q.eq("estado", "rechazada")
+        break
+    }
     if (filtros.proyectoId) q = q.eq("proyecto_id", filtros.proyectoId)
     // Las que esperan revisión: primero las más antiguas (orden de llegada).
     return q
-      .order("enviado_at", { ascending: filtros.estado === "pre_aprobacion" })
+      .order("enviado_at", { ascending: filtros.grupo === "por_revisar" })
       .order("id", { ascending: true })
       .range(desde, hasta)
   })
@@ -130,8 +149,9 @@ export type MinutaContratoObra = {
 
 // Lo que necesita cualquier minuta: la solicitud, los datos del contratista y
 // el proyecto que no vienen en el detalle, y lo que Jurídica ya guardó.
+// También la lee Subgerencia (Aprobación de minutas, solo lectura).
 async function cargarBaseMinuta(id: string) {
-  await requerirPestana("contratos.preaprobacion")
+  await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   const supabase = await createClient()
   const [detalle, extra, guardada] = await Promise.all([
     cargarDetalleContrato(supabase, id),
@@ -313,4 +333,62 @@ export async function guardarMinutaObra(id: string, minuta: MinutaObra): Promise
   const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: datos })
   if (error) throw new Error(error.message)
   return { guardadaAt: new Date().toISOString() }
+}
+
+// ---------------------------------------------------------------- enviar a Subgerencia
+// Se envía la minuta GUARDADA, completa (lo calculado de la solicitud + lo
+// editado), para que Subgerencia apruebe exactamente eso aunque después
+// cambien los datos del contratista o del proyecto. La base la guarda y la
+// pasa a revisión en una transacción (enviar_minuta_contrato,
+// 20261111000000_aprobacion_minutas.sql).
+// Minuta completa de la solicitud, lista para enviar (según su tipo).
+async function minutaParaEnviar(id: string): Promise<unknown> {
+  const supabase = await createClient()
+  const { data: contrato, error } = await supabase.from("contratos").select("tipo").eq("id", id).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!contrato) throw new Error("La solicitud no existe o no tienes acceso.")
+
+  switch (contrato.tipo) {
+    case "mano_obra":
+      return limpiarMinuta((await obtenerMinutaContrato(id)).minuta)
+    case "arrendamiento":
+      return limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), (await obtenerMinutaArrendamiento(id)).minuta))
+    case "suministro_instalacion":
+      return limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), (await obtenerMinutaSuministro(id)).minuta))
+    case "alquiler_vehiculo":
+      return limpiarMinutaVehiculo(mezclarMinutaVehiculo(minutaVehiculoVacia(), (await obtenerMinutaVehiculo(id)).minuta))
+    case "prestacion_servicios":
+      return limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), (await obtenerMinutaServicios(id)).minuta))
+    case "obra":
+      return limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), (await obtenerMinutaObra(id)).minuta))
+    default:
+      throw new Error("Este tipo de contrato todavía no tiene plantilla de minuta.")
+  }
+}
+
+// La minuta tal como está guardada (completa), para verla solo en PDF
+// (Aprobación de contratos, Subgerencia).
+export async function obtenerMinutaParaRevision(id: string): Promise<unknown> {
+  await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
+  return minutaParaEnviar(id)
+}
+
+// Enviar otra vez una minuta devuelta (o una pre-aprobada que nunca se envió).
+export async function enviarMinutaSubgerencia(id: string): Promise<void> {
+  await requerirAccion("aprobar_contratos")
+  const datos = await minutaParaEnviar(id)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("enviar_minuta_contrato", { p_id: id, p_datos: datos })
+  if (error) throw new Error(error.message)
+}
+
+// Pre-aprobar la solicitud y enviar su minuta a Subgerencia en un solo paso
+// (una transacción: preaprobar_y_enviar_minuta,
+// 20261111100000_preaprobar_y_enviar_minuta.sql).
+export async function preaprobarYEnviarMinuta(id: string): Promise<void> {
+  await requerirAccion("aprobar_contratos")
+  const datos = await minutaParaEnviar(id)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("preaprobar_y_enviar_minuta", { p_id: id, p_datos: datos })
+  if (error) throw new Error(error.message)
 }

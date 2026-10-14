@@ -236,6 +236,14 @@ export type SolicitudContratoFila = {
   motivoResolucion: string | null
   resueltoPorNombre: string | null
   resueltoAt: string | null
+  // Minuta (Subgerencia, 20261111000000_aprobacion_minutas.sql). null = Jurídica la está armando.
+  minutaEstado: EstadoMinuta | null
+  minutaEnviadaAt: string | null
+  minutaEnviadaPorNombre: string | null
+  minutaResueltaAt: string | null
+  minutaResueltaPorNombre: string | null
+  minutaMotivo: string | null
+  numeroContrato: string | null
 }
 
 export type SolicitudContratoDetalle = SolicitudContratoFila & {
@@ -280,6 +288,66 @@ export const CLASE_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
   rechazada: "border-transparent bg-red-100 text-red-800",
   aprobada: "border-transparent bg-emerald-100 text-emerald-800",
 }
+
+// Estado de la minuta de una solicitud pre-aprobada (sin estado = en elaboración).
+export type EstadoMinuta = "en_revision" | "devuelta" | "aprobada"
+export const ETIQUETA_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> = {
+  elaboracion: "Minuta en elaboración",
+  en_revision: "Minuta en Subgerencia",
+  devuelta: "Minuta devuelta",
+  aprobada: "Minuta aprobada",
+}
+export const CLASE_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> = {
+  elaboracion: "border-transparent bg-slate-100 text-slate-700",
+  en_revision: "border-transparent bg-amber-100 text-amber-800",
+  devuelta: "border-transparent bg-orange-100 text-orange-800",
+  aprobada: "border-transparent bg-emerald-100 text-emerald-800",
+}
+// Etapa de un contrato sumando la solicitud y la minuta: lo que se muestra en
+// la columna Estado de Pre aprobación y en el detalle.
+export type EtapaContrato =
+  | "por_revisar"
+  | "devuelta_director"
+  | "sin_enviar"
+  | "en_subgerencia"
+  | "devuelta_subgerencia"
+  | "aprobado"
+  | "rechazada"
+export function etapaContrato(c: { estado: EstadoContrato; minutaEstado: EstadoMinuta | null }): EtapaContrato {
+  if (c.estado === "pre_aprobacion") return "por_revisar"
+  if (c.estado === "devuelta") return "devuelta_director"
+  if (c.estado === "rechazada") return "rechazada"
+  if (c.minutaEstado === "en_revision") return "en_subgerencia"
+  if (c.minutaEstado === "devuelta") return "devuelta_subgerencia"
+  if (c.minutaEstado === "aprobada") return "aprobado"
+  return "sin_enviar"
+}
+export const ETIQUETA_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
+  por_revisar: "Por revisar",
+  devuelta_director: "Devuelta al director",
+  sin_enviar: "Pre-aprobada sin enviar",
+  en_subgerencia: "En Subgerencia",
+  devuelta_subgerencia: "Devuelta por Subgerencia",
+  aprobado: "Aprobado por Subgerencia",
+  rechazada: "Rechazada",
+}
+export const CLASE_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
+  por_revisar: "border-transparent bg-amber-100 text-amber-800",
+  devuelta_director: "border-transparent bg-orange-100 text-orange-800",
+  sin_enviar: "border-transparent bg-slate-100 text-slate-700",
+  en_subgerencia: "border-transparent bg-sky-100 text-sky-800",
+  devuelta_subgerencia: "border-transparent bg-orange-100 text-orange-800",
+  aprobado: "border-transparent bg-emerald-100 text-emerald-800",
+  rechazada: "border-transparent bg-red-100 text-red-800",
+}
+
+// Tipos con plantilla de minuta (components/minuta-segun-tipo.tsx).
+export const TIPOS_CON_MINUTA: ReadonlySet<TipoContrato> = new Set<TipoContrato>([
+  "mano_obra", "arrendamiento", "suministro_instalacion", "alquiler_vehiculo", "prestacion_servicios", "obra",
+])
+// Jurídica edita y envía la minuta mientras no esté en Subgerencia ni aprobada.
+export const minutaEditable = (c: { estado: EstadoContrato; minutaEstado: EstadoMinuta | null }) =>
+  c.estado !== "rechazada" && c.minutaEstado !== "en_revision" && c.minutaEstado !== "aprobada"
 
 // ---------------------------------------------------------------- números
 // Formato colombiano: punto de miles y coma decimal ("1.500.000,50"). Un punto

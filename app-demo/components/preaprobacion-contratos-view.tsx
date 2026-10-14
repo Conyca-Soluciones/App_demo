@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Loader2, Undo2, XCircle } from "lucide-react"
+import { CheckCircle2, Loader2, Send, Undo2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,44 +10,52 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
-import { MinutaManoObraEditor } from "@/components/minuta-mano-obra-editor"
-import { MinutaArrendamientoEditor } from "@/components/minuta-arrendamiento-editor"
-import { MinutaSuministroEditor } from "@/components/minuta-suministro-editor"
-import { MinutaVehiculoEditor } from "@/components/minuta-vehiculo-editor"
-import { MinutaServiciosEditor } from "@/components/minuta-servicios-editor"
-import { MinutaObraEditor } from "@/components/minuta-obra-editor"
+import { MinutaSegunTipo } from "@/components/minuta-segun-tipo"
 import {
-  CLASE_ESTADO_CONTRATO,
-  ETIQUETA_ESTADO_CONTRATO,
+  CLASE_ETAPA_CONTRATO,
+  ETIQUETA_ETAPA_CONTRATO,
+  TIPOS_CON_MINUTA,
+  etapaContrato,
+  minutaEditable,
   pesos,
-  type EstadoContrato,
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
 } from "@/lib/contratos"
 import {
+  enviarMinutaSubgerencia,
   listarSolicitudesPreaprobacion,
+  preaprobarYEnviarMinuta,
   resolverSolicitudContrato,
   type AccionPreaprobacion,
+  type GrupoPreaprobacion,
 } from "@/app/(app)/contratos/pre-aprobacion/actions"
 
 // ---------------------------------------------------------------------------
 // Pre-aprobación: Jurídica revisa solicitudes de todos sus proyectos (no
-// depende del proyecto actual) y las aprueba, devuelve o rechaza.
+// depende del proyecto actual) y las devuelve, rechaza o pre-aprueba. Pre-aprobar
+// envía también la minuta a Subgerencia (Aprobación de contratos) en el mismo
+// paso; una minuta devuelta se corrige y se envía otra vez.
 // ---------------------------------------------------------------------------
 
-const FILTROS: { valor: EstadoContrato | "todas"; etiqueta: string }[] = [
-  { valor: "pre_aprobacion", etiqueta: "Por revisar" },
-  { valor: "devuelta", etiqueta: "Devueltas" },
-  { valor: "aprobada", etiqueta: "Pre-aprobadas" },
-  { valor: "rechazada", etiqueta: "Rechazadas" },
+// Devueltas junta las devueltas al director y las minutas devueltas por
+// Subgerencia; la columna Estado dice cuál es cuál.
+const FILTROS: { valor: GrupoPreaprobacion | "todas"; etiqueta: string }[] = [
+  { valor: "por_revisar", etiqueta: "Por revisar" },
+  { valor: "devueltas", etiqueta: "Devueltas" },
+  { valor: "en_subgerencia", etiqueta: "En Subgerencia" },
+  { valor: "aprobados", etiqueta: "Aprobados" },
+  { valor: "rechazadas", etiqueta: "Rechazadas" },
   { valor: "todas", etiqueta: "Todas" },
 ]
 
-const TEXTO_ACCION: Record<AccionPreaprobacion, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
+type AccionVista = AccionPreaprobacion | "enviar"
+
+const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
   aprobar: {
-    titulo: "Pre-aprobar solicitud",
-    explicacion: "Pasa a elaboración de la minuta. Quien la solicitó recibe una notificación.",
-    boton: "Pre-aprobar",
+    titulo: "Pre-aprobar y enviar a Subgerencia",
+    explicacion:
+      "La solicitud queda pre-aprobada y su minuta pasa a Subgerencia (Aprobación de contratos). Se envía la minuta GUARDADA: revisa la pestaña Minuta y guarda los cambios antes. Mientras Subgerencia la revisa no se puede editar.",
+    boton: "Pre-aprobar y enviar",
     pideMotivo: false,
   },
   devolver: {
@@ -62,24 +70,31 @@ const TEXTO_ACCION: Record<AccionPreaprobacion, { titulo: string; explicacion: s
     boton: "Rechazar",
     pideMotivo: true,
   },
+  enviar: {
+    titulo: "Enviar minuta otra vez a Subgerencia",
+    explicacion:
+      "Se envía la minuta GUARDADA (guarda antes los cambios que tengas en pantalla). Mientras Subgerencia la revisa no se puede editar; si la devuelve, la corriges y la envías otra vez.",
+    boton: "Enviar",
+    pideMotivo: false,
+  },
 }
 
 export function PreaprobacionContratosView({ puedeResolver, verInicial }: { puedeResolver: boolean; verInicial: string | null }) {
   const router = useRouter()
   const { proyectos } = useProyectoActual()
-  const [filtro, setFiltro] = useState<EstadoContrato | "todas">("pre_aprobacion")
+  const [filtro, setFiltro] = useState<GrupoPreaprobacion | "todas">("por_revisar")
   const [proyectoId, setProyectoId] = useState("")
   const [solicitudes, setSolicitudes] = useState<SolicitudContratoFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [detalleId, setDetalleId] = useState<string | null>(verInicial)
-  const [accion, setAccion] = useState<{ tipo: AccionPreaprobacion; detalle: SolicitudContratoDetalle } | null>(null)
+  const [accion, setAccion] = useState<{ tipo: AccionVista; detalle: SolicitudContratoDetalle } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
 
   function cargar() {
-    listarSolicitudesPreaprobacion({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
+    listarSolicitudesPreaprobacion({ grupo: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
       .then((lista: SolicitudContratoFila[]) => setSolicitudes(lista))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
   }
@@ -87,7 +102,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
 
   // Al cambiar un filtro se vacía la lista (muestra "Cargando...") y el
   // efecto de arriba vuelve a consultar.
-  function cambiarFiltro(valor: EstadoContrato | "todas") {
+  function cambiarFiltro(valor: GrupoPreaprobacion | "todas") {
     setSolicitudes(null)
     setError(null)
     setFiltro(valor)
@@ -127,12 +142,12 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
       {
         clave: "estado",
         titulo: "Estado",
-        ancho: 150,
+        ancho: 190,
         alinear: "center",
-        texto: (s) => ETIQUETA_ESTADO_CONTRATO[s.estado],
+        texto: (s) => ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)],
         celda: (s) => (
-          <Badge variant="outline" className={CLASE_ESTADO_CONTRATO[s.estado]}>
-            {ETIQUETA_ESTADO_CONTRATO[s.estado]}
+          <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(s)]}>
+            {ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)]}
           </Badge>
         ),
       },
@@ -157,11 +172,15 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
     setProcesando(true)
     setErrorAccion(null)
     try {
-      await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
+      if (accion.tipo === "enviar") await enviarMinutaSubgerencia(accion.detalle.id)
+      else if (accion.tipo === "aprobar") await preaprobarYEnviarMinuta(accion.detalle.id)
+      else await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
       const n = accion.detalle.numero
       setAviso(
-        accion.tipo === "aprobar"
-          ? `Solicitud N° ${n} pre-aprobada.`
+        accion.tipo === "enviar"
+          ? `Minuta de la solicitud N° ${n} enviada a Subgerencia.`
+          : accion.tipo === "aprobar"
+          ? `Solicitud N° ${n} pre-aprobada y enviada a Subgerencia.`
           : accion.tipo === "devolver"
             ? `Solicitud N° ${n} devuelta al director.`
             : `Solicitud N° ${n} rechazada.`
@@ -180,8 +199,8 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
-        titulo="Aprobación de contratos"
-        subtitulo="Revisa las solicitudes de los directores: pre-aprueba, devuelve para corregir o rechaza."
+        titulo="Pre aprobación de contratos"
+        subtitulo="Revisa las solicitudes de los directores: pre-aprueba y envía a Subgerencia, devuelve para corregir o rechaza."
       />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
@@ -225,7 +244,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
           </div>
         ) : solicitudes && solicitudes.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            {filtro === "pre_aprobacion" ? "No hay solicitudes por revisar." : "No hay solicitudes con este filtro."}
+            {filtro === "por_revisar" ? "No hay solicitudes por revisar." : "No hay solicitudes con este filtro."}
           </div>
         ) : (
           solicitudes && (
@@ -253,25 +272,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
       <DetalleSolicitudContrato
         id={detalleId}
         onCerrar={cerrarDetalle}
-        minuta={(d) =>
-          d.tipo === "mano_obra" ? (
-            <MinutaManoObraEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "arrendamiento" ? (
-            <MinutaArrendamientoEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "suministro_instalacion" ? (
-            <MinutaSuministroEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "alquiler_vehiculo" ? (
-            <MinutaVehiculoEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "prestacion_servicios" ? (
-            <MinutaServiciosEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : d.tipo === "obra" ? (
-            <MinutaObraEditor detalle={d} puedeEditar={puedeResolver} />
-          ) : (
-            <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              El tipo {tituloTipoContrato(d.tipo).toLowerCase()} todavía no tiene plantilla de minuta.
-            </p>
-          )
-        }
+        minuta={(d) => <MinutaSegunTipo detalle={d} puedeEditar={puedeResolver && minutaEditable(d)} />}
         acciones={(d) =>
           d.estado === "pre_aprobacion" && puedeResolver ? (
             <>
@@ -282,9 +283,13 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
                 <Undo2 className="size-4" /> Devolver
               </Button>
               <Button onClick={() => setAccion({ tipo: "aprobar", detalle: d })}>
-                <CheckCircle2 className="size-4" /> Pre-aprobar
+                <CheckCircle2 className="size-4" /> Pre-aprobar y enviar a Subgerencia
               </Button>
             </>
+          ) : d.estado === "aprobada" && puedeResolver && minutaEditable(d) && TIPOS_CON_MINUTA.has(d.tipo) ? (
+            <Button onClick={() => setAccion({ tipo: "enviar", detalle: d })}>
+              <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Subgerencia" : "Enviar a Subgerencia"}
+            </Button>
           ) : null
         }
       />

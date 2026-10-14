@@ -9,8 +9,9 @@ import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
 import {
-  CLASE_ESTADO_CONTRATO,
-  ETIQUETA_ESTADO_CONTRATO,
+  CLASE_ETAPA_CONTRATO,
+  ETIQUETA_ETAPA_CONTRATO,
+  etapaContrato,
   TIPO_CONTRATO_POR_VALOR,
   anticipoEnLetras,
   numero,
@@ -26,9 +27,10 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 
 // ---------------------------------------------------------------------------
 // Detalle de una solicitud de contrato, compartido por Solicitud de contratos
-// (el director) y Pre-aprobación (Jurídica). Cada pantalla pone sus botones
-// con `acciones` (corregir y reenviar / aprobar, devolver, rechazar).
-// Con `minuta` (Pre-aprobación) el diálogo se agranda y suma la pestaña
+// (el director), Pre-aprobación (Jurídica) y Aprobación de minutas
+// (Subgerencia). Cada pantalla pone sus botones con `acciones` (corregir y
+// reenviar / aprobar, devolver, rechazar, enviar a Subgerencia), que salen en
+// las dos pestañas. Con `minuta` el diálogo se agranda y suma la pestaña
 // "Minuta" junto a "Solicitud".
 // ---------------------------------------------------------------------------
 
@@ -91,10 +93,11 @@ export function DetalleSolicitudContrato({
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}` : "Solicitud de contrato"}
             {detalle && (
-              <Badge variant="outline" className={CLASE_ESTADO_CONTRATO[detalle.estado]}>
-                {ETIQUETA_ESTADO_CONTRATO[detalle.estado]}
+              <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(detalle)]}>
+                {ETIQUETA_ETAPA_CONTRATO[etapaContrato(detalle)]}
               </Badge>
             )}
+            {detalle?.numeroContrato && <span className="text-sm font-normal text-muted-foreground">Contrato {detalle.numeroContrato}</span>}
           </DialogTitle>
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -127,7 +130,11 @@ export function DetalleSolicitudContrato({
             el cuerpo hace scroll por dentro del borde redondeado. */}
         <div className={minuta ? "-mx-2 min-h-0 flex-1 overflow-y-auto px-2 [scrollbar-gutter:stable] [scrollbar-width:thin]" : "contents"}>
         {minuta && detalle && !viendo && pestana === "minuta" ? (
-          minuta(detalle)
+          <>
+            <AvisoMinutaDevuelta detalle={detalle} />
+            {minuta(detalle)}
+            {acciones && <div className="mt-4 flex flex-wrap justify-end gap-2 border-t pt-4">{acciones(detalle)}</div>}
+          </>
         ) : viendo ? (
           <VisorDocumento
             titulo={viendo.titulo}
@@ -158,105 +165,94 @@ export function DetalleSolicitudContrato({
                 </div>
               )}
 
-              <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                {(
-                  [
-                    ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
-                    ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
-                    ["Valor", `${pesos(detalle.valor)} (${detalle.anexoTipo === "valor_global" ? "valor global" : "valores unitarios"})`],
-                    ...(detalle.valorMensual !== null ? [["Pago mensual", pesosEnLetras(detalle.valorMensual)]] : []),
-                    [
-                      "Anticipo",
-                      detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No",
-                    ],
-                    [
-                      "Plazo",
-                      plazoTexto(detalle, formatearFechaSinHora) +
-                        (detalle.plazoTipo === "duracion" && detalle.fechaInicio ? ` desde ${formatearFechaSinHora(detalle.fechaInicio)} (estimado)` : ""),
-                    ],
-                    ["Correo de notificación", detalle.correoNotificacion],
-                    ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
-                    ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
-                    ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
-                  ] as [string, string][]
-                ).map(([k, v]) => (
-                  <div key={k} className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">{k}</dt>
-                    <dd className="break-words">{v}</dd>
-                  </div>
-                ))}
-              </dl>
+              <AvisoMinutaDevuelta detalle={detalle} />
 
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Objeto</h3>
-                <p className="whitespace-pre-line">{detalle.objeto}</p>
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase">Forma de pago</h3>
-                <p className="whitespace-pre-line">{detalle.formaPago}</p>
-              </div>
+              <TablaDatos
+                titulo="Datos generales"
+                filas={[
+                  ["Tipo de contrato", tituloTipoContrato(detalle.tipo)],
+                  ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
+                  ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
+                  ["Correo de notificación", detalle.correoNotificacion],
+                  ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
+                  ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
+                  ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
+                ]}
+              />
+
+              <TablaDatos
+                titulo="Objeto y alcance"
+                filas={[
+                  ["Objeto", detalle.objeto],
+                  ["Obligaciones específicas", <ListaNumerada key="o" items={detalle.obligaciones} />],
+                  ["Entregables", <ListaNumerada key="e" items={detalle.entregables} />],
+                  ...(detalle.observaciones ? ([["Observaciones", detalle.observaciones]] as FilaDatos[]) : []),
+                ]}
+              />
+
+              <TablaDatos
+                titulo="Valor y pago"
+                filas={[
+                  ["Valor", <span key="v" className="font-medium tabular-nums">{pesos(detalle.valor)}</span>],
+                  ["Modalidad", detalle.anexoTipo === "valor_global" ? "Valor global" : "Valores unitarios (anexo abajo)"],
+                  ...(detalle.valorMensual !== null ? ([["Pago mensual", pesosEnLetras(detalle.valorMensual)]] as FilaDatos[]) : []),
+                  ["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"],
+                  ["Forma de pago", detalle.formaPago],
+                  [
+                    "Plazo",
+                    plazoTexto(detalle, formatearFechaSinHora) +
+                      (detalle.plazoTipo === "duracion" && detalle.fechaInicio ? ` desde ${formatearFechaSinHora(detalle.fechaInicio)} (estimado)` : ""),
+                  ],
+                ]}
+              />
 
               {detalle.items.length > 0 && (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full min-w-[560px]">
-                    <thead>
-                      <tr className="bg-muted/60 text-left text-xs">
-                        <th className="px-2 py-1.5">Ítem del presupuesto</th>
-                        <th className="px-2 py-1.5">Unidad</th>
-                        <th className="px-2 py-1.5 text-right">Cantidad</th>
-                        <th className="px-2 py-1.5 text-right">Valor unitario</th>
-                        <th className="px-2 py-1.5 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detalle.items.map((it, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="px-2 py-1.5">
-                            {it.codigo && <span className="font-medium tabular-nums">{it.codigo} </span>}
-                            {it.actividad}
-                          </td>
-                          <td className="px-2 py-1.5">{it.unidad}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{numero(it.cantidad)}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.valorUnitario)}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.cantidad * it.valorUnitario)}</td>
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Anexo de valores unitarios</h3>
+                  <div className="overflow-x-auto rounded-md border">
+                    <table className="w-full min-w-[560px]">
+                      <thead>
+                        <tr className="bg-muted/60 text-left text-xs">
+                          <th className="px-2 py-1.5">Ítem del presupuesto</th>
+                          <th className="px-2 py-1.5">Unidad</th>
+                          <th className="px-2 py-1.5 text-right">Cantidad</th>
+                          <th className="px-2 py-1.5 text-right">Valor unitario</th>
+                          <th className="px-2 py-1.5 text-right">Total</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {(
-                [
-                  ["Obligaciones específicas", detalle.obligaciones],
-                  ["Entregables", detalle.entregables],
-                ] as [string, string[]][]
-              ).map(
-                ([titulo, lista]) =>
-                  lista.length > 0 && (
-                    <div key={titulo}>
-                      <h3 className="text-xs font-semibold text-muted-foreground uppercase">{titulo}</h3>
-                      <ol className="list-decimal space-y-1 pl-5">
-                        {lista.map((t, i) => (
-                          <li key={i} className="whitespace-pre-line">
-                            {t}
-                          </li>
+                      </thead>
+                      <tbody>
+                        {detalle.items.map((it, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-2 py-1.5">
+                              {it.codigo && <span className="font-medium tabular-nums">{it.codigo} </span>}
+                              {it.actividad}
+                            </td>
+                            <td className="px-2 py-1.5">{it.unidad}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{numero(it.cantidad)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.valorUnitario)}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{pesos(it.cantidad * it.valorUnitario)}</td>
+                          </tr>
                         ))}
-                      </ol>
-                    </div>
-                  )
-              )}
-
-              {detalle.observaciones && (
-                <div>
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Observaciones</h3>
-                  <p className="whitespace-pre-line">{detalle.observaciones}</p>
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t bg-muted/40 font-medium">
+                          <td className="px-2 py-1.5" colSpan={4}>
+                            Total
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {pesos(detalle.items.reduce((suma, it) => suma + it.cantidad * it.valorUnitario, 0))}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               )}
+
 
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>
-                <ul className="divide-y rounded-md border">
+                <TablaDocumentos>
                   {tipo?.documentos.map((req) => {
                     const doc = docPorTipo.get(req.tipo)
                     return (
@@ -279,12 +275,12 @@ export function DetalleSolicitudContrato({
                       />
                     )
                   })}
-                </ul>
+                </TablaDocumentos>
               </div>
 
               <div className="space-y-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos generales del contratista</h3>
-                <ul className="divide-y rounded-md border">
+                <TablaDocumentos>
                   {DOCUMENTOS_POR_PERSONA[detalle.contratistaTipoPersona].map((req) => {
                     const doc = docContratistaPorTipo.get(req.tipo)
                     return (
@@ -307,7 +303,7 @@ export function DetalleSolicitudContrato({
                       />
                     )
                   })}
-                </ul>
+                </TablaDocumentos>
               </div>
 
               <div className="space-y-2">
@@ -325,6 +321,78 @@ export function DetalleSolicitudContrato({
   )
 }
 
+// Subgerencia devolvió la minuta: el motivo, para que Jurídica la corrija.
+function AvisoMinutaDevuelta({ detalle }: { detalle: SolicitudContratoDetalle }) {
+  if (detalle.minutaEstado !== "devuelta" || !detalle.minutaMotivo) return null
+  return (
+    <div className="mb-4 rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+      <p className="font-medium">
+        Minuta devuelta por Subgerencia
+        {detalle.minutaResueltaPorNombre && ` (${detalle.minutaResueltaPorNombre})`}
+        {detalle.minutaResueltaAt && ` el ${fechaContrato(detalle.minutaResueltaAt)}`}
+      </p>
+      <p className="whitespace-pre-line">Motivo: {detalle.minutaMotivo}</p>
+    </div>
+  )
+}
+
+type FilaDatos = [string, React.ReactNode]
+
+// Tabla de dos columnas (dato | valor) con su título; la columna del dato es
+// fija y gris para leer rápido de arriba abajo.
+function TablaDatos({ titulo, filas }: { titulo: string; filas: FilaDatos[] }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase">{titulo}</h3>
+      <div className="overflow-hidden rounded-md border">
+        <table className="w-full table-fixed">
+          <tbody>
+            {filas.map(([dato, valor]) => (
+              <tr key={dato} className="border-t first:border-t-0">
+                <th scope="row" className="w-2/5 bg-muted/50 px-3 py-2 text-left align-top text-xs font-medium text-muted-foreground sm:w-56">
+                  {dato}
+                </th>
+                <td className="px-3 py-2 align-top break-words whitespace-pre-line">{valor}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function ListaNumerada({ items }: { items: string[] }) {
+  if (items.length === 0) return <span className="text-muted-foreground">—</span>
+  return (
+    <ol className="list-decimal space-y-1 pl-5">
+      {items.map((t, i) => (
+        <li key={i} className="whitespace-pre-line">
+          {t}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function TablaDocumentos({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-md border">
+      <table className="w-full">
+        <thead>
+          <tr className="bg-muted/60 text-left text-xs">
+            <th className="px-3 py-1.5">Documento</th>
+            <th className="px-3 py-1.5">Archivo</th>
+            <th className="w-24 px-3 py-1.5 text-center">Estado</th>
+            <th className="w-20 px-3 py-1.5" />
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  )
+}
+
 function FilaDocumento({
   titulo,
   nombreArchivo,
@@ -337,22 +405,34 @@ function FilaDocumento({
   onVer?: () => void
 }) {
   return (
-    <li className="flex items-center gap-3 px-3 py-2">
-      <div className="min-w-0 flex-1">
-        <p>{titulo}</p>
-        {nombreArchivo && (
-          <p className="truncate text-xs text-muted-foreground" title={nombreArchivo}>
-            {nombreArchivo}
-          </p>
+    <tr className="border-t">
+      <td className="px-3 py-2">{titulo}</td>
+      <td className="max-w-0 px-3 py-2">
+        <p className="truncate text-xs text-muted-foreground" title={nombreArchivo}>
+          {nombreArchivo ?? "—"}
+        </p>
+      </td>
+      <td className="px-3 py-2 text-center">
+        {onVer ? (
+          <Badge variant="outline" className="border-transparent bg-emerald-100 text-emerald-800">
+            Adjunto
+          </Badge>
+        ) : (
+          <Badge
+            variant="outline"
+            className={sinArchivo === "Falta" ? "border-transparent bg-red-100 text-red-800" : "border-transparent bg-slate-100 text-slate-700"}
+          >
+            {sinArchivo}
+          </Badge>
         )}
-      </div>
-      {onVer ? (
-        <Button size="sm" variant="outline" onClick={onVer}>
-          <Eye className="size-4" /> Ver
-        </Button>
-      ) : (
-        <span className="text-xs text-muted-foreground">{sinArchivo}</span>
-      )}
-    </li>
+      </td>
+      <td className="px-3 py-2 text-right">
+        {onVer && (
+          <Button size="sm" variant="outline" onClick={onVer}>
+            <Eye className="size-4" /> Ver
+          </Button>
+        )}
+      </td>
+    </tr>
   )
 }
