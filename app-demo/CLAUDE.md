@@ -1977,6 +1977,14 @@ aprobada).
   la guarda en `minuta_datos` y la pasa a `en_revision` en una transacción: lo
   que aprueba Subgerencia no cambia aunque después cambien el contratista o el
   proyecto. Lo que esté en pantalla sin guardar NO se envía (el diálogo lo avisa).
+- **Estado en Pre aprobación** (`etapaContrato` en `lib/contratos.ts`, junta la
+  solicitud y la minuta): Por revisar, Devuelta al director, Pre-aprobada sin
+  enviar, En Subgerencia, Devuelta por Subgerencia, Aprobado, Rechazada. El
+  filtro "Devueltas" trae las dos devueltas; "Por revisar" incluye las
+  pre-aprobadas sin enviar (`listarSolicitudesPreaprobacion`, `grupo`). El
+  detalle muestra la misma etiqueta.
+- **Subgerencia ve la minuta solo en PDF** (`components/minuta-solo-pdf.tsx`,
+  `obtenerMinutaParaRevision`), sin el editor de Jurídica.
 - **Editar**: `guardar_minuta_contrato` se niega en `en_revision` y `aprobada`;
   los editores quedan en solo lectura (`minutaEditable` en `lib/contratos.ts`).
   Devuelta: Jurídica corrige y la envía otra vez (evento `minuta_reenviada`).

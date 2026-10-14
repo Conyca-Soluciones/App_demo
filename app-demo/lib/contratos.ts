@@ -303,6 +303,44 @@ export const CLASE_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> =
   devuelta: "border-transparent bg-orange-100 text-orange-800",
   aprobada: "border-transparent bg-emerald-100 text-emerald-800",
 }
+// Etapa de un contrato sumando la solicitud y la minuta: lo que se muestra en
+// la columna Estado de Pre aprobación y en el detalle.
+export type EtapaContrato =
+  | "por_revisar"
+  | "devuelta_director"
+  | "sin_enviar"
+  | "en_subgerencia"
+  | "devuelta_subgerencia"
+  | "aprobado"
+  | "rechazada"
+export function etapaContrato(c: { estado: EstadoContrato; minutaEstado: EstadoMinuta | null }): EtapaContrato {
+  if (c.estado === "pre_aprobacion") return "por_revisar"
+  if (c.estado === "devuelta") return "devuelta_director"
+  if (c.estado === "rechazada") return "rechazada"
+  if (c.minutaEstado === "en_revision") return "en_subgerencia"
+  if (c.minutaEstado === "devuelta") return "devuelta_subgerencia"
+  if (c.minutaEstado === "aprobada") return "aprobado"
+  return "sin_enviar"
+}
+export const ETIQUETA_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
+  por_revisar: "Por revisar",
+  devuelta_director: "Devuelta al director",
+  sin_enviar: "Pre-aprobada sin enviar",
+  en_subgerencia: "En Subgerencia",
+  devuelta_subgerencia: "Devuelta por Subgerencia",
+  aprobado: "Aprobado",
+  rechazada: "Rechazada",
+}
+export const CLASE_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
+  por_revisar: "border-transparent bg-amber-100 text-amber-800",
+  devuelta_director: "border-transparent bg-orange-100 text-orange-800",
+  sin_enviar: "border-transparent bg-slate-100 text-slate-700",
+  en_subgerencia: "border-transparent bg-sky-100 text-sky-800",
+  devuelta_subgerencia: "border-transparent bg-orange-100 text-orange-800",
+  aprobado: "border-transparent bg-emerald-100 text-emerald-800",
+  rechazada: "border-transparent bg-red-100 text-red-800",
+}
+
 // Tipos con plantilla de minuta (components/minuta-segun-tipo.tsx).
 export const TIPOS_CON_MINUTA: ReadonlySet<TipoContrato> = new Set<TipoContrato>([
   "mano_obra", "arrendamiento", "suministro_instalacion", "alquiler_vehiculo", "prestacion_servicios", "obra",

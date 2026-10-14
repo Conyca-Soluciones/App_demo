@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
-import { MinutaSegunTipo } from "@/components/minuta-segun-tipo"
+import { MinutaSoloPdf } from "@/components/minuta-solo-pdf"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import {
   CLASE_ESTADO_MINUTA,
@@ -26,7 +26,7 @@ import { listarMinutasSubgerencia, resolverMinutaContrato, type AccionMinuta } f
 // revisa las minutas que envía Jurídica, de
 // todos sus proyectos (no depende del proyecto actual), y las aprueba o las
 // devuelve con motivo. Al aprobar, el contrato recibe su número CJ y ya se le
-// pueden hacer actas. La minuta se ve en solo lectura (con su PDF).
+// pueden hacer actas. La minuta se ve solo en PDF (sin el editor de Jurídica).
 // ---------------------------------------------------------------------------
 
 const FILTROS: { valor: EstadoMinuta | "todas"; etiqueta: string }[] = [
@@ -231,7 +231,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
       <DetalleSolicitudContrato
         id={detalleId}
         onCerrar={cerrarDetalle}
-        minuta={(d) => <MinutaSegunTipo detalle={d} puedeEditar={false} />}
+        minuta={(d) => <MinutaSoloPdf id={d.id} />}
         acciones={(d) =>
           d.estado === "aprobada" && d.minutaEstado === "en_revision" && puedeResolver ? (
             <>

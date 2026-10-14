@@ -9,10 +9,9 @@ import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
 import {
-  CLASE_ESTADO_CONTRATO,
-  CLASE_ESTADO_MINUTA,
-  ETIQUETA_ESTADO_CONTRATO,
-  ETIQUETA_ESTADO_MINUTA,
+  CLASE_ETAPA_CONTRATO,
+  ETIQUETA_ETAPA_CONTRATO,
+  etapaContrato,
   TIPO_CONTRATO_POR_VALOR,
   anticipoEnLetras,
   numero,
@@ -94,13 +93,8 @@ export function DetalleSolicitudContrato({
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}` : "Solicitud de contrato"}
             {detalle && (
-              <Badge variant="outline" className={CLASE_ESTADO_CONTRATO[detalle.estado]}>
-                {ETIQUETA_ESTADO_CONTRATO[detalle.estado]}
-              </Badge>
-            )}
-            {detalle?.estado === "aprobada" && (
-              <Badge variant="outline" className={CLASE_ESTADO_MINUTA[detalle.minutaEstado ?? "elaboracion"]}>
-                {ETIQUETA_ESTADO_MINUTA[detalle.minutaEstado ?? "elaboracion"]}
+              <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(detalle)]}>
+                {ETIQUETA_ETAPA_CONTRATO[etapaContrato(detalle)]}
               </Badge>
             )}
             {detalle?.numeroContrato && <span className="text-sm font-normal text-muted-foreground">Contrato {detalle.numeroContrato}</span>}

@@ -3,7 +3,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
-import type { EstadoContrato } from "@/lib/contratos"
 import { SELECT_FILA_CONTRATO, cargarDetalleContrato, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 import { hoyColombia } from "@/lib/fechas"
 import { limpiarMinuta, mezclarMinuta, minutaPorDefecto, type DatosExtraMinuta, type MinutaManoObra } from "@/lib/minuta-mano-obra"
@@ -44,8 +43,12 @@ import { limpiarMinutaObra, mezclarMinutaObra, minutaObraPorDefecto, minutaObraV
 // (resolver_solicitud_contrato, 20261014000000_preaprobacion_contratos.sql).
 // ---------------------------------------------------------------------------
 
+// Grupos del filtro de Estado (juntan la solicitud y la minuta, ver
+// etapaContrato en lib/contratos.ts). Sin grupo = todas.
+export type GrupoPreaprobacion = "por_revisar" | "devueltas" | "en_subgerencia" | "aprobados" | "rechazadas"
+
 export type FiltrosPreaprobacion = {
-  estado?: EstadoContrato // sin estado = todas
+  grupo?: GrupoPreaprobacion
   proyectoId?: string
 }
 
@@ -54,11 +57,27 @@ export async function listarSolicitudesPreaprobacion(filtros: FiltrosPreaprobaci
   const supabase = await createClient()
   const filas = await traerTodo<any>((desde, hasta) => {
     let q = supabase.from("contratos").select(SELECT_FILA_CONTRATO)
-    if (filtros.estado) q = q.eq("estado", filtros.estado)
+    switch (filtros.grupo) {
+      case "por_revisar": // por revisar, o pre-aprobada que nunca se envió a Subgerencia
+        q = q.or("estado.eq.pre_aprobacion,and(estado.eq.aprobada,minuta_estado.is.null)")
+        break
+      case "devueltas": // al director, o la minuta por Subgerencia
+        q = q.or("estado.eq.devuelta,and(estado.eq.aprobada,minuta_estado.eq.devuelta)")
+        break
+      case "en_subgerencia":
+        q = q.eq("estado", "aprobada").eq("minuta_estado", "en_revision")
+        break
+      case "aprobados":
+        q = q.eq("estado", "aprobada").eq("minuta_estado", "aprobada")
+        break
+      case "rechazadas":
+        q = q.eq("estado", "rechazada")
+        break
+    }
     if (filtros.proyectoId) q = q.eq("proyecto_id", filtros.proyectoId)
     // Las que esperan revisión: primero las más antiguas (orden de llegada).
     return q
-      .order("enviado_at", { ascending: filtros.estado === "pre_aprobacion" })
+      .order("enviado_at", { ascending: filtros.grupo === "por_revisar" })
       .order("id", { ascending: true })
       .range(desde, hasta)
   })
@@ -345,6 +364,13 @@ async function minutaParaEnviar(id: string): Promise<unknown> {
     default:
       throw new Error("Este tipo de contrato todavía no tiene plantilla de minuta.")
   }
+}
+
+// La minuta tal como está guardada (completa), para verla solo en PDF
+// (Aprobación de contratos, Subgerencia).
+export async function obtenerMinutaParaRevision(id: string): Promise<unknown> {
+  await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
+  return minutaParaEnviar(id)
 }
 
 // Enviar otra vez una minuta devuelta (o una pre-aprobada que nunca se envió).

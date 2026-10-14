@@ -12,14 +12,12 @@ import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/c
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { MinutaSegunTipo } from "@/components/minuta-segun-tipo"
 import {
-  CLASE_ESTADO_CONTRATO,
-  CLASE_ESTADO_MINUTA,
-  ETIQUETA_ESTADO_CONTRATO,
-  ETIQUETA_ESTADO_MINUTA,
+  CLASE_ETAPA_CONTRATO,
+  ETIQUETA_ETAPA_CONTRATO,
   TIPOS_CON_MINUTA,
+  etapaContrato,
   minutaEditable,
   pesos,
-  type EstadoContrato,
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
 } from "@/lib/contratos"
@@ -29,6 +27,7 @@ import {
   preaprobarYEnviarMinuta,
   resolverSolicitudContrato,
   type AccionPreaprobacion,
+  type GrupoPreaprobacion,
 } from "@/app/(app)/contratos/pre-aprobacion/actions"
 
 // ---------------------------------------------------------------------------
@@ -38,11 +37,14 @@ import {
 // paso; una minuta devuelta se corrige y se envía otra vez.
 // ---------------------------------------------------------------------------
 
-const FILTROS: { valor: EstadoContrato | "todas"; etiqueta: string }[] = [
-  { valor: "pre_aprobacion", etiqueta: "Por revisar" },
-  { valor: "devuelta", etiqueta: "Devueltas" },
-  { valor: "aprobada", etiqueta: "Pre-aprobadas" },
-  { valor: "rechazada", etiqueta: "Rechazadas" },
+// Devueltas junta las devueltas al director y las minutas devueltas por
+// Subgerencia; la columna Estado dice cuál es cuál.
+const FILTROS: { valor: GrupoPreaprobacion | "todas"; etiqueta: string }[] = [
+  { valor: "por_revisar", etiqueta: "Por revisar" },
+  { valor: "devueltas", etiqueta: "Devueltas" },
+  { valor: "en_subgerencia", etiqueta: "En Subgerencia" },
+  { valor: "aprobados", etiqueta: "Aprobados" },
+  { valor: "rechazadas", etiqueta: "Rechazadas" },
   { valor: "todas", etiqueta: "Todas" },
 ]
 
@@ -80,7 +82,7 @@ const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; b
 export function PreaprobacionContratosView({ puedeResolver, verInicial }: { puedeResolver: boolean; verInicial: string | null }) {
   const router = useRouter()
   const { proyectos } = useProyectoActual()
-  const [filtro, setFiltro] = useState<EstadoContrato | "todas">("pre_aprobacion")
+  const [filtro, setFiltro] = useState<GrupoPreaprobacion | "todas">("por_revisar")
   const [proyectoId, setProyectoId] = useState("")
   const [solicitudes, setSolicitudes] = useState<SolicitudContratoFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -92,7 +94,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
 
   function cargar() {
-    listarSolicitudesPreaprobacion({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
+    listarSolicitudesPreaprobacion({ grupo: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
       .then((lista: SolicitudContratoFila[]) => setSolicitudes(lista))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
   }
@@ -100,7 +102,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
 
   // Al cambiar un filtro se vacía la lista (muestra "Cargando...") y el
   // efecto de arriba vuelve a consultar.
-  function cambiarFiltro(valor: EstadoContrato | "todas") {
+  function cambiarFiltro(valor: GrupoPreaprobacion | "todas") {
     setSolicitudes(null)
     setError(null)
     setFiltro(valor)
@@ -140,27 +142,14 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
       {
         clave: "estado",
         titulo: "Estado",
-        ancho: 150,
+        ancho: 190,
         alinear: "center",
-        texto: (s) => ETIQUETA_ESTADO_CONTRATO[s.estado],
+        texto: (s) => ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)],
         celda: (s) => (
-          <Badge variant="outline" className={CLASE_ESTADO_CONTRATO[s.estado]}>
-            {ETIQUETA_ESTADO_CONTRATO[s.estado]}
+          <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(s)]}>
+            {ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)]}
           </Badge>
         ),
-      },
-      {
-        clave: "minuta",
-        titulo: "Minuta",
-        ancho: 170,
-        alinear: "center",
-        texto: (s) => (s.estado === "aprobada" ? ETIQUETA_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"] : ""),
-        celda: (s) =>
-          s.estado === "aprobada" ? (
-            <Badge variant="outline" className={CLASE_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]}>
-              {ETIQUETA_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]}
-            </Badge>
-          ) : null,
       },
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
       { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },
@@ -255,7 +244,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
           </div>
         ) : solicitudes && solicitudes.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            {filtro === "pre_aprobacion" ? "No hay solicitudes por revisar." : "No hay solicitudes con este filtro."}
+            {filtro === "por_revisar" ? "No hay solicitudes por revisar." : "No hay solicitudes con este filtro."}
           </div>
         ) : (
           solicitudes && (
