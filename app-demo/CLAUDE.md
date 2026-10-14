@@ -2220,6 +2220,18 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   "Aprobación de actas" es solo CONSULTA. Estado "pendiente" se muestra como
   "Pago por aprobar". Neto negativo de la liquidación: se deja así (lo maneja
   la aseguradora del contratista, decisión del usuario).
+- **Prueba completa (2026-10-14)** con CJ-17-2026 (valores unitarios, anticipo
+  20 %), CJ-14 (valor global) y CJ-19 (vencido): tope por actividad y por saldo,
+  pago por aprobar, editar con pago pendiente, rechazo y reenvío (pago nuevo),
+  aprobación con ITEM, acta final (amortiza lo que falte), liquidación con neto
+  $ 0 (se aprueba sola y liquida), vencido (solo liquidación), PDF.
+  Arreglado: la 20261112100000_visualizacion_ver_contratos de main recreó
+  `historial_entidad` sin 'acta' y `detalle_acta` contaba en "otras actas" las
+  actas POSTERIORES (el estado del contrato de un acta aprobada y su PDF
+  cambiaban): `20261112200000_historial_actas_otra_vez.sql`. Ahora es "Actas
+  anteriores". OJO: main tiene 20261112000000 y 20261112100000 con los mismos
+  números que las de lcpr (otros nombres): al mezclar no chocan como archivos,
+  pero cualquier función que las dos toquen hay que juntarla a mano.
 - **Pendiente**: otrosí (ampliar plazo/valor, cuando haya minuta de otrosí),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo

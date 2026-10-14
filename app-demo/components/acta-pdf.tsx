@@ -143,7 +143,7 @@ export function ActaPDF({ acta: a, logo }: { acta: ActaDetalle; logo: string | B
           <Text style={t.seccion}>Estado del contrato</Text>
           <View style={t.datos}>
             <Dato etiqueta="Valor del contrato" primero>{pesos(a.contratoValor)}</Dato>
-            <Dato etiqueta="Otras actas">{pesos(a.otrasActas)}</Dato>
+            <Dato etiqueta="Actas anteriores">{pesos(a.otrasActas)}</Dato>
             <Dato etiqueta="Esta acta (valor bruto)">{pesos(a.valorBruto)}</Dato>
             <Dato etiqueta="Saldo del contrato">{pesos(saldoContrato(a.contratoValor, usado))}</Dato>
           </View>

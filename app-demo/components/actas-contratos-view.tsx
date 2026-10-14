@@ -518,6 +518,9 @@ function FormularioActa({
   const cambiar = (c: Partial<FormActa>) => setForm((f) => ({ ...f, ...c }))
   const r = info ? calcularActa(info, form) : null
   const lineaPorId = new Map((r?.lineas ?? []).map((l) => [l.id, l]))
+  // Neto (redondeado) <= 0: la base no crea pago y aprueba el acta sola.
+  const sinPago = r != null && Math.round(r.neto) <= 0
+  const despues = sinPago ? "Quedó aprobada (neto $ 0: no hay pago)." : "Su pago quedó por aprobar en A&F."
 
   function agregarArchivos(archivos: FileList | null) {
     if (!archivos) return
@@ -561,10 +564,10 @@ function FormularioActa({
       if (edicion) {
         const res = await editarActa(edicion.id, v.datos, subidos, [...quitarSoportes])
         if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
-        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. Su pago quedó por aprobar en A&F.`)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. ${despues}`)
       } else {
         const res = await guardarActa(actaId, contrato.id, v.datos, subidos)
-        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. Su pago quedó por aprobar en A&F.`)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. ${despues}`)
       }
     } catch (e) {
       // Nada queda a medias: crear y editar son una transacción en la base.
@@ -590,7 +593,9 @@ function FormularioActa({
               ? "Contrato a valor global: escribe el porcentaje de avance que se cobra en esta acta."
               : "Escribe la cantidad ejecutada en esta acta de cada actividad del contrato. Las que no se ejecutaron se dejan vacías."}
           {form.tipo === "final" && " Es la última acta de avance: amortiza todo el anticipo que falte."}
-          {" Al guardar, su pago queda por aprobar en A&F (Aprobación de pagos); el acta se aprueba cuando se aprueba el pago."}
+          {form.tipo === "liquidacion" && sinPago
+            ? " Con neto $ 0 no hay pago: al guardar, el acta queda aprobada."
+            : " Al guardar, su pago queda por aprobar en A&F (Aprobación de pagos); el acta se aprueba cuando se aprueba el pago."}
           {edicion && " Conserva el mismo número."}
         </p>
         {edicion?.estado === "rechazada" && (

@@ -7,7 +7,7 @@ import type { Pago } from "@/lib/pagos"
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
 // hacia la misma tabla (perfiles).
 export const CAMPOS_PAGO = `
-  id, tipo, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
+  id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
   orden:ordenes_compra(numero),
   acta:actas(numero, contrato:contratos(numero_contrato)),
@@ -42,12 +42,15 @@ export function mapPago(f: any): Pago {
     rechazadoPorNombre: f.rechazador?.nombre ?? null,
     motivoRechazo: f.motivo_rechazo,
     ordenNumero: f.orden?.numero ?? null,
-    // De dónde sale el pago: una orden de compra o un acta de contrato.
+    // De dónde sale el pago: una orden de compra o un acta de contrato. Quien
+    // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null
       ? `OC ${f.orden.numero}`
       : f.acta
         ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}`
-        : "",
+        : f.fuente === "acta"
+          ? "Acta"
+          : "",
     proyectoCodigo: f.proyecto?.codigo ?? null,
     proyectoNombre: f.proyecto?.nombre ?? null,
     empresaNombre: f.empresa?.razon_social ?? null,

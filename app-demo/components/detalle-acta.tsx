@@ -138,7 +138,7 @@ export function DetalleActa({
 
             <div className="grid gap-2 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-4">
               <Cifra titulo="Valor del contrato" valor={v.contratoValor} />
-              <Cifra titulo="Otras actas" valor={v.otrasActas} />
+              <Cifra titulo="Actas anteriores" valor={v.otrasActas} />
               <Cifra titulo="Esta acta (bruto)" valor={v.valorBruto} fuerte />
               <Cifra titulo="Saldo del contrato" valor={saldoContrato(v.contratoValor, usado)} />
             </div>

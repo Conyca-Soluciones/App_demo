@@ -237,7 +237,7 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos."
+          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos y los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta)."
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>

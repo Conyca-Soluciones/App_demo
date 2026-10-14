@@ -391,7 +391,7 @@ export type ActaDetalle = {
   contratistaTipoPersona: string | null
   contratistaDocumento: string
   contratistaRepresentante: string | null
-  otrasActas: number
+  otrasActas: number // actas ANTERIORES a esta (número menor), no rechazadas
   avanceAnterior: number
   actividades: ActividadActa[]
   descuentos: { concepto: string; valor: number }[]
