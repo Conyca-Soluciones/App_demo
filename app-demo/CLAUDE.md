@@ -1186,12 +1186,19 @@ historial (`historico_precios_compra`, Excel de compras sept. 2026),
   mezcladas con IVA > 0): se quitó el IVA doble con su % de antes; el % queda
   por confirmar. Copia de lo de antes en `maestro_insumos_respaldo_iva_20261015`
   (sin acceso por la API; el comentario de la migración dice cómo deshacer).
-- **Por confirmar con el usuario** (`docs/confirmar-iva-insumos.xlsx`, hoja
-  "Para confirmar", 494): los 116 de G3, 117 con todas las compras al 19 % pero
-  precio que no coincide con lo pagado, 118 mezclas 19 %/sin IVA, 139 todas sin
-  IVA y 4 todas al 5 %. Regla del usuario: NO poner 19 % donde no es seguro.
-- **Sin historial (417, hoja "Sin historial")**: se dejan como están por ahora y
-  quedan PENDIENTES de confirmar si su precio trae IVA.
+- **Borrados los de IVA dudoso** (`20261114200000_borrar_insumos_iva_dudoso.sql`,
+  aplicada; decisión del usuario: mejor crear bien un insumo cuando haga falta
+  que limpiarlos todos). En el maestro quedan solo los 868 de G1 y G2 (todos al
+  19 %, `vr_neto` = `vr_unitario` × 1,19). Se borraron los otros 911 (IVA
+  dudoso, mezclas, 0 %, 5 %, precio que no coincide y sin historial) y TODO lo
+  que los involucraba: su historial de compras (6.252 filas), 49 líneas de APU
+  (Malecón y Estuario Casa, con el valor de sus ítems recalculado), 5 líneas de
+  requisición (3 requisiciones quedaron vacías y se borraron), las OC de prueba
+  44 y 49 completas con sus 2 entradas y 3 pagos. La revisión del import que
+  los tenía asignados volvió a "pendiente" y se quitaron de los candidatos.
+  Copia de todo lo borrado (jsonb por tabla) en `respaldo_borrado_20261015`,
+  sin acceso por la API. La lista que se había preparado para confirmar está en
+  `docs/confirmar-iva-insumos.xlsx` (sirve para saber cuáles se borraron).
 - Los precios ya congelados en los APU no cambiaron.
 - `precios_efectivos_insumos` promedia también las OC aprobadas de la app, que
   hoy son de prueba: no usarlas para precios mientras sea así.

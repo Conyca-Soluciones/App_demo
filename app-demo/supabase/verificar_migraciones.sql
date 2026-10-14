@@ -203,5 +203,9 @@ select * from (
   select '20261114100000_maestro_iva_doble',
          exists (select 1 from information_schema.tables
                  where table_schema = 'public' and table_name = 'maestro_insumos_respaldo_iva_20261015')
+  union all
+  select '20261114200000_borrar_insumos_iva_dudoso',
+         exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'respaldo_borrado_20261015')
 ) t
 order by 1;
