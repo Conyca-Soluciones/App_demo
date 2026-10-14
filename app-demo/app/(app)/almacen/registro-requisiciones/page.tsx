@@ -2,6 +2,8 @@
 // app/(app)/almacen/registro-requisiciones/page.tsx
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { useState } from "react"
+import { Download, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
@@ -10,8 +12,23 @@ import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import type { RequisicionResumen } from "@/lib/requisiciones-lineas"
+import { ETIQUETA_ESTADO_EXCEL, descargarExcelRequisiciones } from "@/lib/exportar-requisiciones"
 
-import { listarRequisiciones, type FiltrosRequisiciones } from "../actions"
+import { exportarRequisiciones, listarRequisiciones, type FiltrosRequisiciones } from "../actions"
+
+// Resumen de los filtros para el encabezado del Excel.
+function describirFiltros(f: FiltrosRequisiciones): string {
+  const partes: string[] = []
+  if (f.numero !== undefined) partes.push(`requisición ${f.numero}`)
+  if (f.proyectoId) partes.push("un proyecto")
+  if (f.insumoId) partes.push("un insumo")
+  if (f.estado) partes.push(`estado ${ETIQUETA_ESTADO_EXCEL[f.estado].toLowerCase()}`)
+  if (f.solicitadoPorId) partes.push("un solicitante")
+  if (f.desde) partes.push(`desde ${formatearFechaSinHora(f.desde)}`)
+  if (f.hasta) partes.push(`hasta ${formatearFechaSinHora(f.hasta)}`)
+  const hoy = new Date().toLocaleDateString("es-CO", { timeZone: "America/Bogota" })
+  return `Descargado el ${hoy}. ${partes.length ? `Filtros: ${partes.join(", ")}.` : "Sin filtros."}`
+}
 
 const headClasses =
   "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
@@ -29,6 +46,25 @@ export default function RegistroRequisiciones() {
   // requisición abierta en el diálogo de detalle.
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosRequisiciones>({})
   const [abiertaId, setAbiertaId] = useState<string | null>(null)
+  const [descargando, setDescargando] = useState(false)
+
+  // Descarga TODO lo que cumple la última consulta (no solo esta página).
+  async function descargar() {
+    setDescargando(true)
+    setError(null)
+    try {
+      const filas = await exportarRequisiciones(ultimosFiltros)
+      if (filas.length === 0) {
+        setError("No hay insumos para descargar con estos filtros.")
+        return
+      }
+      await descargarExcelRequisiciones(filas, describirFiltros(ultimosFiltros))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descargar el Excel.")
+    } finally {
+      setDescargando(false)
+    }
+  }
 
   function consultar(filtros: FiltrosRequisiciones, pag = 0) {
     setUltimosFiltros(filtros)
@@ -75,10 +111,22 @@ export default function RegistroRequisiciones() {
             </p>
           ) : (
             <>
-              <p className="text-xs text-muted-foreground">
-                {requisiciones.length} {requisiciones.length === 1 ? "requisición" : "requisiciones"} en
-                esta página. Haz clic en una para ver su detalle.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {requisiciones.length} {requisiciones.length === 1 ? "requisición" : "requisiciones"} en
+                  esta página. Haz clic en una para ver su detalle.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={descargar}
+                  disabled={descargando}
+                  title="Descarga todas las requisiciones de la consulta (todas las páginas), una fila por insumo."
+                >
+                  {descargando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  Descargar Excel
+                </Button>
+              </div>
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full border-separate border-spacing-0">
                   <thead>

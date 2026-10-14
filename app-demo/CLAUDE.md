@@ -1682,6 +1682,15 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   requisiciones (lista con filtros, incluido Número de requisición) y su detalle
   `/almacen/registro-requisiciones/[id]` (insumos, solicitante, fechas, proyecto,
   historial; Modificar y Cancelar si es el dueño y está pendiente).
+- **Descargar Excel** en el Registro (2026-10-14): botón junto al conteo, después
+  de Consultar. Baja TODO lo que cumple la última consulta (todas las páginas,
+  no solo la de pantalla), una fila por insumo: N° requisición, proyecto,
+  solicitado por, insumo (código - descripción), unidad, cantidad, fecha de
+  requisición, fecha requerida y estado (de la requisición). Con filtro de
+  insumo, solo las líneas de ese insumo. Servidor: `exportarRequisiciones` (usa
+  la misma `consultaRequisiciones` que la lista, con el acceso por proyecto);
+  archivo: `lib/exportar-requisiciones.ts` (exceljs en el navegador, encabezado
+  con logo, filtro de Excel y encabezados fijos).
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 

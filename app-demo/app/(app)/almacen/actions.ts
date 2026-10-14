@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
+import { traerTodo } from "@/lib/supabase/traer-todo"
 import {
   cargarLineas,
   mapResumen,
@@ -19,6 +20,7 @@ import {
   type RequisicionResumen,
 } from "@/lib/requisiciones-lineas"
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
+import type { FilaExcelRequisicion } from "@/lib/exportar-requisiciones"
 
 // ---------------------------------------------------------------------------
 // Proyectos
@@ -319,52 +321,118 @@ export type FiltrosRequisiciones = {
 // Requisiciones de los proyectos a los que el usuario tiene acceso (no solo el
 // proyecto actual), con filtros. El filtro de acceso se aplica acá en el
 // servidor, nunca depende de lo que mande el cliente.
-export async function listarRequisiciones(
-  filtros: FiltrosRequisiciones,
-  pagina = 0
-): Promise<{ filas: RequisicionResumen[]; hayMas: boolean }> {
+// Consulta de requisiciones_vista con los filtros y el acceso del usuario
+// (compartida por la lista paginada y la descarga a Excel). null = el usuario
+// no puede ver nada con esos filtros.
+async function consultaRequisiciones(filtros: FiltrosRequisiciones) {
   const supabase = await createClient()
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
 
   const permisos = await obtenerPermisosUsuario(userId)
   const idsPermitidos = Array.from(permisos.proyectos.keys())
-  if (!permisos.veTodosProyectos && idsPermitidos.length === 0) {
-    return { filas: [], hayMas: false }
+  if (!permisos.veTodosProyectos && idsPermitidos.length === 0) return null
+  // Un proyecto pedido a mano solo vale si el usuario tiene acceso a él.
+  if (filtros.proyectoId && !permisos.veTodosProyectos && !idsPermitidos.includes(filtros.proyectoId)) return null
+
+  // Se arma de nuevo en cada llamada: el resultado de supabase-js es una
+  // promesa que solo se puede consumir una vez (traerTodo pide varias páginas).
+  return () => {
+    let query = supabase
+      .from("requisiciones_vista")
+      .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
+      .order("numero", { ascending: false })
+
+    if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
+    else if (!permisos.veTodosProyectos) query = query.in("proyecto_id", idsPermitidos)
+
+    if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
+    if (filtros.estado) query = query.eq("estado", filtros.estado)
+    if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
+    // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
+    if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
+    if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
+
+    // Por insumo: las requisiciones que tienen ese insumo en alguna línea.
+    if (filtros.insumoId) query = query.eq("filtro_insumo.insumo_id", filtros.insumoId)
+    return query
   }
+}
 
-  let query = supabase
-    .from("requisiciones_vista")
-    .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
-    .order("numero", { ascending: false })
-    .range(...rangoPagina(pagina))
+export async function listarRequisiciones(
+  filtros: FiltrosRequisiciones,
+  pagina = 0
+): Promise<{ filas: RequisicionResumen[]; hayMas: boolean }> {
+  const consulta = await consultaRequisiciones(filtros)
+  if (!consulta) return { filas: [], hayMas: false }
 
-  if (filtros.proyectoId) {
-    // Un proyecto pedido a mano solo vale si el usuario tiene acceso a él.
-    if (!permisos.veTodosProyectos && !idsPermitidos.includes(filtros.proyectoId)) {
-      return { filas: [], hayMas: false }
-    }
-    query = query.eq("proyecto_id", filtros.proyectoId)
-  } else if (!permisos.veTodosProyectos) {
-    query = query.in("proyecto_id", idsPermitidos)
-  }
-
-  if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
-  if (filtros.estado) query = query.eq("estado", filtros.estado)
-  if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
-  // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
-  if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
-  if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
-
-  // Por insumo: las requisiciones que tienen ese insumo en alguna línea.
-  if (filtros.insumoId) query = query.eq("filtro_insumo.insumo_id", filtros.insumoId)
-
-  const { data, error } = await query
+  const { data, error } = await consulta().range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
 
   const { filas, hayMas } = cortarPagina(data ?? [])
   return { filas: filas.map(mapResumen), hayMas }
 }
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- filas crudas de Supabase */
+// Descarga a Excel del registro: TODAS las requisiciones que cumplen los
+// filtros (no solo la página en pantalla), una fila por insumo. Con filtro de
+// insumo, solo las líneas de ese insumo.
+export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Promise<FilaExcelRequisicion[]> {
+  const consulta = await consultaRequisiciones(filtros)
+  if (!consulta) return []
+
+  const requisiciones = (
+    await traerTodo<any>((desde, hasta) => consulta().order("id", { ascending: true }).range(desde, hasta))
+  ).map(mapResumen)
+  if (requisiciones.length === 0) return []
+
+  // Líneas por tandas de ids (van en la URL) y paginadas dentro de cada tanda.
+  const supabase = await createClient()
+  const ids = requisiciones.map((r) => r.id)
+  const tandas: string[][] = []
+  for (let i = 0; i < ids.length; i += 100) tandas.push(ids.slice(i, i + 100))
+  const lineas = (
+    await Promise.all(
+      tandas.map((tanda) =>
+        traerTodo<any>((desde, hasta) => {
+          let q = supabase
+            .from("pedidos_insumos")
+            .select("id, grupo_pedido_id, cantidad, unidad, insumo:maestro_insumos(codigo, descripcion, u_m)")
+            .in("grupo_pedido_id", tanda)
+          if (filtros.insumoId) q = q.eq("insumo_id", filtros.insumoId)
+          return q.order("created_at", { ascending: true }).order("id", { ascending: true }).range(desde, hasta)
+        })
+      )
+    )
+  ).flat()
+
+  const lineasPorRequisicion = new Map<string, any[]>()
+  for (const l of lineas) {
+    const arr = lineasPorRequisicion.get(l.grupo_pedido_id) ?? []
+    arr.push(l)
+    lineasPorRequisicion.set(l.grupo_pedido_id, arr)
+  }
+
+  const filas: FilaExcelRequisicion[] = []
+  for (const r of requisiciones) {
+    for (const l of lineasPorRequisicion.get(r.id) ?? []) {
+      filas.push({
+        numero: r.numero,
+        proyecto: [r.proyectoCodigo, r.proyectoNombre].filter(Boolean).join(" — "),
+        solicitadoPor: r.solicitanteNombre ?? "",
+        insumoCodigo: l.insumo?.codigo ?? null,
+        insumo: l.insumo?.descripcion ?? "(insumo eliminado)",
+        unidad: l.unidad ?? l.insumo?.u_m ?? "",
+        cantidad: Number(l.cantidad),
+        fechaRequisicion: r.createdAt,
+        fechaRequerida: r.fechaRequerida,
+        estado: r.estado,
+      })
+    }
+  }
+  return filas
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export async function obtenerRequisicion(id: string): Promise<RequisicionDetalle> {
   const supabase = await createClient()
