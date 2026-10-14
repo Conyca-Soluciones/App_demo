@@ -1696,6 +1696,11 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   la misma `consultaRequisiciones` que la lista, con el acceso por proyecto);
   archivo: `lib/exportar-requisiciones.ts` (exceljs en el navegador, encabezado
   con logo, filtro de Excel y encabezados fijos).
+- **Maestra de insumos: Descargar Excel** (2026-10-14, `/presupuestos/insumos`):
+  baja los insumos de la búsqueda y los filtros (todas las páginas, en el orden
+  de la tabla) con las columnas de la tabla; la presentación solo si está
+  confirmada (las sugeridas no). Se arma en el navegador con lo ya cargado
+  (`lib/exportar-maestro-insumos.ts`); el botón espera a los valores unitarios.
 - **Órdenes de compra: vista y Excel** (2026-10-14, `/almacen/ordenes-compra`):
   filtro **Vista** = resumida (una fila por orden + **Valor total**) o detallada
   (cada orden con todos sus insumos: UM, cantidad, precio, descuento, IVA y valor,

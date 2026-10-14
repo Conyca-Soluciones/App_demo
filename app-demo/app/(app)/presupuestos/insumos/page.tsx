@@ -4,7 +4,8 @@ import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { Search, X } from "lucide-react"
+import { Download, Loader2, Search, X } from "lucide-react"
+import { descargarExcelMaestroInsumos } from "@/lib/exportar-maestro-insumos"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
@@ -274,6 +275,31 @@ export default function MaestroInsumos() {
     paginaActual * FILAS_POR_PAGINA
   )
 
+  // Descarga lo que se ve con la búsqueda y los filtros, en el orden de la tabla.
+  const [descargando, setDescargando] = useState(false)
+  const [errorDescarga, setErrorDescarga] = useState<string | null>(null)
+  async function descargar() {
+    setDescargando(true)
+    setErrorDescarga(null)
+    try {
+      await descargarExcelMaestroInsumos(
+        filasProcesadas.map((i) => ({
+          codigo: i.codigo,
+          descripcion: i.descripcion,
+          tipo: i.tipo,
+          u_m: i.u_m,
+          presentacion: i.presentacion,
+          agrupacion: i.agrupacion,
+          precioEfectivo: i.precioEfectivo,
+        }))
+      )
+    } catch (e) {
+      setErrorDescarga(e instanceof Error ? e.message : "No se pudo descargar el Excel.")
+    } finally {
+      setDescargando(false)
+    }
+  }
+
   function alternarOrden(columna: ColumnaOrdenable) {
     if (columnaOrden === columna) {
       setDireccionOrden((d) => (d === "asc" ? "desc" : "asc"))
@@ -401,6 +427,27 @@ export default function MaestroInsumos() {
             <span className="text-xs text-muted-foreground tabular-nums sm:ml-auto">
               {`${filasProcesadas.length.toLocaleString("es-CO")} de ${insumos.length.toLocaleString("es-CO")} insumos`}
             </span>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={descargar}
+              disabled={descargando || cargandoPreciosEfectivos || filasProcesadas.length === 0}
+              title={
+                cargandoPreciosEfectivos
+                  ? "Espera a que terminen de cargar los valores unitarios."
+                  : "Descarga los insumos de la búsqueda y los filtros (todas las páginas)."
+              }
+            >
+              {descargando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Descargar Excel
+            </Button>
+          </div>
+        )}
+
+        {errorDescarga && (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            {errorDescarga}
           </div>
         )}
 
