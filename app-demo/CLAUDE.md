@@ -1193,9 +1193,14 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   `Contratista.datosBancariosVisibles` dice si vinieron. `editar_contratista`
   no cambia los datos bancarios ni la certificación sin la acción.
   `20261115200000_columnas_bancarias.sql` quita el SELECT directo de esas tres
-  columnas (permiso por columna): **se aplica DESPUÉS de desplegar** el código
-  nuevo (el viejo las pide en el select y fallaría). Una columna nueva en
+  columnas (permiso por columna, aplicada). Una columna nueva en
   `contratistas` necesita su `grant select (col)` o no se podrá leer.
+- **R1** (`20261115300000_control_proyecto_excedentes.sql`): los excedentes de
+  `control_proyecto` se calculan dentro de la función solo con las órdenes del
+  proyecto (`exc_base` / `exc_lineas`, misma regla que
+  `v_ordenes_compra_items_costos`). Antes leía la vista, que hace la ventana
+  sobre las órdenes de TODOS los proyectos. Verificado: mismo resultado en los
+  3 proyectos y en un caso de prueba con excedente.
 
 ## IVA en el maestro de insumos (2026-10-15)
 

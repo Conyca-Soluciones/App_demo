@@ -225,7 +225,10 @@ select * from (
          and exists (select 1 from pg_policies where policyname = 'contrato_documentos_select'
                      and qual like '%contratos.aprobar_minutas%')
   union all
-  select '20261115200000_columnas_bancarias (despues del deploy)',
+  select '20261115200000_columnas_bancarias',
          not has_column_privilege('authenticated', 'public.contratistas', 'numero_cuenta', 'select')
+  union all
+  select '20261115300000_control_proyecto_excedentes',
+         position('exc_lineas' in pg_get_functiondef('public.control_proyecto(uuid)'::regprocedure)) > 0
 ) t
 order by 1;
