@@ -31,10 +31,10 @@ const t = StyleSheet.create({
 const COLS = [
   { titulo: "Actividad", flex: 1 },
   { titulo: "Und", w: 30 },
-  { titulo: "Contratada", w: 46 },
+  { titulo: "Contratada", w: 54 },
   { titulo: "Acum. anterior", w: 46 },
   { titulo: "Esta acta", w: 44 },
-  { titulo: "Acumulado", w: 46 },
+  { titulo: "Acumulado", w: 54 },
   { titulo: "Valor unitario", w: 58 },
   { titulo: "Valor esta acta", w: 64 },
 ]
