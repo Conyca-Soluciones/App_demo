@@ -4,7 +4,7 @@ import { MarcoPagina } from "@/components/encabezado-pagina"
 export default function OrdenesCompraPage() {
   return (
     <MarcoPagina
-      titulo="Órdenes de compra"
+      titulo="Registro de órdenes de compra"
     >
       <TodasLasOrdenesView />
     </MarcoPagina>

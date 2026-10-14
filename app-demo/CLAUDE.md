@@ -857,6 +857,8 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `proyecto_id in (select public.proyectos_editables((select auth.uid())))`.
   Si la columna admite null (`presupuestos.proyecto_id`), el caso null se
   agrega con la función vieja envuelta: `(select f((select auth.uid()), null::uuid))`.
+  Actas (`actas`, `acta_lineas` y el bucket `actas`) pasaron al mismo patrón en
+  `20261112400000_rendimiento_rls_actas.sql` (antes `puede_ver_actas` por fila).
   Ya no queda ninguna política por fila en `public` ni `storage`:
   Contratos (`20261012100000_rendimiento_rls_contratos.sql`, 2.000 solicitudes
   2.122 ms -> 8 ms) y todo lo demás (`20261012200000_rendimiento_rls_resto.sql`).
@@ -1741,6 +1743,22 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   la misma `consultaRequisiciones` que la lista, con el acceso por proyecto);
   archivo: `lib/exportar-requisiciones.ts` (exceljs en el navegador, encabezado
   con logo, filtro de Excel y encabezados fijos).
+- **Maestra de insumos: Descargar Excel** (2026-10-14, `/presupuestos/insumos`):
+  baja los insumos de la búsqueda y los filtros (todas las páginas, en el orden
+  de la tabla) con las columnas de la tabla; la presentación solo si está
+  confirmada (las sugeridas no). Se arma en el navegador con lo ya cargado
+  (`lib/exportar-maestro-insumos.ts`); el botón espera a los valores unitarios.
+- **Órdenes de compra: vista y Excel** (2026-10-14, `/almacen/ordenes-compra`):
+  filtro **Vista** = resumida (una fila por orden + **Valor total**) o detallada
+  (cada orden con todos sus insumos: UM, cantidad, precio, descuento, IVA y valor,
+  y una fila "Total de la orden"). Cambiar la vista no vuelve a consultar: el
+  listado ya trae las líneas de cada orden (`consultaOrdenesCompra` embebe
+  `ordenes_compra_items`; el total = suma de `calcularLinea`, igual que el PDF y
+  el detalle). Cantidad, UM y precio van en la presentación de compra si la línea
+  la tiene (como el PDF). **Descargar Excel** baja TODAS las órdenes de la
+  consulta en la vista elegida (`exportarOrdenesCompra` +
+  `lib/exportar-ordenes-compra.ts`, mismo formato que el de requisiciones; la
+  detallada, una fila por insumo).
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 
@@ -2183,6 +2201,26 @@ del menú y "Subgrupo › Pestaña" en la matriz de roles). Las claves y las rut
 no cambiaron; solo títulos (también el título de cada página). Los textos de
 dentro (botón "Pre-aprobar", avisos de la base) siguen diciendo
 pre-aprobación.
+
+## Menú de AdPro reorganizado (2026-10-14)
+
+Mismo método que Contratos (secciones con `subseccion`; claves y rutas sin
+cambios, solo títulos, orden y sección; también el título de cada página):
+- **Presupuestos**: Elaboración de presupuestos; subgrupo **Insumos y APU**:
+  Maestra de insumos, Aprobación de insumos (antes en Compras) y Aprobación de
+  mano de obra y equipos (`tecnico.aprobar_mano_obra`, antes en Requisiciones).
+- **Requisiciones**: Elaboración, Registro y Aprobación de requisiciones.
+- **Compras**: subgrupo **Requisiciones** (Requisiciones por comprar =
+  `compras.comprar_pedidos`, Saldos pendientes); subgrupo **Órdenes de compra**
+  (Registro de órdenes de compra = `compras.ordenes`, Aprobación de órdenes de
+  compra); Proveedores.
+- **Almacén**: Entradas, Salidas, Inventario (orden de trabajo).
+- **Control**: Control del proyecto (`admin.visualizacion`, antes "Visualización").
+- Acciones de la matriz en el mismo orden de secciones; `aprobar_insumos` y
+  `aprobar_mano_obra` pasaron a Presupuestos.
+- Efecto: la primera pestaña del rol (a donde se llega al elegir proyecto) sale
+  del orden de `PESTANAS`; Compras y Líder Compras llegan ahora a Maestra de
+  insumos (antes Inventario).
 
 ## Elaboración de actas `/contratos/actas` (2026-10-14)
 

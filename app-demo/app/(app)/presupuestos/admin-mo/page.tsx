@@ -194,7 +194,7 @@ function AdminManoObraContent() {
 
   return (
     <>
-    <EncabezadoPagina titulo={config.titulo} subtitulo={config.subtitulo} />
+    <EncabezadoPagina titulo="Aprobación de mano de obra y equipos" subtitulo={`${config.titulo}: ${config.subtitulo.toLowerCase()}`} />
     <main className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 space-y-6 p-4 sm:p-6">
 
       {mostrarNoAutorizado && (

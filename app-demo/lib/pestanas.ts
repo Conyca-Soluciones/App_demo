@@ -59,24 +59,31 @@ export type Pestana = {
 // aunque se renombre o se mueva una pestaña (en la base están como
 // 'tab.<clave>'): solo cambian título y sección.
 export const PESTANAS: Pestana[] = [
+  // Presupuestos: Elaboración y el subgrupo Insumos y APU (catálogos que usan
+  // los APU; antes Maestra y Aprobación de insumos estaban en Compras y
+  // Aprobación de mano de obra en Requisiciones).
   { clave: "presupuestos.elaboracion", titulo: "Elaboración de presupuestos", seccion: "Presupuestos", url: "/presupuestos", rutas: ["/presupuestos", "/presupuestos/apu", "/presupuestos/graficas"] },
+  { clave: "almacen.insumos", titulo: "Maestra de insumos", seccion: "Presupuestos", subseccion: "Insumos y APU", url: "/presupuestos/insumos", rutas: ["/presupuestos/insumos"] },
+  { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Presupuestos", subseccion: "Insumos y APU", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
+  { clave: "tecnico.aprobar_mano_obra", titulo: "Aprobación de mano de obra y equipos", seccion: "Presupuestos", subseccion: "Insumos y APU", url: "/presupuestos/admin-mo", rutas: ["/presupuestos/admin-mo"] },
 
   { clave: "tecnico.pedidos", titulo: "Elaboración de requisiciones", seccion: "Requisiciones", url: "/almacen", rutas: ["/almacen"] },
-  { clave: "tecnico.registro_pedidos", titulo: "Registro de Requisiciones", seccion: "Requisiciones", url: "/almacen/registro-requisiciones", rutas: ["/almacen/registro-requisiciones"] },
+  { clave: "tecnico.registro_pedidos", titulo: "Registro de requisiciones", seccion: "Requisiciones", url: "/almacen/registro-requisiciones", rutas: ["/almacen/registro-requisiciones"] },
   { clave: "tecnico.aprobar_pedidos", titulo: "Aprobación de requisiciones", seccion: "Requisiciones", url: "/admin-tecnico", rutas: ["/admin-tecnico"] },
-  { clave: "tecnico.aprobar_mano_obra", titulo: "Aprobación de mano de obra", seccion: "Requisiciones", url: "/presupuestos/admin-mo", rutas: ["/presupuestos/admin-mo"] },
 
-  { clave: "almacen.inventario", titulo: "Inventario", seccion: "Almacén", url: "/almacen/inventario", rutas: ["/almacen/inventario"] },
+  // Compras: subgrupo Requisiciones (lo que falta comprar), subgrupo Órdenes de
+  // compra y Proveedores. comprar_pedidos = Requisiciones por comprar,
+  // ordenes = Registro de órdenes de compra.
+  { clave: "compras.comprar_pedidos", titulo: "Requisiciones por comprar", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
+  { clave: "compras.saldos_pendientes", titulo: "Saldos pendientes", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/saldos-pendientes", rutas: ["/almacen/saldos-pendientes"], nota: "Requisiciones compradas a medias, para cerrar su saldo." },
+  { clave: "compras.ordenes", titulo: "Registro de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
+  { clave: "compras.aprobar_oc", titulo: "Aprobación de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/aprobar-oc", rutas: ["/almacen/aprobar-oc"] },
+  { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
+
+  // Almacén en el orden en que se trabaja.
   { clave: "almacen.entradas", titulo: "Entradas", seccion: "Almacén", url: "/almacen/entradas", rutas: ["/almacen/entradas"] },
   { clave: "almacen.salidas", titulo: "Salidas", seccion: "Almacén", url: "/almacen/salidas", rutas: ["/almacen/salidas"] },
-
-  { clave: "compras.comprar_pedidos", titulo: "Requisiciones", seccion: "Compras", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
-  { clave: "compras.ordenes", titulo: "Órdenes de compra", seccion: "Compras", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
-  { clave: "compras.aprobar_oc", titulo: "Aprobación de órdenes de compra", seccion: "Compras", url: "/almacen/aprobar-oc", rutas: ["/almacen/aprobar-oc"] },
-  { clave: "compras.saldos_pendientes", titulo: "Saldos pendientes", seccion: "Compras", url: "/almacen/saldos-pendientes", rutas: ["/almacen/saldos-pendientes"], nota: "Requisiciones compradas a medias, para cerrar su saldo." },
-  { clave: "almacen.insumos", titulo: "Maestra de insumos", seccion: "Compras", url: "/presupuestos/insumos", rutas: ["/presupuestos/insumos"] },
-  { clave: "almacen.aprobar_insumos", titulo: "Aprobación de insumos", seccion: "Compras", url: "/presupuestos/admin-insumos", rutas: ["/presupuestos/admin-insumos"] },
-  { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
+  { clave: "almacen.inventario", titulo: "Inventario", seccion: "Almacén", url: "/almacen/inventario", rutas: ["/almacen/inventario"] },
 
   // Contratos: Contratistas, el subgrupo Contratos, el subgrupo Actas e Informes.
   // Claves de antes con nombre nuevo: solicitar = Contratos por grupos,
@@ -87,13 +94,13 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.solicitar", titulo: "Contratos por grupos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
   { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/generales", rutas: ["/contratos/generales"] },
   { clave: "contratos.preaprobacion", titulo: "Pre aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
-  { clave: "contratos.aprobar_minutas", titulo: "Aprobación de Contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas"] },
+  { clave: "contratos.aprobar_minutas", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas"] },
   { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf"] },
   { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf"] },
   { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
-  { clave: "admin.visualizacion", titulo: "Visualización", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
+  { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
 
   // A&F (Administrativo y Financiero)
   { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos"] },
@@ -118,16 +125,16 @@ export type Accion = {
 
 export const ACCIONES: Accion[] = [
   { clave: "editar_presupuestos", titulo: "Editar presupuestos", descripcion: "Crear y modificar presupuestos, APU y versiones de los proyectos a los que tiene acceso.", seccion: "Presupuestos" },
+  { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar la maestra de insumos.", seccion: "Presupuestos" },
+  { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Presupuestos" },
   { clave: "aprobar_pedidos", titulo: "Aprobar requisiciones", descripcion: "Aprobar o rechazar las requisiciones de insumos de los ingenieros (y ver las de todos los proyectos).", seccion: "Requisiciones" },
   { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
-  { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Requisiciones" },
-  { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar la maestra de insumos.", seccion: "Compras" },
-  { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
   { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
+  { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_minutas", titulo: "Aprobar contratos (Subgerencia)", descripcion: "Aprobar o devolver con motivo la minuta de los contratos que Jurídica pre-aprueba y envía a Subgerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas.", seccion: "Contratos" },

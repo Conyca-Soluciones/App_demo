@@ -53,6 +53,13 @@ import {
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { verProyectos } from "@/app/(app)/almacen/actions"
 
+// Valor total de la orden (descuento e IVA incluidos, como el PDF).
+const formatoMoneda = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+})
+
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleString("es-CO", {
     day: "2-digit",
@@ -324,6 +331,7 @@ export function AprobarOCView() {
                     <TableHead>Creada por</TableHead>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Valor total</TableHead>
                     <TableHead className="w-[300px]">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -356,6 +364,7 @@ export function AprobarOCView() {
                             )}
                           </div>
                         </TableCell>
+                        <TableCell className="text-right tabular-nums">{formatoMoneda.format(orden.valorTotal)}</TableCell>
                         <TableCell>
                           {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
                               lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto). */}
@@ -449,7 +458,7 @@ export function AprobarOCView() {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Las líneas de esta orden se mantienen para revisión manual — los pedidos no vuelven
-            automáticamente a la cola de &quot;Comprar requisiciones&quot;.
+            automáticamente a la cola de &quot;Requisiciones por comprar&quot;.
           </p>
           <Textarea
             placeholder="Motivo del rechazo (obligatorio)"
