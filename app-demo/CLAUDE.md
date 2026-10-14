@@ -2058,6 +2058,10 @@ pre-aprobación.
 ## Elaboración de actas `/contratos/actas` (2026-10-14)
 
 Pestaña `contratos.cortes` (`20261110000000_actas_contratos.sql`).
+**OJO: desde `20261112000000_actas_sobre_contrato.sql` el acta ya NO usa
+líneas de ítem + insumo del APU (lo que describen los puntos "Contrato",
+"Precio e IVA" y "Guardar" de abajo): ver "Actas sobre el contrato" más
+abajo.** `acta_lineas` queda solo para las actas viejas.
 
 - **Número de contrato**: `contratos.numero_contrato` = "CJ-<número de la
   solicitud>-<año>" (el que imprimen las minutas). Lo pone el trigger
@@ -2138,6 +2142,73 @@ Pestaña `contratos.aprobar_actas` y acción `aprobar_actas`
   contrato; quien la hizo puede corregirla y mandarla otra vez.
 - `puede_ver_actas` acepta cualquiera de las dos pestañas (cortes o
   aprobar_actas) más el acceso al proyecto.
+
+## Actas sobre el contrato (2026-10-14, `20261112000000_actas_sobre_contrato.sql`)
+
+Decisiones del usuario: el acta cobra lo PACTADO, muestra todas las
+actividades del contrato y se llenan las ejecutadas; descuentos; período,
+observaciones y soportes; PDF propio; pago en A&F; historial; acta final y de
+liquidación; contrato vencido = sin actas de avance + aviso.
+
+- **Lo ejecutado**: contrato a valores unitarios -> las actividades del anexo
+  (`contrato_anexo_items`) con su valor unitario pactado; se guardan en
+  `acta_actividades` solo las que tienen cantidad. Tope por actividad:
+  acumulado de las actas no rechazadas + esta <= cantidad contratada.
+  Contrato a valor global -> `actas.porcentaje_avance` (acumulado <= 100 %),
+  bruto = % × valor. El bruto de todas las actas sigue sin pasar del valor del
+  contrato (`actas.total` = `valor_bruto`).
+- **Descuentos**: amortización del anticipo (% del anticipo de la solicitud
+  sobre el bruto, sin pasar de lo que falte; la final amortiza todo lo que
+  falte), retención en garantía (% de la solicitud de obra,
+  `_retencion_porcentaje_contrato`, de `datos_tipo`) y otros escritos a mano
+  (`acta_descuentos`: retefuente, ICA...). Neto = bruto − amortización −
+  retención − otros (no negativo). Los % quedan copiados en el acta.
+- **Tipos** (`actas.tipo`): parcial, final (después de una final no hay más de
+  avance), liquidación (sin actividades: devuelve la retención APROBADA y
+  descuenta el anticipo que falte por amortizar; su neto puede ser negativo =
+  saldo a favor de la empresa, sin pago; exige que no haya actas por aprobar).
+  Aprobar la liquidación pone `contratos.liquidado_at`: no recibe más actas.
+- **Vencido** (`_fecha_fin_contrato`: fecha fin, o inicio + duración; sin
+  inicio no vence): no recibe actas de avance, solo la de liquidación (para
+  ampliar el plazo hará falta el otrosí, pendiente). pg_cron diario
+  `avisar-contratos-vencidos` (6:10 a. m. Colombia, `_avisar_contratos_vencidos`):
+  una sola vez por contrato (`contratos.aviso_vencido_at`) a quien lo pidió
+  (`contrato_vencido` -> Contratos por grupos) y a Legal / Líder Legal que vean
+  el proyecto (`contrato_vencido_juridica` -> Pre aprobación).
+- **Funciones**: `contrato_para_acta(contrato, excluir_acta)` (todo lo que la
+  pantalla necesita: actividades con acumulado, anticipo, retención, vencido,
+  final, liquidación...), `_guardar_acta` (común a crear y editar; la base
+  vuelve a calcular todo), `crear_acta(acta_id, contrato, datos, soportes)`
+  (el id lo genera el navegador para subir los soportes antes),
+  `editar_acta(acta, datos, soportes_nuevos, soportes_quitar)` (devuelve las
+  rutas quitadas para borrarlas), `resolver_acta`, `detalle_acta`,
+  `actas_de_contrato`, `listar_actas_aprobacion`. Se borraron las del formato
+  APU (`_llenar_acta`, `items_para_acta`, `insumos_item_para_acta`,
+  `_lineas_apu_para_acta`). En TS el mismo cálculo está en `calcularActa` /
+  `validarActa` / `tiposPermitidos` (`lib/actas.ts`, con pruebas).
+- **Soportes**: bucket privado `actas` (PDF, JPG, PNG, XLSX; 10 MB), ruta
+  `<acta_id>/<tipo>-<marca>-<n>.<ext>`, tabla `acta_soportes` (factura,
+  memoria de cantidades, fotos, otro). Mismo esquema que contratistas: subir,
+  luego guardar; si falla se borran; el borrado solo deja quitar archivos que
+  ya no son soporte de nada.
+- **Pago**: al aprobar un acta con neto (redondeado) > 0, `resolver_acta`
+  crea el pago (`pagos.fuente = 'acta'`, `pagos.acta_id`, tipo único,
+  aprobado, con ITEM de la semana; tercero = documento del contratista, cuenta
+  si tiene una sola verificada), igual que una OC. En A&F la columna "Origen"
+  (`Pago.origen`) dice "OC 26" o "Acta 1 · CJ-14-2026". No se crea pago del
+  anticipo del contrato (pendiente decidir).
+- **Historial**: `historial_eventos` con entidad `acta` (creada, editada,
+  reenviada, aprobada con el pago, rechazada); `historial_entidad` acepta
+  `acta`. Se ve en el detalle.
+- **PDF**: `GET /contratos/acta-pdf/[id]` (`components/acta-pdf.tsx`), ruta
+  aparte para que la abran Actas por grupos y Aprobación de actas (las dos
+  pestañas tienen `/contratos/acta-pdf` en sus rutas). Encabezado de las
+  minutas con código "por definir" (no hay plantilla de Jurídica), datos del
+  contrato, todas las actividades con acumulados, estado del contrato, resumen
+  con neto en letras, observaciones y firmas: Elaboró (quien la creó),
+  Contratista (o su representante) y Aprobó. Sin aprobar dice "BORRADOR".
+- **Pendiente**: otrosí (ampliar plazo/valor), pago del anticipo al aprobar la
+  minuta, código del formato del acta, firmas digitales, AIU.
 
 ---
 

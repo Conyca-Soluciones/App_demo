@@ -166,5 +166,10 @@ select * from (
   union all
   select '20261111100000_preaprobar_y_enviar_minuta',
          exists (select 1 from pg_proc where proname = 'preaprobar_y_enviar_minuta')
+  union all
+  select '20261112000000_actas_sobre_contrato',
+         exists (select 1 from pg_proc where proname = 'contrato_para_acta')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'pagos' and column_name = 'acta_id')
 ) t
 order by 1;

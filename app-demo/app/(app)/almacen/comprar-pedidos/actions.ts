@@ -980,6 +980,8 @@ export type NotificacionTipo =
   | "minuta_por_revisar"
   | "minuta_aprobada"
   | "minuta_devuelta"
+  | "contrato_vencido"
+  | "contrato_vencido_juridica"
 export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta"
 
 export type Notificacion = {

@@ -26,8 +26,10 @@ export async function listarActasAprobacion(filtros: FiltrosAprobacionActas): Pr
   return (data ?? []).map((f: any) => ({
     id: f.acta_id,
     numero: Number(f.numero),
+    tipo: f.tipo,
     estado: f.estado,
-    total: Number(f.total),
+    valorBruto: Number(f.valor_bruto),
+    neto: Number(f.neto),
     createdAt: f.created_at,
     creadoPorNombre: f.creado_por_nombre ?? null,
     contratoId: f.contrato_id,

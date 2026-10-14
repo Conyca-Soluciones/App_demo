@@ -127,10 +127,10 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
   const columnas: ColumnaExcel<Pago>[] = [
     {
       clave: "orden",
-      titulo: "OC",
-      ancho: 80,
+      titulo: "Origen",
+      ancho: 150,
       fija: true,
-      texto: (p) => (p.ordenNumero != null ? String(p.ordenNumero) : ""),
+      texto: (p) => p.origen,
     },
     {
       clave: "tipo",
@@ -294,7 +294,7 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
               claveFila={(p) => p.id}
               tarjeta={{
                 titulo: (p) => p.terceroNombre ?? "Sin tercero",
-                subtitulo: (p) => `OC ${p.ordenNumero ?? "—"} · ${ETIQUETA_TIPO_PAGO[p.tipo]}`,
+                subtitulo: (p) => `${p.origen || "—"} · ${ETIQUETA_TIPO_PAGO[p.tipo]}`,
                 esquina: (p) => <EtiquetaEstado estado={p.estado} />,
                 campos: ["proyecto", "empresa", "valor", "fecha", "acciones"],
               }}
@@ -319,7 +319,7 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Rechazar pago — OC {rechazando?.ordenNumero} ({rechazando ? ETIQUETA_TIPO_PAGO[rechazando.tipo] : ""})
+              Rechazar pago — {rechazando?.origen} ({rechazando ? ETIQUETA_TIPO_PAGO[rechazando.tipo] : ""})
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
@@ -347,7 +347,7 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
         titulo={`¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`}
         detalle={
           porAprobar
-            ? `${porAprobar.terceroNombre ?? "Sin tercero"}${porAprobar.ordenNumero ? ` · OC ${porAprobar.ordenNumero}` : ""}${
+            ? `${porAprobar.terceroNombre ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
                 porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
               }. ${porAprobar.concepto}`
             : ""

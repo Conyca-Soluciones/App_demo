@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server"
 // quien puede ver la orden o el pedido: la función SQL lo valida.
 // ---------------------------------------------------------------------------
 
-export type TipoHistorial = "orden_compra" | "pedido" | "requisicion" | "contrato"
+export type TipoHistorial = "orden_compra" | "pedido" | "requisicion" | "contrato" | "acta"
 
 export type EventoHistorial = {
   id: string

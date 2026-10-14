@@ -1,76 +1,181 @@
 import { describe, expect, it } from "vitest"
-import { leerNumero } from "@/lib/contratos"
-import { actaEditable, calcularLinea, consumidoActas, lineaActaVacia, lineasFormDesdeActa, saldoContrato, type ActaDetalle, totalActa, validarActa, type InsumoParaActa, type ItemParaActa, type LineaActaForm } from "@/lib/actas"
+import {
+  actaEditable,
+  calcularActa,
+  consumidoActas,
+  formActaVacio,
+  formDesdeActa,
+  saldoContrato,
+  tiposPermitidos,
+  validarActa,
+  type ActaDetalle,
+  type FormActa,
+  type InfoContratoActa,
+} from "@/lib/actas"
 
-const item: ItemParaActa = { id: "i1", codigo: "1.01", descripcion: "Excavación", unidad: "M3" }
-const insumo = (cambios: Partial<InsumoParaActa> = {}): InsumoParaActa => ({
-  itemApuId: "a1",
-  insumoCodigo: 256,
-  descripcion: "ARCILLA",
-  unidad: "M3",
-  precio: 29_999,
-  ivaPorcentaje: 19,
+const info = (cambios: Partial<InfoContratoActa> = {}): InfoContratoActa => ({
+  valor: 10_000_000,
+  anexoTipo: "valores_unitarios",
+  anticipoPorcentaje: null,
+  retencionPorcentaje: null,
+  fechaFin: "2027-01-31",
+  vencido: false,
+  liquidado: false,
+  listoParaActas: true,
+  tieneFinal: false,
+  tieneLiquidacion: false,
+  actasPorAprobar: 0,
+  brutoOtras: 0,
+  avanceOtras: 0,
+  amortizadoOtras: 0,
+  amortizadoAprobado: 0,
+  retenidoAprobado: 0,
+  actividades: [
+    { id: "a1", orden: 1, actividad: "Excavación", unidad: "m3", cantidad: 100, valorUnitario: 50_000, acumulado: 40 },
+    { id: "a2", orden: 2, actividad: "Concreto", unidad: "m3", cantidad: 20, valorUnitario: 250_000, acumulado: 0 },
+  ],
   ...cambios,
 })
-const linea = (cantidad: string, cambios: Partial<LineaActaForm> = {}): LineaActaForm => ({ item, insumo: insumo(), cantidad, ...cambios })
+const form = (cambios: Partial<FormActa> = {}): FormActa => ({ ...formActaVacio(), ...cambios })
 
-describe("calcularLinea", () => {
-  it("base = cantidad × precio, IVA sobre la base, total = base + IVA", () => {
-    expect(calcularLinea(2.5, 29_999, 19)).toEqual({ base: 74_997.5, iva: 14_249.53, total: 89_247.03 })
-    expect(calcularLinea(3, 100_000, 0)).toEqual({ base: 300_000, iva: 0, total: 300_000 })
+describe("calcularActa: valores unitarios", () => {
+  it("valor = cantidad × valor unitario pactado; solo las actividades con cantidad", () => {
+    const r = calcularActa(info(), form({ cantidades: { a1: "10", a2: "2,5" } }))
+    expect(r.lineas).toEqual([
+      { id: "a1", cantidad: 10, valor: 500_000, excede: false },
+      { id: "a2", cantidad: 2.5, valor: 625_000, excede: false },
+    ])
+    expect(r.bruto).toBe(1_125_000)
+    expect(r.neto).toBe(1_125_000)
+  })
+  it("tope por actividad: acumulado + esta acta <= contratada", () => {
+    expect(calcularActa(info(), form({ cantidades: { a1: "60" } })).lineas[0].excede).toBe(false)
+    expect(calcularActa(info(), form({ cantidades: { a1: "60,5" } })).lineas[0].excede).toBe(true)
+    const v = validarActa(info(), form({ cantidades: { a1: "61" } }))
+    expect(v).toEqual({ ok: false, error: '"Excavación" pasa de la cantidad contratada (100 m3).' })
+  })
+  it("sin ninguna cantidad no se guarda", () => {
+    expect(validarActa(info(), form())).toEqual({ ok: false, error: "Escribe la cantidad ejecutada de al menos una actividad." })
   })
 })
 
-describe("totalActa", () => {
-  it("suma solo las líneas completas; cantidad en formato colombiano", () => {
-    expect(totalActa([linea("2,5"), linea("1", { insumo: insumo({ itemApuId: "a2", precio: 1_000, ivaPorcentaje: 0 }) }), lineaActaVacia(), linea("")])).toBe(90_247.03)
+describe("calcularActa: valor global", () => {
+  const global = info({ anexoTipo: "valor_global", actividades: [], avanceOtras: 30 })
+  it("bruto = % de avance × valor del contrato", () => {
+    const r = calcularActa(global, form({ porcentajeAvance: "25" }))
+    expect(r.avance).toBe(25)
+    expect(r.bruto).toBe(2_500_000)
+  })
+  it("el avance acumulado no pasa del 100 %", () => {
+    expect(validarActa(global, form({ porcentajeAvance: "71" }))).toEqual({
+      ok: false,
+      error: "El avance acumulado pasaría del 100 % (ya va en 30 %).",
+    })
+    expect(validarActa(global, form({ porcentajeAvance: "70" })).ok).toBe(true)
   })
 })
 
-describe("validarActa", () => {
-  it("ignora las líneas vacías y devuelve las completas", () => {
-    expect(validarActa([lineaActaVacia(), linea("1.000")])).toEqual({ ok: true, lineas: [{ presupuestoItemId: "i1", itemApuId: "a1", cantidad: 1000 }] })
+describe("descuentos", () => {
+  it("amortización del anticipo y retención en garantía sobre el bruto", () => {
+    const r = calcularActa(
+      info({ anticipoPorcentaje: 30, retencionPorcentaje: 5 }),
+      form({ cantidades: { a2: "4" }, descuentos: [{ concepto: "Retefuente", valor: "10.000" }] })
+    )
+    expect(r.bruto).toBe(1_000_000)
+    expect(r.amortizacion).toBe(300_000)
+    expect(r.retencion).toBe(50_000)
+    expect(r.otros).toBe(10_000)
+    expect(r.neto).toBe(640_000)
   })
-  it("errores con el número de la línea", () => {
-    expect(validarActa([])).toEqual({ ok: false, error: "Agrega al menos una línea al acta." })
-    expect(validarActa([{ item, insumo: null, cantidad: "" }])).toEqual({ ok: false, error: "Línea 1: escoge el insumo." })
-    expect(validarActa([linea("1"), linea("0")])).toEqual({ ok: false, error: "Línea 2: escribe una cantidad mayor que cero." })
-    expect(validarActa([linea("1"), linea("2")])).toEqual({ ok: false, error: "Línea 2: ese insumo de ese ítem ya está en el acta." })
-    expect(validarActa([linea("1", { insumo: insumo({ precio: null }) })])).toEqual({ ok: false, error: "Línea 1: el insumo no tiene precio en el APU." })
+  it("no amortiza más que el anticipo que falta", () => {
+    // Anticipo = 3.000.000; ya amortizado 2.900.000: falta 100.000.
+    const r = calcularActa(info({ anticipoPorcentaje: 30, amortizadoOtras: 2_900_000 }), form({ cantidades: { a2: "4" } }))
+    expect(r.amortizacion).toBe(100_000)
   })
-  it("máximo 20 líneas", () => {
-    const muchas = Array.from({ length: 21 }, (_, i) => linea("1", { insumo: insumo({ itemApuId: `a${i}` }) }))
-    expect(validarActa(muchas)).toEqual({ ok: false, error: "Un acta tiene como máximo 20 líneas." })
+  it("el acta final amortiza todo lo que falte (sin pasar del bruto)", () => {
+    const r = calcularActa(info({ anticipoPorcentaje: 30, amortizadoOtras: 1_000_000 }), form({ tipo: "final", cantidades: { a2: "20" } }))
+    expect(r.bruto).toBe(5_000_000)
+    expect(r.amortizacion).toBe(2_000_000)
+  })
+  it("los descuentos no pueden pasar del valor del acta", () => {
+    const v = validarActa(info(), form({ cantidades: { a1: "1" }, descuentos: [{ concepto: "ICA", valor: "60.000" }] }))
+    expect(v).toEqual({ ok: false, error: "Los descuentos pasan del valor del acta." })
+  })
+  it("un descuento necesita concepto y valor > 0", () => {
+    expect(validarActa(info(), form({ cantidades: { a1: "1" }, descuentos: [{ concepto: "", valor: "5" }] }))).toEqual({
+      ok: false,
+      error: "Escribe el concepto de cada descuento.",
+    })
+  })
+})
+
+describe("acta de liquidación", () => {
+  it("devuelve la retención y descuenta el anticipo que falte", () => {
+    const r = calcularActa(
+      info({ anticipoPorcentaje: 30, amortizadoAprobado: 2_500_000, retenidoAprobado: 400_000 }),
+      form({ tipo: "liquidacion" })
+    )
+    expect(r.bruto).toBe(0)
+    expect(r.devolucionRetencion).toBe(400_000)
+    expect(r.amortizacion).toBe(500_000)
+    expect(r.neto).toBe(-100_000)
+  })
+})
+
+describe("tiposPermitidos", () => {
+  it("normal: parcial, final y liquidación", () => {
+    expect(tiposPermitidos(info()).tipos).toEqual(["parcial", "final", "liquidacion"])
+  })
+  it("vencido: solo liquidación", () => {
+    const t = tiposPermitidos(info({ vencido: true }))
+    expect(t.tipos).toEqual(["liquidacion"])
+    expect(t.motivo).toMatch(/vencido/)
+  })
+  it("con acta final: solo liquidación (si no hay actas por aprobar)", () => {
+    expect(tiposPermitidos(info({ tieneFinal: true })).tipos).toEqual(["liquidacion"])
+    expect(tiposPermitidos(info({ tieneFinal: true, actasPorAprobar: 1 })).tipos).toEqual([])
+  })
+  it("liquidado o sin minuta aprobada: nada", () => {
+    expect(tiposPermitidos(info({ liquidado: true })).tipos).toEqual([])
+    expect(tiposPermitidos(info({ listoParaActas: false })).tipos).toEqual([])
   })
 })
 
 describe("cupo del contrato", () => {
   it("las rechazadas no consumen; saldo = valor - consumido", () => {
     const consumido = consumidoActas([
-      { estado: "aprobada", total: 1_000_000 },
-      { estado: "pendiente", total: 250_000.5 },
-      { estado: "rechazada", total: 9_000_000 },
+      { estado: "aprobada", valorBruto: 1_000_000 },
+      { estado: "pendiente", valorBruto: 250_000.5 },
+      { estado: "rechazada", valorBruto: 9_000_000 },
     ])
     expect(consumido).toBe(1_250_000.5)
     expect(saldoContrato(2_000_000, consumido)).toBe(749_999.5)
   })
+  it("no deja pasar del saldo del contrato", () => {
+    expect(validarActa(info({ brutoOtras: 9_900_000 }), form({ cantidades: { a2: "1" } }))).toEqual({
+      ok: false,
+      error: "El acta pasa del saldo del contrato.",
+    })
+  })
 })
 
-describe("lineasFormDesdeActa", () => {
-  it("arma las líneas del formulario; sin ítem o insumo borrado quedan por escoger", () => {
-    const base = { orden: 1, itemCodigo: "1.01", itemDescripcion: "Excavación", insumoCodigo: 256, insumoDescripcion: "ARCILLA", unidad: "M3", precio: 100, ivaPorcentaje: 19, baseIva: 0, iva: 0, total: 0 }
-    const acta = {
-      lineas: [
-        { ...base, presupuestoItemId: "i1", itemApuId: "a1", cantidad: 1250.5 },
-        { ...base, presupuestoItemId: "i1", itemApuId: null, cantidad: 2 },
-      ],
-    } as unknown as ActaDetalle
-    const [a, b] = lineasFormDesdeActa(acta)
-    expect(a.item?.id).toBe("i1")
-    expect(a.insumo).toMatchObject({ itemApuId: "a1", precio: 100, ivaPorcentaje: 19 })
-    expect(leerNumero(a.cantidad)).toBe(1250.5)
-    expect(b.insumo).toBeNull()
-  })
+it("formDesdeActa: las cantidades y descuentos guardados vuelven al formulario", () => {
+  const acta = {
+    tipo: "parcial",
+    periodoDesde: "2026-10-01",
+    periodoHasta: "2026-10-15",
+    observaciones: null,
+    porcentajeAvance: null,
+    actividades: [
+      { id: "a1", cantidad: 1250.5 },
+      { id: "a2", cantidad: null },
+    ],
+    descuentos: [{ concepto: "ICA", valor: 1500 }],
+  } as unknown as ActaDetalle
+  const f = formDesdeActa(acta)
+  expect(f.cantidades).toEqual({ a1: "1.250,5" })
+  expect(f.descuentos).toEqual([{ concepto: "ICA", valor: "1.500" }])
+  expect(f.periodoHasta).toBe("2026-10-15")
 })
 
 it("actaEditable: solo quien la creó y si no está aprobada", () => {

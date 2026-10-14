@@ -11,7 +11,7 @@ import { DetalleActa } from "@/components/detalle-acta"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos } from "@/lib/contratos"
-import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, type ActaAprobacionFila, type ActaDetalle, type EstadoActa } from "@/lib/actas"
+import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, ETIQUETA_TIPO_ACTA, type ActaAprobacionFila, type ActaDetalle, type EstadoActa } from "@/lib/actas"
 import { listarActasAprobacion, resolverActa, type AccionActa } from "@/app/(app)/contratos/aprobacion-actas/actions"
 
 // ---------------------------------------------------------------------------
@@ -30,7 +30,8 @@ const FILTROS: { valor: EstadoActa | "todas"; etiqueta: string }[] = [
 const TEXTO_ACCION: Record<AccionActa, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
   aprobar: {
     titulo: "Aprobar acta",
-    explicacion: "Queda aprobada y su valor sigue descontado del contrato. Ya no se podrá editar. Quien la hizo recibe un aviso.",
+    explicacion:
+      "Queda aprobada y su valor sigue descontado del contrato; si el neto es mayor que cero se crea su pago en A&F (Consolidado de pagos). Ya no se podrá editar. Quien la hizo recibe un aviso.",
     boton: "Aprobar",
     pideMotivo: false,
   },
@@ -95,7 +96,9 @@ export function AprobacionActasView({ puedeResolver }: { puedeResolver: boolean 
       { clave: "contrato", titulo: "N° contrato", ancho: 130, texto: (a) => a.numeroContrato },
       { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (a) => a.proyectoCodigo || a.proyectoNombre },
       { clave: "contratista", titulo: "Contratista", ancho: 220, flexible: true, texto: (a) => a.contratistaNombre },
-      { clave: "total", titulo: "Total del acta", ancho: 150, alinear: "right", texto: (a) => pesos(a.total), claseCelda: "tabular-nums" },
+      { clave: "tipo", titulo: "Tipo", ancho: 150, texto: (a) => ETIQUETA_TIPO_ACTA[a.tipo] },
+      { clave: "bruto", titulo: "Valor bruto", ancho: 140, alinear: "right", texto: (a) => pesos(a.valorBruto), claseCelda: "tabular-nums" },
+      { clave: "total", titulo: "Neto a pagar", ancho: 140, alinear: "right", texto: (a) => pesos(a.neto), claseCelda: "tabular-nums" },
       { clave: "valor", titulo: "Valor contrato", ancho: 150, alinear: "right", texto: (a) => pesos(a.contratoValor), claseCelda: "tabular-nums" },
       {
         clave: "estado",
@@ -248,7 +251,9 @@ export function AprobacionActasView({ puedeResolver }: { puedeResolver: boolean 
                 </DialogTitle>
               </DialogHeader>
               <p className="text-sm text-muted-foreground">
-                {accion.acta.contratistaNombre} · {pesos(accion.acta.total)}. {TEXTO_ACCION[accion.tipo].explicacion}
+                {accion.acta.contratistaNombre} · {ETIQUETA_TIPO_ACTA[accion.acta.tipo]} · neto {pesos(accion.acta.neto)}.{" "}
+                {TEXTO_ACCION[accion.tipo].explicacion}
+                {accion.tipo === "aprobar" && accion.acta.tipo === "liquidacion" && " Al aprobarla, el contrato queda liquidado y no recibe más actas."}
               </p>
               {TEXTO_ACCION[accion.tipo].pideMotivo && (
                 <div className="space-y-1">

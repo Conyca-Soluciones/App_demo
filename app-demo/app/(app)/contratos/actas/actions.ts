@@ -3,25 +3,24 @@
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
-import {
-  validarActa,
-  type ActaDetalle,
-  type ActaResumen,
-  type ContratistaParaActa,
-  type ContratoParaActa,
-  type InsumoParaActa,
-  type ItemParaActa,
-  type LineaActaForm,
+import type {
+  ActaDetalle,
+  ActaResumen,
+  ContratistaParaActa,
+  ContratoParaActa,
+  DatosActa,
+  InfoContratoActa,
+  TipoSoporte,
 } from "@/lib/actas"
 
 // ---------------------------------------------------------------------------
-// Elaboración de actas: buscar el contrato (o el contratista y luego su
-// contrato), ver sus actas y crear una nueva. Todo pasa por funciones de la
-// base que revisan la pestaña contratos.cortes, el acceso al proyecto y, para
-// crear, la acción elaborar_actas (20261110000000_actas_contratos.sql).
+// Actas por grupos: buscar el contrato (o el contratista y luego su contrato),
+// ver sus actas y crear o editar una. Todo pasa por funciones de la base que
+// revisan la pestaña contratos.cortes, el acceso al proyecto y, para crear o
+// editar, la acción elaborar_actas (20261112000000_actas_sobre_contrato.sql).
 // ---------------------------------------------------------------------------
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- filas crudas de Supabase */
 const mapContrato = (f: any): ContratoParaActa => ({
   id: f.contrato_id,
   numeroContrato: f.numero_contrato ?? `Solicitud N° ${f.numero}`,
@@ -36,6 +35,8 @@ const mapContrato = (f: any): ContratoParaActa => ({
   contratistaDocumento: f.contratista_documento,
   actas: Number(f.actas),
 })
+
+const num = (x: unknown) => (x == null ? null : Number(x))
 
 export async function buscarContratosParaActa(texto: string): Promise<ContratoParaActa[]> {
   await requerirPestana("contratos.cortes")
@@ -76,45 +77,59 @@ export async function listarActasDeContrato(contratoId: string): Promise<ActaRes
   return (data ?? []).map((f: any) => ({
     id: f.acta_id,
     numero: Number(f.numero),
+    tipo: f.tipo,
     estado: f.estado,
-    total: Number(f.total),
+    valorBruto: Number(f.valor_bruto),
+    neto: Number(f.neto),
+    periodoDesde: f.periodo_desde ?? null,
+    periodoHasta: f.periodo_hasta ?? null,
     createdAt: f.created_at,
     creadoPorNombre: f.creado_por_nombre ?? null,
-    lineas: Number(f.lineas),
     esMio: Boolean(f.es_mio),
   }))
 }
 
-export async function buscarItemsParaActa(contratoId: string, texto: string): Promise<ItemParaActa[]> {
+// El contrato con sus actividades y acumulados, para llenar o editar un acta
+// (excluirActa: la que se edita no cuenta contra sí misma).
+export async function obtenerContratoParaActa(contratoId: string, excluirActa?: string): Promise<InfoContratoActa> {
   await requerirPestana("contratos.cortes")
-  if (!puedeBuscar(texto)) return []
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("items_para_acta", { p_contrato_id: contratoId, p_texto: texto.trim() })
+  const { data: d, error } = await supabase.rpc("contrato_para_acta", {
+    p_contrato_id: contratoId,
+    p_excluir_acta: excluirActa ?? null,
+  })
   if (error) throw new Error(error.message)
-  return (data ?? []).map((f: any) => ({
-    id: f.presupuesto_item_id,
-    codigo: f.codigo ?? "",
-    descripcion: f.descripcion ?? "",
-    unidad: f.unidad ?? null,
-  }))
+  return {
+    valor: Number(d.valor),
+    anexoTipo: d.anexo_tipo,
+    anticipoPorcentaje: num(d.anticipo_porcentaje),
+    retencionPorcentaje: num(d.retencion_porcentaje),
+    fechaFin: d.fecha_fin ?? null,
+    vencido: Boolean(d.vencido),
+    liquidado: Boolean(d.liquidado),
+    listoParaActas: Boolean(d.listo_para_actas),
+    tieneFinal: Boolean(d.tiene_final),
+    tieneLiquidacion: Boolean(d.tiene_liquidacion),
+    actasPorAprobar: Number(d.actas_por_aprobar),
+    brutoOtras: Number(d.bruto_otras),
+    avanceOtras: Number(d.avance_otras),
+    amortizadoOtras: Number(d.amortizado_otras),
+    amortizadoAprobado: Number(d.amortizado_aprobado),
+    retenidoAprobado: Number(d.retenido_aprobado),
+    actividades: (d.actividades ?? []).map((a: any) => ({
+      id: a.id,
+      orden: Number(a.orden),
+      actividad: a.actividad,
+      unidad: a.unidad,
+      cantidad: Number(a.cantidad),
+      valorUnitario: Number(a.valor_unitario),
+      acumulado: Number(a.acumulado),
+    })),
+  }
 }
 
-export async function insumosDeItemParaActa(contratoId: string, itemId: string): Promise<InsumoParaActa[]> {
-  await requerirPestana("contratos.cortes")
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc("insumos_item_para_acta", { p_contrato_id: contratoId, p_item_id: itemId })
-  if (error) throw new Error(error.message)
-  return (data ?? []).map((f: any) => ({
-    itemApuId: f.item_apu_id,
-    insumoCodigo: f.insumo_codigo ?? null,
-    descripcion: f.descripcion,
-    unidad: f.unidad ?? null,
-    precio: f.precio == null ? null : Number(f.precio),
-    ivaPorcentaje: Number(f.iva_porcentaje ?? 0),
-  }))
-}
-// Detalle de un acta: lo usan Elaboración y Aprobación de actas (la base
-// revisa cualquiera de las dos pestañas y el acceso al proyecto).
+// Detalle de un acta: lo usan Actas por grupos, Aprobación de actas y el PDF
+// (la base revisa cualquiera de las dos pestañas y el acceso al proyecto).
 export async function obtenerActa(id: string): Promise<ActaDetalle> {
   const permisos = await obtenerPermisosRol()
   const ok =
@@ -124,11 +139,27 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
   const supabase = await createClient()
   const { data: d, error } = await supabase.rpc("detalle_acta", { p_acta_id: id })
   if (error) throw new Error(error.message)
+  return mapActaDetalle(d)
+}
+
+function mapActaDetalle(d: any): ActaDetalle {
   return {
     id: d.id,
     numero: Number(d.numero),
+    tipo: d.tipo,
     estado: d.estado,
-    total: Number(d.total),
+    periodoDesde: d.periodo_desde ?? null,
+    periodoHasta: d.periodo_hasta ?? null,
+    observaciones: d.observaciones ?? null,
+    porcentajeAvance: num(d.porcentaje_avance),
+    valorBruto: Number(d.valor_bruto),
+    amortizacion: Number(d.amortizacion),
+    retencion: Number(d.retencion),
+    devolucionRetencion: Number(d.devolucion_retencion),
+    otrosDescuentos: Number(d.otros_descuentos),
+    neto: Number(d.neto),
+    anticipoPorcentaje: num(d.anticipo_porcentaje),
+    retencionPorcentaje: num(d.retencion_porcentaje),
     createdAt: d.created_at,
     creadoPorNombre: d.creado_por_nombre ?? null,
     resueltoAt: d.resuelto_at ?? null,
@@ -141,65 +172,116 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
     numeroContrato: d.numero_contrato,
     contratoValor: Number(d.contrato_valor),
     objeto: d.objeto,
-    tipo: d.tipo,
+    tipoContrato: d.tipo_contrato,
+    anexoTipo: d.anexo_tipo,
     proyectoCodigo: d.proyecto_codigo,
     proyectoNombre: d.proyecto_nombre,
+    proyectoCiudad: d.proyecto_ciudad ?? null,
+    empresaNombre: d.empresa_nombre ?? null,
+    empresaNit: d.empresa_nit ?? null,
     contratistaId: d.contratista_id,
     contratistaNombre: d.contratista_nombre,
+    contratistaTipoPersona: d.contratista_tipo_persona ?? null,
     contratistaDocumento: d.contratista_documento,
+    contratistaRepresentante: d.contratista_representante ?? null,
     otrasActas: Number(d.otras_actas),
-    lineas: (d.lineas ?? []).map((l: any) => ({
+    avanceAnterior: Number(d.avance_anterior),
+    actividades: (d.actividades ?? []).map((a: any) => ({
+      id: a.id,
+      orden: Number(a.orden),
+      actividad: a.actividad,
+      unidad: a.unidad,
+      cantidadContratada: Number(a.cantidad_contratada),
+      valorUnitario: Number(a.valor_unitario),
+      acumuladoAnterior: Number(a.acumulado_anterior),
+      cantidad: num(a.cantidad),
+      valor: num(a.valor),
+    })),
+    descuentos: (d.descuentos ?? []).map((x: any) => ({ concepto: x.concepto, valor: Number(x.valor) })),
+    soportes: (d.soportes ?? []).map((s: any) => ({
+      id: s.id,
+      tipo: s.tipo,
+      ruta: s.ruta,
+      nombreArchivo: s.nombre_archivo,
+      tamano: num(s.tamano),
+      mime: s.mime ?? null,
+    })),
+    pago: d.pago
+      ? {
+          id: d.pago.id,
+          estado: d.pago.estado,
+          valor: Number(d.pago.valor),
+          anio: num(d.pago.anio),
+          semana: num(d.pago.semana),
+          item: num(d.pago.item),
+          novedad: d.pago.novedad ?? null,
+        }
+      : null,
+    lineasAnteriores: (d.lineas_anteriores ?? []).map((l: any) => ({
       orden: Number(l.orden),
-      presupuestoItemId: l.presupuesto_item_id ?? null,
-      itemApuId: l.item_apu_id ?? null,
       itemCodigo: l.item_codigo ?? null,
       itemDescripcion: l.item_descripcion ?? null,
-      insumoCodigo: l.insumo_codigo ?? null,
       insumoDescripcion: l.insumo_descripcion,
       unidad: l.unidad ?? null,
       cantidad: Number(l.cantidad),
       precio: Number(l.precio),
-      ivaPorcentaje: Number(l.iva_porcentaje),
-      baseIva: Number(l.base_iva),
-      iva: Number(l.iva),
       total: Number(l.total),
     })),
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export async function guardarActa(contratoId: string, lineas: LineaActaForm[]): Promise<{ id: string; numero: number }> {
+export type SoporteSubido = { tipo: TipoSoporte; ruta: string; nombreArchivo: string; tamano: number; mime: string }
+
+const soportesParaBase = (s: SoporteSubido[]) =>
+  s.map((x) => ({ tipo: x.tipo, ruta: x.ruta, nombre_archivo: x.nombreArchivo, tamano: x.tamano, mime: x.mime }))
+
+// El id del acta lo genera el navegador (los soportes ya se subieron a <id>/).
+export async function guardarActa(
+  actaId: string,
+  contratoId: string,
+  datos: DatosActa,
+  soportes: SoporteSubido[]
+): Promise<{ id: string; numero: number }> {
   await requerirAccion("elaborar_actas")
-  const r = validarActa(lineas)
-  if (!r.ok) throw new Error(r.error)
+  for (const s of soportes) if (!s.ruta.startsWith(`${actaId}/`)) throw new Error("La ruta de un soporte no corresponde al acta.")
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("crear_acta", {
+    p_acta_id: actaId,
     p_contrato_id: contratoId,
-    p_lineas: r.lineas.map((l) => ({
-      presupuesto_item_id: l.presupuestoItemId,
-      item_apu_id: l.itemApuId,
-      cantidad: l.cantidad,
-    })),
+    p_datos: datos,
+    p_soportes: soportesParaBase(soportes),
   })
   if (error) throw new Error(error.message)
   return { id: data.id, numero: Number(data.numero) }
 }
 
-// Corrige un acta que no está aprobada (solo quien la creó): reemplaza sus líneas y vuelve a
-// "por aprobar" con el mismo número (editar_acta revisa estado y cupo).
-export async function editarActa(actaId: string, lineas: LineaActaForm[]): Promise<{ id: string; numero: number }> {
+// Corrige un acta que no está aprobada (solo quien la creó): vuelve a "por
+// aprobar" con el mismo número. Devuelve las rutas de los soportes quitados.
+export async function editarActa(
+  actaId: string,
+  datos: DatosActa,
+  soportesNuevos: SoporteSubido[],
+  soportesQuitar: string[]
+): Promise<{ id: string; numero: number; rutasQuitadas: string[] }> {
   await requerirAccion("elaborar_actas")
-  const r = validarActa(lineas)
-  if (!r.ok) throw new Error(r.error)
+  for (const s of soportesNuevos) if (!s.ruta.startsWith(`${actaId}/`)) throw new Error("La ruta de un soporte no corresponde al acta.")
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("editar_acta", {
     p_acta_id: actaId,
-    p_lineas: r.lineas.map((l) => ({
-      presupuesto_item_id: l.presupuestoItemId,
-      item_apu_id: l.itemApuId,
-      cantidad: l.cantidad,
-    })),
+    p_datos: datos,
+    p_soportes_nuevos: soportesParaBase(soportesNuevos),
+    p_soportes_quitar: soportesQuitar,
   })
   if (error) throw new Error(error.message)
-  return { id: data.id, numero: Number(data.numero) }
+  return { id: data.id, numero: Number(data.numero), rutasQuitadas: (data.rutas_quitadas ?? []) as string[] }
+}
+
+// Enlace firmado de 2 minutos para ver un soporte (la política del bucket
+// exige poder ver el acta).
+export async function enlaceSoporteActa(ruta: string): Promise<string> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.storage.from("actas").createSignedUrl(ruta, 120)
+  if (error || !data) throw new Error(error?.message ?? "No se pudo abrir el soporte.")
+  return data.signedUrl
 }

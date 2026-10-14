@@ -63,6 +63,7 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  origen: string
   proyectoCodigo: string | null
   proyectoNombre: string | null
   empresaNombre: string | null

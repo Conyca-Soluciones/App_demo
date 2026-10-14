@@ -23,7 +23,11 @@ function rutaDestino(n: Notificacion): string {
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.
   if (n.entidadTipo === "contrato") {
     if (n.tipo === "minuta_por_revisar") return `/contratos/aprobacion-minutas?ver=${n.entidadId}`
-    return n.tipo === "contrato_por_revisar" || n.tipo === "minuta_aprobada" || n.tipo === "minuta_devuelta"
+    // Contrato vencido sin liquidar: a Jurídica, a Pre-aprobación; a quien lo pidió, a su lista.
+    return n.tipo === "contrato_por_revisar" ||
+      n.tipo === "minuta_aprobada" ||
+      n.tipo === "minuta_devuelta" ||
+      n.tipo === "contrato_vencido_juridica"
       ? `/contratos/pre-aprobacion?ver=${n.entidadId}`
       : `/contratos/solicitar?ver=${n.entidadId}`
   }

@@ -10,6 +10,7 @@ export const CAMPOS_PAGO = `
   id, tipo, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
   orden:ordenes_compra(numero),
+  acta:actas(numero, contrato:contratos(numero_contrato)),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros(razon_social, tipo_documento, numero_documento, dv),
@@ -41,6 +42,12 @@ export function mapPago(f: any): Pago {
     rechazadoPorNombre: f.rechazador?.nombre ?? null,
     motivoRechazo: f.motivo_rechazo,
     ordenNumero: f.orden?.numero ?? null,
+    // De dónde sale el pago: una orden de compra o un acta de contrato.
+    origen: f.orden?.numero != null
+      ? `OC ${f.orden.numero}`
+      : f.acta
+        ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}`
+        : "",
     proyectoCodigo: f.proyecto?.codigo ?? null,
     proyectoNombre: f.proyecto?.nombre ?? null,
     empresaNombre: f.empresa?.razon_social ?? null,

@@ -2,53 +2,61 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { CheckCircle2, FileCheck2, Flag, Loader2, Paperclip, Pencil, Plus, Trash2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MarcoPagina } from "@/components/encabezado-pagina"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { DetalleActa } from "@/components/detalle-acta"
 import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
+import { createClient } from "@/lib/supabase/client"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos, numero } from "@/lib/contratos"
 import {
   CLASE_ESTADO_ACTA,
   ETIQUETA_ESTADO_ACTA,
-  MAX_LINEAS_ACTA,
+  ETIQUETA_SOPORTE,
+  ETIQUETA_TIPO_ACTA,
+  MIME_SOPORTES,
   actaEditable,
-  calculoLineaForm,
+  calcularActa,
   consumidoActas,
-  lineaActaVacia,
-  lineasFormDesdeActa,
+  formActaVacio,
+  formDesdeActa,
   saldoContrato,
-  totalActa,
+  tiposPermitidos,
   validarActa,
+  validarSoporte,
   type ActaDetalle,
   type ActaResumen,
   type ContratoParaActa,
-  type InsumoParaActa,
-  type ItemParaActa,
-  type LineaActaForm,
+  type FormActa,
+  type InfoContratoActa,
+  type TipoActa,
+  type TipoSoporte,
 } from "@/lib/actas"
 import {
   buscarContratistasParaActa,
   buscarContratosParaActa,
-  buscarItemsParaActa,
   contratosDeContratista,
   editarActa,
   guardarActa,
-  insumosDeItemParaActa,
   listarActasDeContrato,
   obtenerActa,
+  obtenerContratoParaActa,
+  type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
 
-// Elaboración de actas: se busca el contrato o el contratista (con un solo
-// contrato aprobado se escoge solo; con varios, se elige en la lista). Del
-// contrato se ve su información y sus actas, y "Crear acta nueva" abre la
-// tabla para llenar (hasta 20 líneas). El acta queda por aprobar. Las que no
-// están aprobadas las puede editar quien las creó (una rechazada vuelve a aprobación).
+// Actas por grupos: se busca el contrato o el contratista (con un solo
+// contrato se escoge solo; con varios, se elige en la lista). Del contrato se
+// ven su información, sus actas y los botones de acta parcial, final o de
+// liquidación (según lo que permita: vencido, con acta final, liquidado). El
+// formulario muestra TODAS las actividades del contrato y se llenan las que
+// se ejecutaron (o el % de avance si es a valor global). Las que no están
+// aprobadas las puede editar quien las creó (una rechazada vuelve a aprobación).
 // ?ver=<id> (aviso de la campanita) abre el contrato del acta con el acta abierta.
 
 const mensaje = (e: unknown, otro: string) => (e instanceof Error ? e.message : otro)
@@ -220,22 +228,31 @@ function ContratoActas({
   verActaInicial: string | null
   onCerrarActaInicial: () => void
 }) {
-  const [actas, setActas] = useState<ActaResumen[] | null>(null)
+  // Sube cada vez que se guarda un acta: vuelve a traer la lista y los acumulados.
+  const [version, setVersion] = useState(0)
+  const [carga, setCarga] = useState<{ version: number; actas: ActaResumen[]; info: InfoContratoActa } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [creando, setCreando] = useState(false)
-  // Acta que se está corrigiendo (con sus líneas).
-  const [editando, setEditando] = useState<ActaDetalle | null>(null)
+  const [formulario, setFormulario] = useState<{ tipo: TipoActa; edicion: ActaDetalle | null } | null>(null)
   const [abriendoEdicion, setAbriendoEdicion] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-
-  const cargar = useCallback(() => {
-    listarActasDeContrato(contrato.id)
-      .then(setActas)
-      .catch((e) => setError(mensaje(e, "No se pudieron cargar las actas.")))
-  }, [contrato.id])
-  useEffect(cargar, [cargar])
-
   const [verActa, setVerActa] = useState<string | null>(verActaInicial)
+
+  useEffect(() => {
+    let activo = true
+    Promise.all([listarActasDeContrato(contrato.id), obtenerContratoParaActa(contrato.id)])
+      .then(([actas, info]) => activo && setCarga({ version, actas, info }))
+      .catch((e) => activo && setError(mensaje(e, "No se pudieron cargar las actas.")))
+    return () => {
+      activo = false
+    }
+  }, [contrato.id, version])
+
+  const actas = carga?.actas ?? null
+  const info = carga?.info ?? null
+  const consumido = actas ? consumidoActas(actas) : null
+  const saldo = consumido == null ? null : saldoContrato(contrato.valor, consumido)
+  const permitidos = info ? tiposPermitidos(info) : null
+  const siguiente = (actas?.reduce((max, a) => Math.max(max, a.numero), 0) ?? 0) + 1
 
   function cerrarActa() {
     if (verActa != null && verActa === verActaInicial) onCerrarActaInicial()
@@ -245,11 +262,9 @@ function ContratoActas({
   function editar(acta: ActaDetalle) {
     cerrarActa()
     setAviso(null)
-    setCreando(false)
-    setEditando(acta)
+    setFormulario({ tipo: acta.tipo, edicion: acta })
   }
 
-  // Desde la lista: trae el acta con sus líneas y abre el formulario.
   function editarDesdeLista(id: string) {
     setAbriendoEdicion(id)
     setError(null)
@@ -258,13 +273,6 @@ function ContratoActas({
       .catch((e) => setError(mensaje(e, "No se pudo abrir el acta.")))
       .finally(() => setAbriendoEdicion(null))
   }
-
-  const siguiente = (actas?.reduce((max, a) => Math.max(max, a.numero), 0) ?? 0) + 1
-  // Cupo: las actas por aprobar y aprobadas descuentan del valor del contrato.
-  const consumido = actas ? consumidoActas(actas) : null
-  const saldo = consumido == null ? null : saldoContrato(contrato.valor, consumido)
-  // Al editar, el acta misma no cuenta contra el saldo (si estaba por aprobar, ya estaba descontada).
-  const saldoFormulario = (saldo ?? 0) + (editando?.estado === "pendiente" ? editando.total : 0)
 
   return (
     <>
@@ -279,7 +287,13 @@ function ContratoActas({
             </tr>
             <tr>
               <th>Número de contrato</th>
-              <td className="font-medium">{contrato.numeroContrato}</td>
+              <td className="font-medium">
+                {contrato.numeroContrato}
+                {info?.liquidado && <Badge className="ml-2 h-6 bg-slate-200 px-3 text-xs text-slate-700 hover:bg-slate-200">Liquidado</Badge>}
+                {info?.vencido && !info.liquidado && (
+                  <Badge className="ml-2 h-6 bg-red-100 px-3 text-xs text-red-800 hover:bg-red-100">Vencido</Badge>
+                )}
+              </td>
             </tr>
             <tr>
               <th>Valor del contrato</th>
@@ -288,8 +302,7 @@ function ContratoActas({
             <tr>
               <th>Valor en actas</th>
               <td className="tabular-nums">
-                {consumido == null ? "…" : pesos(consumido)}{" "}
-                <span className="text-muted-foreground">(por aprobar y aprobadas)</span>
+                {consumido == null ? "…" : pesos(consumido)} <span className="text-muted-foreground">(valor bruto de las actas por aprobar y aprobadas)</span>
               </td>
             </tr>
             <tr>
@@ -299,8 +312,25 @@ function ContratoActas({
               </td>
             </tr>
             <tr>
-              <th>Tipo</th>
-              <td>{tituloTipoContrato(contrato.tipo)}</td>
+              <th>Fecha de terminación</th>
+              <td>{info ? (info.fechaFin ? formatearFechaSinHora(info.fechaFin) : "Sin fecha (duración sin inicio)") : "…"}</td>
+            </tr>
+            <tr>
+              <th>Anticipo / retención</th>
+              <td>
+                {info
+                  ? `${info.anticipoPorcentaje ? `Anticipo ${numero(info.anticipoPorcentaje)} % (${pesos((contrato.valor * info.anticipoPorcentaje) / 100)})` : "Sin anticipo"} · ${
+                      info.retencionPorcentaje ? `Retención en garantía ${numero(info.retencionPorcentaje)} %` : "Sin retención en garantía"
+                    }`
+                  : "…"}
+              </td>
+            </tr>
+            <tr>
+              <th>Tipo y forma de pago</th>
+              <td>
+                {tituloTipoContrato(contrato.tipo)} ·{" "}
+                {info ? (info.anexoTipo === "valores_unitarios" ? "Valores unitarios (por actividad)" : "Valor global (por % de avance)") : "…"}
+              </td>
             </tr>
             <tr>
               <th>Proyecto</th>
@@ -316,47 +346,53 @@ function ContratoActas({
         </table>
       </section>
 
-      {aviso && !creando && !editando && (
+      {aviso && !formulario && (
         <p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           <CheckCircle2 className="h-4 w-4" /> {aviso}
         </p>
       )}
 
-      {creando || editando ? (
+      {formulario ? (
         <FormularioActa
-          key={editando?.id ?? "nueva"}
+          key={formulario.edicion?.id ?? `nueva-${formulario.tipo}`}
           contrato={contrato}
-          numero={editando?.numero ?? siguiente}
-          edicion={editando}
-          saldo={saldoFormulario}
-          onCancelar={() => {
-            setCreando(false)
-            setEditando(null)
-          }}
-          onGuardada={(n) => {
-            setAviso(editando ? `Acta ${n} corregida. Queda por aprobar.` : `Acta ${n} guardada. Queda por aprobar.`)
-            setCreando(false)
-            setEditando(null)
-            cargar()
+          numero={formulario.edicion?.numero ?? siguiente}
+          tipo={formulario.tipo}
+          edicion={formulario.edicion}
+          onCancelar={() => setFormulario(null)}
+          onGuardada={(texto) => {
+            setAviso(texto)
+            setFormulario(null)
+            setVersion((v) => v + 1)
           }}
         />
       ) : (
         <section className="rounded-lg border">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
             <h2 className="font-semibold">Actas del contrato</h2>
-            {puedeElaborar && (
-              <Button
-                onClick={() => {
-                  setAviso(null)
-                  setCreando(true)
-                }}
-                disabled={actas == null || saldo == null || saldo <= 0}
-                title={saldo != null && saldo <= 0 ? "El contrato ya no tiene saldo para más actas." : undefined}
-              >
-                <Plus className="mr-1 h-4 w-4" /> Crear acta nueva
-              </Button>
+            {puedeElaborar && permitidos && (
+              <div className="flex flex-wrap gap-2">
+                {permitidos.tipos.includes("parcial") && (
+                  <Button onClick={() => setFormulario({ tipo: "parcial", edicion: null })} disabled={saldo != null && saldo <= 0}>
+                    <Plus className="mr-1 h-4 w-4" /> Acta parcial
+                  </Button>
+                )}
+                {permitidos.tipos.includes("final") && (
+                  <Button variant="outline" onClick={() => setFormulario({ tipo: "final", edicion: null })}>
+                    <Flag className="mr-1 h-4 w-4" /> Acta final
+                  </Button>
+                )}
+                {permitidos.tipos.includes("liquidacion") && (
+                  <Button variant="outline" onClick={() => setFormulario({ tipo: "liquidacion", edicion: null })}>
+                    <FileCheck2 className="mr-1 h-4 w-4" /> Acta de liquidación
+                  </Button>
+                )}
+              </div>
             )}
           </div>
+          {puedeElaborar && permitidos?.motivo && (
+            <p className="border-b bg-amber-50 px-4 py-2 text-sm text-amber-800">{permitidos.motivo}</p>
+          )}
           {error ? (
             <p className="p-4 text-sm text-destructive">{error}</p>
           ) : actas == null ? (
@@ -371,10 +407,11 @@ function ContratoActas({
                 <thead className="bg-muted/50 text-left">
                   <tr className="[&_th]:px-4 [&_th]:py-2 [&_th]:font-medium">
                     <th>Acta</th>
-                    <th>Fecha</th>
-                    <th>Elaborada por</th>
-                    <th className="text-right">Líneas</th>
-                    <th className="text-right">Total</th>
+                    <th>Tipo</th>
+                    <th>Período</th>
+                    <th>Elaborada</th>
+                    <th className="text-right">Valor bruto</th>
+                    <th className="text-right">Neto a pagar</th>
                     <th className="text-center">Estado</th>
                     {puedeElaborar && <th className="w-28" />}
                   </tr>
@@ -392,10 +429,14 @@ function ContratoActas({
                           Acta {a.numero}
                         </button>
                       </td>
-                      <td>{formatearFechaSinHora(a.createdAt)}</td>
-                      <td>{a.creadoPorNombre ?? "—"}</td>
-                      <td className="text-right tabular-nums">{a.lineas}</td>
-                      <td className="text-right tabular-nums">{pesos(a.total)}</td>
+                      <td>{ETIQUETA_TIPO_ACTA[a.tipo]}</td>
+                      <td className="tabular-nums">{textoPeriodo(a.periodoDesde, a.periodoHasta)}</td>
+                      <td>
+                        {formatearFechaSinHora(a.createdAt)}
+                        {a.creadoPorNombre && <span className="block text-xs text-muted-foreground">{a.creadoPorNombre}</span>}
+                      </td>
+                      <td className="text-right tabular-nums">{pesos(a.valorBruto)}</td>
+                      <td className="text-right font-medium tabular-nums">{pesos(a.neto)}</td>
                       <td className="text-center">
                         <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>
                       </td>
@@ -433,67 +474,122 @@ function ContratoActas({
   )
 }
 
+const textoPeriodo = (desde: string | null, hasta: string | null) =>
+  desde || hasta ? `${desde ? formatearFechaSinHora(desde) : "…"} a ${hasta ? formatearFechaSinHora(hasta) : "…"}` : "—"
+
+type SoporteNuevo = { clave: number; tipo: TipoSoporte; archivo: File }
+
 function FormularioActa({
   contrato,
   numero: numeroActa,
+  tipo,
   edicion,
-  saldo,
   onCancelar,
   onGuardada,
 }: {
   contrato: ContratoParaActa
   numero: number
+  tipo: TipoActa
   edicion: ActaDetalle | null
-  saldo: number
   onCancelar: () => void
-  onGuardada: (numero: number) => void
+  onGuardada: (aviso: string) => void
 }) {
-  // Cada fila con una clave estable (al quitar una, las de abajo no heredan los insumos cargados de otra).
-  const [filas, setFilas] = useState<{ clave: number; linea: LineaActaForm }[]>(() =>
-    (edicion ? lineasFormDesdeActa(edicion) : [lineaActaVacia()]).map((linea, clave) => ({ clave, linea }))
-  )
-  const siguienteClave = useRef(filas.length)
-  const [guardando, setGuardando] = useState(false)
+  // Los acumulados del contrato SIN esta acta (al editar no cuenta contra sí misma).
+  const [info, setInfo] = useState<InfoContratoActa | null>(null)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  useEffect(() => {
+    let activo = true
+    obtenerContratoParaActa(contrato.id, edicion?.id)
+      .then((i) => activo && setInfo(i))
+      .catch((e) => activo && setErrorCarga(mensaje(e, "No se pudo cargar el contrato.")))
+    return () => {
+      activo = false
+    }
+  }, [contrato.id, edicion?.id])
+
+  const [form, setForm] = useState<FormActa>(() => (edicion ? formDesdeActa(edicion) : formActaVacio(tipo)))
+  const [quitarSoportes, setQuitarSoportes] = useState<Set<string>>(new Set())
+  const [nuevos, setNuevos] = useState<SoporteNuevo[]>([])
+  const claveNuevo = useRef(0)
+  const [tipoNuevo, setTipoNuevo] = useState<TipoSoporte>("factura")
+  const [guardando, setGuardando] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const lineas = filas.map((f) => f.linea)
 
-  const actualizar = useCallback(
-    (clave: number, cambio: (l: LineaActaForm) => LineaActaForm) =>
-      setFilas((fs) => fs.map((f) => (f.clave === clave ? { ...f, linea: cambio(f.linea) } : f))),
-    []
-  )
+  const cambiar = (c: Partial<FormActa>) => setForm((f) => ({ ...f, ...c }))
+  const r = info ? calcularActa(info, form) : null
+  const lineaPorId = new Map((r?.lineas ?? []).map((l) => [l.id, l]))
 
-  const total = totalActa(lineas)
-  const excede = total > saldo
+  function agregarArchivos(archivos: FileList | null) {
+    if (!archivos) return
+    const lista: SoporteNuevo[] = []
+    for (const archivo of Array.from(archivos)) {
+      const problema = validarSoporte(archivo)
+      if (problema) {
+        setError(`${archivo.name}: ${problema}`)
+        return
+      }
+      lista.push({ clave: claveNuevo.current++, tipo: tipoNuevo, archivo })
+    }
+    setError(null)
+    setNuevos((n) => [...n, ...lista])
+  }
 
   async function guardar() {
-    const r = validarActa(lineas)
-    if (!r.ok) {
-      setError(r.error)
+    if (!info) return
+    const v = validarActa(info, form)
+    if (!v.ok) {
+      setError(v.error)
       return
     }
-    if (excede) {
-      setError(`El acta suma ${pesos(total)} y el saldo del contrato es ${pesos(saldo)}. Las actas no pueden superar el valor del contrato.`)
-      return
-    }
-    setGuardando(true)
+    const actaId = edicion?.id ?? crypto.randomUUID()
+    const supabase = createClient()
+    const subidos: SoporteSubido[] = []
     setError(null)
     try {
-      const guardada = edicion ? await editarActa(edicion.id, lineas) : await guardarActa(contrato.id, lineas)
-      onGuardada(guardada.numero)
+      setGuardando("Subiendo soportes…")
+      const marca = Date.now()
+      await Promise.all(
+        nuevos.map(async (n, i) => {
+          const ext = n.archivo.name.includes(".") ? n.archivo.name.split(".").pop()!.toLowerCase() : "bin"
+          const ruta = `${actaId}/${n.tipo}-${marca}-${i}.${ext}`
+          const { error: e } = await supabase.storage.from("actas").upload(ruta, n.archivo, { contentType: n.archivo.type, upsert: false })
+          if (e) throw new Error(`No se pudo subir "${n.archivo.name}": ${e.message}`)
+          subidos.push({ tipo: n.tipo, ruta, nombreArchivo: n.archivo.name, tamano: n.archivo.size, mime: n.archivo.type })
+        })
+      )
+      setGuardando("Guardando acta…")
+      if (edicion) {
+        const res = await editarActa(edicion.id, v.datos, subidos, [...quitarSoportes])
+        if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. Queda por aprobar.`)
+      } else {
+        const res = await guardarActa(actaId, contrato.id, v.datos, subidos)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. Queda por aprobar.`)
+      }
     } catch (e) {
+      // Nada queda a medias: crear y editar son una transacción en la base.
+      if (subidos.length > 0) await supabase.storage.from("actas").remove(subidos.map((s) => s.ruta))
       setError(mensaje(e, "No se pudo guardar el acta."))
     } finally {
-      setGuardando(false)
+      setGuardando(null)
     }
   }
+
+  const titulo = edicion
+    ? `Editar ${ETIQUETA_TIPO_ACTA[form.tipo].toLowerCase()} N° ${numeroActa}`
+    : `${ETIQUETA_TIPO_ACTA[form.tipo]} N° ${numeroActa}`
 
   return (
     <section className="rounded-lg border">
       <div className="border-b px-4 py-3">
-        <h2 className="font-semibold">{edicion ? `Editar acta ${numeroActa}` : `Acta ${numeroActa}`}</h2>
+        <h2 className="font-semibold">{titulo}</h2>
         <p className="text-sm text-muted-foreground">
-          Busca el ítem, escoge el insumo y escribe la cantidad. El precio y el IVA salen del APU del presupuesto.
+          {form.tipo === "liquidacion"
+            ? "Cierra el contrato: devuelve la retención en garantía y descuenta el anticipo que falte por amortizar. Al aprobarla, el contrato queda liquidado."
+            : info?.anexoTipo === "valor_global"
+              ? "Contrato a valor global: escribe el porcentaje de avance que se cobra en esta acta."
+              : "Escribe la cantidad ejecutada en esta acta de cada actividad del contrato. Las que no se ejecutaron se dejan vacías."}
+          {form.tipo === "final" && " Es la última acta de avance: amortiza todo el anticipo que falte."}
           {edicion && " Al guardar, el acta vuelve a quedar por aprobar con el mismo número."}
         </p>
         {edicion?.estado === "rechazada" && (
@@ -502,203 +598,307 @@ function FormularioActa({
           </p>
         )}
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-sm">
-          <thead className="bg-muted/50 text-left">
-            <tr className="[&_th]:px-2 [&_th]:py-2 [&_th]:font-medium">
-              <th className="w-10 text-center">#</th>
-              <th className="w-[30%]">Ítem</th>
-              <th className="w-[26%]">Insumo</th>
-              <th className="w-28 text-right">Cantidad</th>
-              <th className="w-32 text-right">Precio</th>
-              <th className="w-32 text-right">Base IVA</th>
-              <th className="w-20 text-right">IVA %</th>
-              <th className="w-36 text-right">Total</th>
-              <th className="w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f, i) => (
-              <FilaActa
-                key={f.clave}
-                clave={f.clave}
-                indice={i}
-                linea={f.linea}
-                contratoId={contrato.id}
-                actualizar={actualizar}
-                onQuitar={filas.length > 1 ? () => setFilas((fs) => fs.filter((x) => x.clave !== f.clave)) : undefined}
-              />
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t bg-muted/30">
-              <td colSpan={7} className="px-2 py-3 text-right font-semibold">
-                Total del acta
-              </td>
-              <td className={`px-2 py-3 text-right text-base font-semibold tabular-nums ${excede ? "text-destructive" : ""}`}>{pesos(total)}</td>
-              <td />
-            </tr>
-            <tr>
-              <td colSpan={7} className="px-2 pb-3 text-right text-muted-foreground">
-                Saldo del contrato
-              </td>
-              <td className="px-2 pb-3 text-right tabular-nums text-muted-foreground">{pesos(saldo)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
-        <Button
-          variant="outline"
-          onClick={() => setFilas((fs) => [...fs, { clave: siguienteClave.current++, linea: lineaActaVacia() }])}
-          disabled={lineas.length >= MAX_LINEAS_ACTA || guardando}
-        >
-          <Plus className="mr-1 h-4 w-4" /> Agregar línea ({lineas.length}/{MAX_LINEAS_ACTA})
-        </Button>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={onCancelar} disabled={guardando}>
-            Cancelar
-          </Button>
-          <Button onClick={guardar} disabled={guardando || excede}>
-            {guardando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} {edicion ? "Guardar cambios" : "Guardar acta"}
-          </Button>
-        </div>
-      </div>
-      {excede && !error && (
-        <p className="px-4 pb-3 text-sm text-destructive">
-          El acta supera el saldo del contrato por {pesos(total - saldo)}. Ajusta las cantidades para poder guardarla.
+
+      {errorCarga ? (
+        <p className="p-4 text-sm text-destructive">{errorCarga}</p>
+      ) : !info || !r ? (
+        <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando el contrato…
         </p>
+      ) : (
+        <div className="space-y-5 p-4">
+          {/* Período */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="acta-desde">
+                Período: desde
+              </label>
+              <Input id="acta-desde" type="date" className="h-9 w-44" value={form.periodoDesde} onChange={(e) => cambiar({ periodoDesde: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="acta-hasta">
+                Hasta (fecha de corte)
+              </label>
+              <Input id="acta-hasta" type="date" className="h-9 w-44" value={form.periodoHasta} onChange={(e) => cambiar({ periodoHasta: e.target.value })} />
+            </div>
+          </div>
+
+          {/* Lo ejecutado */}
+          {form.tipo !== "liquidacion" &&
+            (info.anexoTipo === "valores_unitarios" ? (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full min-w-[1050px] text-sm">
+                  <thead className="bg-muted/50 text-left">
+                    <tr className="[&_th]:px-2 [&_th]:py-2 [&_th]:font-medium">
+                      <th>Actividad</th>
+                      <th className="w-20">Unidad</th>
+                      <th className="w-24 text-right">Contratada</th>
+                      <th className="w-24 text-right">Acumulado anterior</th>
+                      <th className="w-32 text-right">Esta acta</th>
+                      <th className="w-24 text-right">Acumulado</th>
+                      <th className="w-24 text-right">Saldo</th>
+                      <th className="w-28 text-right">Valor unitario</th>
+                      <th className="w-32 text-right">Valor esta acta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {info.actividades.map((a) => {
+                      const l = lineaPorId.get(a.id)
+                      const esta = l?.cantidad ?? 0
+                      const acumulado = a.acumulado + esta
+                      return (
+                        <tr key={a.id} className={`border-t align-middle [&_td]:px-2 [&_td]:py-1.5 ${l?.excede ? "bg-red-50" : ""}`}>
+                          <td>{a.actividad}</td>
+                          <td className="text-muted-foreground">{a.unidad}</td>
+                          <td className="text-right tabular-nums">{numero(a.cantidad)}</td>
+                          <td className="text-right tabular-nums">{numero(a.acumulado)}</td>
+                          <td>
+                            <Input
+                              inputMode="decimal"
+                              className={`h-8 text-right tabular-nums ${l?.excede ? "border-destructive" : ""}`}
+                              placeholder="0"
+                              value={form.cantidades[a.id] ?? ""}
+                              onChange={(e) => cambiar({ cantidades: { ...form.cantidades, [a.id]: e.target.value } })}
+                              aria-label={`Cantidad de ${a.actividad} en esta acta (${a.unidad})`}
+                              title={a.unidad}
+                            />
+                          </td>
+                          <td className={`text-right tabular-nums ${l?.excede ? "font-medium text-destructive" : ""}`}>{numero(acumulado)}</td>
+                          <td className="text-right tabular-nums">{numero(a.cantidad - acumulado)}</td>
+                          <td className="text-right tabular-nums">{pesos(a.valorUnitario)}</td>
+                          <td className="text-right font-medium tabular-nums">{l ? pesos(l.valor) : "—"}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="grid gap-3 rounded-md border bg-muted/20 p-3 text-sm sm:grid-cols-4">
+                <Cifra titulo="Avance anterior" texto={`${numero(info.avanceOtras)} %`} />
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground" htmlFor="acta-avance">
+                    Avance de esta acta (%)
+                  </label>
+                  <Input
+                    id="acta-avance"
+                    inputMode="decimal"
+                    className="h-9 text-right tabular-nums"
+                    placeholder="0"
+                    value={form.porcentajeAvance}
+                    onChange={(e) => cambiar({ porcentajeAvance: e.target.value })}
+                  />
+                </div>
+                <Cifra
+                  titulo="Avance acumulado"
+                  texto={`${numero(info.avanceOtras + (r.avance ?? 0))} %`}
+                  rojo={info.avanceOtras + (r.avance ?? 0) > 100}
+                />
+                <Cifra titulo="Valor esta acta" texto={pesos(r.bruto)} fuerte />
+              </div>
+            ))}
+
+          {/* Otros descuentos */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">Otros descuentos (retención en la fuente, ICA…)</h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => cambiar({ descuentos: [...form.descuentos, { concepto: "", valor: "" }] })}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> Agregar descuento
+              </Button>
+            </div>
+            {form.descuentos.map((d, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  className="h-8 flex-1"
+                  placeholder="Concepto"
+                  value={d.concepto}
+                  onChange={(e) => cambiar({ descuentos: form.descuentos.map((x, k) => (k === i ? { ...x, concepto: e.target.value } : x)) })}
+                />
+                <Input
+                  inputMode="decimal"
+                  className="h-8 w-40 text-right tabular-nums"
+                  placeholder="Valor"
+                  value={d.valor}
+                  onChange={(e) => cambiar({ descuentos: form.descuentos.map((x, k) => (k === i ? { ...x, valor: e.target.value } : x)) })}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => cambiar({ descuentos: form.descuentos.filter((_, k) => k !== i) })}
+                  aria-label="Quitar descuento"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {/* Resumen */}
+          <div className="ml-auto max-w-md rounded-md border text-sm">
+            <table className="w-full [&_td]:px-3 [&_td]:py-1.5">
+              <tbody>
+                {form.tipo === "liquidacion" ? (
+                  <>
+                    <FilaResumen titulo="Devolución de la retención en garantía" valor={r.devolucionRetencion} />
+                    <FilaResumen
+                      titulo={`Anticipo por amortizar${r.anticipoTotal ? ` (de ${pesos(r.anticipoTotal)})` : ""}`}
+                      valor={-r.amortizacion}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <FilaResumen titulo="Valor bruto del acta" valor={r.bruto} />
+                    <FilaResumen
+                      titulo={`Amortización del anticipo${info.anticipoPorcentaje ? ` (${numero(info.anticipoPorcentaje)} %)` : ""}`}
+                      valor={-r.amortizacion}
+                    />
+                    <FilaResumen
+                      titulo={`Retención en garantía${info.retencionPorcentaje ? ` (${numero(info.retencionPorcentaje)} %)` : ""}`}
+                      valor={-r.retencion}
+                    />
+                  </>
+                )}
+                <FilaResumen titulo="Otros descuentos" valor={-r.otros} />
+                <tr className="border-t bg-muted/30 font-semibold">
+                  <td>Neto a pagar</td>
+                  <td className={`text-right text-base tabular-nums ${r.neto < 0 ? "text-destructive" : ""}`}>{pesos(r.neto)}</td>
+                </tr>
+                {form.tipo !== "liquidacion" && (
+                  <tr className="text-muted-foreground">
+                    <td>Saldo del contrato (antes de esta acta)</td>
+                    <td className={`text-right tabular-nums ${r.bruto > r.saldoContrato ? "text-destructive" : ""}`}>{pesos(r.saldoContrato)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Observaciones */}
+          <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="acta-observaciones">
+              Observaciones
+            </label>
+            <Textarea
+              id="acta-observaciones"
+              rows={3}
+              value={form.observaciones}
+              onChange={(e) => cambiar({ observaciones: e.target.value })}
+              placeholder="Notas del acta (opcional)"
+            />
+          </div>
+
+          {/* Soportes */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Soportes</h3>
+            {(edicion?.soportes ?? []).map((s) => {
+              const quitado = quitarSoportes.has(s.id)
+              return (
+                <div key={s.id} className={`flex items-center gap-2 text-sm ${quitado ? "text-muted-foreground line-through" : ""}`}>
+                  <Paperclip className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{s.nombreArchivo}</span>
+                  <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[s.tipo]})</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto"
+                    onClick={() =>
+                      setQuitarSoportes((q) => {
+                        const n = new Set(q)
+                        if (n.has(s.id)) n.delete(s.id)
+                        else n.add(s.id)
+                        return n
+                      })
+                    }
+                  >
+                    {quitado ? "Conservar" : "Quitar"}
+                  </Button>
+                </div>
+              )
+            })}
+            {nuevos.map((n) => (
+              <div key={n.clave} className="flex items-center gap-2 text-sm">
+                <Paperclip className="h-4 w-4 shrink-0 text-primary" />
+                <span className="truncate">{n.archivo.name}</span>
+                <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[n.tipo]}, nuevo)</span>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="ml-auto"
+                  onClick={() => setNuevos((x) => x.filter((y) => y.clave !== n.clave))}
+                  aria-label={`Quitar ${n.archivo.name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={tipoNuevo} onValueChange={(v) => setTipoNuevo((v as TipoSoporte) ?? "factura")}>
+                <SelectTrigger className="h-9 w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ETIQUETA_SOPORTE) as TipoSoporte[]).map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {ETIQUETA_SOPORTE[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-accent">
+                <Upload className="h-4 w-4" /> Adjuntar archivo
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  accept={MIME_SOPORTES.join(",")}
+                  onChange={(e) => {
+                    agregarArchivos(e.target.files)
+                    e.target.value = ""
+                  }}
+                />
+              </label>
+              <span className="text-xs text-muted-foreground">PDF, JPG, PNG o Excel de hasta 10 MB.</span>
+            </div>
+          </div>
+        </div>
       )}
-      {error && <p className="px-4 pb-3 text-sm text-destructive">{error}</p>}
+
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3">
+        {error && <p className="mr-auto text-sm text-destructive">{error}</p>}
+        <Button variant="outline" onClick={onCancelar} disabled={guardando != null}>
+          Cancelar
+        </Button>
+        <Button onClick={guardar} disabled={guardando != null || !info}>
+          {guardando && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+          {guardando ?? (edicion ? "Guardar cambios" : "Guardar acta")}
+        </Button>
+      </div>
     </section>
   )
 }
 
-function FilaActa({
-  clave,
-  indice,
-  linea,
-  contratoId,
-  actualizar,
-  onQuitar,
-}: {
-  clave: number
-  indice: number
-  linea: LineaActaForm
-  contratoId: string
-  actualizar: (clave: number, cambio: (l: LineaActaForm) => LineaActaForm) => void
-  onQuitar?: () => void
-}) {
-  const onCambiar = (cambios: Partial<LineaActaForm>) => actualizar(clave, (l) => ({ ...l, ...cambios }))
-  const [insumos, setInsumos] = useState<InsumoParaActa[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const ultimosItems = useRef(new Map<string, ItemParaActa>())
-  const itemId = linea.item?.id ?? null
-
-  // Al cambiar el ítem se cargan los insumos de su APU. Si la fila ya traía
-  // un insumo (al editar), se cambia por el de hoy: precio e IVA actuales, que
-  // son con los que la base calcula al guardar (o se quita si ya no está).
-  useEffect(() => {
-    if (!itemId) return
-    let vigente = true
-    insumosDeItemParaActa(contratoId, itemId)
-      .then((lista) => {
-        if (!vigente) return
-        setInsumos(lista)
-        actualizar(clave, (l) =>
-          l.item?.id === itemId && l.insumo ? { ...l, insumo: lista.find((x) => x.itemApuId === l.insumo!.itemApuId) ?? null } : l
-        )
-      })
-      .catch((e) => vigente && setError(mensaje(e, "No se pudieron cargar los insumos.")))
-    return () => {
-      vigente = false
-    }
-  }, [contratoId, itemId, clave, actualizar])
-
-  const buscarItems = useCallback(
-    async (t: string): Promise<OpcionBuscador[]> => {
-      const lista = await buscarItemsParaActa(contratoId, t)
-      ultimosItems.current = new Map(lista.map((it) => [it.id, it]))
-      return lista.map((it) => ({ id: it.id, etiqueta: `${it.codigo} ${it.descripcion}`, subetiqueta: it.unidad }))
-    },
-    [contratoId]
-  )
-
-  const calculo = calculoLineaForm(linea)
-  const insumosDelItem = itemId ? insumos : null
-
+function FilaResumen({ titulo, valor }: { titulo: string; valor: number }) {
   return (
-    <tr className="border-t align-top [&_td]:px-2 [&_td]:py-2">
-      <td className="pt-4 text-center text-muted-foreground">{indice + 1}</td>
-      <td>
-        <BuscadorAsync
-          flotante
-          placeholder="Buscar ítem por código o descripción..."
-          valorSeleccionado={linea.item ? { id: linea.item.id, etiqueta: `${linea.item.codigo} ${linea.item.descripcion}` } : null}
-          onSeleccionar={(op) => {
-            setInsumos(null)
-            setError(null)
-            onCambiar({ item: op ? (ultimosItems.current.get(op.id) ?? null) : null, insumo: null })
-          }}
-          buscar={buscarItems}
-        />
-      </td>
-      <td>
-        {!linea.item ? (
-          <p className="pt-2 text-xs text-muted-foreground">Escoge primero el ítem.</p>
-        ) : error ? (
-          <p className="pt-2 text-xs text-destructive">{error}</p>
-        ) : insumosDelItem == null ? (
-          <p className="flex items-center gap-1 pt-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" /> Cargando insumos...
-          </p>
-        ) : insumosDelItem.length === 0 ? (
-          <p className="pt-2 text-xs text-muted-foreground">El APU de este ítem no tiene insumos.</p>
-        ) : (
-          <Select
-            value={linea.insumo?.itemApuId ?? ""}
-            onValueChange={(v) => onCambiar({ insumo: insumosDelItem.find((x) => x.itemApuId === v) ?? null })}
-          >
-            <SelectTrigger className="h-10 w-full">
-              <SelectValue placeholder="Escoge el insumo" />
-            </SelectTrigger>
-            <SelectContent>
-              {insumosDelItem.map((x) => (
-                <SelectItem key={x.itemApuId} value={x.itemApuId}>
-                  {x.insumoCodigo != null ? `${x.insumoCodigo} · ` : ""}
-                  {x.descripcion}
-                  {x.unidad ? ` (${x.unidad})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </td>
-      <td>
-        <Input
-          inputMode="decimal"
-          className="h-10 text-right tabular-nums"
-          placeholder="0"
-          value={linea.cantidad}
-          onChange={(e) => onCambiar({ cantidad: e.target.value })}
-          aria-label={`Cantidad de la línea ${indice + 1}`}
-        />
-        {linea.insumo?.unidad && <p className="mt-0.5 text-right text-xs text-muted-foreground">{linea.insumo.unidad}</p>}
-      </td>
-      <td className="pt-4 text-right tabular-nums">
-        {linea.insumo ? (linea.insumo.precio != null ? pesos(linea.insumo.precio) : "Sin precio") : "—"}
-      </td>
-      <td className="pt-4 text-right tabular-nums">{calculo ? pesos(calculo.base) : "—"}</td>
-      <td className="pt-4 text-right tabular-nums">{linea.insumo ? `${numero(linea.insumo.ivaPorcentaje)} %` : "—"}</td>
-      <td className="pt-4 text-right font-medium tabular-nums">{calculo ? pesos(calculo.total) : "—"}</td>
-      <td className="pt-2">
-        {onQuitar && (
-          <Button variant="ghost" size="icon" onClick={onQuitar} aria-label={`Quitar la línea ${indice + 1}`}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </td>
+    <tr>
+      <td>{titulo}</td>
+      <td className="text-right tabular-nums">{valor === 0 ? "—" : pesos(valor)}</td>
     </tr>
+  )
+}
+
+function Cifra({ titulo, texto, fuerte, rojo }: { titulo: string; texto: string; fuerte?: boolean; rojo?: boolean }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{titulo}</p>
+      <p className={`pt-1.5 tabular-nums ${fuerte ? "font-semibold" : ""} ${rojo ? "text-destructive" : ""}`}>{texto}</p>
+    </div>
   )
 }

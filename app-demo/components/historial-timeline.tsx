@@ -50,6 +50,14 @@ const EVENTOS_REQUISICION: Record<string, { etiqueta: string; tono: "ok" | "malo
 }
 
 // Eventos de una SOLICITUD DE CONTRATO (pre-aprobación y minuta).
+const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creada: { etiqueta: "Acta elaborada", tono: "neutro" },
+  editada: { etiqueta: "Acta editada", tono: "aviso" },
+  reenviada: { etiqueta: "Acta corregida y enviada otra vez", tono: "neutro" },
+  aprobada: { etiqueta: "Acta aprobada", tono: "ok" },
+  rechazada: { etiqueta: "Acta rechazada", tono: "malo" },
+}
+
 const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
   creada: { etiqueta: "Solicitud enviada a pre-aprobación", tono: "neutro" },
   reenviada: { etiqueta: "Solicitud corregida y reenviada", tono: "neutro" },
@@ -100,6 +108,13 @@ function formatoValor(v: unknown): string {
 // Detalle extra de algunos eventos (qué cambió en una modificación, etc.).
 function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
   const d = e.datos ?? {}
+  if (tipo === "acta") {
+    const pesosTexto = (v: unknown) =>
+      new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 }).format(Number(v))
+    if (e.evento === "aprobada" && d.pago_id) return [`Pago creado en A&F por ${pesosTexto(d.neto)}`]
+    if (d.neto != null) return [`Neto a pagar: ${pesosTexto(d.neto)}`]
+    return []
+  }
   if (tipo === "requisicion") {
     if (e.evento === "creada" && d.insumos) return [`${d.insumos} ${d.insumos === 1 ? "insumo" : "insumos"}`]
     if (e.evento === "rechazado_por_compras" && d.insumo) return [String(d.insumo)]
@@ -170,6 +185,7 @@ export function HistorialTimeline({ tipo, id }: { tipo: TipoHistorial; id: strin
         const def =
           (tipo === "requisicion" ? EVENTOS_REQUISICION[e.evento] : undefined) ??
           (tipo === "contrato" ? EVENTOS_CONTRATO[e.evento] : undefined) ??
+          (tipo === "acta" ? EVENTOS_ACTA[e.evento] : undefined) ??
           EVENTOS[e.evento] ?? { etiqueta: e.evento, tono: "neutro" as const }
         const detalle = detalleEvento(e, tipo)
         return (
