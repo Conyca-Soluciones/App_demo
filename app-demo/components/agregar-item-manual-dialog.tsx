@@ -1,6 +1,6 @@
 "use client"
 
-import { puedeBuscar, COMODIN_LISTAR } from "@/lib/busqueda"
+import { puedeBuscar } from "@/lib/busqueda"
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Dialog,
@@ -282,7 +282,7 @@ export function AgregarItemManualDialog({
           {similares && similares.length > 0 && (
             <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">
               <p className="font-medium text-amber-900">
-                Ya existe algo parecido a "{busqueda}" -- ¿es el mismo insumo?
+                Ya existe algo parecido a &quot;{busqueda}&quot; -- ¿es el mismo insumo?
               </p>
               <div className="space-y-2">
                 {similares.map((s) => (

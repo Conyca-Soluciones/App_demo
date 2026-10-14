@@ -11,11 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select"
 import {
   Table,
@@ -27,7 +22,6 @@ import {
 } from "@/components/ui/table"
 import {
   obtenerResumenEjecucion,
-  type ProyectoParaVisualizacion,
   type ResumenEjecucionProyecto,
   type OrdenCompraEstado,
 } from "./actions"
@@ -266,7 +260,7 @@ export default function VisualizacionPage() {
               </p>
             ) : insumosFiltrados.length === 0 ? (
               <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                Ningún insumo coincide con "{busquedaInsumo}".
+                Ningún insumo coincide con &quot;{busquedaInsumo}&quot;.
               </p>
             ) : (
               <div className="max-h-[32rem] overflow-auto rounded-lg border shadow-sm">

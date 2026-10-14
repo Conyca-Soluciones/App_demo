@@ -125,7 +125,6 @@ export function FormularioRequisicion({
       setObservaciones("")
       setLineas([])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, edicion, reinicio])
 
   // Buscar insumos mientras escribe (código o descripción del insumo,

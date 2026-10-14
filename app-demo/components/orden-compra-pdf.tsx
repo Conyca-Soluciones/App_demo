@@ -148,6 +148,7 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de @react-pdf, no lleva alt */}
             {orden.empresaLogoUrl && <Image src={orden.empresaLogoUrl} style={styles.logoEmpresa} />}
             <View>
               <Text style={styles.empresaNombre}>
@@ -158,6 +159,7 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
             </View>
           </View>
           <View style={styles.headerRight}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de @react-pdf, no lleva alt */}
             <Image src={LOGO_CONYCA_PATH} style={styles.logoConyca} />
             <Text style={styles.tituloOrden}>ORDEN DE COMPRA</Text>
             <Text style={styles.numeroOrden}>No. {orden.numero}</Text>

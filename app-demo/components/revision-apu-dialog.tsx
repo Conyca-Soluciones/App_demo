@@ -813,6 +813,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // así se puede distinguir "se acaba de abrir" (resetear todo) de
   // "sigue abierto pero itemIds creció" (recargar SIN perder las
   // elecciones que ya hizo el usuario -- ver el useEffect de abajo).
+  const [tabActiva, setTabActiva] = useState<"insumos" | "mano_obra" | "equipo" | "transporte">("insumos")
   const yaEstabaAbierto = useRef(false)
   const idsCargados = useRef<Set<string>>(new Set())
 
@@ -846,7 +847,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, itemIds.join(",")])
 
-  const filas = datos?.filas ?? []
+  const filas = useMemo(() => datos?.filas ?? [], [datos])
   const pendientesTodo = useMemo(() => filas.filter((f) => f.estado === "pendiente"), [filas])
   // Mano de obra se separa del resto -- no se agrupa por descripción
   // (dos líneas "Cuadrilla AA-4" de ítems distintos tienen candidatos
@@ -894,7 +895,6 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // un solo scroll larguísimo. El auto-match nunca aplica a mano de obra
   // ni a transporte (ver actions.ts / handoff), así que esas pestañas no
   // tienen sección de "Automáticos" -- equipo sí, igual que insumos.
-  const [tabActiva, setTabActiva] = useState<"insumos" | "mano_obra" | "equipo" | "transporte">("insumos")
   const totalPendientesInsumos = pendientes.length + rechazados.length + autoMatch.length
   const totalPendientesManoObra = pendientesManoObra.length + rechazadosManoObra.length
   const totalPendientesEquipo = pendientesEquipo.length + rechazadosEquipo.length + autoMatchEquipo.length
@@ -2043,7 +2043,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       <p className="text-sm">
                         El transporte se cotiza por Excel, no dentro de este diálogo -- cada ítem
                         puede necesitar un precio distinto según el lugar. Descarga el Excel,
-                        complétalo (columna <span className="font-medium">"Valor transporte"</span>,
+                        complétalo (columna <span className="font-medium">&quot;Valor transporte&quot;</span>,
                         valor unitario, sin multiplicar por cantidad) y súbelo de vuelta.
                       </p>
                       <p className="text-xs text-muted-foreground">
@@ -2205,7 +2205,6 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 // ---------------------------------------------------------------------------
 
 function GrupoInsumoPendiente({
-  clave,
   filasGrupo,
   itemsPorId,
   elecciones,
@@ -2426,7 +2425,6 @@ function FilaGrupoItem({
 // ---------------------------------------------------------------------------
 
 function GrupoEquipoPendiente({
-  clave,
   filasGrupo,
   itemsPorId,
   elecciones,

@@ -2,7 +2,6 @@
 
 import { leerCantidadEntera } from "@/lib/numeros"
 
-import { formatearFechaSinHora } from "@/lib/fechas"
 
 import { useEffect, useState } from "react"
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"

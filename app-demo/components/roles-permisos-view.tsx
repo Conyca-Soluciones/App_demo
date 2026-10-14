@@ -53,7 +53,7 @@ export function RolesPermisosView() {
   const [nuevoRol, setNuevoRol] = useState("")
   const [creando, setCreando] = useState(false)
 
-  const filas = useMemo(construirFilas, [])
+  const filas = useMemo(() => construirFilas(), [])
 
   function cargar() {
     listarRolesConPermisos()

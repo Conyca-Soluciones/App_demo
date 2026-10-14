@@ -9,7 +9,6 @@ export function FileUpload({
   onFileSelected,
   className,
   disabled,
-  
 }: {
   accept?: string
   onFileSelected: (file: File) => void
@@ -28,13 +27,13 @@ export function FileUpload({
     <div
       onDragOver={(e) => {
         e.preventDefault()
-        setIsDragging(true)
+        if (!disabled) setIsDragging(true)
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={(e) => {
         e.preventDefault()
         setIsDragging(false)
-        handleFiles(e.dataTransfer.files)
+        if (!disabled) handleFiles(e.dataTransfer.files)
       }}
       className={`flex h-10 items-center gap-2 rounded-sm border px-2 text-sm transition-colors ${
         isDragging
@@ -54,6 +53,7 @@ export function FileUpload({
         variant="outline"
         className="h-7 shrink-0 rounded-sm px-3 text-xs"
         onClick={() => inputRef.current?.click()}
+        disabled={disabled}
       >
         Examinar
       </Button>
@@ -63,6 +63,7 @@ export function FileUpload({
         type="file"
         accept={accept}
         className="hidden"
+        disabled={disabled}
         onChange={(e) => handleFiles(e.target.files)}
       />
     </div>

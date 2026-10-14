@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button"
 export async function handleLogout() {
   const supabase = createClient()
   await supabase.auth.signOut()
+  // Recarga completa a propósito: así no queda nada de la sesión en memoria.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = "/login"
 }
 

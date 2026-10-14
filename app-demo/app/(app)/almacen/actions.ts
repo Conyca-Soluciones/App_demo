@@ -14,7 +14,6 @@ import {
   mapResumen,
   SELECT_REQUISICIONES,
   SELECT_REQUISICIONES_CON_INSUMO,
-  type EstadoCompra,
   type EstadoRequisicion,
   type LineaRequisicion,
   type RequisicionResumen,

@@ -63,7 +63,6 @@ import {
 // anterior.
 // ---------------------------------------------------------------------------
 
-const PREFIJO_CODIGO_PENDIENTE = "PEND-"
 
 // Mismo formato que usa apu-editor-dialog.tsx -- se repite acá en vez de
 // importarlo porque ese archivo no lo exporta; si se necesita en un tercer
@@ -1912,7 +1911,7 @@ export default function Presupuestos() {
                   {idsConAlgoPendiente.length > 0 && (
                     <p className="mr-auto text-xs text-amber-700">
                       {idsConAlgoPendiente.length} ítem(s) todavía no están listos -- aunque ya se
-                      guardaron en la base, faltan insumos por aprobar. Usa "Revisar pendientes"
+                      guardaron en la base, faltan insumos por aprobar. Usa &quot;Revisar pendientes&quot;
                       arriba.
                     </p>
                   )}
@@ -1990,7 +1989,7 @@ export default function Presupuestos() {
               prev.map((i) => (i.id === itemApuAbierto.id ? { ...i, apuId } : i))
             )
           }}
-          onValorActualizado={(valorUnitario, valorTotal) => {
+          onValorActualizado={(valorUnitario) => {
           setPresupuesto((prev) =>
             prev.map((i) => {
               if (i.id !== itemApuAbierto.id) return i

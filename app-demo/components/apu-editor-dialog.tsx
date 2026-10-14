@@ -409,7 +409,7 @@ export function ApuEditorDialog({
           {guardado && (
             <p className="text-xs text-muted-foreground">
               Los cambios en este APU se guardan solos, apenas los haces -- no
-              necesitas el botón "Guardar en base de datos" de la página.
+              necesitas el botón &quot;Guardar en base de datos&quot; de la página.
             </p>
           )}
         </DialogHeader>
@@ -498,7 +498,6 @@ function SeccionCategoria({
   onEliminarLinea,
   onEditarConversion,
   puedeGuardarEnMaestro,
-  onEditarCantidad,
   onEditarRendimiento,
   onAgregado,
   apuId,
@@ -1381,7 +1380,7 @@ function BuscadorEquipoCategoria({
 
       {solicitudEnviada && (
         <p className="text-sm text-emerald-700">
-          ✓ Solicitud enviada -- un admin la revisa en /admin-mano-obra (selector "Equipo") y
+          ✓ Solicitud enviada -- un admin la revisa en /admin-mano-obra (selector &quot;Equipo&quot;) y
           le asigna grupo, unidad y valor. Cuando se apruebe, si este APU ya está armado, el
           equipo se agrega solo con cantidad 1 (puedes ajustarla después).
         </p>

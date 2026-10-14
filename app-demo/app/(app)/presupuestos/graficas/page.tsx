@@ -69,7 +69,7 @@ function GraficasPresupuestoContent() {
       <EncabezadoPagina titulo="Gráficas del presupuesto" />
       <main className="mx-auto max-w-3xl space-y-3 p-4 sm:p-6">
         <p className="text-sm text-muted-foreground">
-          Falta el presupuesto -- entra desde el botón "Ver gráficas" dentro de un
+          Falta el presupuesto -- entra desde el botón &quot;Ver gráficas&quot; dentro de un
           presupuesto.
         </p>
         <a href="/presupuestos" className="text-sm text-primary underline underline-offset-2">
