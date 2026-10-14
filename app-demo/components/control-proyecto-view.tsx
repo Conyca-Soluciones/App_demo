@@ -535,12 +535,15 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
               const badge = ESTADO_VISIBLE_BADGE[o.estado]
               return (
                 <li key={o.id}>
-                  <button type="button" onClick={() => setAbierta(o.id)} className="block w-full px-3 py-2.5 text-left hover:bg-muted/40">
-                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="min-w-0 truncate font-medium">
                         OC {o.numero} · {o.proveedor}
                       </span>
-                      <span className={`shrink-0 tabular-nums ${o.estado === "aprobada" ? "" : "text-muted-foreground"}`}>{pesos.format(o.total)}</span>
+                      <span className={`ml-auto shrink-0 tabular-nums ${o.estado === "aprobada" ? "" : "text-muted-foreground"}`}>{pesos.format(o.total)}</span>
+                      <Button size="sm" variant="outline" onClick={() => setAbierta(o.id)}>
+                        <Eye className="size-4" /> Ver
+                      </Button>
                     </div>
                     <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{fecha(o.fecha)}</span>
@@ -549,7 +552,7 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
                         {badge.label}
                       </Badge>
                     </div>
-                  </button>
+                  </div>
                 </li>
               )
             })}
