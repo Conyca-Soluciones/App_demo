@@ -857,6 +857,8 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `proyecto_id in (select public.proyectos_editables((select auth.uid())))`.
   Si la columna admite null (`presupuestos.proyecto_id`), el caso null se
   agrega con la función vieja envuelta: `(select f((select auth.uid()), null::uuid))`.
+  Actas (`actas`, `acta_lineas` y el bucket `actas`) pasaron al mismo patrón en
+  `20261112400000_rendimiento_rls_actas.sql` (antes `puede_ver_actas` por fila).
   Ya no queda ninguna política por fila en `public` ni `storage`:
   Contratos (`20261012100000_rendimiento_rls_contratos.sql`, 2.000 solicitudes
   2.122 ms -> 8 ms) y todo lo demás (`20261012200000_rendimiento_rls_resto.sql`).

@@ -182,6 +182,10 @@ select * from (
   select '20261112300000_acta_exige_factura',
          position('exige.' in pg_get_functiondef('public._pago_de_acta(uuid)'::regprocedure)) > 0
   union all
+  select '20261112400000_rendimiento_rls_actas',
+         exists (select 1 from pg_policies where tablename = 'actas' and policyname = 'actas_select'
+                 and qual like '%proyectos_visibles%' and qual not like '%puede_ver_actas%')
+  union all
   select '20261112000000_control_proyecto',
          exists (select 1 from pg_proc where proname = 'control_proyecto')
   union all
