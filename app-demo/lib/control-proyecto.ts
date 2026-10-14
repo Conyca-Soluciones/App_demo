@@ -58,7 +58,6 @@ export type ControlProyecto = {
   presupuestoManoObra: number
   compras: number
   actas: number
-  porComprar: number
   excedentes: number
   salidasValor: number
   contratado: number
@@ -88,7 +87,6 @@ export function mapControlProyecto(datos: unknown): ControlProyecto {
     presupuestoManoObra: n(r.presupuesto_mano_obra),
     compras: n(r.compras),
     actas: n(r.actas),
-    porComprar: n(r.por_comprar),
     excedentes: n(r.excedentes),
     salidasValor: n(r.salidas_valor),
     contratado: n(r.contratado),
@@ -154,23 +152,22 @@ export function totalesControl(c: ControlProyecto) {
     pctBodega: porcentaje(c.salidasValor, c.presupuestoMateriales),
     pctActas: porcentaje(c.actasContratadas, c.contratado),
     pctContratadoMo: porcentaje(c.contratado, c.presupuestoManoObra),
-    disponible: Math.max(c.presupuesto - gastado - c.porComprar, 0),
+    disponible: Math.max(c.presupuesto - gastado, 0),
   }
 }
 
 // Partes de la barra "a dónde va la plata", en % del ancho. La base es el
-// presupuesto; si lo gastado + por comprar lo supera, la base es esa suma (la
-// barra se llena y no se sale).
+// presupuesto; si lo gastado lo supera, la base es lo gastado (la barra se
+// llena y no se sale). Solo cuenta lo aprobado (decisión del usuario).
 export function partesBarraPlata(c: ControlProyecto) {
-  const usado = c.compras + c.actas + c.porComprar
-  const base = Math.max(c.presupuesto, usado)
+  const gastado = c.compras + c.actas
+  const base = Math.max(c.presupuesto, gastado)
   const pct = (v: number) => (base > 0 ? (v / base) * 100 : 0)
   return {
     compras: pct(c.compras),
     actas: pct(c.actas),
-    porComprar: pct(c.porComprar),
-    disponible: pct(Math.max(c.presupuesto - usado, 0)),
-    sobrepasa: usado > c.presupuesto && c.presupuesto > 0,
+    disponible: pct(Math.max(c.presupuesto - gastado, 0)),
+    sobrepasa: gastado > c.presupuesto && c.presupuesto > 0,
   }
 }
 
@@ -224,3 +221,29 @@ export function buscarInsumosPrecios(porInsumo: Map<string, PrecioProveedor[]>, 
   }
   return resultado.sort((a, b) => b.valor - a.valor)
 }
+
+// ---------------------------------------------------------------- órdenes de compra
+export type OrdenControl = {
+  id: string
+  numero: number
+  estado: "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
+  fecha: string // creación
+  proveedor: string
+  total: number // con descuento e IVA
+  lineas: number
+}
+
+type LineaOrden = { cantidad: unknown; precio_unitario: unknown; porcentaje_descuento: unknown; porcentaje_iva: unknown }
+
+// Total de una orden: cantidad × precio, menos descuento, más IVA (la misma
+// fórmula que control_proyecto y que el resto de la app).
+export function totalOrden(lineas: LineaOrden[]): number {
+  let total = 0
+  for (const l of lineas) {
+    total += n(l.cantidad) * n(l.precio_unitario) * (1 - n(l.porcentaje_descuento) / 100) * (1 + n(l.porcentaje_iva) / 100)
+  }
+  return Math.round(total * 100) / 100
+}
+
+// Primer día del mes de una fecha AAAA-MM-DD.
+export const inicioDeMes = (fecha: string) => `${fecha.slice(0, 7)}-01`

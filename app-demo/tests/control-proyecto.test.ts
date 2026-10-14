@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   buscarInsumosPrecios,
+  inicioDeMes,
+  totalOrden,
   comparacionPrecio,
   indexarPrecios,
   mapControlProyecto,
@@ -15,7 +17,6 @@ const base = mapControlProyecto({
   presupuesto_mano_obra: 300,
   compras: 200,
   actas: 100,
-  por_comprar: 50,
   salidas_valor: 100,
   contratado: 250,
   actas_contratadas: 100,
@@ -28,7 +29,7 @@ describe("totalesControl", () => {
     expect(t.pctGastado).toBe(30)
     expect(t.pctBodega).toBe(25) // 100 de 400 en materiales
     expect(t.pctActas).toBe(40) // 100 de 250 contratado
-    expect(t.disponible).toBe(650)
+    expect(t.disponible).toBe(700) // solo lo aprobado, sin requisiciones
   })
 
   it("sin base no divide entre cero", () => {
@@ -42,7 +43,7 @@ describe("totalesControl", () => {
 describe("partesBarraPlata", () => {
   it("dentro del presupuesto, las partes suman 100", () => {
     const p = partesBarraPlata(base)
-    expect(p.compras + p.actas + p.porComprar + p.disponible).toBeCloseTo(100)
+    expect(p.compras + p.actas + p.disponible).toBeCloseTo(100)
     expect(p.sobrepasa).toBe(false)
   })
 
@@ -92,5 +93,16 @@ describe("precios por proveedor e insumo", () => {
     expect(r).toHaveLength(1)
     expect(r[0].valor).toBe(800)
     expect(r[0].proveedores).toHaveLength(2)
+  })
+})
+
+describe("órdenes de compra", () => {
+  it("total con descuento e IVA", () => {
+    expect(totalOrden([{ cantidad: 10, precio_unitario: 1000, porcentaje_descuento: 10, porcentaje_iva: 19 }])).toBe(10710)
+    expect(totalOrden([{ cantidad: "2", precio_unitario: "500", porcentaje_descuento: null, porcentaje_iva: null }])).toBe(1000)
+    expect(totalOrden([])).toBe(0)
+  })
+  it("inicio de mes", () => {
+    expect(inicioDeMes("2026-10-15")).toBe("2026-10-01")
   })
 })

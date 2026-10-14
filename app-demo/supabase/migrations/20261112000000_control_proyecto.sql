@@ -10,8 +10,8 @@
 --     requisición, que dice a qué ítem va; las actas también tienen su ítem.
 --     Se cruza por CÓDIGO contra la versión vigente (las requisiciones y actas
 --     pueden ser de una versión anterior). Lo que no cuadra va en 'sin_item'.
---   * Por comprar = requisiciones aprobadas aún sin orden de compra (pendiente
---     × precio del maestro con IVA). No es gastado.
+--   * Disponible = presupuesto − gastado (en la app). Las requisiciones aún
+--     sin orden de compra NO se descuentan: pueden no aprobarse o cambiar.
 --   * Avance de bodega = salidas (valoradas al precio PROMEDIO de compra del
 --     proyecto, sin IVA; sin compras, al del maestro) ÷ presupuesto de
 --     materiales (líneas de insumo de los APU).
@@ -86,19 +86,6 @@ begin
     join contratos c on c.id = a.contrato_id
     where c.proyecto_id = p_proyecto_id and a.estado = 'aprobada'
   ),
-  por_comprar as (
-    select coalesce(sum(greatest(pe.cantidad / coalesce(nullif(pe.factor_unidad, 0), 1) - coalesce(cm.comprado, 0), 0)
-                        * coalesce(mi.vr_neto, mi.vr_unitario, 0)), 0) as valor
-    from pedidos_insumos pe
-    join maestro_insumos mi on mi.id = pe.insumo_id
-    left join lateral (
-      select sum(oci.cantidad) as comprado
-      from ordenes_compra_items oci join ordenes_compra oc on oc.id = oci.orden_compra_id
-      where oci.pedido_insumo_id = pe.id and oc.estado not in ('cancelada', 'rechazada')
-    ) cm on true
-    where pe.proyecto_id = p_proyecto_id and pe.estado = 'aprobado'
-      and pe.rechazado_compras_at is null and pe.saldo_cerrado_at is null
-  ),
   -- Precio promedio de compra por insumo en el proyecto (sin IVA), para
   -- valorar las salidas de bodega.
   precio_compra as (
@@ -136,7 +123,6 @@ begin
     'presupuesto_mano_obra', coalesce((select sum(cant_item * valor_mo) from lineas_apu where valor_mo is not null), 0),
     'compras', coalesce((select sum(costo) from oc_lineas), 0),
     'actas', coalesce((select sum(total) from actas_lineas), 0),
-    'por_comprar', (select valor from por_comprar),
     'excedentes', coalesce((select sum(v.costo_excedentes_compras) from v_ordenes_compra_items_costos v
                             where v.proyecto_id = p_proyecto_id and v.estado_orden = 'aprobada'), 0),
     'salidas_valor', coalesce((select sum(s.cantidad * coalesce(pc.precio, mi.vr_unitario, 0))

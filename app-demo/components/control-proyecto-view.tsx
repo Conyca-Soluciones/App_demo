@@ -7,18 +7,22 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import { Input } from "@/components/ui/input"
 import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { ZONA_HORARIA, hoyColombia } from "@/lib/fechas"
+import { Badge } from "@/components/ui/badge"
+import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import {
   buscarInsumosPrecios,
   comparacionPrecio,
   indexarPrecios,
+  inicioDeMes,
   partesBarraPlata,
   porcentaje,
   totalesControl,
   type ControlProyecto,
+  type OrdenControl,
   type PrecioProveedor,
 } from "@/lib/control-proyecto"
-import { obtenerControlProyecto } from "@/app/(app)/admin/visualizacion/actions"
+import { listarOrdenesControl, obtenerControlProyecto } from "@/app/(app)/admin/visualizacion/actions"
 
 // ---------------------------------------------------------------------------
 // Control del proyecto: a dónde va la plata del proyecto actual (el de la
@@ -40,10 +44,9 @@ const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-CO", { timeZ
 const COLOR = {
   compras: "bg-sky-500",
   actas: "bg-emerald-500",
-  porComprar: "bg-amber-400",
 }
 
-type Pestana = "capitulos" | "proveedores" | "contratos"
+type Pestana = "capitulos" | "proveedores" | "contratos" | "ordenes"
 
 export function ControlProyectoView() {
   const { proyecto } = useProyectoActual()
@@ -68,7 +71,7 @@ export function ControlProyectoView() {
 
   return (
     <>
-      <EncabezadoPagina titulo="Control del proyecto" subtitulo="A dónde va la plata: presupuesto, compras y actas aprobadas, y avance." />
+      <EncabezadoPagina titulo="Control del proyecto" subtitulo="Distribucion: presupuesto, compras y actas aprobadas, y avance." />
       <main className="mx-auto w-full max-w-5xl space-y-5 p-4 sm:p-6">
         {!proyecto ? (
           <SinProyecto />
@@ -92,6 +95,7 @@ export function ControlProyectoView() {
                   ["capitulos", "Capítulos"],
                   ["proveedores", "Proveedores"],
                   ["contratos", "Contratos"],
+                  ["ordenes", "Órdenes de compra"],
                 ] as const
               ).map(([valor, etiqueta]) => (
                 <button
@@ -111,6 +115,7 @@ export function ControlProyectoView() {
             {pestana === "capitulos" && <Capitulos datos={datos} />}
             {pestana === "proveedores" && <Proveedores datos={datos} />}
             {pestana === "contratos" && <Contratos datos={datos} />}
+            {pestana === "ordenes" && <OrdenesCompra proyectoId={proyecto.id} />}
           </div>
         )}
       </main>
@@ -200,23 +205,21 @@ function Resumen({ datos }: { datos: ControlProyecto }) {
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-medium">A dónde va la plata</h2>
+        <h2 className="text-sm font-medium">Distribucion</h2>
         <div className="flex h-4 overflow-hidden rounded bg-muted" aria-hidden="true">
           <div className={COLOR.compras} style={{ width: `${barra.compras}%` }} />
           <div className={COLOR.actas} style={{ width: `${barra.actas}%` }} />
-          <div className={COLOR.porComprar} style={{ width: `${barra.porComprar}%` }} />
         </div>
-        <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
           <Leyenda color={COLOR.compras} texto={`Compras ${pesosCortos(datos.compras)}`} />
           <Leyenda color={COLOR.actas} texto={`Actas ${pesosCortos(datos.actas)}`} />
-          <Leyenda color={COLOR.porComprar} texto={`Por comprar ${pesosCortos(datos.porComprar)}`} />
           <Leyenda color="bg-muted-foreground/20" texto={`Disponible ${pesosCortos(t.disponible)}`} />
         </div>
         <p className="text-xs text-muted-foreground">
           Compras = órdenes de compra aprobadas (con IVA){datos.excedentes > 0 && `; de eso, ${pesosCortos(datos.excedentes)} son excedentes de compras`}.
-          Por comprar = requisiciones aprobadas que todavía no tienen orden de compra.
+          Disponible = presupuesto − compras − actas aprobadas (las requisiciones sin orden de compra no se descuentan).
           {datos.presupuestoManoObra > 0 && ` Contratado: ${pct(t.pctContratadoMo)} del presupuesto de mano de obra.`}
-          {barra.sobrepasa && " Lo gastado y por comprar ya supera el presupuesto."}
+          {barra.sobrepasa && " Lo gastado ya supera el presupuesto."}
         </p>
       </div>
     </section>
@@ -444,5 +447,103 @@ function Contratos({ datos }: { datos: ControlProyecto }) {
         )
       })}
     </ul>
+  )
+}
+
+// ---------------------------------------------------------------- órdenes de compra
+
+// Órdenes del proyecto en un rango de fechas (por defecto, el mes en curso).
+// Se consultan al pulsar Consultar (no en cada cambio de fecha).
+function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
+  const hoy = hoyColombia()
+  const [desde, setDesde] = useState(inicioDeMes(hoy))
+  const [hasta, setHasta] = useState(hoy)
+  // Resultado con el rango para el que se pidió ("cargando" = aún no llega).
+  const [consulta, setConsulta] = useState<{ clave: string; ordenes: OrdenControl[] | null; error: string | null } | null>(null)
+  const [pedida, setPedida] = useState(`${inicioDeMes(hoy)}|${hoy}`)
+  const vigente = consulta?.clave === pedida ? consulta : null
+
+  useEffect(() => {
+    const [d, h] = pedida.split("|")
+    let activo = true
+    listarOrdenesControl(proyectoId, d, h)
+      .then((ordenes: OrdenControl[]) => activo && setConsulta({ clave: pedida, ordenes, error: null }))
+      .catch((e) => activo && setConsulta({ clave: pedida, ordenes: null, error: e instanceof Error ? e.message : "No se pudieron cargar las órdenes." }))
+    return () => {
+      activo = false
+    }
+  }, [proyectoId, pedida])
+
+  const ordenes = vigente?.ordenes ?? null
+  const aprobadas = ordenes?.filter((o) => o.estado === "aprobada") ?? []
+  const totalAprobado = aprobadas.reduce((s, o) => s + o.total, 0)
+
+  return (
+    <section className="space-y-3">
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setPedida(`${desde}|${hasta}`)
+        }}
+      >
+        <label className="space-y-1 text-xs text-muted-foreground">
+          Desde
+          <Input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className="w-40" />
+        </label>
+        <label className="space-y-1 text-xs text-muted-foreground">
+          Hasta
+          <Input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className="w-40" />
+        </label>
+        <button
+          type="submit"
+          disabled={!desde || !hasta || desde > hasta}
+          className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        >
+          Consultar
+        </button>
+      </form>
+
+      {vigente?.error ? (
+        <p className="text-sm text-destructive">{vigente.error}</p>
+      ) : !ordenes ? (
+        <div className="flex items-center justify-center py-10 text-muted-foreground">
+          <Loader2 className="mr-2 size-4 animate-spin" /> Cargando órdenes...
+        </div>
+      ) : ordenes.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No hay órdenes de compra en esas fechas.</p>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {ordenes.length} {ordenes.length === 1 ? "orden" : "órdenes"} · {aprobadas.length} {aprobadas.length === 1 ? "aprobada" : "aprobadas"} por{" "}
+            <span className="font-medium text-foreground">{pesos.format(totalAprobado)}</span> (con IVA)
+          </p>
+          <ul className="divide-y rounded-lg border">
+            {ordenes.map((o) => {
+              const badge = ESTADO_VISIBLE_BADGE[o.estado]
+              return (
+                <li key={o.id}>
+                  <a href={`/almacen/ordenes-compra/${o.id}`} className="block px-3 py-2.5 hover:bg-muted/40">
+                    <div className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate font-medium">
+                        OC {o.numero} · {o.proveedor}
+                      </span>
+                      <span className={`shrink-0 tabular-nums ${o.estado === "aprobada" ? "" : "text-muted-foreground"}`}>{pesos.format(o.total)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{fecha(o.fecha)}</span>
+                      <span>· {o.lineas} {o.lineas === 1 ? "línea" : "líneas"}</span>
+                      <Badge variant="outline" className={`ml-auto ${badge.clase}`}>
+                        {badge.label}
+                      </Badge>
+                    </div>
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
+    </section>
   )
 }

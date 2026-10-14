@@ -1729,8 +1729,12 @@ en `components/control-proyecto-view.tsx`.
 
 Decisiones del usuario:
 - **Gastado = solo lo aprobado**: órdenes de compra aprobadas (con descuento e
-  IVA) + actas aprobadas. "Por comprar" (requisiciones aprobadas sin orden, al
-  precio del maestro con IVA) va aparte, no es gastado.
+  IVA) + actas aprobadas. Disponible = presupuesto − gastado: las requisiciones
+  sin orden de compra NO se descuentan (pueden no aprobarse o cambiar).
+- **Pestaña Órdenes de compra**: filtro Desde/Hasta (por defecto el mes en
+  curso, fecha de creación, hora Colombia; se consulta al pulsar Consultar),
+  todas las órdenes del rango con su estado y el total de las aprobadas; cada
+  una enlaza a su detalle (`listarOrdenesControl`).
 - **Gasto por capítulo**: línea de OC -> línea de requisición -> su ítem; las
   actas tienen su ítem. Se cruza por CÓDIGO contra la versión vigente; lo que
   no cuadra sale como "sin ítem". Capítulo = ítem raíz (`padre_id` null).
