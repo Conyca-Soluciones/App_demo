@@ -46,6 +46,7 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   minutaMotivo: null,
   numeroContrato: null,
   clase: "grupo",
+  tipoDetalle: null,
   referencia: null,
   retencionGarantiaPct: 0,
   retencionAnticipoPct: 0,

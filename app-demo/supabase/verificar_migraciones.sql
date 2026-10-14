@@ -177,5 +177,9 @@ select * from (
          exists (select 1 from pg_proc where proname = 'crear_contrato_general')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'contratos' and column_name = 'clase')
+  union all
+  select '20261113100000_contratos_generales_tipo',
+         exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'contratos' and column_name = 'tipo_detalle')
 ) t
 order by 1;

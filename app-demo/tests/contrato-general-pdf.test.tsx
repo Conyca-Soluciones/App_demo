@@ -11,7 +11,8 @@ describe("PDF del contrato general", () => {
     const fila: FilaHojaContratoGeneral = {
       numero: 3,
       numero_contrato: "CJ-3-2026",
-      tipo: "obra",
+      tipo: "servicios",
+      tipo_detalle: null,
       estado: "aprobada",
       minuta_estado: "aprobada",
       valor: 1500000,

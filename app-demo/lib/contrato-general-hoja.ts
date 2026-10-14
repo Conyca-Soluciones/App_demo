@@ -1,4 +1,4 @@
-import { ETIQUETA_ETAPA_CONTRATO, TIPO_CONTRATO_POR_VALOR, etapaContrato, pesos, type EstadoContrato, type EstadoMinuta } from "@/lib/contratos"
+import { ETIQUETA_ETAPA_CONTRATO, etapaContrato, nombreTipoContrato, pesos, type EstadoContrato, type EstadoMinuta } from "@/lib/contratos"
 import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
 import type { HojaContratoGeneral } from "@/components/contrato-general-pdf"
 
@@ -9,7 +9,7 @@ import type { HojaContratoGeneral } from "@/components/contrato-general-pdf"
 // ---------------------------------------------------------------------------
 
 export const SELECT_HOJA_CONTRATO_GENERAL = `
-  numero, numero_contrato, tipo, estado, minuta_estado, valor, fecha_inicio, fecha_fin, forma_pago,
+  numero, numero_contrato, tipo, tipo_detalle, estado, minuta_estado, valor, fecha_inicio, fecha_fin, forma_pago,
   retencion_garantia_pct, retencion_anticipo_pct, retencion_fic_pct, referencia, objeto, observaciones,
   enviado_at, resuelto_at, minuta_resuelta_at,
   solicitante:perfiles!contratos_solicitado_por_fkey(nombre),
@@ -25,6 +25,7 @@ export type FilaHojaContratoGeneral = {
   numero: number
   numero_contrato: string | null
   tipo: string
+  tipo_detalle: string | null
   estado: EstadoContrato
   minuta_estado: EstadoMinuta | null
   valor: number | string
@@ -91,7 +92,7 @@ export function armarHojaContratoGeneral(f: FilaHojaContratoGeneral, ahora: Date
       ciudad: c?.ciudad ?? "",
     },
     proyecto: [f.proyecto?.codigo, f.proyecto?.nombre].filter(Boolean).join(" — "),
-    tipo: TIPO_CONTRATO_POR_VALOR.get(f.tipo as never)?.titulo ?? f.tipo,
+    tipo: nombreTipoContrato({ tipo: f.tipo, tipoDetalle: f.tipo_detalle }),
     valor: pesos(Number(f.valor)),
     fechaInicio: formatearFechaSinHora(f.fecha_inicio),
     fechaFin: formatearFechaSinHora(f.fecha_fin),

@@ -247,6 +247,8 @@ export type SolicitudContratoFila = {
   // 'general' = Contrato general (sin ítems del presupuesto ni minuta larga;
   // 20261113000000_contratos_generales.sql). 'grupo' = Contratos por grupos.
   clase: ClaseContrato
+  // Contrato general con tipo 'otro': cuál es.
+  tipoDetalle: string | null
   referencia: string | null
   retencionGarantiaPct: number
   retencionAnticipoPct: number
@@ -254,6 +256,17 @@ export type SolicitudContratoFila = {
 }
 
 export type ClaseContrato = "grupo" | "general"
+
+// Tipo de un contrato general: Servicios u Otro (con su detalle). En la base
+// va en la misma columna `tipo` que los 6 tipos de por grupos.
+export type TipoContratoGeneral = "servicios" | "otro"
+
+// Nombre del tipo para mostrar, de cualquier clase de contrato.
+export function nombreTipoContrato(c: { tipo: string; clase?: ClaseContrato; tipoDetalle?: string | null }): string {
+  if (c.tipo === "servicios") return "Servicios"
+  if (c.tipo === "otro") return c.tipoDetalle?.trim() || "Otro"
+  return TIPO_CONTRATO_POR_VALOR.get(c.tipo as TipoContrato)?.titulo ?? c.tipo
+}
 
 export type SolicitudContratoDetalle = SolicitudContratoFila & {
   contratistaId: string
@@ -724,7 +737,8 @@ export const anticipoEnLetras = (porcentaje: number, valor: number) =>
 // observaciones. La base valida lo mismo en _guardar_contrato_general.
 
 export type ContratoGeneralForm = {
-  tipo: TipoContrato | ""
+  tipo: TipoContratoGeneral
+  tipoDetalle: string
   contratistaId: string
   objeto: string // descripción
   valor: string
@@ -742,7 +756,8 @@ export type ContratoGeneralForm = {
 export type CampoContratoGeneral = keyof ContratoGeneralForm | "plazo"
 
 export const CONTRATO_GENERAL_VACIO: ContratoGeneralForm = {
-  tipo: "",
+  tipo: "servicios",
+  tipoDetalle: "",
   contratistaId: "",
   objeto: "",
   valor: "",
@@ -758,7 +773,8 @@ export const CONTRATO_GENERAL_VACIO: ContratoGeneralForm = {
 }
 
 export type ContratoGeneralValido = {
-  tipo: TipoContrato
+  tipo: TipoContratoGeneral
+  tipoDetalle: string | null
   contratistaId: string
   objeto: string
   valor: number
@@ -784,7 +800,8 @@ export function validarContratoGeneral(
   f: ContratoGeneralForm
 ): { ok: true; datos: ContratoGeneralValido } | { ok: false; errores: Partial<Record<CampoContratoGeneral, string>> } {
   const errores: Partial<Record<CampoContratoGeneral, string>> = {}
-  if (!f.tipo || !TIPO_CONTRATO_POR_VALOR.has(f.tipo)) errores.tipo = "Elige el tipo de contrato."
+  if (f.tipo !== "servicios" && f.tipo !== "otro") errores.tipo = "Elige Servicios u Otro."
+  if (f.tipo === "otro" && !f.tipoDetalle.trim()) errores.tipoDetalle = "Escribe qué tipo de contrato es."
   if (!f.contratistaId) errores.contratistaId = "Elige el contratista."
   const objeto = f.objeto.trim().replace(/\s+/g, " ")
   if (objeto.length < 5) errores.objeto = "Escribe la descripción del contrato."
@@ -805,7 +822,8 @@ export function validarContratoGeneral(
   return {
     ok: true,
     datos: {
-      tipo: f.tipo as TipoContrato,
+      tipo: f.tipo,
+      tipoDetalle: f.tipo === "otro" ? f.tipoDetalle.trim() : null,
       contratistaId: f.contratistaId,
       objeto,
       valor: aCentavos(valor!),
@@ -825,8 +843,10 @@ export function validarContratoGeneral(
 // Formulario lleno con un contrato general DEVUELTO (para corregirlo).
 export function contratoGeneralDesde(d: SolicitudContratoDetalle): ContratoGeneralForm {
   const pctTexto = (v: number) => String(v).replace(".", ",")
+  const tipo: TipoContratoGeneral = (d.tipo as string) === "otro" ? "otro" : "servicios"
   return {
-    tipo: d.tipo,
+    tipo,
+    tipoDetalle: d.tipoDetalle ?? "",
     contratistaId: d.contratistaId,
     objeto: d.objeto,
     valor: String(d.valor).replace(".", ","),

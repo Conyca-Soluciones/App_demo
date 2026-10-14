@@ -2096,11 +2096,16 @@ hoja PDF (no minuta larga); actas generales después.
   `retencion_fic_pct`. La descripción del general va en `objeto` y NO necesita
   empezar por verbo (`contratos_objeto_check` lo exige solo a 'grupo').
   Plazo siempre por fechas; sin anticipo, obligaciones, entregables ni anexo.
+- **Tipo y documentos** (`20261113100000_contratos_generales_tipo.sql`,
+  decisión del usuario: "son solo un papelito con info y observaciones"): el
+  tipo de un general es Servicios u Otro (`contratos.tipo` = 'servicios' |
+  'otro'; con 'otro', `tipo_detalle` dice cuál) y NO lleva documentos.
+  `nombreTipoContrato` lo muestra.
 - **Guardar**: `crear_contrato_general` / `reenviar_contrato_general` (sobre
-  `_guardar_contrato_general`): valida todo, documentos del tipo como en por
-  grupos, notifica a Jurídica, historial. TS: `validarContratoGeneral` en
+  `_guardar_contrato_general`): valida todo, notifica a Jurídica, historial
+  (`p_documentos` se acepta y se ignora). TS: `validarContratoGeneral` en
   `lib/contratos.ts`; formulario `components/contrato-general-form.tsx` (mismo
-  buscador de contratistas y subida de documentos que por grupos); vista
+  buscador de contratistas que por grupos); vista
   `components/contratos-generales-view.tsx`.
 - **Flujo**: llega a Pre aprobación y a Aprobación de contratos marcado
   "· General". "Pre-aprobar y enviar" manda `{clase: "general"}` como minuta

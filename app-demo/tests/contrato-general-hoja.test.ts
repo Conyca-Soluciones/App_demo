@@ -5,7 +5,8 @@ import { CONTRATO_GENERAL_VACIO, validarContratoGeneral } from "@/lib/contratos"
 const fila: FilaHojaContratoGeneral = {
   numero: 21,
   numero_contrato: null,
-  tipo: "prestacion_servicios",
+  tipo: "otro",
+  tipo_detalle: "Consultoría",
   estado: "pre_aprobacion",
   minuta_estado: null,
   valor: "17340500",
@@ -47,6 +48,7 @@ describe("hoja del contrato general", () => {
     expect(h.preaprobo).toBeNull() // resuelto_por de una devuelta no cuenta
     expect(h.aprobo).toBeNull()
     expect(h.estado).toBe("Por revisar")
+    expect(h.tipo).toBe("Consultoría")
   })
 
   it("aprobada por Subgerencia: número CJ y las tres firmas", () => {
@@ -73,7 +75,7 @@ describe("hoja del contrato general", () => {
 describe("validarContratoGeneral", () => {
   const lleno = {
     ...CONTRATO_GENERAL_VACIO,
-    tipo: "obra" as const,
+    tipo: "servicios" as const,
     contratistaId: "k",
     objeto: "Realización de visitas",
     valor: "17.340.500",

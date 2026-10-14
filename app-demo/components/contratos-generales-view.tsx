@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { ContratoGeneralFormulario } from "@/components/contrato-general-form"
-import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
+import { DetalleSolicitudContrato, fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -17,6 +17,7 @@ import {
   CLASE_ETAPA_CONTRATO,
   ETIQUETA_ETAPA_CONTRATO,
   etapaContrato,
+  nombreTipoContrato,
   pesos,
   plazoTexto,
   type SolicitudContratoDetalle,
@@ -86,7 +87,7 @@ function Solicitudes({
   const columnas: ColumnaExcel<SolicitudContratoFila>[] = useMemo(
     () => [
       { clave: "numero", titulo: "N°", ancho: 70, fija: true, alinear: "right", texto: (s) => String(s.numero), claseCelda: "tabular-nums" },
-      { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => tituloTipoContrato(s.tipo) },
+      { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => nombreTipoContrato(s) },
       { clave: "contratista", titulo: "Contratista", ancho: 220, texto: (s) => s.contratistaNombre },
       { clave: "objeto", titulo: "Descripción", ancho: 260, flexible: true, texto: (s) => s.objeto },
       { clave: "valor", titulo: "Valor", ancho: 150, alinear: "right", texto: (s) => pesos(s.valor), claseCelda: "tabular-nums" },
@@ -199,7 +200,7 @@ function Solicitudes({
                   N° {s.numero} · {s.contratistaNombre}
                 </button>
               ),
-              subtitulo: (s) => tituloTipoContrato(s.tipo),
+              subtitulo: (s) => nombreTipoContrato(s),
               esquina: (s) => columnas.find((c) => c.clave === "estado")!.celda!(s),
               campos: ["objeto", "valor", "plazo", "solicitante"],
             }}

@@ -1,14 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft, FileUp, Loader2, Search, Send, X } from "lucide-react"
+import { ArrowLeft, Loader2, Search, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/client"
-import { documentoFormateado, validarArchivo, type Contratista } from "@/lib/contratistas"
+import { documentoFormateado, type Contratista } from "@/lib/contratistas"
 import {
   CONTRATO_GENERAL_VACIO,
-  TIPOS_CONTRATO,
-  TIPO_CONTRATO_POR_VALOR,
   contratoGeneralDesde,
   leerNumero,
   pesos,
@@ -17,20 +14,17 @@ import {
   type CampoContratoGeneral,
   type ContratoGeneralForm,
   type SolicitudContratoDetalle,
-  type TipoContrato,
-  type TipoDocumentoContrato,
 } from "@/lib/contratos"
 import { listarContratistas } from "@/app/(app)/contratos/contratistas/actions"
-import type { DocumentoContratoSubido } from "@/app/(app)/contratos/solicitar/actions"
 import { crearContratoGeneral, reenviarContratoGeneral } from "@/app/(app)/contratos/generales/actions"
 
 // ---------------------------------------------------------------------------
-// Formulario del contrato general (como el "Contrato General" de Sinco): tipo,
-// contratista, descripción, valor global, fechas, forma de pago, retenciones,
-// referencia y observaciones, más los documentos del tipo de contrato. Va a
+// Formulario del contrato general (como el "Contrato General" de Sinco): es
+// una hoja con datos y observaciones, sin documentos (decisión del usuario).
+// Tipo Servicios u Otro (con cuál), contratista, descripción, valor global,
+// fechas, forma de pago, retenciones, referencia y observaciones. Va a
 // pre-aprobación de Jurídica como los de por grupos. El buscador de
-// contratistas y la subida de documentos funcionan igual que en
-// solicitud-contrato-form.tsx.
+// contratistas funciona igual que en solicitud-contrato-form.tsx.
 // ---------------------------------------------------------------------------
 
 const claseCampo = (conError = false) =>
@@ -43,12 +37,6 @@ const claseArea = (conError = false) =>
   }`
 
 const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
-
-function extension(archivo: File) {
-  const desdeNombre = archivo.name.includes(".") ? archivo.name.split(".").pop()!.toLowerCase() : ""
-  if (/^[a-z0-9]{2,5}$/.test(desdeNombre)) return desdeNombre
-  return archivo.type === "application/pdf" ? "pdf" : archivo.type === "image/png" ? "png" : "jpg"
-}
 
 function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: React.ReactNode }) {
   return (
@@ -103,17 +91,9 @@ export function ContratoGeneralFormulario({
   onEnviado: (numero: number) => void
 }) {
   const [f, setF] = useState<ContratoGeneralForm>(() => (edicion ? contratoGeneralDesde(edicion) : CONTRATO_GENERAL_VACIO))
-  const [existentes, setExistentes] = useState<Partial<Record<TipoDocumentoContrato, DocumentoContratoSubido>>>(() =>
-    Object.fromEntries(
-      (edicion?.documentos ?? []).map((d) => [d.tipo, { tipo: d.tipo, ruta: d.ruta, nombreArchivo: d.nombreArchivo, tamano: d.tamano, mime: d.mime }])
-    )
-  )
   const [errores, setErrores] = useState<Partial<Record<CampoContratoGeneral, string>>>({})
-  const [archivos, setArchivos] = useState<Partial<Record<TipoDocumentoContrato, File>>>({})
-  const [erroresArchivo, setErroresArchivo] = useState<Partial<Record<TipoDocumentoContrato, string>>>({})
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
-  const [paso, setPaso] = useState<"subiendo" | "guardando" | null>(null)
-  const enviando = paso !== null
+  const [enviando, setEnviando] = useState(false)
 
   const [contratistas, setContratistas] = useState<Contratista[] | null>(null)
   const [errorContratistas, setErrorContratistas] = useState<string | null>(null)
@@ -128,7 +108,6 @@ export function ContratoGeneralFormulario({
 
   const contratistaPorId = useMemo(() => new Map((contratistas ?? []).map((c) => [c.id, c])), [contratistas])
   const contratista = f.contratistaId ? contratistaPorId.get(f.contratistaId) ?? null : null
-  const tipo = f.tipo ? TIPO_CONTRATO_POR_VALOR.get(f.tipo) ?? null : null
   const valor = leerNumero(f.valor)
 
   const coincidencias = useMemo(() => {
@@ -144,14 +123,6 @@ export function ContratoGeneralFormulario({
     if (errores[clave]) setErrores((e) => ({ ...e, [clave]: undefined }))
   }
 
-  function elegirTipo(valorTipo: TipoContrato) {
-    cambiar("tipo", valorTipo)
-    const validos = new Set(TIPO_CONTRATO_POR_VALOR.get(valorTipo)!.documentos.map((d) => d.tipo))
-    setArchivos((a) => Object.fromEntries(Object.entries(a).filter(([t]) => validos.has(t as TipoDocumentoContrato))))
-    setExistentes((a) => Object.fromEntries(Object.entries(a).filter(([t]) => validos.has(t as TipoDocumentoContrato))))
-    setErroresArchivo({})
-  }
-
   function elegirContratista(c: Contratista) {
     setF((v) => ({
       ...v,
@@ -163,71 +134,26 @@ export function ContratoGeneralFormulario({
     setListaAbierta(false)
   }
 
-  function elegirArchivo(t: TipoDocumentoContrato, archivo: File | undefined) {
-    if (!archivo) return
-    const err = validarArchivo(archivo)
-    setErroresArchivo((e) => ({ ...e, [t]: err ?? undefined }))
-    setArchivos((a) => {
-      const sig = { ...a }
-      if (err) delete sig[t]
-      else sig[t] = archivo
-      return sig
-    })
-  }
-
   async function enviar(e: React.FormEvent) {
     e.preventDefault()
     setErrorGeneral(null)
     const r = validarContratoGeneral(f)
-    const faltan: Partial<Record<TipoDocumentoContrato, string>> = {}
-    for (const d of tipo?.documentos ?? []) if (d.obligatorio && !archivos[d.tipo] && !existentes[d.tipo]) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
-    setErroresArchivo(faltan)
-    if (!r.ok || Object.keys(faltan).length > 0) {
+    if (!r.ok) {
       setErrorGeneral("Revisa los campos marcados en rojo.")
       requestAnimationFrame(() => document.querySelector("[data-error='true']")?.scrollIntoView({ behavior: "smooth", block: "center" }))
       return
     }
-
-    const id = edicion?.id ?? crypto.randomUUID()
-    const supabase = createClient()
-    const subidos: DocumentoContratoSubido[] = []
-    setPaso("subiendo")
+    setEnviando(true)
     try {
-      await Promise.all(
-        tipo!.documentos
-          .filter((d) => archivos[d.tipo])
-          .map(async (d) => {
-            const archivo = archivos[d.tipo]!
-            // Al corregir, el nombre lleva un sufijo: el archivo anterior del
-            // mismo tipo sigue existiendo hasta que la base acepte el cambio.
-            const sufijo = edicion ? `-${crypto.randomUUID().slice(0, 8)}` : ""
-            const ruta = `${id}/${d.tipo}${sufijo}.${extension(archivo)}`
-            const { error } = await supabase.storage.from("contratos").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
-            if (error) throw new Error(`No se pudo subir "${archivo.name}": ${error.message}`)
-            subidos.push({ tipo: d.tipo, ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type })
-          })
-      )
-      const nuevosTipos = new Set(subidos.map((x) => x.tipo))
-      const conservados = tipo!.documentos.filter((d) => !nuevosTipos.has(d.tipo) && existentes[d.tipo]).map((d) => existentes[d.tipo]!)
-      const documentos = [...subidos, ...conservados]
-
-      setPaso("guardando")
       const numero = edicion
-        ? await reenviarContratoGeneral(id, proyectoId, f, documentos)
-        : await crearContratoGeneral(id, proyectoId, f, subidos)
-
-      if (edicion) {
-        const enUso = new Set(documentos.map((x) => x.ruta))
-        const sobran = edicion.documentos.map((x) => x.ruta).filter((r) => !enUso.has(r))
-        if (sobran.length > 0) await supabase.storage.from("contratos").remove(sobran)
-      }
+        ? await reenviarContratoGeneral(edicion.id, proyectoId, f, [])
+        : await crearContratoGeneral(crypto.randomUUID(), proyectoId, f, [])
       onEnviado(numero)
     } catch (err) {
-      if (subidos.length > 0) await supabase.storage.from("contratos").remove(subidos.map((s) => s.ruta))
       setErrorGeneral(err instanceof Error ? err.message : "No se pudo mandar el contrato.")
     } finally {
-      setPaso(null)
+      setEnviando(false)
     }
   }
 
@@ -249,26 +175,41 @@ export function ContratoGeneralFormulario({
         </div>
       )}
 
-      <Seccion titulo="Tipo de contrato" ayuda="Define qué documentos se piden.">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" aria-label="Tipo de contrato" data-error={Boolean(errores.tipo)}>
-          {TIPOS_CONTRATO.map((t) => {
-            const activo = f.tipo === t.valor
-            return (
-              <button
-                key={t.valor}
-                type="button"
-                role="radio"
-                aria-checked={activo}
+      <Seccion titulo="Tipo de contrato">
+        <div className="flex flex-wrap items-start gap-2" data-error={Boolean(errores.tipo || errores.tipoDetalle)}>
+          {(
+            [
+              ["servicios", "Servicios"],
+              ["otro", "Otro"],
+            ] as const
+          ).map(([valorTipo, etiqueta]) => (
+            <Button
+              key={valorTipo}
+              type="button"
+              role="radio"
+              aria-checked={f.tipo === valorTipo}
+              variant={f.tipo === valorTipo ? "default" : "outline"}
+              onClick={() => cambiar("tipo", valorTipo, "tipoDetalle")}
+              disabled={enviando}
+            >
+              {etiqueta}
+            </Button>
+          ))}
+          {f.tipo === "otro" && (
+            <div className="min-w-56 flex-1">
+              <input
+                aria-label="Qué tipo de contrato es"
+                value={f.tipoDetalle}
+                onChange={(e) => cambiar("tipoDetalle", e.target.value)}
                 disabled={enviando}
-                onClick={() => elegirTipo(t.valor)}
-                className={`rounded-md border px-3 py-2.5 text-left text-sm transition-colors ${activo ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-              >
-                <span className="font-medium">{t.titulo}</span>
-              </button>
-            )
-          })}
+                placeholder="¿Cuál? Ej. Consultoría"
+                autoFocus
+                className={claseCampo(Boolean(errores.tipoDetalle))}
+              />
+            </div>
+          )}
         </div>
-        <MensajeError texto={errores.tipo} />
+        <MensajeError texto={errores.tipo ?? errores.tipoDetalle} />
       </Seccion>
 
       <Seccion titulo="Contratista" ayuda="Sus datos salen del directorio de Contratistas.">
@@ -440,81 +381,6 @@ export function ContratoGeneralFormulario({
         </Campo>
       </Seccion>
 
-      <Seccion
-        titulo="Documentos del contrato"
-        ayuda={tipo ? `Específicos de ${tipo.titulo.toLowerCase()}. PDF, JPG o PNG de hasta 10 MB.` : "Elige primero el tipo de contrato."}
-      >
-        {tipo && (
-          <ul className="divide-y rounded-md border">
-            {tipo.documentos.map((d) => {
-              const archivo = archivos[d.tipo]
-              const existente = existentes[d.tipo]
-              const err = erroresArchivo[d.tipo]
-              const id = `general-archivo-${d.tipo}`
-              return (
-                <li key={d.tipo} className="flex flex-wrap items-center gap-3 px-3 py-2.5" data-error={Boolean(err)}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm">
-                      {d.titulo}
-                      {d.obligatorio && <span className="text-destructive"> *</span>}
-                    </p>
-                    {err ? (
-                      <p className="text-xs text-destructive">{err}</p>
-                    ) : (
-                      (archivo || existente) && (
-                        <p className="truncate text-xs text-muted-foreground" title={archivo?.name ?? existente?.nombreArchivo}>
-                          {archivo ? archivo.name : `Actual: ${existente!.nombreArchivo}`}
-                        </p>
-                      )
-                    )}
-                  </div>
-                  <input
-                    id={id}
-                    type="file"
-                    accept="application/pdf,image/jpeg,image/png"
-                    className="sr-only"
-                    disabled={enviando}
-                    onChange={(e) => {
-                      elegirArchivo(d.tipo, e.target.files?.[0])
-                      e.target.value = ""
-                    }}
-                  />
-                  <label
-                    htmlFor={id}
-                    className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted ${enviando ? "pointer-events-none opacity-50" : ""} ${err ? "border-destructive" : ""}`}
-                  >
-                    <FileUp className="size-4" />
-                    {archivo || existente ? "Cambiar" : "Adjuntar"}
-                  </label>
-                  {(archivo || existente) && !d.obligatorio && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setArchivos((a) => {
-                          const sig = { ...a }
-                          delete sig[d.tipo]
-                          return sig
-                        })
-                        setExistentes((a) => {
-                          const sig = { ...a }
-                          delete sig[d.tipo]
-                          return sig
-                        })
-                      }}
-                      className="rounded p-1 text-muted-foreground hover:text-foreground"
-                      aria-label={`Quitar ${d.titulo}`}
-                      disabled={enviando}
-                    >
-                      <X className="size-4" />
-                    </button>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </Seccion>
-
       <div className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         {errorGeneral && <p className="mr-auto text-sm text-destructive">{errorGeneral}</p>}
         <Button type="button" variant="outline" onClick={onCancelar} disabled={enviando}>
@@ -522,7 +388,7 @@ export function ContratoGeneralFormulario({
         </Button>
         <Button type="submit" disabled={enviando}>
           {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          {paso === "subiendo" ? "Subiendo documentos..." : paso === "guardando" ? "Enviando..." : edicion ? "Reenviar a pre-aprobación" : "Mandar a pre-aprobación"}
+          {enviando ? "Enviando..." : edicion ? "Reenviar a pre-aprobación" : "Mandar a pre-aprobación"}
         </Button>
       </div>
     </form>

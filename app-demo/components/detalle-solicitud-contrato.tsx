@@ -18,6 +18,7 @@ import {
   pesosEnLetras,
   pesos,
   datosTipoParaMostrar,
+  nombreTipoContrato,
   plazoTexto,
   type SolicitudContratoDetalle,
 } from "@/lib/contratos"
@@ -37,7 +38,8 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 export const fechaContrato = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
 
-export const tituloTipoContrato = (t: string) => TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t
+// Los generales guardan "servicios" u "otro" (con su detalle, ver nombreTipoContrato).
+export const tituloTipoContrato = (t: string) => (t === "servicios" ? "Servicios" : t === "otro" ? "Otro" : TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t)
 
 type DocumentoAbierto = { titulo: string; nombreArchivo: string; mime: string; cargarUrl: () => Promise<string> }
 
@@ -97,7 +99,7 @@ export function DetalleSolicitudContrato({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {detalle
-              ? `${detalle.clase === "general" ? "Contrato general" : "Solicitud"} N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}`
+              ? `${detalle.clase === "general" ? "Contrato general" : "Solicitud"} N° ${detalle.numero} · ${nombreTipoContrato(detalle)}`
               : "Solicitud de contrato"}
             {detalle && (
               <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(detalle)]}>
@@ -177,7 +179,7 @@ export function DetalleSolicitudContrato({
               <TablaDatos
                 titulo="Datos generales"
                 filas={[
-                  ["Tipo de contrato", tituloTipoContrato(detalle.tipo)],
+                  ["Tipo de contrato", nombreTipoContrato(detalle)],
                   ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                   ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
                   ["Correo de notificación", detalle.correoNotificacion],
@@ -276,7 +278,9 @@ export function DetalleSolicitudContrato({
 
 
               {/* En modo resumen (Control del proyecto) no salen los documentos. */}
-              {!resumen && (
+              {/* Sin documentos: en modo resumen (Control del proyecto) y en los
+                  contratos generales, que son solo una hoja con datos. */}
+              {!resumen && !general && (
                 <>
                 <div className="space-y-2">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase">Documentos del contrato</h3>

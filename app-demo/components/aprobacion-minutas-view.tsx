@@ -14,6 +14,7 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import {
   CLASE_ESTADO_MINUTA,
   ETIQUETA_ESTADO_MINUTA,
+  nombreTipoContrato,
   pesos,
   type EstadoMinuta,
   type SolicitudContratoDetalle,
@@ -107,7 +108,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
       },
       { clave: "contrato", titulo: "Contrato", ancho: 120, texto: (s) => s.numeroContrato ?? "" },
       { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (s) => s.proyectoCodigo ?? s.proyectoNombre ?? "" },
-      { clave: "tipo", titulo: "Tipo", ancho: 190, texto: (s) => `${tituloTipoContrato(s.tipo)}${s.clase === "general" ? " · General" : ""}` },
+      { clave: "tipo", titulo: "Tipo", ancho: 190, texto: (s) => (s.clase === "general" ? `General · ${nombreTipoContrato(s)}` : tituloTipoContrato(s.tipo)) },
       { clave: "contratista", titulo: "Contratista", ancho: 200, texto: (s) => s.contratistaNombre },
       { clave: "objeto", titulo: "Objeto", ancho: 240, flexible: true, texto: (s) => s.objeto },
       { clave: "valor", titulo: "Valor", ancho: 150, alinear: "right", texto: (s) => pesos(s.valor), claseCelda: "tabular-nums" },
