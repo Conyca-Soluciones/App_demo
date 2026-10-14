@@ -75,7 +75,7 @@ const clienteFalso = {
   from: (tabla: string) => builder(tabla),
   rpc: async (nombre: string, args: any) => {
     llamadas.push({ tabla: "rpc:" + nombre, op: "rpc", inIds: 0 })
-    if (nombre === "precios_efectivos_insumos") {
+    if (nombre === "precios_presupuesto_insumos") {
       return {
         data: (args.p_insumo_ids as string[]).map((id) => ({ insumo_id: id, precio_efectivo: 5000, tipo: "MATERIAL" })),
         error: null,
@@ -131,7 +131,7 @@ describe("resolverLineasRevisionEnLote", () => {
     // ningún .in() con más de 200 ids
     expect(Math.max(...llamadas.map((l) => l.inIds))).toBeLessThanOrEqual(200)
     // precios: una sola llamada (antes una por línea)
-    expect(llamadas.filter((l) => l.tabla === "rpc:precios_efectivos_insumos")).toHaveLength(1)
+    expect(llamadas.filter((l) => l.tabla === "rpc:precios_presupuesto_insumos")).toHaveLength(1)
     // inserts en bloque (antes uno por línea)
     expect(llamadas.filter((l) => l.tabla === "item_apu" && l.op === "insert")).toHaveLength(3)
   })

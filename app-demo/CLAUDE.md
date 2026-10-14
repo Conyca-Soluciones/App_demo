@@ -1202,8 +1202,21 @@ historial (`historico_precios_compra`, Excel de compras sept. 2026),
 - Los precios ya congelados en los APU no cambiaron.
 - `precios_efectivos_insumos` promedia también las OC aprobadas de la app, que
   hoy son de prueba: no usarlas para precios mientras sea así.
-- Migración preparada, sin aplicar: `20261114000000_presupuesto_con_iva.sql`
-  (el APU toma el precio con IVA). Aplicarla cuando el usuario lo pida.
+- **El presupuesto va con IVA** (`20261114000000_presupuesto_con_iva.sql`,
+  aplicada): cuando el precio de una línea de insumo sale de la app (maestro o
+  promedio de compras) entra con su IVA, vía `precios_presupuesto_insumos`
+  (= `precios_efectivos_insumos` × (1 + IVA)); la usan `agregarInsumoApu`, el
+  import (`matchearYGuardarImportApu`), la revisión en lote y los buscadores
+  (`conPreciosEfectivos`). El insumo nuevo aprobado se congela con IVA. El
+  respaldo sin precio congelado usa `vr_neto`. Los precios del Excel oficial no
+  cambian (ya traen IVA) y las líneas ya congeladas tampoco.
+  `precios_efectivos_insumos` sigue SIN IVA (la usan el aviso de precio de OC y
+  la Maestra).
+- **Control del proyecto y actas nuevas** (misma migración): las actas se suman
+  por `actas.valor_bruto` (las actas sobre el contrato de lcpr no tienen
+  `acta_lineas`); por ítem, sus `acta_actividades` cruzadas con el ítem del
+  anexo; lo que no tiene ítem (actas por % de avance) va a "sin ítem". Materiales
+  y salidas se valoran con IVA.
 
 ## Pendientes generales
 
