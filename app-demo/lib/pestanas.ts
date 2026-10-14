@@ -26,15 +26,17 @@ export type PermisosRol = {
   todosProyectos: boolean
 }
 
-// MÓDULOS de la plataforma. AdPro (Administración de Proyectos) es todo lo que
-// existe hoy; A&F (Administrativo y Financiero) es el módulo nuevo, todavía sin
-// pestañas. Una pestaña pertenece a un módulo con `modulo` (por omisión, AdPro);
-// las claves de permisos ('tab.<clave>') NO cambian al mover pestañas entre módulos.
-export type ModuloClave = "adpro" | "ayf"
+// MÓDULOS de la plataforma: AdPro (Administración de Proyectos), A&F
+// (Administrativo y Financiero) y Admin (Administrador de la plataforma, solo
+// para el rol Administrador; sus pestañas son PESTANAS_SOLO_ADMIN). Una pestaña
+// pertenece a un módulo con `modulo` (por omisión, AdPro); las claves de
+// permisos ('tab.<clave>') NO cambian al mover pestañas entre módulos.
+export type ModuloClave = "adpro" | "ayf" | "admin"
 
 export const MODULOS: { clave: ModuloClave; titulo: string; descripcion: string }[] = [
   { clave: "adpro", titulo: "AdPro", descripcion: "Administración de Proyectos" },
   { clave: "ayf", titulo: "A&F", descripcion: "Administrativo y Financiero" },
+  { clave: "admin", titulo: "Admin", descripcion: "Administrador de la plataforma" },
 ]
 
 export type Pestana = {
@@ -108,11 +110,12 @@ export const PESTANAS: Pestana[] = [
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 
-// Pestañas que SOLO ve el Administrador (no aparecen en la matriz).
-export const PESTANAS_SOLO_ADMIN: { titulo: string; url: string }[] = [
-  { titulo: "Control administrativo", url: "/admin" },
-  { titulo: "Roles y permisos", url: "/admin/roles" },
-  { titulo: "Usuarios y accesos", url: "/admin/accesos" },
+// Pestañas que SOLO ve el Administrador (no aparecen en la matriz): el módulo
+// Admin del menú, con sus secciones.
+export const PESTANAS_SOLO_ADMIN: { titulo: string; seccion: string; url: string }[] = [
+  { titulo: "Control administrativo", seccion: "Empresas y proyectos", url: "/admin" },
+  { titulo: "Roles y permisos", seccion: "Usuarios y permisos", url: "/admin/roles" },
+  { titulo: "Usuarios y accesos", seccion: "Usuarios y permisos", url: "/admin/accesos" },
 ]
 const RUTA_SOLO_ADMIN = "/admin"
 
@@ -228,6 +231,17 @@ export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpr
   const veTodo = permisos.esAdministrador || permisos.sinRol
   const grupos = new Map<string, GrupoMenu>()
 
+  // Módulo Admin: solo el Administrador.
+  if (modulo === "admin") {
+    if (!permisos.esAdministrador) return []
+    for (const p of PESTANAS_SOLO_ADMIN) {
+      const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
+      g.items.push({ titulo: p.titulo, url: p.url })
+      grupos.set(p.seccion, g)
+    }
+    return [...grupos.values()]
+  }
+
   for (const p of PESTANAS) {
     if ((p.modulo ?? "adpro") !== modulo) continue
     if (!veTodo && !permisos.pestanas.includes(p.clave)) continue
@@ -237,14 +251,6 @@ export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpr
     const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
     g.items.push({ titulo: p.titulo, url: p.url, subseccion: p.subseccion })
     grupos.set(p.seccion, g)
-  }
-
-  // "Administrador": solo el Administrador, siempre al final. Hoy vive en AdPro.
-  if (modulo === "adpro" && permisos.esAdministrador) {
-    grupos.set("Administrador", {
-      titulo: "Administrador",
-      items: PESTANAS_SOLO_ADMIN.map((x) => ({ titulo: x.titulo, url: x.url })),
-    })
   }
 
   return [...grupos.values()]
@@ -258,9 +264,13 @@ export type ModuloMenu = {
 }
 
 // Menú lateral completo: un bloque por módulo, cada uno con sus secciones.
-// Un módulo sin pestañas todavía (A&F) se devuelve con `grupos` vacío.
+// Un módulo sin pestañas todavía se devuelve con `grupos` vacío; Admin solo
+// aparece para el Administrador.
 export function construirModulos(permisos: PermisosRol): ModuloMenu[] {
-  return MODULOS.map((m) => ({ ...m, grupos: construirMenu(permisos, m.clave) }))
+  return MODULOS.filter((m) => m.clave !== "admin" || permisos.esAdministrador).map((m) => ({
+    ...m,
+    grupos: construirMenu(permisos, m.clave),
+  }))
 }
 
 // ---------------------------------------------------------------------------
