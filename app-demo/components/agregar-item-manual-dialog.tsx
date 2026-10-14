@@ -69,12 +69,13 @@ export function AgregarItemManualDialog({
   onAgregar: (item: ItemPresupuesto) => void
 }) {
   const [busqueda, setBusqueda] = useState("")
-  const [sugerencias, setSugerencias] = useState<InsumoSugerido[]>([])
+  const [sugerenciasEncontradas, setSugerencias] = useState<InsumoSugerido[]>([])
   const [seleccionado, setSeleccionado] = useState<InsumoSugerido | null>(null)
   const [nivel, setNivel] = useState("1")
   const [padreId, setPadreId] = useState<string>("ninguno")
   const [cantidad, setCantidad] = useState("")
-  const [buscando, setBuscando] = useState(false)
+  // Término de la última búsqueda que respondió: mientras no sea el escrito, se está buscando.
+  const [terminoRespondido, setTerminoRespondido] = useState<string | null>(null)
   const [similares, setSimilares] = useState<InsumoSimilar[] | null>(null)
   const [verificando, setVerificando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
@@ -85,19 +86,17 @@ export function AgregarItemManualDialog({
     [itemsActuales, nivel]
   )
 
-  useEffect(() => {
-    if (seleccionado) return
-    if (!puedeBuscar(busqueda)) {
-      setSugerencias([])
-      return
-    }
+  const hayQueBuscar = !seleccionado && puedeBuscar(busqueda)
+  const sugerencias = hayQueBuscar ? sugerenciasEncontradas : []
+  const buscando = hayQueBuscar && terminoRespondido !== busqueda
 
-    setBuscando(true)
+  useEffect(() => {
+    if (seleccionado || !puedeBuscar(busqueda)) return
     const timeout = setTimeout(() => {
       buscarInsumos(busqueda)
         .then(setSugerencias)
         .catch((e) => console.error("Error buscando insumos:", e))
-        .finally(() => setBuscando(false))
+        .finally(() => setTerminoRespondido(busqueda))
     }, 300)
 
     return () => clearTimeout(timeout)

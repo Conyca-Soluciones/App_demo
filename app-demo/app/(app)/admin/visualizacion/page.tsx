@@ -117,22 +117,29 @@ export default function VisualizacionPage() {
   // El proyecto se elige en /inicio (landing); acá solo se lee.
   const { proyecto: proyectoActual } = useProyectoActual()
   const proyectoId = proyectoActual?.id ?? null
-  const [resumen, setResumen] = useState<ResumenEjecucionProyecto | null>(null)
-  const [cargandoResumen, setCargandoResumen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Resultado de la última carga, con el proyecto al que corresponde: lo de
+  // otro proyecto no se muestra y mientras no llegue el del actual se está
+  // cargando (sin setState dentro del efecto).
+  const [carga, setCarga] = useState<{ proyectoId: string; resumen: ResumenEjecucionProyecto | null; error: string | null } | null>(null)
+  const vigente = proyectoId != null && carga?.proyectoId === proyectoId ? carga : null
+  const resumen = vigente?.resumen ?? null
+  const error = vigente?.error ?? null
+  const cargandoResumen = proyectoId != null && vigente === null
   const [busquedaInsumo, setBusquedaInsumo] = useState("")
 
   useEffect(() => {
-    if (!proyectoId) {
-      setResumen(null)
-      return
-    }
-    setCargandoResumen(true)
-    setError(null)
+    if (!proyectoId) return
+    let activo = true
     obtenerResumenEjecucion(proyectoId)
-      .then(setResumen)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el estado de obra."))
-      .finally(() => setCargandoResumen(false))
+      .then((r) => activo && setCarga({ proyectoId, resumen: r, error: null }))
+      .catch(
+        (e) =>
+          activo &&
+          setCarga({ proyectoId, resumen: null, error: e instanceof Error ? e.message : "No se pudo cargar el estado de obra." })
+      )
+    return () => {
+      activo = false
+    }
   }, [proyectoId])
 
   const totales = useMemo(() => {

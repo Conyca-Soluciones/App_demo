@@ -99,7 +99,9 @@ function AdminManoObraContent() {
   const [recurso, setRecurso] = useState<TipoRecurso>("mano_obra")
   const [vista, setVista] = useState<Vista>("pendiente")
   const [solicitudes, setSolicitudes] = useState<SolicitudRecurso[]>([])
-  const [cargando, setCargando] = useState(true)
+  // Vista y recurso de la última carga que terminó: mientras no sean los
+  // actuales, se está cargando (sin setState dentro del efecto).
+  const [cargadoPara, setCargadoPara] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
 
@@ -119,21 +121,27 @@ function AdminManoObraContent() {
     router.replace("/presupuestos/admin-mano-obra")
   }
 
-  function cargar() {
-    if (vista === "catalogo") return // el catálogo se carga solo, ver CatalogoRecurso abajo
-    setCargando(true)
-    setError(null)
-    config
-      .listar()
-      .then(setSolicitudes)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
-      .finally(() => setCargando(false))
-  }
+  const claveCarga = `${vista}|${recurso}`
+  const cargando = vista !== "catalogo" && cargadoPara !== claveCarga
 
   useEffect(() => {
-    cargar()
+    if (vista === "catalogo") return // el catálogo se carga solo, ver CatalogoRecurso abajo
+    let activo = true
+    config
+      .listar()
+      .then((s) => {
+        if (!activo) return
+        setSolicitudes(s)
+        setError(null)
+      })
+      .catch((e) => activo && setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
+      .finally(() => activo && setCargadoPara(claveCarga))
+    return () => {
+      activo = false
+    }
+    // config sale de `recurso` (ya está en la clave).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vista, recurso])
+  }, [claveCarga])
 
   // Cambiar de recurso vuelve siempre a "Pendientes".
   function cambiarRecurso(nuevo: TipoRecurso) {
@@ -623,9 +631,13 @@ function CatalogoRecurso({
     return ordenadas
   }, [categorias, busqueda, filtroGrupo, filtroUnidad, columnaOrden, direccionOrden])
 
-  useEffect(() => {
+  // Al cambiar la búsqueda, un filtro o el orden se vuelve a la página 1.
+  const claveFiltros = JSON.stringify([busqueda, filtroGrupo, filtroUnidad, columnaOrden, direccionOrden])
+  const [filtrosPrevios, setFiltrosPrevios] = useState(claveFiltros)
+  if (claveFiltros !== filtrosPrevios) {
+    setFiltrosPrevios(claveFiltros)
     setPagina(1)
-  }, [busqueda, filtroGrupo, filtroUnidad, columnaOrden, direccionOrden])
+  }
 
   const totalPaginas = Math.max(1, Math.ceil(filasProcesadas.length / FILAS_POR_PAGINA_CATALOGO))
   const paginaActual = Math.min(pagina, totalPaginas)

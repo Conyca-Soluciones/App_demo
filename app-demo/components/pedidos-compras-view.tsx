@@ -1,7 +1,7 @@
 // pedidos-compras-view.tsx
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -17,20 +17,18 @@ import {
 const CLAVE_SELECCION = "compras:seleccion"
 
 export function PedidosCompraView() {
+  // key: al cambiar de proyecto se descarta lo consultado del anterior.
+  const { proyecto } = useProyectoActual()
+  return <PedidosCompraDeProyecto key={proyecto?.id ?? "ninguno"} />
+}
+
+function PedidosCompraDeProyecto() {
   const router = useRouter()
   const [pedidos, setPedidos] = useState<PedidoParaComprar[] | null>(null)
   const [proyectoConsultado, setProyectoConsultado] = useState<string | null>(null)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { proyecto: proyectoActual } = useProyectoActual()
-
-  // Al cambiar de proyecto se descarta lo consultado del anterior.
-  useEffect(() => {
-    setPedidos(null)
-    setProyectoConsultado(null)
-    setSeleccionados(new Set())
-  }, [proyectoActual?.id])
 
   async function handleConsultar(filtros: FiltrosPedidosCompra) {
     setCargando(true)

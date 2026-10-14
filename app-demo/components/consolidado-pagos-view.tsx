@@ -486,29 +486,31 @@ function ContenidoResolver({
   const [tercero, setTercero] = useState<OpcionBuscador | null>(
     pago.terceroId && pago.terceroNombre ? { id: pago.terceroId, etiqueta: pago.terceroNombre } : null
   )
-  const [cuentas, setCuentas] = useState<CuentaOpcion[]>([])
+  // Cuentas con el tercero al que corresponden: las de otro tercero no se
+  // muestran y mientras no lleguen las del elegido se están cargando.
+  const [cargaCuentas, setCargaCuentas] = useState<{ terceroId: string; cuentas: CuentaOpcion[] } | null>(null)
+  const cuentas = tercero && cargaCuentas?.terceroId === tercero.id ? cargaCuentas.cuentas : []
+  const cargandoCuentas = tercero !== null && cargaCuentas?.terceroId !== tercero.id
   const [cuentaId, setCuentaId] = useState(pago.cuentaId ?? "")
-  const [cargandoCuentas, setCargandoCuentas] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!tercero) {
-      setCuentas([])
-      return
-    }
+    if (!tercero) return
     let vigente = true
-    setCargandoCuentas(true)
     cuentasDeTercero(tercero.id)
       .then((c: CuentaOpcion[]) => {
         if (!vigente) return
-        setCuentas(c)
+        setCargaCuentas({ terceroId: tercero.id, cuentas: c })
         // Si el tercero tiene una sola cuenta verificada se propone sola.
         const activas = c.filter((x) => x.estado === "ACTIVO")
         setCuentaId((previa) => (c.some((x) => x.id === previa) ? previa : activas.length === 1 ? activas[0].id : ""))
       })
-      .catch((e) => vigente && setError(e instanceof Error ? e.message : "No se pudieron cargar las cuentas."))
-      .finally(() => vigente && setCargandoCuentas(false))
+      .catch((e) => {
+        if (!vigente) return
+        setError(e instanceof Error ? e.message : "No se pudieron cargar las cuentas.")
+        setCargaCuentas({ terceroId: tercero.id, cuentas: [] })
+      })
     return () => {
       vigente = false
     }

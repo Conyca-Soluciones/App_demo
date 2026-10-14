@@ -40,7 +40,10 @@ function GraficasPresupuestoContent() {
   const [versiones, setVersiones] = useState<VersionPresupuesto[]>([])
   const [versionId, setVersionId] = useState<string | null>(null)
   const [items, setItems] = useState<ItemPresupuesto[]>([])
-  const [cargando, setCargando] = useState(false)
+  // Versión de la última carga que terminó: mientras no sea la elegida, se
+  // está cargando (sin setState dentro del efecto).
+  const [versionCargada, setVersionCargada] = useState<string | null>(null)
+  const cargando = versionId !== null && versionCargada !== versionId
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -55,12 +58,18 @@ function GraficasPresupuestoContent() {
 
   useEffect(() => {
     if (!versionId) return
-    setCargando(true)
-    setError(null)
+    let activo = true
     cargarVersion(versionId)
-      .then(setItems)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la versión."))
-      .finally(() => setCargando(false))
+      .then((i) => {
+        if (!activo) return
+        setItems(i)
+        setError(null)
+      })
+      .catch((e) => activo && setError(e instanceof Error ? e.message : "No se pudo cargar la versión."))
+      .finally(() => activo && setVersionCargada(versionId))
+    return () => {
+      activo = false
+    }
   }, [versionId])
 
   if (!presupuestoId) {

@@ -451,7 +451,14 @@ function formatoCantidadExcel(valor: unknown): string {
 // ---------------------------------------------------------------------------
 
 export default function Presupuestos() {
-  // El proyecto se elige en /inicio (landing); acá solo se lee.
+  // key: al cambiar de proyecto la página empieza de cero (presupuesto,
+  // versiones, diálogos y avisos), sin limpiar el estado a mano.
+  const { proyecto } = useProyectoActual()
+  return <PresupuestoDeProyecto key={proyecto?.id ?? "ninguno"} />
+}
+
+function PresupuestoDeProyecto() {
+  // El proyecto se elige en /inicio (landing) o en la barra de arriba; acá solo se lee.
   const { proyecto: proyectoActual } = useProyectoActual()
   const proyectoId = proyectoActual?.id ?? null
   const [presupuestoDbId, setPresupuestoDbId] = useState<string | null>(null)
@@ -478,7 +485,8 @@ export default function Presupuestos() {
   const [presupuestoExistente, setPresupuestoExistente] = useState<PresupuestoExistente | null>(
     null
   )
-  const [cargandoExistente, setCargandoExistente] = useState(false)
+  // Con proyecto, la página arranca consultando su presupuesto.
+  const [cargandoExistente, setCargandoExistente] = useState(proyectoId !== null)
   // Otro import de este presupuesto sigue vivo (otra pestaña u otro usuario),
   // o uno abandonado todavía no cumple los 2 minutos para descartarse.
   const [importAjenoEnCurso, setImportAjenoEnCurso] = useState(false)
@@ -489,9 +497,12 @@ export default function Presupuestos() {
   const [cargandoPresupuesto, setCargandoPresupuesto] = useState(false)
 
 
-  const [versiones, setVersiones] = useState<VersionPresupuesto[]>([])
+  // Sin presupuesto en la base no hay versiones (se deriva; no se limpia en un efecto).
+  const [versionesCargadas, setVersiones] = useState<VersionPresupuesto[]>([])
   const [viendoVersionActual, setViendoVersionActual] = useState(true)
-  const [versionViendoId, setVersionViendoId] = useState<string | null>(null)
+  const [versionViendoIdEstado, setVersionViendoId] = useState<string | null>(null)
+  const versiones = presupuestoDbId ? versionesCargadas : []
+  const versionViendoId = presupuestoDbId ? versionViendoIdEstado : null
   const [creandoVersion, setCreandoVersion] = useState(false)
   const [nombreNuevaVersion, setNombreNuevaVersion] = useState("")
   const [estadoPresupuesto, setEstadoPresupuesto] = useState<
@@ -643,17 +654,13 @@ export default function Presupuestos() {
     .filter((item) => excedePresupuestoOriginal(item.valorUnitario, item.precioOriginal))
     .map((item) => item.id)
   // Mientras el diálogo esté abierto en modo general, su lista de ítems
-  // se mantiene sincronizada con `idsConAlgoPendiente` -- así, si una
+  // sigue a `idsConAlgoPendiente` (se deriva en el render) -- así, si una
   // tanda que sigue procesando en el fondo deja algo nuevo pendiente,
   // aparece solo en el diálogo que ya está abierto, sin que el usuario
   // tenga que cerrarlo y volver a abrirlo. El diálogo mismo (ver
   // revision-apu-dialog.tsx) NO resetea las elecciones ya hechas cuando
   // esto pasa -- solo cuando se abre de nuevo desde cero.
-  useEffect(() => {
-    if (!dialogoRevisionAbierto || !modoGeneralRevision) return
-    setItemIdsParaRevisar(idsConAlgoPendiente)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialogoRevisionAbierto, modoGeneralRevision, idsConAlgoPendiente.join(",")])
+  const idsDialogoRevision = dialogoRevisionAbierto && modoGeneralRevision ? idsConAlgoPendiente : itemIdsParaRevisar
 
   function handleAbrirRevisionGeneral() {
     setModoGeneralRevision(true)
@@ -686,11 +693,7 @@ export default function Presupuestos() {
   }
 
   useEffect(() => {
-    if (!presupuestoDbId) {
-      setVersiones([])
-      setVersionViendoId(null)
-      return
-    }
+    if (!presupuestoDbId) return
     listarVersiones(presupuestoDbId)
       .then((lista: VersionPresupuesto[]) => {
         setVersiones(lista)
@@ -777,14 +780,11 @@ export default function Presupuestos() {
 
   // Al elegir proyecto, se resuelve su ÚNICO presupuesto (o null) -- ya
   // no hay lista que traer ni "aviso descartado" que rastrear.
-    useEffect(() => {
-    setPresupuestoExistente(null)
-    setPresupuesto([])
-    setPresupuestoDbId(null)
-
+  // La página se monta de nuevo al cambiar de proyecto (key), así que todo
+  // empieza vacío y cargandoExistente ya arranca en true.
+  useEffect(() => {
     if (!proyectoId) return
 
-    setImportAjenoEnCurso(false)
     let cancelado = false
     let reintento: ReturnType<typeof setTimeout> | null = null
 
@@ -816,7 +816,6 @@ export default function Presupuestos() {
       if (primeraVez || r.estado !== "en_curso") await handleContinuarPresupuesto(existente)
     }
 
-    setCargandoExistente(true)
     verPresupuestoDeProyecto(proyectoId)
       .then(async (existente) => {
         if (cancelado) return
@@ -2016,7 +2015,7 @@ export default function Presupuestos() {
 
       <RevisionApuDialog
         open={dialogoRevisionAbierto}
-        itemIds={itemIdsParaRevisar}
+        itemIds={idsDialogoRevision}
         tabInicial={tabInicialRevision}
         onCerrar={handleCerrarDialogoRevision}
         onCambio={(itemIds) => refrescarEstadosYValores(itemIds)}

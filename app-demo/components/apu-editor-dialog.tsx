@@ -147,10 +147,13 @@ function CantidadEditable({
 }) {
   const [editando, setEditando] = useState(false)
   const [valorLocal, setValorLocal] = useState(String(valor))
-
-  useEffect(() => {
+  // Si el valor cambia desde afuera, el campo lo toma (sin efecto: se compara
+  // con el anterior durante el render).
+  const [valorPrevio, setValorPrevio] = useState(valor)
+  if (valor !== valorPrevio) {
+    setValorPrevio(valor)
     setValorLocal(String(valor))
-  }, [valor])
+  }
 
   function confirmar() {
     setEditando(false)
@@ -234,7 +237,13 @@ export function ApuEditorDialog({
   onApuIdPendienteCreado?: (apuId: string) => void
 }) {
   const [apu, setApu] = useState<ApuDeItem | null>(null)
-  const [cargando, setCargando] = useState(false)
+  // Para qué ítem/APU terminó la última carga: mientras no sea el actual, se
+  // está cargando (sin setState dentro del efecto). Al cerrar se olvida, así
+  // al volver a abrir se recarga.
+  const claveCarga = `${presupuestoItemId}|${guardado}|${apuIdPendiente ?? ""}`
+  const [cargadoPara, setCargadoPara] = useState<string | null>(null)
+  if (!open && cargadoPara !== null) setCargadoPara(null)
+  const cargando = open && cargadoPara !== claveCarga
   // quien aprueba insumos puede guardar una conversión también en el maestro
   const [puedeGuardarEnMaestro, setPuedeGuardarEnMaestro] = useState(false)
   useEffect(() => {
@@ -265,8 +274,27 @@ export function ApuEditorDialog({
 
   useEffect(() => {
     if (!open) return
-    cargarTodo()
-  }, [open, presupuestoItemId, guardado, apuIdPendiente])
+    let vigente = true
+    // ítem ya guardado -> el apu (si existe) vive en presupuesto_items.apu_id
+    // ítem SIN guardar -> el apu (si existe) es el que se armó suelto antes
+    // (apuIdPendiente); si tampoco hay eso, no tiene apu todavía.
+    const actual = guardado
+      ? obtenerApuDeItem(presupuestoItemId)
+      : apuIdPendiente
+        ? previsualizarApu(apuIdPendiente)
+        : Promise.resolve(null)
+    actual
+      .then((a) => {
+        if (!vigente) return
+        setApu(a)
+        setError(null)
+      })
+      .catch((e) => vigente && setError(e instanceof Error ? e.message : "No se pudo cargar el APU"))
+      .finally(() => vigente && setCargadoPara(claveCarga))
+    return () => {
+      vigente = false
+    }
+  }, [open, presupuestoItemId, guardado, apuIdPendiente, claveCarga])
 
   // ---------------------------------------------------------------------
   // DECISIÓN DE NEGOCIO (no técnica): este editor YA NO sugiere copiar un
@@ -278,27 +306,6 @@ export function ApuEditorDialog({
   // más abajo en BuscadorInsumoCategoria) sigue exactamente igual, solo
   // se quitó el atajo de "copiar un APU entero".
   // ---------------------------------------------------------------------
-
-  async function cargarTodo() {
-    setCargando(true)
-    setError(null)
-    try {
-      // ítem ya guardado -> el apu (si existe) vive en presupuesto_items.apu_id
-      // ítem SIN guardar -> el apu (si existe) es el que se armó suelto antes
-      // (apuIdPendiente); si tampoco hay eso, no tiene apu todavía.
-      const actual = guardado
-        ? await obtenerApuDeItem(presupuestoItemId)
-        : apuIdPendiente
-          ? await previsualizarApu(apuIdPendiente)
-          : null
-
-      setApu(actual)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar el APU")
-    } finally {
-      setCargando(false)
-    }
-  }
 
   async function recargarApu(apuId: string) {
     const actualizado = await previsualizarApu(apuId)
@@ -680,7 +687,7 @@ function BuscadorInsumoCategoria({
   onAgregado: () => void
 }) {
   const [busqueda, setBusqueda] = useState("")
-  const [sugerencias, setSugerencias] = useState<InsumoSugerido[]>([])
+  const [sugerenciasEncontradas, setSugerencias] = useState<InsumoSugerido[]>([])
   const [seleccionado, setSeleccionado] = useState<InsumoSugerido | null>(null)
   const [similares, setSimilares] = useState<InsumoSimilar[] | null>(null)
   const [cantidad, setCantidad] = useState("")
@@ -706,12 +713,11 @@ function BuscadorInsumoCategoria({
 
   const inputRef = useRef<HTMLDivElement>(null)
 
+  // Lo que se muestra se deriva en el render; el efecto solo busca.
+  const sugerencias = !seleccionado && puedeBuscar(busqueda) ? sugerenciasEncontradas : []
+
   useEffect(() => {
-    if (seleccionado) return
-    if (!puedeBuscar(busqueda)) {
-      setSugerencias([])
-      return
-    }
+    if (seleccionado || !puedeBuscar(busqueda)) return
     const timeout = setTimeout(() => {
       buscarInsumos(busqueda, tipos).then(setSugerencias).catch(console.error)
     }, 300)
@@ -1222,7 +1228,7 @@ function BuscadorEquipoCategoria({
   onAgregado: () => void
 }) {
   const [busqueda, setBusqueda] = useState("")
-  const [sugerencias, setSugerencias] = useState<CategoriaEquipo[]>([])
+  const [sugerenciasEncontradas, setSugerencias] = useState<CategoriaEquipo[]>([])
   const [seleccionado, setSeleccionado] = useState<CategoriaEquipo | null>(null)
   const [cantidad, setCantidad] = useState("")
   const [rendimiento, setRendimiento] = useState("1")
@@ -1233,12 +1239,11 @@ function BuscadorEquipoCategoria({
 
   const inputRef = useRef<HTMLDivElement>(null)
 
+  // Lo que se muestra se deriva en el render; el efecto solo busca.
+  const sugerencias = !seleccionado && busqueda.trim().length >= 2 ? sugerenciasEncontradas : []
+
   useEffect(() => {
-    if (seleccionado) return
-    if (busqueda.trim().length < 2) {
-      setSugerencias([])
-      return
-    }
+    if (seleccionado || busqueda.trim().length < 2) return
     const timeout = setTimeout(() => {
       buscarEquipoSimilares(busqueda).then(setSugerencias).catch(console.error)
     }, 300)

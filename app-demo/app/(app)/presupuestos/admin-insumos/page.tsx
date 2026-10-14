@@ -63,17 +63,12 @@ function AdminInsumosContent() {
     router.replace("/presupuestos/admin-insumos")
   }
 
-  function cargar() {
-    setCargando(true)
-    setError(null)
+  // Carga al entrar (cargando ya empieza en true).
+  useEffect(() => {
     listarSolicitudesInsumos()
       .then(setSolicitudes)
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
       .finally(() => setCargando(false))
-  }
-
-  useEffect(() => {
-    cargar()
   }, [])
 
   function marcarProcesando(id: string, activo: boolean) {

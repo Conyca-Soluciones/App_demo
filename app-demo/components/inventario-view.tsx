@@ -29,9 +29,13 @@ const formatoMoneda = new Intl.NumberFormat("es-CO", {
 })
 
 export function InventarioView() {
-  // Proyecto escogido en /inicio o en el selector del header (ver
-  // lib/proyecto-actual.ts).
+  // Proyecto escogido en /inicio o en la barra de arriba (ver
+  // lib/proyecto-actual.ts). key: al cambiar de proyecto se empieza de cero.
   const proyectoId = useProyectoActual().proyecto?.id ?? null
+  return <InventarioDeProyecto key={proyectoId ?? "ninguno"} proyectoId={proyectoId} />
+}
+
+function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   // Filtro por insumo: el elegido en el panel y el ya aplicado (al Consultar).
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
@@ -39,14 +43,7 @@ export function InventarioView() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!proyectoId) {
-      setInventario(null)
-      return
-    }
-    setInventario(null)
-    setInsumo(null)
-    setInsumoAplicado(null)
-    setError(null)
+    if (!proyectoId) return
     obtenerInventarioProyecto(proyectoId)
       .then((filas: InsumoInventario[]) => setInventario(filas))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el inventario."))

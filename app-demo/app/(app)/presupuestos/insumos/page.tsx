@@ -259,9 +259,13 @@ export default function MaestroInsumos() {
   }, [insumos, busqueda, filtroTipo, filtroUM, filtroAgrupacion, filtroPresentacion, columnaOrden, direccionOrden])
 
   // volver a la página 1 cada vez que cambian filtros/búsqueda/orden
-  useEffect(() => {
+  // Al cambiar la búsqueda, un filtro o el orden se vuelve a la página 1.
+  const claveFiltros = JSON.stringify([busqueda, filtroTipo, filtroUM, filtroAgrupacion, filtroPresentacion, columnaOrden, direccionOrden])
+  const [filtrosPrevios, setFiltrosPrevios] = useState(claveFiltros)
+  if (claveFiltros !== filtrosPrevios) {
+    setFiltrosPrevios(claveFiltros)
     setPagina(1)
-  }, [busqueda, filtroTipo, filtroUM, filtroAgrupacion, filtroPresentacion, columnaOrden, direccionOrden])
+  }
 
   const totalPaginas = Math.max(1, Math.ceil(filasProcesadas.length / FILAS_POR_PAGINA))
   const paginaActual = Math.min(pagina, totalPaginas)

@@ -381,13 +381,13 @@ function BuscadorEnCatalogo({
   onSeleccionar: (id: string) => void
 }) {
   const [busqueda, setBusqueda] = useState("")
-  const [resultadosInsumo, setResultadosInsumo] = useState<InsumoSimilar[]>([])
-  const [resultadosCategoria, setResultadosCategoria] = useState<CategoriaManoObra[]>([])
+  const [insumosEncontrados, setResultadosInsumo] = useState<InsumoSimilar[]>([])
+  const [categoriasEncontradas, setResultadosCategoria] = useState<CategoriaManoObra[]>([])
   // Término cuyos resultados están en pantalla -- evita mostrar "no se
   // encontró nada" mientras la búsqueda del término nuevo todavía no corre.
   const [terminoBuscado, setTerminoBuscado] = useState<string | null>(null)
-  const [buscando, setBuscando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [buscandoAhora, setBuscando] = useState(false)
+  const [errorBusqueda, setError] = useState<string | null>(null)
   const catalogoManoObra = useRef<CategoriaManoObra[] | null>(null)
   // Cada búsqueda toma un número; solo la más reciente puede escribir en
   // el estado -- descarta respuestas que llegan fuera de orden cuando el
@@ -395,15 +395,18 @@ function BuscadorEnCatalogo({
   const ultimaBusqueda = useRef(0)
 
   const termino = busqueda.trim()
+  // Con un término muy corto no se muestra nada: se deriva en el render (el
+  // efecto solo busca).
+  const corto = termino.length < MIN_CARACTERES_BUSQUEDA
+  const resultadosInsumo = corto ? [] : insumosEncontrados
+  const resultadosCategoria = corto ? [] : categoriasEncontradas
+  const buscando = !corto && buscandoAhora
+  const error = corto ? null : errorBusqueda
 
   useEffect(() => {
     if (termino.length < MIN_CARACTERES_BUSQUEDA) {
+      // Descarta la respuesta de una búsqueda que todavía estaba en curso.
       ultimaBusqueda.current++
-      setResultadosInsumo([])
-      setResultadosCategoria([])
-      setTerminoBuscado(null)
-      setError(null)
-      setBuscando(false)
       return
     }
 

@@ -14,29 +14,6 @@ import type { PresupuestoActivo } from "./types"
 export default function Almacen() {
   // El proyecto se elige en /inicio (landing); acá solo se lee.
   const { proyecto: proyectoActual } = useProyectoActual()
-  const proyectoId = proyectoActual?.id ?? null
-  const [error, setError] = useState<string | null>(null)
-  // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
-  const [creada, setCreada] = useState<{ requisicionId: string; numero: number } | null>(null)
-
-  const [presupuestoActivo, setPresupuestoActivo] = useState<PresupuestoActivo | null>(null)
-  const [cargandoPresupuesto, setCargandoPresupuesto] = useState(false)
-
-  useEffect(() => {
-    setPresupuestoActivo(null)
-    setCreada(null)
-    setError(null)
-
-    if (!proyectoId) return
-
-    setCargandoPresupuesto(true)
-    buscarPresupuestoActivo(proyectoId)
-      .then(setPresupuestoActivo)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el presupuesto del proyecto."))
-      .finally(() => setCargandoPresupuesto(false))
-  }, [proyectoId])
-
-  const proyectoSeleccionado = proyectoActual
 
   return (
     <>
@@ -47,7 +24,38 @@ export default function Almacen() {
 
       {!proyectoActual && <SinProyecto />}
 
+      {/* key: al cambiar de proyecto se empieza de cero (aviso, error y presupuesto). */}
       {proyectoActual && (
+        <Requisiciones key={proyectoActual.id} proyectoId={proyectoActual.id} proyectoNombre={proyectoActual.nombre} />
+      )}
+    </>
+  )
+}
+
+function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; proyectoNombre: string }) {
+  // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
+  const [creada, setCreada] = useState<{ requisicionId: string; numero: number } | null>(null)
+  // null = todavía cargando el presupuesto del proyecto.
+  const [carga, setCarga] = useState<{ presupuesto: PresupuestoActivo | null; error: string | null } | null>(null)
+  const presupuestoActivo = carga?.presupuesto ?? null
+  const cargandoPresupuesto = carga === null
+  const error = carga?.error ?? null
+
+  useEffect(() => {
+    let activo = true
+    buscarPresupuestoActivo(proyectoId)
+      .then((p) => activo && setCarga({ presupuesto: p, error: null }))
+      .catch(
+        (e) =>
+          activo &&
+          setCarga({ presupuesto: null, error: e instanceof Error ? e.message : "No se pudo cargar el presupuesto del proyecto." })
+      )
+    return () => {
+      activo = false
+    }
+  }, [proyectoId])
+
+  return (
       <main className="mx-auto w-full max-w-[1400px] flex-1 space-y-6 p-6">
         <div className="space-y-2">
           {proyectoId && cargandoPresupuesto && (
@@ -55,7 +63,7 @@ export default function Almacen() {
           )}
           {proyectoId && !cargandoPresupuesto && !presupuestoActivo && (
             <p className="text-xs text-amber-700">
-              {proyectoSeleccionado?.nombre ?? "Este proyecto"} todavía no tiene un presupuesto
+              {proyectoNombre} todavía no tiene un presupuesto
               cargado — sube uno desde el módulo de Presupuestos antes de crear requisiciones.
             </p>
           )}
@@ -84,7 +92,5 @@ export default function Almacen() {
           </section>
         )}
       </main>
-      )}
-    </>
   )
 }

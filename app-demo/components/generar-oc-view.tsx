@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { ClipboardList, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,21 @@ const formatoCantidad = (n: number) => n.toLocaleString("es-CO", { maximumFracti
 
 const CLAVE_SELECCION = "compras:seleccion"
 
+// La selección la deja Comprar requisiciones en sessionStorage. Se lee con
+// useSyncExternalStore: en el servidor no hay sessionStorage (undefined =
+// todavía no se sabe, no se pinta nada).
+const sinSuscripcion = () => () => {}
+function leerSeleccion(raw: string | null): SeleccionGuardada | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as SeleccionGuardada
+    if (!parsed.proyectoId || !Array.isArray(parsed.pedidoIds) || parsed.pedidoIds.length === 0) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 type SeleccionGuardada = { proyectoId: string; pedidoIds: string[] }
 
 type LineaForm = {
@@ -100,15 +115,26 @@ async function buscarProveedoresAdaptado(termino: string): Promise<OpcionBuscado
 export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarProveedor?: boolean }) {
   const router = useRouter()
 
-  const [seleccion, setSeleccion] = useState<SeleccionGuardada | null | undefined>(undefined)
+  const seleccionRaw = useSyncExternalStore(
+    sinSuscripcion,
+    () => sessionStorage.getItem(CLAVE_SELECCION),
+    () => undefined
+  )
+  const seleccion = useMemo(
+    () => (seleccionRaw === undefined ? undefined : leerSeleccion(seleccionRaw)),
+    [seleccionRaw]
+  )
   const [pedidos, setPedidos] = useState<PedidoParaComprar[]>([])
   const [lineas, setLineas] = useState<Record<string, LineaForm>>({})
   const [cargandoPedidos, setCargandoPedidos] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [proveedor, setProveedor] = useState<OpcionBuscador | null>(null)
-  const [detalleProveedor, setDetalleProveedor] = useState<ProveedorDetalle | null>(null)
-  const [cargandoProveedor, setCargandoProveedor] = useState(false)
+  // Detalle con el proveedor al que corresponde: el de otro no se muestra y
+  // mientras no llegue el del elegido se está cargando.
+  const [cargaProveedor, setCargaProveedor] = useState<{ proveedorId: string; detalle: ProveedorDetalle | null } | null>(null)
+  const detalleProveedor = proveedor && cargaProveedor?.proveedorId === proveedor.id ? cargaProveedor.detalle : null
+  const cargandoProveedor = proveedor !== null && cargaProveedor?.proveedorId !== proveedor.id
 
   const [sitioEntrega, setSitioEntrega] = useState("")
   const [fechaEntrega, setFechaEntrega] = useState("")
@@ -124,28 +150,10 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const [generando, setGenerando] = useState(false)
   const [ordenCreada, setOrdenCreada] = useState<string | null>(null)
 
-  useEffect(() => {
-    const raw = sessionStorage.getItem(CLAVE_SELECCION)
-    if (!raw) {
-      setSeleccion(null)
-      return
-    }
-    try {
-      const parsed = JSON.parse(raw) as SeleccionGuardada
-      if (!parsed.proyectoId || !Array.isArray(parsed.pedidoIds) || parsed.pedidoIds.length === 0) {
-        setSeleccion(null)
-        return
-      }
-      setSeleccion(parsed)
-    } catch {
-      setSeleccion(null)
-    }
-  }, [])
-
+  // La selección no cambia mientras se está en la página (cargandoPedidos ya
+  // empieza en true).
   useEffect(() => {
     if (!seleccion) return
-    setCargandoPedidos(true)
-    setError(null)
     obtenerPedidosPorId(seleccion.pedidoIds)
       .then((data) => {
         setPedidos(data)
@@ -170,15 +178,18 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   }, [seleccion])
 
   useEffect(() => {
-    if (!proveedor) {
-      setDetalleProveedor(null)
-      return
-    }
-    setCargandoProveedor(true)
+    if (!proveedor) return
+    let activo = true
     obtenerProveedorDetalle(proveedor.id)
-      .then(setDetalleProveedor)
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el proveedor."))
-      .finally(() => setCargandoProveedor(false))
+      .then((d) => activo && setCargaProveedor({ proveedorId: proveedor.id, detalle: d }))
+      .catch((e) => {
+        if (!activo) return
+        setError(e instanceof Error ? e.message : "No se pudo cargar el proveedor.")
+        setCargaProveedor({ proveedorId: proveedor.id, detalle: null })
+      })
+    return () => {
+      activo = false
+    }
   }, [proveedor])
 
   function actualizarLinea(pedidoId: string, campo: keyof LineaForm, valor: string) {
@@ -622,7 +633,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
               key={detalleProveedor.id}
               detalle={detalleProveedor}
               puedeEditar={puedeEditarProveedor}
-              onActualizado={setDetalleProveedor}
+              onActualizado={(d) => proveedor && setCargaProveedor({ proveedorId: proveedor.id, detalle: d })}
             />
           )}
 

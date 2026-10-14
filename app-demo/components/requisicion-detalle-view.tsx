@@ -60,11 +60,11 @@ export function RequisicionDetalleView({
   const [editando, setEditando] = useState(false)
 
   function cargar() {
-    setError(null)
     obtenerRequisicion(requisicionId)
       .then((r: RequisicionDetalle) => {
         setReq(r)
         setVersion((v) => v + 1)
+        setError(null)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la requisición."))
   }

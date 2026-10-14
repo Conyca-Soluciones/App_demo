@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Trash2 } from "lucide-react"
 import {
   Table,
@@ -83,9 +83,13 @@ function CantidadItemGuardadoEditable({
   // página -- sin este flash, el guardado quedaba silencioso.
   const [guardadoReciente, setGuardadoReciente] = useState(false)
 
-  useEffect(() => {
+  // Si el valor cambia desde afuera, el campo lo toma (sin efecto: se compara
+  // con el anterior durante el render).
+  const [valorPrevio, setValorPrevio] = useState(valor)
+  if (valor !== valorPrevio) {
+    setValorPrevio(valor)
     setValorLocal(String(valor ?? ""))
-  }, [valor])
+  }
 
   async function confirmar() {
     setEditando(false)

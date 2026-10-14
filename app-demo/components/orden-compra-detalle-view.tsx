@@ -67,11 +67,11 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [motivoRechazo, setMotivoRechazo] = useState("")
 
   function cargar() {
-    setError(null)
     Promise.all([obtenerOrdenCompraDetalle(ordenId), obtenerPermisosOrdenCompra()])
       .then(([o, p]) => {
         setOrden(o)
         setPermisos(p)
+        setError(null)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
   }

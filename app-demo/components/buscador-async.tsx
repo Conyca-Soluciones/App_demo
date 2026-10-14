@@ -48,20 +48,22 @@ export function BuscadorAsync({
 }: BuscadorAsyncProps) {
   const [termino, setTermino] = useState("")
   const [abierto, setAbierto] = useState(false)
-  const [opciones, setOpciones] = useState<OpcionBuscador[]>([])
-  const [cargando, setCargando] = useState(false)
+  const [opcionesEncontradas, setOpciones] = useState<OpcionBuscador[]>([])
+  const [buscandoAhora, setCargando] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const contenedorRef = useRef<HTMLDivElement>(null)
   const listaRef = useRef<HTMLDivElement>(null)
 
+  // Con un término muy corto no se muestra nada (se deriva en el render; el
+  // efecto solo busca).
+  const hayQueBuscar = puedeBuscar(termino, minCaracteres)
+  const opciones = hayQueBuscar ? opcionesEncontradas : []
+  const cargando = hayQueBuscar && buscandoAhora
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    if (!puedeBuscar(termino, minCaracteres)) {
-      setOpciones([])
-      setCargando(false)
-      return
-    }
+    if (!puedeBuscar(termino, minCaracteres)) return
 
     debounceRef.current = setTimeout(async () => {
       setCargando(true)

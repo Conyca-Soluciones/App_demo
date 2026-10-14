@@ -78,8 +78,9 @@ export function FormularioRequisicion({
   const [fechaPedido, setFechaPedido] = useState("")
   const [fechaRequerida, setFechaRequerida] = useState("")
   const [busqueda, setBusqueda] = useState("")
-  const [sugerencias, setSugerencias] = useState<InsumoAgrupado[]>([])
-  const [buscando, setBuscando] = useState(false)
+  const [sugerenciasEncontradas, setSugerencias] = useState<InsumoAgrupado[]>([])
+  // Término de la última búsqueda que respondió: mientras no sea el escrito, se está buscando.
+  const [terminoRespondido, setTerminoRespondido] = useState<string | null>(null)
   const [lineas, setLineas] = useState<LineaPedido[]>([])
   const [urgente, setUrgente] = useState(false)
   const [observaciones, setObservaciones] = useState("")
@@ -90,9 +91,21 @@ export function FormularioRequisicion({
 
   const limiteAlcanzado = lineas.length >= MAX_INSUMOS_POR_PEDIDO
 
-  // Reset al abrir
-  useEffect(() => {
-    if (!open) return
+  // Reset al abrir, al cambiar la requisición que se modifica o al pedir
+  // vaciar el formulario. Sin efecto: se compara con lo anterior durante el
+  // render (patrón de React para ajustar estado cuando cambian las props).
+  const [aperturaPrevia, setAperturaPrevia] = useState<{ open: boolean; edicion: EdicionRequisicion | null; reinicio: number } | null>(null)
+  if (
+    aperturaPrevia === null ||
+    aperturaPrevia.open !== open ||
+    aperturaPrevia.edicion !== edicion ||
+    aperturaPrevia.reinicio !== reinicio
+  ) {
+    setAperturaPrevia({ open, edicion, reinicio })
+    if (open) reiniciarFormulario()
+  }
+
+  function reiniciarFormulario() {
     // Hoy en Colombia (toISOString daba el día en UTC: después de las 7 p. m.
     // ya era "mañana" y no dejaba escoger hoy como fecha requerida).
     // Al modificar se muestra la fecha ORIGINAL de la requisición (no cambia);
@@ -125,22 +138,20 @@ export function FormularioRequisicion({
       setObservaciones("")
       setLineas([])
     }
-  }, [open, edicion, reinicio])
+  }
 
   // Buscar insumos mientras escribe (código o descripción del insumo,
-  // o código del ítem del presupuesto -- ver buscar_insumos_presupuesto)
+  // o código del ítem del presupuesto -- ver buscar_insumos_presupuesto).
+  // Lo que se muestra y el "buscando" se derivan; el efecto solo busca.
+  const sugerencias = puedeBuscar(busqueda) ? sugerenciasEncontradas : []
+  const buscando = puedeBuscar(busqueda) && terminoRespondido !== busqueda
   useEffect(() => {
-    if (!puedeBuscar(busqueda)) {
-      setSugerencias([])
-      return
-    }
-
-    setBuscando(true)
+    if (!puedeBuscar(busqueda)) return
     const timeout = setTimeout(() => {
       buscarInsumos(versionId, busqueda)
         .then(setSugerencias)
         .catch((e) => setError(e instanceof Error ? e.message : "No se pudo buscar el insumo."))
-        .finally(() => setBuscando(false))
+        .finally(() => setTerminoRespondido(busqueda))
     }, 300)
 
     return () => clearTimeout(timeout)

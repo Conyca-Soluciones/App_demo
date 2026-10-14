@@ -25,13 +25,18 @@ const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 
 type LineaSalida = { key: string; insumo: OpcionBuscador | null; um: string | null; cantidad: string }
 
 export function SalidasView() {
-  // Proyecto escogido en /inicio o en el selector del header (ver
-  // lib/proyecto-actual.ts).
+  // Proyecto escogido en /inicio o en la barra de arriba (ver
+  // lib/proyecto-actual.ts). key: al cambiar de proyecto se empieza de cero
+  // (tabla vacía, sin aviso, inventario nuevo).
   const proyectoId = useProyectoActual().proyecto?.id ?? null
+  return <SalidasDeProyecto key={proyectoId ?? "ninguno"} proyectoId={proyectoId} />
+}
+
+function SalidasDeProyecto({ proyectoId }: { proyectoId: string | null }) {
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   // Tabla de salida: siempre termina con una línea vacía lista para el
   // siguiente insumo.
-  const [lineas, setLineas] = useState<LineaSalida[]>([])
+  const [lineas, setLineas] = useState<LineaSalida[]>([{ key: "l0", insumo: null, um: null, cantidad: "" }])
   const contadorLineas = useRef(0)
   const nuevaLinea = useCallback(
     (): LineaSalida => ({ key: `l${++contadorLineas.current}`, insumo: null, um: null, cantidad: "" }),
@@ -44,18 +49,16 @@ export function SalidasView() {
   const [guardando, setGuardando] = useState(false)
 
   function cargar(pid: string) {
-    setError(null)
     obtenerInventarioProyecto(pid)
-      .then((inv: InsumoInventario[]) => setInventario(inv))
+      .then((inv: InsumoInventario[]) => {
+        setInventario(inv)
+        setError(null)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el proyecto."))
   }
 
   useEffect(() => {
-    setLineas([nuevaLinea()])
-    setAviso(null)
-    setInventario(null)
     if (proyectoId) cargar(proyectoId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId])
 
   // Insumo -> inventario, una sola vez (O(1) por búsqueda en vez de recorrer

@@ -127,15 +127,25 @@ function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
 }
 
 export function HistorialTimeline({ tipo, id }: { tipo: TipoHistorial; id: string }) {
-  const [eventos, setEventos] = useState<EventoHistorial[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // Resultado con la entidad a la que corresponde: el de otra entidad no se
+  // muestra (sin setState dentro del efecto).
+  const clave = `${tipo}|${id}`
+  const [carga, setCarga] = useState<{ clave: string; eventos: EventoHistorial[] | null; error: string | null } | null>(null)
+  const eventos = carga?.clave === clave ? carga.eventos : null
+  const error = carga?.clave === clave ? carga.error : null
 
   useEffect(() => {
-    setEventos(null)
-    setError(null)
+    let activo = true
     obtenerHistorial(tipo, id)
-      .then((e: EventoHistorial[]) => setEventos(e))
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar el historial."))
+      .then((e: EventoHistorial[]) => activo && setCarga({ clave: `${tipo}|${id}`, eventos: e, error: null }))
+      .catch(
+        (e) =>
+          activo &&
+          setCarga({ clave: `${tipo}|${id}`, eventos: null, error: e instanceof Error ? e.message : "No se pudo cargar el historial." })
+      )
+    return () => {
+      activo = false
+    }
   }, [tipo, id])
 
   if (error) return <p className="text-sm text-destructive">{error}</p>
