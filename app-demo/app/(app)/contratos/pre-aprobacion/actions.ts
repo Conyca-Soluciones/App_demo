@@ -344,9 +344,11 @@ export async function guardarMinutaObra(id: string, minuta: MinutaObra): Promise
 // Minuta completa de la solicitud, lista para enviar (según su tipo).
 async function minutaParaEnviar(id: string): Promise<unknown> {
   const supabase = await createClient()
-  const { data: contrato, error } = await supabase.from("contratos").select("tipo").eq("id", id).maybeSingle()
+  const { data: contrato, error } = await supabase.from("contratos").select("tipo, clase").eq("id", id).maybeSingle()
   if (error) throw new Error(error.message)
   if (!contrato) throw new Error("La solicitud no existe o no tienes acceso.")
+  // Contrato general: no tiene minuta; su hoja se arma con los datos de la base.
+  if (contrato.clase === "general") return { clase: "general" }
 
   switch (contrato.tipo) {
     case "mano_obra":

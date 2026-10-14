@@ -244,7 +244,16 @@ export type SolicitudContratoFila = {
   minutaResueltaPorNombre: string | null
   minutaMotivo: string | null
   numeroContrato: string | null
+  // 'general' = Contrato general (sin ítems del presupuesto ni minuta larga;
+  // 20261113000000_contratos_generales.sql). 'grupo' = Contratos por grupos.
+  clase: ClaseContrato
+  referencia: string | null
+  retencionGarantiaPct: number
+  retencionAnticipoPct: number
+  retencionFicPct: number
 }
+
+export type ClaseContrato = "grupo" | "general"
 
 export type SolicitudContratoDetalle = SolicitudContratoFila & {
   contratistaId: string
@@ -708,3 +717,127 @@ export const pesosEnLetras = (n: number) => `${numeroALetrasCOP(n)} (${pesos(n)}
 // contrato, es decir QUINCE MILLONES PESOS M/CTE ($15.000.000)".
 export const anticipoEnLetras = (porcentaje: number, valor: number) =>
   `${porcentajeEnLetras(porcentaje)} del valor del contrato, es decir ${pesosEnLetras(aCentavos((valor * porcentaje) / 100))}`
+
+// ---------------------------------------------------------------- contrato general
+// Formulario del contrato general (como el "Contrato General" de Sinco): valor
+// global, fechas, forma de pago, retenciones, referencia, descripción y
+// observaciones. La base valida lo mismo en _guardar_contrato_general.
+
+export type ContratoGeneralForm = {
+  tipo: TipoContrato | ""
+  contratistaId: string
+  objeto: string // descripción
+  valor: string
+  fechaInicio: string
+  fechaFin: string
+  formaPago: string
+  retencionGarantiaPct: string
+  retencionAnticipoPct: string
+  retencionFicPct: string
+  referencia: string
+  correoNotificacion: string
+  observaciones: string
+}
+
+export type CampoContratoGeneral = keyof ContratoGeneralForm | "plazo"
+
+export const CONTRATO_GENERAL_VACIO: ContratoGeneralForm = {
+  tipo: "",
+  contratistaId: "",
+  objeto: "",
+  valor: "",
+  fechaInicio: "",
+  fechaFin: "",
+  formaPago: "",
+  retencionGarantiaPct: "0",
+  retencionAnticipoPct: "0",
+  retencionFicPct: "0",
+  referencia: "",
+  correoNotificacion: "",
+  observaciones: "",
+}
+
+export type ContratoGeneralValido = {
+  tipo: TipoContrato
+  contratistaId: string
+  objeto: string
+  valor: number
+  fechaInicio: string
+  fechaFin: string
+  formaPago: string
+  retencionGarantiaPct: number
+  retencionAnticipoPct: number
+  retencionFicPct: number
+  referencia: string | null
+  correoNotificacion: string
+  observaciones: string | null
+}
+
+// Porcentaje de retención: vacío = 0; entre 0 y 100.
+function leerPorcentaje(texto: string): number | null {
+  if (!texto.trim()) return 0
+  const v = leerNumero(texto)
+  return v === null || v < 0 || v > 100 ? null : aCentavos(v)
+}
+
+export function validarContratoGeneral(
+  f: ContratoGeneralForm
+): { ok: true; datos: ContratoGeneralValido } | { ok: false; errores: Partial<Record<CampoContratoGeneral, string>> } {
+  const errores: Partial<Record<CampoContratoGeneral, string>> = {}
+  if (!f.tipo || !TIPO_CONTRATO_POR_VALOR.has(f.tipo)) errores.tipo = "Elige el tipo de contrato."
+  if (!f.contratistaId) errores.contratistaId = "Elige el contratista."
+  const objeto = f.objeto.trim().replace(/\s+/g, " ")
+  if (objeto.length < 5) errores.objeto = "Escribe la descripción del contrato."
+  const valor = leerNumero(f.valor)
+  if (valor === null || valor <= 0) errores.valor = "Escribe el valor del contrato en pesos."
+  if (!f.fechaInicio || !f.fechaFin) errores.plazo = "Escribe las fechas de inicio y de terminación."
+  else if (f.fechaFin < f.fechaInicio) errores.plazo = "La fecha de terminación es anterior a la de inicio."
+  if (!f.formaPago.trim()) errores.formaPago = "Escribe la forma de pago."
+  const garantia = leerPorcentaje(f.retencionGarantiaPct)
+  const anticipo = leerPorcentaje(f.retencionAnticipoPct)
+  const fic = leerPorcentaje(f.retencionFicPct)
+  if (garantia === null) errores.retencionGarantiaPct = "Entre 0 y 100."
+  if (anticipo === null) errores.retencionAnticipoPct = "Entre 0 y 100."
+  if (fic === null) errores.retencionFicPct = "Entre 0 y 100."
+  const correo = f.correoNotificacion.trim().toLowerCase()
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) errores.correoNotificacion = "Escribe un correo válido."
+  if (Object.keys(errores).length > 0) return { ok: false, errores }
+  return {
+    ok: true,
+    datos: {
+      tipo: f.tipo as TipoContrato,
+      contratistaId: f.contratistaId,
+      objeto,
+      valor: aCentavos(valor!),
+      fechaInicio: f.fechaInicio,
+      fechaFin: f.fechaFin,
+      formaPago: f.formaPago.trim(),
+      retencionGarantiaPct: garantia!,
+      retencionAnticipoPct: anticipo!,
+      retencionFicPct: fic!,
+      referencia: f.referencia.trim() || null,
+      correoNotificacion: correo,
+      observaciones: f.observaciones.trim() || null,
+    },
+  }
+}
+
+// Formulario lleno con un contrato general DEVUELTO (para corregirlo).
+export function contratoGeneralDesde(d: SolicitudContratoDetalle): ContratoGeneralForm {
+  const pctTexto = (v: number) => String(v).replace(".", ",")
+  return {
+    tipo: d.tipo,
+    contratistaId: d.contratistaId,
+    objeto: d.objeto,
+    valor: String(d.valor).replace(".", ","),
+    fechaInicio: d.fechaInicio ?? "",
+    fechaFin: d.fechaFin ?? "",
+    formaPago: d.formaPago,
+    retencionGarantiaPct: pctTexto(d.retencionGarantiaPct),
+    retencionAnticipoPct: pctTexto(d.retencionAnticipoPct),
+    retencionFicPct: pctTexto(d.retencionFicPct),
+    referencia: d.referencia ?? "",
+    correoNotificacion: d.correoNotificacion,
+    observaciones: d.observaciones ?? "",
+  }
+}

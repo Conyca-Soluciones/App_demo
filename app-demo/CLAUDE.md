@@ -2085,11 +2085,43 @@ aprobada).
   `historial_entidad`), como la de Pre-aprobación.
 
 
+## Contratos generales `/contratos/generales` (2026-10-15)
+
+Pestaña `contratos.contratos` (`20261113000000_contratos_generales.sql`). Como
+el "Contrato General" de Sinco: contrato sin ítems del presupuesto. Decisiones
+del usuario: mismo camino que por grupos; solo valor global; el documento es la
+hoja PDF (no minuta larga); actas generales después.
+- **Misma tabla** `contratos` con `clase` ('grupo' | 'general'); columnas nuevas
+  `referencia`, `retencion_garantia_pct`, `retencion_anticipo_pct`,
+  `retencion_fic_pct`. La descripción del general va en `objeto` y NO necesita
+  empezar por verbo (`contratos_objeto_check` lo exige solo a 'grupo').
+  Plazo siempre por fechas; sin anticipo, obligaciones, entregables ni anexo.
+- **Guardar**: `crear_contrato_general` / `reenviar_contrato_general` (sobre
+  `_guardar_contrato_general`): valida todo, documentos del tipo como en por
+  grupos, notifica a Jurídica, historial. TS: `validarContratoGeneral` en
+  `lib/contratos.ts`; formulario `components/contrato-general-form.tsx` (mismo
+  buscador de contratistas y subida de documentos que por grupos); vista
+  `components/contratos-generales-view.tsx`.
+- **Flujo**: llega a Pre aprobación y a Aprobación de contratos marcado
+  "· General". "Pre-aprobar y enviar" manda `{clase: "general"}` como minuta
+  (`minutaParaEnviar`); la pestaña "Hoja en PDF" (`MinutaSegunTipo` ->
+  `MinutaSoloPdf`) y la ruta del PDF arman la hoja desde la base
+  (`lib/contrato-general-hoja.ts`, `components/contrato-general-pdf.tsx`):
+  empresa, número (CJ al aprobarse), contratista, datos, descripción,
+  observaciones y elaboró / pre-aprobó / aprobó con fecha y hora.
+- Contratos por grupos solo lista 'grupo'; Actas por grupos solo busca 'grupo'
+  (`buscar_*_para_acta`).
+- **Pendiente**: la tabla `empresas` no tiene dirección ni teléfono (la hoja
+  muestra razón social, NIT y la ciudad del proyecto); actas de contratos
+  generales; la campanita lleva al director a Contratos por grupos aunque el
+  contrato sea general (el detalle abre bien, pero "Corregir" está en
+  Contratos generales).
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
-sin página, Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
+(`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
 de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =

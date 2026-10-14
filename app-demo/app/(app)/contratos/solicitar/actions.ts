@@ -41,6 +41,7 @@ export async function listarSolicitudesContrato(proyectoId: string): Promise<Sol
       .from("contratos")
       .select(SELECT_FILA_CONTRATO)
       .eq("proyecto_id", proyectoId)
+      .eq("clase", "grupo") // los generales van en Contratos generales
       .order("numero", { ascending: false })
       .range(desde, hasta)
   )

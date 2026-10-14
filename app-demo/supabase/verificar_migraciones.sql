@@ -172,5 +172,10 @@ select * from (
   union all
   select '20261112100000_visualizacion_ver_contratos',
          exists (select 1 from pg_policies where policyname = 'contratos_select' and qual like '%admin.visualizacion%')
+  union all
+  select '20261113000000_contratos_generales',
+         exists (select 1 from pg_proc where proname = 'crear_contrato_general')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'contratos' and column_name = 'clase')
 ) t
 order by 1;

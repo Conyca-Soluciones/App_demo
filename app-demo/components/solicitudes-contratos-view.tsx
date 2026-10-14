@@ -205,7 +205,7 @@ function Solicitudes({
         id={detalleId}
         onCerrar={cerrarDetalle}
         acciones={(d) =>
-          d.estado === "devuelta" && puedeSolicitar && d.proyectoId === proyectoId ? (
+          d.estado === "devuelta" && puedeSolicitar && d.proyectoId === proyectoId && d.clase === "grupo" ? (
             <Button
               onClick={() => {
                 cerrarDetalle()

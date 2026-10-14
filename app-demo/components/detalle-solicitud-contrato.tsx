@@ -72,6 +72,8 @@ export function DetalleSolicitudContrato({
   }, [id])
 
   const tipo = detalle ? TIPO_CONTRATO_POR_VALOR.get(detalle.tipo) : null
+  // Contrato general: sin minuta ni ítems; lleva referencia y retenciones.
+  const general = detalle?.clase === "general"
   const docPorTipo = new Map(detalle?.documentos.map((d) => [d.tipo, d]) ?? [])
   const docContratistaPorTipo = new Map(detalle?.contratistaDocumentos.map((d) => [d.tipo, d]) ?? [])
 
@@ -94,7 +96,9 @@ export function DetalleSolicitudContrato({
       >
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            {detalle ? `Solicitud N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}` : "Solicitud de contrato"}
+            {detalle
+              ? `${detalle.clase === "general" ? "Contrato general" : "Solicitud"} N° ${detalle.numero} · ${tituloTipoContrato(detalle.tipo)}`
+              : "Solicitud de contrato"}
             {detalle && (
               <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(detalle)]}>
                 {ETIQUETA_ETAPA_CONTRATO[etapaContrato(detalle)]}
@@ -109,8 +113,8 @@ export function DetalleSolicitudContrato({
           <div className="-mt-1 flex gap-1 border-b" role="tablist" aria-label="Secciones">
             {(
               [
-                ["solicitud", "Solicitud"],
-                ["minuta", "Minuta"],
+                ["solicitud", general ? "Contrato" : "Solicitud"],
+                ["minuta", general ? "Hoja en PDF" : "Minuta"],
               ] as const
             ).map(([valor, etiqueta]) => (
               <button
@@ -177,20 +181,31 @@ export function DetalleSolicitudContrato({
                   ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                   ["Contratista", `${detalle.contratistaNombre} · ${detalle.contratistaDocumento}`],
                   ["Correo de notificación", detalle.correoNotificacion],
-                  ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
-                  ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
+                  ...(general
+                    ? ([["Referencia", detalle.referencia ?? "—"]] as FilaDatos[])
+                    : ([
+                        ["Domicilio del contrato (departamento)", detalle.domicilioDepartamento ?? "—"],
+                        ...datosTipoParaMostrar(detalle.tipo, detalle.datosTipo),
+                      ] as FilaDatos[])),
                   ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
                 ]}
               />
 
               <TablaDatos
-                titulo="Objeto y alcance"
-                filas={[
-                  ["Objeto", detalle.objeto],
-                  ["Obligaciones específicas", <ListaNumerada key="o" items={detalle.obligaciones} />],
-                  ["Entregables", <ListaNumerada key="e" items={detalle.entregables} />],
-                  ...(detalle.observaciones ? ([["Observaciones", detalle.observaciones]] as FilaDatos[]) : []),
-                ]}
+                titulo={general ? "Descripción" : "Objeto y alcance"}
+                filas={
+                  general
+                    ? [
+                        ["Descripción", detalle.objeto],
+                        ["Observaciones", detalle.observaciones ?? "—"],
+                      ]
+                    : [
+                        ["Objeto", detalle.objeto],
+                        ["Obligaciones específicas", <ListaNumerada key="o" items={detalle.obligaciones} />],
+                        ["Entregables", <ListaNumerada key="e" items={detalle.entregables} />],
+                        ...(detalle.observaciones ? ([["Observaciones", detalle.observaciones]] as FilaDatos[]) : []),
+                      ]
+                }
               />
 
               <TablaDatos
@@ -199,7 +214,14 @@ export function DetalleSolicitudContrato({
                   ["Valor", <span key="v" className="font-medium tabular-nums">{pesos(detalle.valor)}</span>],
                   ["Modalidad", detalle.anexoTipo === "valor_global" ? "Valor global" : "Valores unitarios (anexo abajo)"],
                   ...(detalle.valorMensual !== null ? ([["Pago mensual", pesosEnLetras(detalle.valorMensual)]] as FilaDatos[]) : []),
-                  ["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"],
+                  ...(general
+                    ? ([
+                        [
+                          "Retenciones",
+                          `Garantías ${porcentajeTexto(detalle.retencionGarantiaPct)} · Anticipo ${porcentajeTexto(detalle.retencionAnticipoPct)} · FIC ${porcentajeTexto(detalle.retencionFicPct)}`,
+                        ],
+                      ] as FilaDatos[])
+                    : ([["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"]] as FilaDatos[])),
                   ["Forma de pago", detalle.formaPago],
                   [
                     "Plazo",
@@ -345,6 +367,8 @@ function AvisoMinutaDevuelta({ detalle }: { detalle: SolicitudContratoDetalle })
 }
 
 type FilaDatos = [string, React.ReactNode]
+
+const porcentajeTexto = (v: number) => `${String(v).replace(".", ",")} %`
 
 // Tabla de dos columnas (dato | valor) con su título; la columna del dato es
 // fija y gris para leer rápido de arriba abajo.

@@ -135,7 +135,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
         ),
       },
       { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (s) => s.proyectoCodigo ?? s.proyectoNombre ?? "" },
-      { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => tituloTipoContrato(s.tipo) },
+      { clave: "tipo", titulo: "Tipo", ancho: 190, texto: (s) => `${tituloTipoContrato(s.tipo)}${s.clase === "general" ? " · General" : ""}` },
       { clave: "contratista", titulo: "Contratista", ancho: 200, texto: (s) => s.contratistaNombre },
       { clave: "objeto", titulo: "Objeto", ancho: 240, flexible: true, texto: (s) => s.objeto },
       { clave: "valor", titulo: "Valor", ancho: 150, alinear: "right", texto: (s) => pesos(s.valor), claseCelda: "tabular-nums" },
