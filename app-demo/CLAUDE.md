@@ -1686,8 +1686,11 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   de Consultar. Baja TODO lo que cumple la última consulta (todas las páginas,
   no solo la de pantalla), una fila por insumo: N° requisición, proyecto,
   solicitado por, insumo (código - descripción), unidad, cantidad, fecha de
-  requisición, fecha requerida y estado (de la requisición). Con filtro de
-  insumo, solo las líneas de ese insumo. Servidor: `exportarRequisiciones` (usa
+  requisición, fecha requerida, estado (de la requisición) y estado de la
+  compra (como la columna "Compra" del registro; vacío si no aplica). La
+  cantidad sale sin punto si es entera ("96") y con hasta dos decimales si no
+  (formato por celda, `formatoCantidadExcel`). Sin texto debajo del título
+  (decisión del usuario). Con filtro de insumo, solo las líneas de ese insumo. Servidor: `exportarRequisiciones` (usa
   la misma `consultaRequisiciones` que la lista, con el acceso por proyecto);
   archivo: `lib/exportar-requisiciones.ts` (exceljs en el navegador, encabezado
   con logo, filtro de Excel y encabezados fijos).

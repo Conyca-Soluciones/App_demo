@@ -12,23 +12,10 @@ import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import type { RequisicionResumen } from "@/lib/requisiciones-lineas"
-import { ETIQUETA_ESTADO_EXCEL, descargarExcelRequisiciones } from "@/lib/exportar-requisiciones"
+import { descargarExcelRequisiciones } from "@/lib/exportar-requisiciones"
 
 import { exportarRequisiciones, listarRequisiciones, type FiltrosRequisiciones } from "../actions"
 
-// Resumen de los filtros para el encabezado del Excel.
-function describirFiltros(f: FiltrosRequisiciones): string {
-  const partes: string[] = []
-  if (f.numero !== undefined) partes.push(`requisición ${f.numero}`)
-  if (f.proyectoId) partes.push("un proyecto")
-  if (f.insumoId) partes.push("un insumo")
-  if (f.estado) partes.push(`estado ${ETIQUETA_ESTADO_EXCEL[f.estado].toLowerCase()}`)
-  if (f.solicitadoPorId) partes.push("un solicitante")
-  if (f.desde) partes.push(`desde ${formatearFechaSinHora(f.desde)}`)
-  if (f.hasta) partes.push(`hasta ${formatearFechaSinHora(f.hasta)}`)
-  const hoy = new Date().toLocaleDateString("es-CO", { timeZone: "America/Bogota" })
-  return `Descargado el ${hoy}. ${partes.length ? `Filtros: ${partes.join(", ")}.` : "Sin filtros."}`
-}
 
 const headClasses =
   "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
@@ -58,7 +45,7 @@ export default function RegistroRequisiciones() {
         setError("No hay insumos para descargar con estos filtros.")
         return
       }
-      await descargarExcelRequisiciones(filas, describirFiltros(ultimosFiltros))
+      await descargarExcelRequisiciones(filas)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo descargar el Excel.")
     } finally {

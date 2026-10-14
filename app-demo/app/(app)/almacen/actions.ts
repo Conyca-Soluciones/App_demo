@@ -426,6 +426,7 @@ export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Prom
         fechaRequisicion: r.createdAt,
         fechaRequerida: r.fechaRequerida,
         estado: r.estado,
+        estadoCompra: r.estadoCompra,
       })
     }
   }

@@ -2,7 +2,7 @@
 // requisición que cumple los filtros de la consulta (exportarRequisiciones en
 // almacen/actions.ts trae TODAS, no solo la página en pantalla).
 
-import type { EstadoRequisicion } from "@/lib/requisiciones-lineas"
+import type { EstadoCompra, EstadoRequisicion } from "@/lib/requisiciones-lineas"
 import { ZONA_HORARIA } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
@@ -17,6 +17,7 @@ export type FilaExcelRequisicion = {
   fechaRequisicion: string // timestamptz
   fechaRequerida: string | null // AAAA-MM-DD
   estado: EstadoRequisicion
+  estadoCompra: EstadoCompra
 }
 
 export const ETIQUETA_ESTADO_EXCEL: Record<EstadoRequisicion, string> = {
@@ -24,6 +25,13 @@ export const ETIQUETA_ESTADO_EXCEL: Record<EstadoRequisicion, string> = {
   aprobada: "Aprobada",
   rechazada: "Rechazada",
   cancelada: "Cancelada",
+}
+
+// Igual que la columna "Compra" del registro (solo aplica a las aprobadas).
+export const ETIQUETA_COMPRA_EXCEL: Record<NonNullable<EstadoCompra>, string> = {
+  completa: "Completa",
+  pendiente: "Pendiente",
+  rechazada_compras: "Rechazada por Compras",
 }
 
 export const COLUMNAS_EXCEL_REQUISICIONES = [
@@ -36,6 +44,7 @@ export const COLUMNAS_EXCEL_REQUISICIONES = [
   { titulo: "Fecha de requisición", ancho: 14 },
   { titulo: "Fecha requerida", ancho: 14 },
   { titulo: "Estado", ancho: 12 },
+  { titulo: "Estado de la compra", ancho: 20 },
 ] as const
 
 // "AAAA-MM-DD" -> fecha de Excel (a medianoche UTC: Excel no tiene zona
@@ -60,10 +69,14 @@ export function valoresFilaExcel(f: FilaExcelRequisicion): (string | number | Da
     fechaExcel(diaColombia(f.fechaRequisicion)),
     f.fechaRequerida ? fechaExcel(f.fechaRequerida) : null,
     ETIQUETA_ESTADO_EXCEL[f.estado],
+    f.estadoCompra ? ETIQUETA_COMPRA_EXCEL[f.estadoCompra] : "",
   ]
 }
 
-export async function descargarExcelRequisiciones(filas: FilaExcelRequisicion[], descripcionFiltros: string) {
+// Cantidad sin punto cuando es entera ("96"); con decimales, hasta dos ("96,5").
+export const formatoCantidadExcel = (n: number) => (Number.isInteger(n) ? "#,##0" : "#,##0.##")
+
+export async function descargarExcelRequisiciones(filas: FilaExcelRequisicion[]) {
   const ExcelJS = (await import("exceljs")).default
   const libro = new ExcelJS.Workbook()
   const hoja = libro.addWorksheet("Requisiciones")
@@ -71,7 +84,6 @@ export async function descargarExcelRequisiciones(filas: FilaExcelRequisicion[],
 
   const primera = agregarEncabezadoMarca(libro, hoja, {
     titulo: "Registro de requisiciones",
-    subtitulo: descripcionFiltros,
     numColumnas: n,
     bufferLogo: await obtenerBufferLogoConyca(),
   })
@@ -90,8 +102,8 @@ export async function descargarExcelRequisiciones(filas: FilaExcelRequisicion[],
   filas.forEach((f, i) => {
     const fila = hoja.getRow(primera + 1 + i)
     valoresFilaExcel(f).forEach((v, k) => (fila.getCell(k + 1).value = v))
+    fila.getCell(6).numFmt = formatoCantidadExcel(f.cantidad)
   })
-  hoja.getColumn(6).numFmt = "#,##0.##"
   hoja.getColumn(7).numFmt = "dd/mm/yyyy"
   hoja.getColumn(8).numFmt = "dd/mm/yyyy"
 
