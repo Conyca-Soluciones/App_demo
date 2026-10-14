@@ -1694,6 +1694,26 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 
+## Lint (2026-10-14)
+
+`npx eslint .` quedó solo con `@typescript-eslint/no-explicit-any` (134, en
+las acciones de servidor que leen filas de Supabase; casi la mitad en
+`presupuestos/actions.ts`). Lo demás se arregló: `"_nombre"` = sin usar a
+propósito (regla configurada en `eslint.config.mjs`), y nada de setState
+dentro de efectos. Patrones usados para esto último:
+- Estado que sigue a una prop: comparar con el valor anterior durante el
+  render (`const [previo, setPrevio] = useState(x); if (x !== previo) {...}`).
+- Carga por clave: guardar el resultado con la clave para la que se cargó
+  (`{ proyectoId, datos }` o `cargadoPara`); "cargando" = la clave no es la
+  actual. El efecto solo hace setState dentro del `.then`.
+- Cambio de proyecto: remontar la vista con `key={proyecto.id}` en vez de
+  limpiar el estado a mano (Presupuestos, Inventario, Salidas, Comprar
+  requisiciones, Elaboración de requisiciones).
+- Buscadores: lo que se muestra con un término corto se deriva en el render.
+Quitar los `any` de verdad pide tipar el cliente de Supabase con los tipos de
+la base (`generate_typescript_types`): sin eso supabase-js deduce mal los
+embebidos (los toma como listas) y por eso el código usa `any`.
+
 ## Regla de rendimiento: todo en tiempo lineal
 
 La app va a manejar mucho volumen, así que ningún cambio puede ser O(n²):
