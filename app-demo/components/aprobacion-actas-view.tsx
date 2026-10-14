@@ -1,60 +1,39 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Loader2, XCircle } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleActa } from "@/components/detalle-acta"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos } from "@/lib/contratos"
-import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, ETIQUETA_TIPO_ACTA, type ActaAprobacionFila, type ActaDetalle, type EstadoActa } from "@/lib/actas"
-import { listarActasAprobacion, resolverActa, type AccionActa } from "@/app/(app)/contratos/aprobacion-actas/actions"
+import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, ETIQUETA_TIPO_ACTA, type ActaAprobacionFila, type EstadoActa } from "@/lib/actas"
+import { listarActasAprobacion } from "@/app/(app)/contratos/aprobacion-actas/actions"
 
 // ---------------------------------------------------------------------------
-// Aprobación de actas: las actas de todos los proyectos que el usuario ve (no
-// depende del proyecto actual). Se abre cada una para revisarla y aprobarla o
-// rechazarla con motivo (rechazar devuelve su valor al cupo del contrato).
+// Aprobación de actas: CONSULTA de las actas de todos los proyectos que el
+// usuario ve (no depende del proyecto actual). Las actas no se aprueban aquí:
+// se aprueban o rechazan al aprobar o rechazar su pago en A&F (Aprobación de
+// pagos, 20261112100000_actas_aprobacion_por_pago.sql).
 // ---------------------------------------------------------------------------
 
 const FILTROS: { valor: EstadoActa | "todas"; etiqueta: string }[] = [
-  { valor: "pendiente", etiqueta: "Por aprobar" },
+  { valor: "pendiente", etiqueta: "Pago por aprobar" },
   { valor: "aprobada", etiqueta: "Aprobadas" },
   { valor: "rechazada", etiqueta: "Rechazadas" },
   { valor: "todas", etiqueta: "Todas" },
 ]
 
-const TEXTO_ACCION: Record<AccionActa, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
-  aprobar: {
-    titulo: "Aprobar acta",
-    explicacion:
-      "Queda aprobada y su valor sigue descontado del contrato; si el neto es mayor que cero se crea su pago en A&F (Consolidado de pagos). Ya no se podrá editar. Quien la hizo recibe un aviso.",
-    boton: "Aprobar",
-    pideMotivo: false,
-  },
-  rechazar: {
-    titulo: "Rechazar acta",
-    explicacion: "Su valor vuelve al saldo del contrato. Quien la hizo recibe un aviso con el motivo y puede corregirla y enviarla otra vez.",
-    boton: "Rechazar",
-    pideMotivo: true,
-  },
-}
-
-export function AprobacionActasView({ puedeResolver }: { puedeResolver: boolean }) {
+export function AprobacionActasView() {
   const { proyectos } = useProyectoActual()
   const [filtro, setFiltro] = useState<EstadoActa | "todas">("pendiente")
   const [proyectoId, setProyectoId] = useState("")
   const [actas, setActas] = useState<ActaAprobacionFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
   const [detalleId, setDetalleId] = useState<string | null>(null)
-  const [accion, setAccion] = useState<{ tipo: AccionActa; acta: ActaDetalle } | null>(null)
-  const [motivo, setMotivo] = useState("")
-  const [procesando, setProcesando] = useState(false)
-  const [errorAccion, setErrorAccion] = useState<string | null>(null)
 
   function cargar() {
     listarActasAprobacion({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
@@ -114,33 +93,9 @@ export function AprobacionActasView({ puedeResolver }: { puedeResolver: boolean 
     []
   )
 
-  async function confirmar() {
-    if (!accion) return
-    const texto = TEXTO_ACCION[accion.tipo]
-    if (texto.pideMotivo && !motivo.trim()) {
-      setErrorAccion("Escribe el motivo.")
-      return
-    }
-    setProcesando(true)
-    setErrorAccion(null)
-    try {
-      await resolverActa(accion.acta.id, accion.tipo, motivo)
-      const nombre = `Acta ${accion.acta.numero} del contrato ${accion.acta.numeroContrato}`
-      setAviso(accion.tipo === "aprobar" ? `${nombre} aprobada.` : `${nombre} rechazada.`)
-      setAccion(null)
-      setMotivo("")
-      setDetalleId(null)
-      cargar()
-    } catch (e) {
-      setErrorAccion(e instanceof Error ? e.message : "No se pudo completar la acción.")
-    } finally {
-      setProcesando(false)
-    }
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <EncabezadoPagina titulo="Aprobación de actas" subtitulo="Revisa las actas de los contratos y apruébalas o recházalas." />
+      <EncabezadoPagina titulo="Aprobación de actas" subtitulo="Consulta las actas de los contratos. Se aprueban o rechazan al aprobar o rechazar su pago en A&F (Aprobación de pagos)." />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1" role="tablist" aria-label="Estado">
@@ -177,11 +132,6 @@ export function AprobacionActasView({ puedeResolver }: { puedeResolver: boolean 
           )}
         </div>
 
-        {aviso && (
-          <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
-            <CheckCircle2 className="size-4" /> {aviso}
-          </div>
-        )}
         {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</div>}
 
         {actas === null && !error ? (
@@ -218,78 +168,8 @@ export function AprobacionActasView({ puedeResolver }: { puedeResolver: boolean 
       <DetalleActa
         id={detalleId}
         onCerrar={() => setDetalleId(null)}
-        acciones={(a) =>
-          a.estado === "pendiente" && puedeResolver ? (
-            <>
-              <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => setAccion({ tipo: "rechazar", acta: a })}>
-                <XCircle className="size-4" /> Rechazar
-              </Button>
-              <Button onClick={() => setAccion({ tipo: "aprobar", acta: a })}>
-                <CheckCircle2 className="size-4" /> Aprobar
-              </Button>
-            </>
-          ) : null
-        }
       />
 
-      <Dialog
-        open={accion !== null}
-        onOpenChange={(abierto) => {
-          if (!abierto && !procesando) {
-            setAccion(null)
-            setMotivo("")
-            setErrorAccion(null)
-          }
-        }}
-      >
-        <DialogContent>
-          {accion && (
-            <>
-              <DialogHeader>
-                <DialogTitle>
-                  {TEXTO_ACCION[accion.tipo].titulo} {accion.acta.numero} · {accion.acta.numeroContrato}
-                </DialogTitle>
-              </DialogHeader>
-              <p className="text-sm text-muted-foreground">
-                {accion.acta.contratistaNombre} · {ETIQUETA_TIPO_ACTA[accion.acta.tipo]} · neto {pesos(accion.acta.neto)}.{" "}
-                {TEXTO_ACCION[accion.tipo].explicacion}
-                {accion.tipo === "aprobar" && accion.acta.tipo === "liquidacion" && " Al aprobarla, el contrato queda liquidado y no recibe más actas."}
-              </p>
-              {TEXTO_ACCION[accion.tipo].pideMotivo && (
-                <div className="space-y-1">
-                  <label htmlFor="motivo-acta" className="text-xs font-medium text-muted-foreground">
-                    Motivo *
-                  </label>
-                  <textarea
-                    id="motivo-acta"
-                    rows={3}
-                    value={motivo}
-                    onChange={(e) => setMotivo(e.target.value)}
-                    autoFocus
-                    disabled={procesando}
-                    placeholder="Por qué se rechaza"
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  />
-                </div>
-              )}
-              {errorAccion && <p className="text-sm text-destructive">{errorAccion}</p>}
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAccion(null)} disabled={procesando}>
-                  Cancelar
-                </Button>
-                <Button
-                  variant={accion.tipo === "rechazar" ? "destructive" : "default"}
-                  onClick={confirmar}
-                  disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim())}
-                >
-                  {procesando && <Loader2 className="size-4 animate-spin" />}
-                  {TEXTO_ACCION[accion.tipo].boton}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

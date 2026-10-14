@@ -2207,8 +2207,23 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   contrato, todas las actividades con acumulados, estado del contrato, resumen
   con neto en letras, observaciones y firmas: Elaboró (quien la creó),
   Contratista (o su representante) y Aprobó. Sin aprobar dice "BORRADOR".
-- **Pendiente**: otrosí (ampliar plazo/valor), pago del anticipo al aprobar la
-  minuta, código del formato del acta, firmas digitales, AIU.
+- **El acta se aprueba con su PAGO** (`20261112100000_actas_aprobacion_por_pago.sql`,
+  decisión del usuario; reemplaza lo de `resolver_acta` de arriba): al crear o
+  editar un acta, `_pago_de_acta` crea o actualiza su pago en estado
+  `solicitado` en Aprobación de pagos (A&F). El disparador
+  `trg_acta_sigue_pago` (AFTER UPDATE de `pagos.estado`) aprueba el acta cuando
+  A&F aprueba el pago (`aprobar_pago`; la liquidación deja el contrato
+  liquidado) y la rechaza cuando A&F lo rechaza (`rechazar_pago`, con el motivo
+  y aviso a quien la hizo, que la corrige y reenvía: pago nuevo). Neto
+  redondeado <= 0: no hay pago y el acta se aprueba sola. `resolver_acta`
+  quedó lanzando un error; la acción `aprobar_actas` se quitó de la matriz.
+  "Aprobación de actas" es solo CONSULTA. Estado "pendiente" se muestra como
+  "Pago por aprobar". Neto negativo de la liquidación: se deja así (lo maneja
+  la aseguradora del contratista, decisión del usuario).
+- **Pendiente**: otrosí (ampliar plazo/valor, cuando haya minuta de otrosí),
+  retención en garantía en mano de obra (cuando el usuario tenga la minuta),
+  pago del anticipo al aprobar la minuta, código del formato del acta (lo
+  define el usuario), firmas digitales, AIU.
 
 ---
 

@@ -19,8 +19,9 @@ export const ETIQUETA_TIPO_ACTA: Record<TipoActa, string> = {
 }
 
 export type EstadoActa = "pendiente" | "aprobada" | "rechazada"
+// Un acta se aprueba o rechaza con su pago en A&F: "pendiente" = pago por aprobar.
 export const ETIQUETA_ESTADO_ACTA: Record<EstadoActa, string> = {
-  pendiente: "Por aprobar",
+  pendiente: "Pago por aprobar",
   aprobada: "Aprobada",
   rechazada: "Rechazada",
 }

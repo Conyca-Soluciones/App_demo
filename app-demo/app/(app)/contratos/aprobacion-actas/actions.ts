@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { requerirPestana } from "@/lib/permisos"
 import type { ActaAprobacionFila, EstadoActa } from "@/lib/actas"
 
 // ---------------------------------------------------------------------------
@@ -12,7 +12,6 @@ import type { ActaAprobacionFila, EstadoActa } from "@/lib/actas"
 // ---------------------------------------------------------------------------
 
 export type FiltrosAprobacionActas = { estado?: EstadoActa; proyectoId?: string }
-export type AccionActa = "aprobar" | "rechazar"
 
 export async function listarActasAprobacion(filtros: FiltrosAprobacionActas): Promise<ActaAprobacionFila[]> {
   await requerirPestana("contratos.aprobar_actas")
@@ -41,16 +40,4 @@ export async function listarActasAprobacion(filtros: FiltrosAprobacionActas): Pr
     resueltoPorNombre: f.resuelto_por_nombre ?? null,
     resueltoAt: f.resuelto_at ?? null,
   }))
-}
-
-export async function resolverActa(id: string, accion: AccionActa, motivo: string): Promise<void> {
-  await requerirAccion("aprobar_actas")
-  if (accion === "rechazar" && !motivo.trim()) throw new Error("Escribe el motivo.")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("resolver_acta", {
-    p_acta_id: id,
-    p_accion: accion,
-    p_motivo: accion === "rechazar" ? motivo.trim() : null,
-  })
-  if (error) throw new Error(error.message)
 }

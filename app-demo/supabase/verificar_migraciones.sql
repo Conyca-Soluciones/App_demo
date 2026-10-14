@@ -171,5 +171,8 @@ select * from (
          exists (select 1 from pg_proc where proname = 'contrato_para_acta')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'pagos' and column_name = 'acta_id')
+  union all
+  select '20261112100000_actas_aprobacion_por_pago',
+         exists (select 1 from pg_trigger where tgname = 'trg_acta_sigue_pago')
 ) t
 order by 1;

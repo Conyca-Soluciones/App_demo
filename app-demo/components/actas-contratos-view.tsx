@@ -561,10 +561,10 @@ function FormularioActa({
       if (edicion) {
         const res = await editarActa(edicion.id, v.datos, subidos, [...quitarSoportes])
         if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
-        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. Queda por aprobar.`)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. Su pago quedó por aprobar en A&F.`)
       } else {
         const res = await guardarActa(actaId, contrato.id, v.datos, subidos)
-        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. Queda por aprobar.`)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. Su pago quedó por aprobar en A&F.`)
       }
     } catch (e) {
       // Nada queda a medias: crear y editar son una transacción en la base.
@@ -590,7 +590,8 @@ function FormularioActa({
               ? "Contrato a valor global: escribe el porcentaje de avance que se cobra en esta acta."
               : "Escribe la cantidad ejecutada en esta acta de cada actividad del contrato. Las que no se ejecutaron se dejan vacías."}
           {form.tipo === "final" && " Es la última acta de avance: amortiza todo el anticipo que falte."}
-          {edicion && " Al guardar, el acta vuelve a quedar por aprobar con el mismo número."}
+          {" Al guardar, su pago queda por aprobar en A&F (Aprobación de pagos); el acta se aprueba cuando se aprueba el pago."}
+          {edicion && " Conserva el mismo número."}
         </p>
         {edicion?.estado === "rechazada" && (
           <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">

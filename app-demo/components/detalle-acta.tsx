@@ -241,8 +241,14 @@ export function DetalleActa({
             </div>
 
             {v.pago && (
-              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-                Pago en A&F por {pesos(v.pago.valor)}
+              <p
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  v.pago.estado === "solicitado" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                }`}
+              >
+                {v.pago.estado === "solicitado"
+                  ? `Pago por ${pesos(v.pago.valor)} por aprobar en A&F (Aprobación de pagos). Al aprobarlo, el acta queda aprobada.`
+                  : `Pago aprobado en A&F por ${pesos(v.pago.valor)}`}
                 {v.pago.item != null ? ` · ITEM ${v.pago.item} de la semana ${v.pago.semana} de ${v.pago.anio}` : ""}
                 {v.pago.novedad ? ` · ${v.pago.novedad}` : ""}
               </p>
