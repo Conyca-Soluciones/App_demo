@@ -1173,6 +1173,30 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   que ese rol tenga `editar_presupuestos`, o pasar por una función SECURITY DEFINER.
 - **Pendiente (opción B)**: restringir por proyecto.
 
+## Seguridad de documentos de contratos y datos bancarios (2026-10-15)
+
+- **vr_neto automático** (`20261115000000_vr_neto_automatico.sql`): disparador
+  `maestro_insumos_vr_neto` calcula `vr_neto = vr_unitario × (1 + iva/100)`
+  (redondeado a centavos; = vr_unitario si excluye IVA o 0 %) en todo INSERT y
+  en todo UPDATE de precio, IVA o excluye_iva. Lo que se mande en vr_neto se
+  ignora.
+- **S1** (`20261115100000_...`): la pestaña Control del proyecto
+  (`admin.visualizacion`) ve los datos de los contratos, NO sus documentos:
+  `contrato_documentos` y el bucket `contratos` exigen una pestaña de Contratos
+  (solicitar, preaprobacion, contratos o aprobar_minutas). `enlaceDocumentoContrato`
+  lo revisa igual.
+- **S2**: banco, tipo y número de cuenta, y la certificación bancaria, solo con
+  la acción `ver_datos_bancarios` (por defecto Director de obra, Legal, Líder
+  Legal, Gerencia; Administrador siempre). Se leen con
+  `datos_bancarios_contratistas(ids)` (SECURITY DEFINER; sin la acción devuelve
+  vacío); `SELECT_CONTRATISTA` ya no pide esas columnas y
+  `Contratista.datosBancariosVisibles` dice si vinieron. `editar_contratista`
+  no cambia los datos bancarios ni la certificación sin la acción.
+  `20261115200000_columnas_bancarias.sql` quita el SELECT directo de esas tres
+  columnas (permiso por columna): **se aplica DESPUÉS de desplegar** el código
+  nuevo (el viejo las pide en el select y fallaría). Una columna nueva en
+  `contratistas` necesita su `grant select (col)` o no se podrá leer.
+
 ## IVA en el maestro de insumos (2026-10-15)
 
 Decisión del usuario: el presupuesto va CON IVA (contratos con AIU: el IVA de

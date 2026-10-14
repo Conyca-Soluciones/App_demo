@@ -216,5 +216,16 @@ select * from (
   select '20261114200000_borrar_insumos_iva_dudoso',
          exists (select 1 from information_schema.tables
                  where table_schema = 'public' and table_name = 'respaldo_borrado_20261015')
+  union all
+  select '20261115000000_vr_neto_automatico',
+         exists (select 1 from pg_trigger where tgname = 'maestro_insumos_vr_neto')
+  union all
+  select '20261115100000_seguridad_documentos_y_datos_bancarios',
+         exists (select 1 from pg_proc where proname = 'datos_bancarios_contratistas')
+         and exists (select 1 from pg_policies where policyname = 'contrato_documentos_select'
+                     and qual like '%contratos.aprobar_minutas%')
+  union all
+  select '20261115200000_columnas_bancarias (despues del deploy)',
+         not has_column_privilege('authenticated', 'public.contratistas', 'numero_cuenta', 'select')
 ) t
 order by 1;

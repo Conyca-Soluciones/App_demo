@@ -42,8 +42,11 @@ const FILAS_POR_PAGINA = 50
 const ETIQUETA_PERSONA: Record<TipoPersona, string> = { natural: "Natural", juridica: "Jurídica" }
 
 // Documentos obligatorios entregados / exigidos, para la columna y el detalle.
+// Sin permiso de datos bancarios la certificación bancaria no se ve: no cuenta.
 function resumenDocumentos(c: Contratista) {
-  const exigidos = DOCUMENTOS_POR_PERSONA[c.tipoPersona].filter((d) => d.obligatorio)
+  const exigidos = DOCUMENTOS_POR_PERSONA[c.tipoPersona].filter(
+    (d) => d.obligatorio && (c.datosBancariosVisibles || d.tipo !== "certificacion_bancaria")
+  )
   const tiene = new Set(c.documentos.map((d) => d.tipo))
   return { entregados: exigidos.filter((d) => tiene.has(d.tipo)).length, total: exigidos.length }
 }
@@ -333,8 +336,12 @@ function DetalleContratistaDialog({
         ["Teléfono", c.telefono],
         ["Dirección", c.direccion],
         ["Ciudad", c.ciudad],
-        ["Banco", c.banco],
-        ["Cuenta", `${c.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} ${c.numeroCuenta}`],
+        ...(c.datosBancariosVisibles
+          ? ([
+              ["Banco", c.banco],
+              ["Cuenta", `${c.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} ${c.numeroCuenta}`],
+            ] as [string, string][])
+          : ([["Datos bancarios", "Restringido (solo Director de obra, Jurídica y Gerencia)"]] as [string, string][])),
         ["Creado", `${fechaCreacion(c.createdAt)}${c.creadoPorNombre ? ` por ${c.creadoPorNombre}` : ""}`],
         ...(c.editadoAt
           ? ([["Última edición", `${fechaCreacion(c.editadoAt)}${c.editadoPorNombre ? ` por ${c.editadoPorNombre}` : ""}`]] as [string, string][])
@@ -406,7 +413,9 @@ function DetalleContratistaDialog({
                           Ver
                         </Button>
                       ) : (
-                        <span className="text-xs text-muted-foreground">{req.obligatorio ? "Falta" : "No aplica"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {req.tipo === "certificacion_bancaria" && !c.datosBancariosVisibles ? "Restringido" : req.obligatorio ? "Falta" : "No aplica"}
+                        </span>
                       )}
                     </li>
                   )
@@ -500,7 +509,12 @@ function ContratistaFormDialog({
   const [paso, setPaso] = useState<"subiendo" | "guardando" | null>(null)
   const guardando = paso !== null
   const juridica = valores.tipoPersona === "juridica"
-  const documentos = DOCUMENTOS_POR_PERSONA[valores.tipoPersona]
+  // Al editar sin permiso de datos bancarios no se muestran ni se piden (la
+  // base los deja como estaban), ni la certificación bancaria.
+  const sinBancarios = Boolean(editando && !editando.datosBancariosVisibles)
+  const documentos = DOCUMENTOS_POR_PERSONA[valores.tipoPersona].filter(
+    (d) => !sinBancarios || d.tipo !== "certificacion_bancaria"
+  )
   const actuales = useMemo(
     () => new Map<TipoDocumentoContratista, DocumentoContratista>((editando?.documentos ?? []).map((d) => [d.tipo, d])),
     [editando]
@@ -551,7 +565,7 @@ function ContratistaFormDialog({
     e.preventDefault()
     setErrorGeneral(null)
 
-    const r = validarContratista(valores)
+    const r = validarContratista(valores, { sinDatosBancarios: sinBancarios })
     const faltan: Partial<Record<TipoDocumentoContratista, string>> = {}
     for (const d of documentos) if (d.obligatorio && !archivos[d.tipo] && !actuales.has(d.tipo)) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
@@ -570,7 +584,7 @@ function ContratistaFormDialog({
     const subidos: DocumentoSubido[] = []
     setPaso("subiendo")
     try {
-      const marca = Date.now()
+      const marca = crypto.randomUUID().slice(0, 8)
       await Promise.all(
         documentos
           .filter((d) => archivos[d.tipo])
@@ -736,6 +750,7 @@ function ContratistaFormDialog({
             </div>
           </section>
 
+          {!sinBancarios && (
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Datos bancarios</h3>
             <div className="grid gap-3 sm:grid-cols-6">
@@ -760,6 +775,7 @@ function ContratistaFormDialog({
               {campoTexto("numeroCuenta", "Número de cuenta *", { ancho: "sm:col-span-2", inputMode: "numeric" })}
             </div>
           </section>
+          )}
 
           <section className="space-y-3">
             <div>

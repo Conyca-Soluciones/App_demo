@@ -573,15 +573,18 @@ export function SolicitudContratoForm({
                   {contratista.direccion}, {contratista.ciudad}
                 </dd>
               </div>
-              <div className="min-w-0">
-                <dt className="text-xs text-muted-foreground">Cuenta</dt>
-                <dd>
-                  {contratista.banco} · {contratista.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} {contratista.numeroCuenta}
-                </dd>
-              </div>
+              {contratista.datosBancariosVisibles && (
+                <div className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">Cuenta</dt>
+                  <dd>
+                    {contratista.banco} · {contratista.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} {contratista.numeroCuenta}
+                  </dd>
+                </div>
+              )}
             </dl>
             <div className="flex flex-wrap gap-1.5">
               {DOCUMENTOS_POR_PERSONA[contratista.tipoPersona].map((d) => {
+                if (d.tipo === "certificacion_bancaria" && !contratista.datosBancariosVisibles) return null
                 const tiene = contratista.documentos.some((x) => x.tipo === d.tipo)
                 if (!tiene && !d.obligatorio) return null
                 return (

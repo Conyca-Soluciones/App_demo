@@ -174,9 +174,18 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
   }))
 }
 
-// Enlace temporal (2 minutos) para ver un documento del contrato.
+// Enlace temporal (2 minutos) para ver un documento del contrato. Solo con una
+// pestaña de Contratos: Visualización ve los datos del contrato pero no sus
+// documentos (S1, 20261115100000; la base lo exige también).
 export async function enlaceDocumentoContrato(documentoId: string): Promise<string> {
-  await requerirVerContratos()
+  const permisos = await obtenerPermisosRol()
+  const ok =
+    permisos &&
+    (permisos.esAdministrador ||
+      ["contratos.solicitar", "contratos.preaprobacion", "contratos.contratos", "contratos.aprobar_minutas"].some((t) =>
+        permisos.pestanas.includes(t)
+      ))
+  if (!ok) throw new Error("No tienes permiso para ver documentos de contratos.")
   const supabase = await createClient()
   const { data: doc, error } = await supabase.from("contrato_documentos").select("ruta").eq("id", documentoId).maybeSingle()
   if (error) throw new Error(error.message)
