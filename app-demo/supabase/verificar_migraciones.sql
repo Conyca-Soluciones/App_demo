@@ -205,5 +205,30 @@ select * from (
   select '20261113100000_contratos_generales_tipo',
          exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'tipo_detalle')
+  union all
+  select '20261114000000_presupuesto_con_iva',
+         exists (select 1 from pg_proc where proname = 'precios_presupuesto_insumos')
+  union all
+  select '20261114100000_maestro_iva_doble',
+         exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'maestro_insumos_respaldo_iva_20261015')
+  union all
+  select '20261114200000_borrar_insumos_iva_dudoso',
+         exists (select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = 'respaldo_borrado_20261015')
+  union all
+  select '20261115000000_vr_neto_automatico',
+         exists (select 1 from pg_trigger where tgname = 'maestro_insumos_vr_neto')
+  union all
+  select '20261115100000_seguridad_documentos_y_datos_bancarios',
+         exists (select 1 from pg_proc where proname = 'datos_bancarios_contratistas')
+         and exists (select 1 from pg_policies where policyname = 'contrato_documentos_select'
+                     and qual like '%contratos.aprobar_minutas%')
+  union all
+  select '20261115200000_columnas_bancarias',
+         not has_column_privilege('authenticated', 'public.contratistas', 'numero_cuenta', 'select')
+  union all
+  select '20261115300000_control_proyecto_excedentes',
+         position('exc_lineas' in pg_get_functiondef('public.control_proyecto(uuid)'::regprocedure)) > 0
 ) t
 order by 1;

@@ -13,10 +13,13 @@ import {
   type TipoDocumentoContratista,
 } from "@/lib/contratistas"
 
+// Sin banco, tipo_cuenta ni numero_cuenta: nadie los lee de la tabla
+// (20261115100000_seguridad_documentos_y_datos_bancarios.sql); quien tiene la
+// acción ver_datos_bancarios los pide aparte (conDatosBancarios).
 const SELECT_CONTRATISTA = `
   id, tipo_persona, tipo_documento, numero_documento, digito_verificacion, nombre,
   representante_nombre, representante_tipo_documento, representante_numero_documento, cedula_expedida_en,
-  correo, telefono, direccion, ciudad, banco, tipo_cuenta, numero_cuenta, created_at,
+  correo, telefono, direccion, ciudad, created_at,
   updated_at, updated_by,
   creador:perfiles!contratistas_created_by_fkey(nombre),
   editor:perfiles!contratistas_updated_by_fkey(nombre),
@@ -39,9 +42,10 @@ function mapContratista(f: any): Contratista {
     telefono: f.telefono,
     direccion: f.direccion,
     ciudad: f.ciudad,
-    banco: f.banco,
-    tipoCuenta: f.tipo_cuenta,
-    numeroCuenta: f.numero_cuenta,
+    banco: "",
+    tipoCuenta: "ahorros",
+    numeroCuenta: "",
+    datosBancariosVisibles: false,
     creadoPorNombre: f.creador?.nombre ?? null,
     createdAt: f.created_at,
     // updated_at se llena también al crear: solo cuenta si alguien editó.
@@ -61,6 +65,31 @@ function mapContratista(f: any): Contratista {
 // También lo usa Solicitud de contratos para elegir el contratista: basta con
 // la pestaña Contratistas o con poder solicitar contratos (igual que la
 // política contratistas_select).
+async function puedeVerDatosBancarios(): Promise<boolean> {
+  const permisos = await obtenerPermisosRol()
+  return Boolean(permisos && (permisos.esAdministrador || permisos.acciones.includes("ver_datos_bancarios")))
+}
+
+// Completa banco y cuenta si quien pregunta tiene la acción (una sola llamada
+// para toda la lista).
+async function conDatosBancarios(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  lista: Contratista[]
+): Promise<Contratista[]> {
+  if (lista.length === 0 || !(await puedeVerDatosBancarios())) return lista
+  const { data, error } = await supabase.rpc("datos_bancarios_contratistas", { p_ids: lista.map((c) => c.id) })
+  if (error) throw new Error(error.message)
+  const porId = new Map(
+    ((data ?? []) as { contratista_id: string; banco: string; tipo_cuenta: string; numero_cuenta: string }[]).map((b) => [b.contratista_id, b])
+  )
+  return lista.map((c) => {
+    const b = porId.get(c.id)
+    return b
+      ? { ...c, banco: b.banco, tipoCuenta: b.tipo_cuenta as Contratista["tipoCuenta"], numeroCuenta: b.numero_cuenta, datosBancariosVisibles: true }
+      : c
+  })
+}
+
 export async function listarContratistas(): Promise<Contratista[]> {
   const permisos = await obtenerPermisosRol()
   if (
@@ -82,7 +111,7 @@ export async function listarContratistas(): Promise<Contratista[]> {
       .order("id", { ascending: true })
       .range(desde, hasta)
   )
-  return filas.map(mapContratista)
+  return conDatosBancarios(supabase, filas.map(mapContratista))
 }
 
 export type DocumentoSubido = {
@@ -170,7 +199,7 @@ export async function crearContratista(
 
   const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
   if (errorLeer) throw new Error(errorLeer.message)
-  return mapContratista(data)
+  return (await conDatosBancarios(supabase, [mapContratista(data)]))[0]
 }
 
 // Corrige los datos de un contratista y reemplaza o agrega documentos
@@ -184,7 +213,9 @@ export async function editarContratista(
 ): Promise<{ contratista: Contratista; rutasReemplazadas: string[] }> {
   await requerirAccion("gestionar_contratistas")
 
-  const r = validarContratista(crudo)
+  // Sin la acción ver_datos_bancarios no se piden ni se cambian (la base los
+  // deja como estaban).
+  const r = validarContratista(crudo, { sinDatosBancarios: !(await puedeVerDatosBancarios()) })
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del contratista.")
   const d = r.datos
   validarArchivosSubidos(id, documentos)
@@ -199,7 +230,7 @@ export async function editarContratista(
 
   const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
   if (errorLeer) throw new Error(errorLeer.message)
-  return { contratista: mapContratista(data), rutasReemplazadas: (viejas as string[] | null) ?? [] }
+  return { contratista: (await conDatosBancarios(supabase, [mapContratista(data)]))[0], rutasReemplazadas: (viejas as string[] | null) ?? [] }
 }
 
 // Enlace temporal (2 minutos) para ver un documento: el bucket es privado.

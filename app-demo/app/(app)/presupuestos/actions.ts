@@ -737,9 +737,10 @@ export async function buscarInsumos(
   return await conPreciosEfectivos(data ?? [])
 }
 
-// Reemplaza el campo vr_unitario de cada fila con el precio EFECTIVO
-// (precios_efectivos_insumos: promedio de compra dinámico, o
-// vr_unitario si el insumo no tiene historial) -- helper compartido por
+// Reemplaza el campo vr_unitario de cada fila con el precio EFECTIVO CON IVA
+// (precios_presupuesto_insumos: promedio de compra dinámico, o vr_unitario si
+// el insumo no tiene historial, más su IVA -- el presupuesto va con IVA, ver
+// 20261114000000_presupuesto_con_iva.sql) -- helper compartido por
 // buscarInsumos y buscarInsumosSimilares para no duplicar esta lógica.
 async function conPreciosEfectivos<T extends { id: string; vr_unitario: number | null }>(
   filas: T[]
@@ -752,7 +753,7 @@ async function conPreciosEfectivos<T extends { id: string; vr_unitario: number |
   // y una sola respuesta podría pasar el límite de filas de la API.
   const precioPorId = new Map<string, number | null>()
   for (let i = 0; i < ids.length; i += 500) {
-    const { data: precios, error } = await supabase.rpc("precios_efectivos_insumos", {
+    const { data: precios, error } = await supabase.rpc("precios_presupuesto_insumos", {
       p_insumo_ids: ids.slice(i, i + 500),
     })
     if (error) throw new Error(error.message)
@@ -1298,7 +1299,8 @@ export async function aprobarSolicitudInsumo(
         cantidad: 1,
         rendimiento: 1,
         tipo: tipoFinal,
-        precio_unitario_congelado: input.vrUnitario,
+        // Con IVA, como el resto del presupuesto (vr_neto del insumo nuevo).
+        precio_unitario_congelado: Math.round(input.vrUnitario * (1 + iva / 100) * 100) / 100,
       })
 
       await supabase.rpc("recalcular_valor_apu", { p_apu_id: item.apu_id })
@@ -1469,7 +1471,7 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
         // por si alguna línea vieja quedó sin congelar.
         vrUnitario:
           insumo != null
-            ? it.precio_unitario_congelado ?? insumo.vr_unitario / Number(it.factor_unidad ?? 1)
+            ? it.precio_unitario_congelado ?? (insumo.vr_neto ?? insumo.vr_unitario) / Number(it.factor_unidad ?? 1)
             : manoObra?.valor_unitario ?? equipo?.valor_unitario ?? transportePrecio?.valor_unitario ?? null,
         // Para mano de obra y transporte, cantidad/rendimiento se
         // muestran en 1 -- igual que arriba con herramienta menor, el
@@ -1490,7 +1492,7 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
 }
 
 const SELECT_APU =
-  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
+  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
 
 async function contarUsosDeApu(apuId: string): Promise<number> {
   const supabase = await createClient()
@@ -1570,7 +1572,7 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
         precio_unitario_congelado,
         unidad,
         factor_unidad,
-        maestro_insumos(codigo, descripcion, u_m, vr_unitario, tipo),
+        maestro_insumos(codigo, descripcion, u_m, vr_unitario, vr_neto, tipo),
         mano_obra_categorias(categoria, grupo, unidad, valor_unitario),
         equipo_categorias(categoria, grupo, unidad, valor_unitario),
         transporte_precios(descripcion_original, unidad, valor_unitario)
@@ -1630,7 +1632,7 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
       // calcular, no el precio actual de maestro_insumos.
       const valorUnitario =
         insumo != null
-          ? Number(item.precio_unitario_congelado ?? Number(insumo.vr_unitario ?? 0) / Number(item.factor_unidad ?? 1))
+          ? Number(item.precio_unitario_congelado ?? Number(insumo.vr_neto ?? insumo.vr_unitario ?? 0) / Number(item.factor_unidad ?? 1))
           : manoObra?.valor_unitario != null
             ? Number(manoObra.valor_unitario)
             : equipo?.valor_unitario != null
@@ -1985,7 +1987,7 @@ export async function agregarInsumoApu(input: {
   // momento: si el promedio de compra se mueve después, esta línea (y el
   // valor del presupuesto que ya la incluye) no cambia -- decisión
   // confirmada con el usuario, ver migración congelar_precio_insumo_en_item_apu.
-  const { data: precios, error: errorPrecio } = await supabase.rpc("precios_efectivos_insumos", {
+  const { data: precios, error: errorPrecio } = await supabase.rpc("precios_presupuesto_insumos", {
     p_insumo_ids: [input.insumoId],
   })
   if (errorPrecio) {
@@ -3312,7 +3314,7 @@ async function guardarImportApuConRevision(
 
   for (let i = 0; i < insumoIdsUnicos.length; i += 200) {
     const lote = insumoIdsUnicos.slice(i, i + 200)
-    const { data, error } = await supabase.rpc("precios_efectivos_insumos", { p_insumo_ids: lote })
+    const { data, error } = await supabase.rpc("precios_presupuesto_insumos", { p_insumo_ids: lote })
     if (error) throw new Error(error.message)
     for (const row of data ?? [])
       infoInsumoPorId.set(row.insumo_id, { precio_efectivo: row.precio_efectivo, tipo: row.tipo })
@@ -4095,7 +4097,7 @@ export async function resolverLineasRevisionEnLote(
   if (resolucionesMaestro.length > 0) {
     const insumoIds = Array.from(new Set(resolucionesMaestro.map((r) => r.insumoId).filter((x): x is string => !!x)))
     const [{ data: precios, error: errorPrecios }, presentaciones] = await Promise.all([
-      supabase.rpc("precios_efectivos_insumos", { p_insumo_ids: insumoIds }),
+      supabase.rpc("precios_presupuesto_insumos", { p_insumo_ids: insumoIds }),
       presentacionesInsumos(insumoIds),
     ])
     if (errorPrecios) throw new Error(errorPrecios.message)

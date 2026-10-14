@@ -320,7 +320,7 @@ export function DetalleSolicitudContrato({
                           key={req.tipo}
                           titulo={req.titulo}
                           nombreArchivo={doc?.nombreArchivo}
-                          sinArchivo={req.obligatorio ? "Falta" : "No aplica"}
+                          sinArchivo={req.tipo === "certificacion_bancaria" ? "Falta o sin permiso" : req.obligatorio ? "Falta" : "No aplica"}
                           onVer={
                             doc
                               ? () =>

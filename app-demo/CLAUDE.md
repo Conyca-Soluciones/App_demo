@@ -1173,6 +1173,82 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   que ese rol tenga `editar_presupuestos`, o pasar por una función SECURITY DEFINER.
 - **Pendiente (opción B)**: restringir por proyecto.
 
+## Seguridad de documentos de contratos y datos bancarios (2026-10-15)
+
+- **vr_neto automático** (`20261115000000_vr_neto_automatico.sql`): disparador
+  `maestro_insumos_vr_neto` calcula `vr_neto = vr_unitario × (1 + iva/100)`
+  (redondeado a centavos; = vr_unitario si excluye IVA o 0 %) en todo INSERT y
+  en todo UPDATE de precio, IVA o excluye_iva. Lo que se mande en vr_neto se
+  ignora.
+- **S1** (`20261115100000_...`): la pestaña Control del proyecto
+  (`admin.visualizacion`) ve los datos de los contratos, NO sus documentos:
+  `contrato_documentos` y el bucket `contratos` exigen una pestaña de Contratos
+  (solicitar, preaprobacion, contratos o aprobar_minutas). `enlaceDocumentoContrato`
+  lo revisa igual.
+- **S2**: banco, tipo y número de cuenta, y la certificación bancaria, solo con
+  la acción `ver_datos_bancarios` (por defecto Director de obra, Legal, Líder
+  Legal, Gerencia; Administrador siempre). Se leen con
+  `datos_bancarios_contratistas(ids)` (SECURITY DEFINER; sin la acción devuelve
+  vacío); `SELECT_CONTRATISTA` ya no pide esas columnas y
+  `Contratista.datosBancariosVisibles` dice si vinieron. `editar_contratista`
+  no cambia los datos bancarios ni la certificación sin la acción.
+  `20261115200000_columnas_bancarias.sql` quita el SELECT directo de esas tres
+  columnas (permiso por columna, aplicada). Una columna nueva en
+  `contratistas` necesita su `grant select (col)` o no se podrá leer.
+- **R1** (`20261115300000_control_proyecto_excedentes.sql`): los excedentes de
+  `control_proyecto` se calculan dentro de la función solo con las órdenes del
+  proyecto (`exc_base` / `exc_lineas`, misma regla que
+  `v_ordenes_compra_items_costos`). Antes leía la vista, que hace la ventana
+  sobre las órdenes de TODOS los proyectos. Verificado: mismo resultado en los
+  3 proyectos y en un caso de prueba con excedente.
+
+## IVA en el maestro de insumos (2026-10-15)
+
+Decisión del usuario: el presupuesto va CON IVA (contratos con AIU: el IVA de
+materiales es costo; la lista oficial del Malecón ya lo trae en el precio
+unitario). El maestro tenía el IVA doble: en casi todos los insumos con
+historial (`historico_precios_compra`, Excel de compras sept. 2026),
+`vr_unitario` era lo pagado CON IVA y `vr_neto` le sumaba el IVA otra vez
+(BROCA 5/16: compra $3.697 + $703 = $4.400 = vr_unitario; vr_neto $5.236).
+- **Corregido** (`20261114100000_maestro_iva_doble.sql`, aplicada): desde aquí
+  `vr_unitario` = SIN IVA y `vr_neto` = CON IVA una vez. G1 (859, todas las
+  compras al 19 % y precio con IVA): iva 19 %, vr_unitario ÷ 1,19. G2 (9, todas
+  al 19 % y precio ya sin IVA): iva 19 %, vr_neto × 1,19. G3 (116, compras
+  mezcladas con IVA > 0): se quitó el IVA doble con su % de antes; el % queda
+  por confirmar. Copia de lo de antes en `maestro_insumos_respaldo_iva_20261015`
+  (sin acceso por la API; el comentario de la migración dice cómo deshacer).
+- **Borrados los de IVA dudoso** (`20261114200000_borrar_insumos_iva_dudoso.sql`,
+  aplicada; decisión del usuario: mejor crear bien un insumo cuando haga falta
+  que limpiarlos todos). En el maestro quedan solo los 868 de G1 y G2 (todos al
+  19 %, `vr_neto` = `vr_unitario` × 1,19). Se borraron los otros 911 (IVA
+  dudoso, mezclas, 0 %, 5 %, precio que no coincide y sin historial) y TODO lo
+  que los involucraba: su historial de compras (6.252 filas), 49 líneas de APU
+  (Malecón y Estuario Casa, con el valor de sus ítems recalculado), 5 líneas de
+  requisición (3 requisiciones quedaron vacías y se borraron), las OC de prueba
+  44 y 49 completas con sus 2 entradas y 3 pagos. La revisión del import que
+  los tenía asignados volvió a "pendiente" y se quitaron de los candidatos.
+  Copia de todo lo borrado (jsonb por tabla) en `respaldo_borrado_20261015`,
+  sin acceso por la API. La lista que se había preparado para confirmar está en
+  `docs/confirmar-iva-insumos.xlsx` (sirve para saber cuáles se borraron).
+- Los precios ya congelados en los APU no cambiaron.
+- `precios_efectivos_insumos` promedia también las OC aprobadas de la app, que
+  hoy son de prueba: no usarlas para precios mientras sea así.
+- **El presupuesto va con IVA** (`20261114000000_presupuesto_con_iva.sql`,
+  aplicada): cuando el precio de una línea de insumo sale de la app (maestro o
+  promedio de compras) entra con su IVA, vía `precios_presupuesto_insumos`
+  (= `precios_efectivos_insumos` × (1 + IVA)); la usan `agregarInsumoApu`, el
+  import (`matchearYGuardarImportApu`), la revisión en lote y los buscadores
+  (`conPreciosEfectivos`). El insumo nuevo aprobado se congela con IVA. El
+  respaldo sin precio congelado usa `vr_neto`. Los precios del Excel oficial no
+  cambian (ya traen IVA) y las líneas ya congeladas tampoco.
+  `precios_efectivos_insumos` sigue SIN IVA (la usan el aviso de precio de OC y
+  la Maestra).
+- **Control del proyecto y actas nuevas** (misma migración): las actas se suman
+  por `actas.valor_bruto` (las actas sobre el contrato de lcpr no tienen
+  `acta_lineas`); por ítem, sus `acta_actividades` cruzadas con el ítem del
+  anexo; lo que no tiene ítem (actas por % de avance) va a "sin ítem". Materiales
+  y salidas se valoran con IVA.
+
 ## Pendientes generales
 
 ### Revisión 2026-10-06 (rama `claude/tender-maxwell-iresrp`)

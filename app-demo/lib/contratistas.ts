@@ -85,6 +85,9 @@ export type Contratista = {
   banco: string
   tipoCuenta: TipoCuenta
   numeroCuenta: string
+  // Banco, cuenta y certificación bancaria solo los ve quien tiene la acción
+  // ver_datos_bancarios (20261115100000); si no, llegan vacíos.
+  datosBancariosVisibles: boolean
   creadoPorNombre: string | null
   createdAt: string
   editadoAt: string | null
@@ -143,7 +146,9 @@ export type ResultadoValidacion =
   | { ok: false; errores: Partial<Record<CampoContratista, string>> }
 
 // Valida y normaliza. Devuelve los datos listos para guardar o un error por campo.
-export function validarContratista(crudo: DatosContratista): ResultadoValidacion {
+// `sinDatosBancarios`: al editar sin la acción ver_datos_bancarios no se piden
+// (la base los deja como estaban).
+export function validarContratista(crudo: DatosContratista, opciones?: { sinDatosBancarios?: boolean }): ResultadoValidacion {
   const errores: Partial<Record<CampoContratista, string>> = {}
   const juridica = crudo.tipoPersona === "juridica"
   const datos: DatosContratista = {
@@ -204,9 +209,11 @@ export function validarContratista(crudo: DatosContratista): ResultadoValidacion
   if (!/^\+?[0-9]{7,15}$/.test(datos.telefono)) errores.telefono = "Escribe un teléfono de 7 a 15 números."
   if (!datos.direccion) errores.direccion = "Escribe la dirección."
   if (!datos.ciudad) errores.ciudad = "Escribe la ciudad."
-  if (!datos.banco) errores.banco = "Escribe el banco."
-  if (datos.tipoCuenta !== "ahorros" && datos.tipoCuenta !== "corriente") errores.tipoCuenta = "Elige el tipo de cuenta."
-  if (!/^[0-9]{4,20}$/.test(datos.numeroCuenta)) errores.numeroCuenta = "El número de cuenta debe tener solo números."
+  if (!opciones?.sinDatosBancarios) {
+    if (!datos.banco) errores.banco = "Escribe el banco."
+    if (datos.tipoCuenta !== "ahorros" && datos.tipoCuenta !== "corriente") errores.tipoCuenta = "Elige el tipo de cuenta."
+    if (!/^[0-9]{4,20}$/.test(datos.numeroCuenta)) errores.numeroCuenta = "El número de cuenta debe tener solo números."
+  }
 
   return Object.keys(errores).length > 0 ? { ok: false, errores } : { ok: true, datos }
 }
