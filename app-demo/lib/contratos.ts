@@ -328,7 +328,7 @@ export const ETIQUETA_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
   sin_enviar: "Pre-aprobada sin enviar",
   en_subgerencia: "En Subgerencia",
   devuelta_subgerencia: "Devuelta por Subgerencia",
-  aprobado: "Aprobado",
+  aprobado: "Aprobado por Subgerencia",
   rechazada: "Rechazada",
 }
 export const CLASE_ETAPA_CONTRATO: Record<EtapaContrato, string> = {

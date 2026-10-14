@@ -14,7 +14,9 @@ import { SinProyecto } from "@/components/sin-proyecto"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import {
   CLASE_ESTADO_CONTRATO,
-  ETIQUETA_ESTADO_CONTRATO,
+  CLASE_ETAPA_CONTRATO,
+  ETIQUETA_ETAPA_CONTRATO,
+  etapaContrato,
   pesos,
   plazoTexto,
   type SolicitudContratoDetalle,
@@ -86,12 +88,13 @@ function Solicitudes({
       {
         clave: "estado",
         titulo: "Estado",
-        ancho: 150,
+        ancho: 200,
         alinear: "center",
-        texto: (s) => ETIQUETA_ESTADO_CONTRATO[s.estado],
+        // Junta la solicitud y la minuta: termina en "Aprobado por Subgerencia".
+        texto: (s) => ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)],
         celda: (s) => (
-          <Badge variant="outline" className={CLASE_ESTADO_CONTRATO[s.estado]} title={s.motivoResolucion ?? undefined}>
-            {ETIQUETA_ESTADO_CONTRATO[s.estado]}
+          <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(s)]} title={s.motivoResolucion ?? undefined}>
+            {ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)]}
           </Badge>
         ),
       },
