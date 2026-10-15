@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
 import type { FiltrosAprobacionPagos, Pago } from "@/lib/pagos"
@@ -63,4 +63,18 @@ export async function rechazarPago(pagoId: string, motivo: string): Promise<Pago
   const { error } = await supabase.rpc("rechazar_pago", { p_pago_id: pagoId, p_motivo: motivo.trim() })
   if (error) throw new Error(error.message)
   return await obtenerPago(pagoId)
+}
+
+// Pago de orden de compra rechazado: crea uno nuevo "por aprobar" con los
+// mismos datos (el rechazado queda como registro). Acción aprobar_pagos o
+// gestionar_pagos; la base lo vuelve a exigir.
+export async function resolicitarPago(pagoId: string): Promise<Pago> {
+  const permisos = await obtenerPermisosRol()
+  if (!permisos?.esAdministrador && !permisos?.acciones.some((a) => a === "aprobar_pagos" || a === "gestionar_pagos")) {
+    throw new Error("No tienes permiso para volver a solicitar pagos.")
+  }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("resolicitar_pago", { p_pago_id: pagoId })
+  if (error) throw new Error(error.message)
+  return await obtenerPago(data as string)
 }

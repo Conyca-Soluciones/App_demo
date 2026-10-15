@@ -230,5 +230,11 @@ select * from (
   union all
   select '20261115300000_control_proyecto_excedentes',
          position('exc_lineas' in pg_get_functiondef('public.control_proyecto(uuid)'::regprocedure)) > 0
+  union all
+  select '20261116000000_insumo_rechazado_y_resolicitar_pago',
+         exists (select 1 from pg_trigger where tgname = 'trg_notificar_insumo_rechazado')
+         and exists (select 1 from pg_proc where proname = 'resolicitar_pago')
+         and exists (select 1 from information_schema.columns
+                     where table_schema = 'public' and table_name = 'solicitudes_insumos' and column_name = 'cantidad')
 ) t
 order by 1;

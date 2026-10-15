@@ -836,6 +836,10 @@ export type SolicitudInsumoInput = {
   uM?: string | null
   agrupacion?: string | null
   presupuestoItemId?: string | null
+  // Cantidad por unidad del ítem con la que entra la línea al APU cuando se
+  // aprueba (solicitud hecha desde el editor de APU; en el import la cantidad
+  // viene de la línea del Excel).
+  cantidad?: number | null
 }
 
 // Catálogo COMPLETO de mano de obra, sin filtro -- pensado para
@@ -971,6 +975,10 @@ export async function crearSolicitudInsumo(input: SolicitudInsumoInput) {
 
   const userId = await obtenerUsuarioId()
 
+  if (input.cantidad != null && !(Number.isFinite(input.cantidad) && input.cantidad > 0)) {
+    throw new Error("La cantidad tiene que ser mayor que cero.")
+  }
+
   const { data, error } = await supabase
     .from("solicitudes_insumos")
     .insert({
@@ -980,6 +988,7 @@ export async function crearSolicitudInsumo(input: SolicitudInsumoInput) {
       agrupacion: input.agrupacion ?? null,
       solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
+      cantidad: input.cantidad ?? null,
       estado: "pendiente",
     })
     .select()
@@ -1148,7 +1157,7 @@ export async function aprobarSolicitudInsumo(
 
   const { data: solicitud, error: errorLectura } = await supabase
     .from("solicitudes_insumos")
-    .select("id, descripcion, tipo, u_m, agrupacion, presupuesto_item_id, estado")
+    .select("id, descripcion, tipo, u_m, agrupacion, presupuesto_item_id, estado, cantidad")
     .eq("id", input.solicitudId)
     .single()
 
@@ -1197,6 +1206,16 @@ export async function aprobarSolicitudInsumo(
   const lineaQueNoCuadra = (lineasSolicitud ?? []).find(
     (l) => compararUnidad(l.unidad, presentacionFinal).estado === "distinta"
   )
+  // Solicitud hecha desde el editor de APU (sin línea de import): la línea va
+  // en la unidad que escribió quien la pidió; tiene que cuadrar igual.
+  const compManual = compararUnidad(solicitud.u_m, presentacionFinal)
+  if ((lineasSolicitud ?? []).length === 0 && solicitud.presupuesto_item_id && compManual.estado === "distinta") {
+    throw new Error(
+      `El APU pidió este insumo en ${nombreUnidad(solicitud.u_m)} y quedaría en ` +
+        `${nombreUnidad(uMFinal) || "otra unidad"}. Deja la unidad en ${nombreUnidad(solicitud.u_m)} ` +
+        `o define la presentación (cuánto ${nombreUnidad(solicitud.u_m)} trae cada ${nombreUnidad(uMFinal) || "unidad"}).`
+    )
+  }
   if (lineaQueNoCuadra) {
     throw new Error(
       `El APU pidió este insumo en ${nombreUnidad(lineaQueNoCuadra.unidad)} y quedaría en ` +
@@ -1287,23 +1306,31 @@ export async function aprobarSolicitudInsumo(
       .eq("id", solicitud.presupuesto_item_id)
       .maybeSingle()
 
-    if (!errorItem && item?.apu_id) {
+    if (errorItem) throw new Error(errorItem.message)
+    if (item?.apu_id) {
       // Insumo recién creado -- por definición no tiene historial de
       // compras todavía, así que su precio efectivo es el mismo
       // input.vrUnitario que se le acaba de asignar. Se congela igual
-      // que cualquier otra línea (ver agregarInsumoApu) para mantener el
-      // mismo criterio en todos los puntos que insertan en item_apu.
-      await supabase.from("item_apu").insert({
+      // que cualquier otra línea (ver agregarInsumoApu), con IVA y en la
+      // unidad de la línea. La cantidad es la que escribió quien lo pidió
+      // (las solicitudes viejas, sin cantidad, entran con 1).
+      const factor = compManual.estado === "conversion" ? compManual.factor : 1
+      const vrNeto = input.vrUnitario * (1 + iva / 100)
+      const { error: errorLinea } = await supabase.from("item_apu").insert({
         apu_id: item.apu_id,
         insumo_id: insumoNuevo.id,
-        cantidad: 1,
+        cantidad: Number(solicitud.cantidad) > 0 ? Number(solicitud.cantidad) : 1,
         rendimiento: 1,
         tipo: tipoFinal,
-        // Con IVA, como el resto del presupuesto (vr_neto del insumo nuevo).
-        precio_unitario_congelado: Math.round(input.vrUnitario * (1 + iva / 100) * 100) / 100,
+        unidad:
+          compManual.estado === "conversion" ? presentacionFinal.unidad_uso : normalizarUnidad(uMFinal),
+        factor_unidad: factor,
+        precio_unitario_congelado: Math.round((vrNeto / factor) * 100) / 100,
       })
+      if (errorLinea) throw new Error(errorLinea.message)
 
-      await supabase.rpc("recalcular_valor_apu", { p_apu_id: item.apu_id })
+      const { error: errorRecalculo } = await supabase.rpc("recalcular_valor_apu", { p_apu_id: item.apu_id })
+      if (errorRecalculo) throw new Error(errorRecalculo.message)
     }
   }
 

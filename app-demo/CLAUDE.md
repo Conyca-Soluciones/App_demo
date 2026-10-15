@@ -1202,6 +1202,26 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   sobre las órdenes de TODOS los proyectos. Verificado: mismo resultado en los
   3 proyectos y en un caso de prueba con excedente.
 
+## Prueba completa del flujo (2026-10-15)
+
+Probado de punta a punta sobre el proyecto ZZ-PRUEBA-FLUJO (presupuesto, insumo
+nuevo, requisiciones, OC, almacén, pagos, contratos, actas, control y 11 roles).
+Cambios que salieron de ahí (`20261116000000_insumo_rechazado_y_resolicitar_pago.sql`):
+- **Insumo nuevo rechazado avisa** a quien lo pidió (campanita, tipo
+  `insumo_rechazado`, entidad `presupuesto` -> /presupuestos), con ítem,
+  proyecto y motivo. Disparador `trg_notificar_insumo_rechazado` sobre
+  `solicitudes_insumos` (antes la solicitud se borraba y nadie se enteraba). No
+  avisa si rechaza quien pidió.
+- **Cantidad en la solicitud manual** (`solicitudes_insumos.cantidad`): el
+  editor de APU la pide y `aprobarSolicitudInsumo` crea la línea con esa
+  cantidad, en la unidad que se escribió (con conversión si la presentación lo
+  pide; si no cuadra, no deja aprobar) y revisa los errores. Antes entraba con
+  1 y sin unidad. Del import la cantidad ya salía de la línea del Excel.
+- **Volver a solicitar un pago de OC rechazado** (`resolicitar_pago`, acción
+  `aprobar_pagos` o `gestionar_pagos`; botón en Aprobación de pagos, filtro
+  Rechazados): crea un pago NUEVO por aprobar con los mismos datos; el
+  rechazado queda como registro. Los pagos de actas no (se corrige el acta).
+
 ## IVA en el maestro de insumos (2026-10-15)
 
 Decisión del usuario: el presupuesto va CON IVA (contratos con AIU: el IVA de

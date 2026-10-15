@@ -33,6 +33,8 @@ function rutaDestino(n: Notificacion): string {
   }
   // Actas aprobadas o rechazadas: a quien la hizo, a Elaboración de actas con el acta abierta.
   if (n.entidadTipo === "acta") return `/contratos/actas?ver=${n.entidadId}`
+  // Insumo nuevo rechazado: al presupuesto (del proyecto actual).
+  if (n.entidadTipo === "presupuesto") return "/presupuestos"
   return "/almacen/registro-requisiciones"
 }
 

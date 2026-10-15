@@ -703,8 +703,8 @@ function BuscadorInsumoCategoria({
   // Flujo de "solicitar insumo nuevo": primero corre buscarInsumosSimilares
   // (motor de similitud de INSUMO, se mantiene igual) para evitar
   // duplicados; si de verdad no hay nada parecido, se muestra este
-  // formulario corto (unidad + tipo, SIN precio -- eso lo pone quien
-  // aprueba) y la solicitud queda pendiente en /admin-insumos.
+  // formulario corto (tipo, cantidad y unidad, SIN precio -- eso lo pone
+  // quien aprueba) y la solicitud queda pendiente en /admin-insumos.
   const [mostrandoFormNuevo, setMostrandoFormNuevo] = useState(false)
   const [uMInsumoNuevo, setUMInsumoNuevo] = useState("")
   const [tipoInsumoNuevo, setTipoInsumoNuevo] = useState(tipos[0] ?? "")
@@ -788,6 +788,11 @@ function BuscadorInsumoCategoria({
       setMensaje("Elige un tipo para la solicitud.")
       return
     }
+    // Cantidad por unidad del ítem: con ella entra la línea al APU al aprobarse.
+    if (!cantidad || !(Number(cantidad) > 0)) {
+      setMensaje("Escribe la cantidad por unidad del ítem.")
+      return
+    }
 
     setEnviandoSolicitud(true)
     setMensaje(null)
@@ -797,6 +802,7 @@ function BuscadorInsumoCategoria({
         tipo: tipoInsumoNuevo,
         uM: uMInsumoNuevo || null,
         presupuestoItemId,
+        cantidad: Number(cantidad),
       })
       setMostrandoFormNuevo(false)
       setUMInsumoNuevo("")
@@ -977,6 +983,19 @@ function BuscadorInsumoCategoria({
                   {tipoInsumoNuevo}
                 </div>
               )}
+            </div>
+
+            <div className="w-32 space-y-1.5">
+              <label className="text-xs text-sky-800">Cantidad</label>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                className="h-10 bg-white"
+                placeholder="por unidad"
+              />
             </div>
 
             <div className="w-32 space-y-1.5">
