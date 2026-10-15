@@ -2495,7 +2495,11 @@ Resumen para quien (Claude o persona) retome el trabajo. Rama de trabajo: **`lcp
   generó la clase. La columna de módulos quedó de 8rem (ancho + 1px por el
   borde, si no sale scroll horizontal).
 - **Menú lateral por módulos** (`lib/pestanas.ts`: `MODULOS`, `construirModulos`):
-  **AdPro** (todo lo existente) y **A&F** (nuevo, sin pestañas todavía). Tres
+  **AdPro**, **A&F** y **Admin** (2026-10-14: "Administrador de la plataforma",
+  solo para el rol Administrador; secciones Empresas y proyectos = Control
+  administrativo, y Usuarios y permisos = Roles y permisos + Usuarios y accesos,
+  desde `PESTANAS_SOLO_ADMIN`; antes era la sección Administrador dentro de
+  AdPro. Se llama "Admin" porque "Administrador" no cabe en la columna de 8rem). Tres
   columnas que se abren a la derecha (módulos → secciones → pestañas), se minimiza
   al elegir una pestaña, y una flecha en la orilla lo abre en la ruta actual.
   Para una pestaña nueva de A&F: entrada en `PESTANAS` con `modulo: "ayf"`.
@@ -2532,7 +2536,6 @@ Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente
 - Funciones por línea antiguas siguen en la base sin uso: `cancelar_pedido`,
   `modificar_pedido`, `desaprobar_pedido` (decisión: dejarlas por ahora).
 - La matriz de Roles y permisos no agrupa por módulo todavía.
-- La sección "Administrador" quedó dentro de AdPro (administra toda la plataforma).
 - A&F es visible para todos los usuarios aunque esté vacío.
 
 ## Notas de herramientas

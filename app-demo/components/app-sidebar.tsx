@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { ChevronLeft, ChevronRight, HardHat, Landmark } from "lucide-react"
+import { ChevronLeft, ChevronRight, HardHat, Landmark, Settings } from "lucide-react"
 
 import {
   Sidebar,
@@ -18,7 +18,7 @@ import { construirModulos, type ModuloClave, type PermisosRol } from "@/lib/pest
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
 //
 // Tres niveles que se abren hacia la derecha, cada uno una columna:
-//   1. MÓDULOS (AdPro, A&F...)        -- siempre visible: el menú angosto
+//   1. MÓDULOS (AdPro, A&F, Admin)        -- siempre visible: el menú angosto
 //   2. SECCIONES del módulo elegido   (Presupuestos, Requisiciones, ...)
 //   3. PESTAÑAS de la sección elegida
 // El ancho total crece con cada nivel abierto (ver AnchoSidebar en app-shell).
@@ -30,6 +30,7 @@ const ANCHO_PESTANAS = 16
 const ICONO_MODULO: Record<ModuloClave, React.ReactNode> = {
   adpro: <HardHat className="size-4" />,
   ayf: <Landmark className="size-4" />,
+  admin: <Settings className="size-4" />,
 }
 
 export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
