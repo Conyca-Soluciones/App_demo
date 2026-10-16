@@ -2371,6 +2371,10 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   una sola vez por contrato (`contratos.aviso_vencido_at`) a quien lo pidió
   (`contrato_vencido` -> Contratos por grupos) y a Legal / Líder Legal que vean
   el proyecto (`contrato_vencido_juridica` -> Pre aprobación).
+  El detalle del contrato (a donde lleva el aviso) muestra arriba "Contrato
+  vencido el ..." con la misma regla en TS (`fechaFinContrato` /
+  `contratoVencido` en `lib/contratos.ts`, pruebas en
+  `tests/contrato-vencido.test.ts`; la fila trae `liquidado_at`).
 - **Funciones**: `contrato_para_acta(contrato, excluir_acta)` (todo lo que la
   pantalla necesita: actividades con acumulado, anticipo, retención, vencido,
   final, liquidación...), `_guardar_acta` (común a crear y editar; la base

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
-import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
+import { ZONA_HORARIA, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import {
   CLASE_ETAPA_CONTRATO,
   ETIQUETA_ETAPA_CONTRATO,
@@ -20,6 +20,7 @@ import {
   datosTipoParaMostrar,
   nombreTipoContrato,
   plazoTexto,
+  contratoVencido,
   type SolicitudContratoDetalle,
 } from "@/lib/contratos"
 import { DOCUMENTOS_POR_PERSONA } from "@/lib/contratistas"
@@ -175,6 +176,8 @@ export function DetalleSolicitudContrato({
               )}
 
               <AvisoMinutaDevuelta detalle={detalle} />
+
+              <AvisoContratoVencido detalle={detalle} />
 
               <TablaDatos
                 titulo="Datos generales"
@@ -470,5 +473,22 @@ function FilaDocumento({
         )}
       </td>
     </tr>
+  )
+}
+
+// Contrato aprobado, sin liquidar y con su último día ya pasado (misma regla
+// que el aviso diario de la base). Sale arriba en el detalle, que es a donde
+// lleva la notificación de contrato vencido.
+function AvisoContratoVencido({ detalle }: { detalle: SolicitudContratoDetalle }) {
+  const { vencido, fechaFin } = contratoVencido(detalle, hoyColombia())
+  if (!vencido || !fechaFin) return null
+  return (
+    <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-900">
+      <p className="font-medium">Contrato vencido el {formatearFechaSinHora(fechaFin)}, sin acta de liquidación</p>
+      <p>
+        Ya no recibe actas de avance: solo la de liquidación (Actas por grupos). Para ampliar el plazo hará falta un
+        otrosí.
+      </p>
+    </div>
   )
 }

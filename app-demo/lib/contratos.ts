@@ -253,6 +253,8 @@ export type SolicitudContratoFila = {
   retencionGarantiaPct: number
   retencionAnticipoPct: number
   retencionFicPct: number
+  // Aprobación del acta de liquidación (20261112000000_actas_sobre_contrato.sql).
+  liquidadoAt: string | null
 }
 
 export type ClaseContrato = "grupo" | "general"
@@ -692,6 +694,46 @@ export function validarSolicitud(
       datosTipo,
     },
   }
+}
+
+// Último día del contrato, como "AAAA-MM-DD": la fecha fin, o inicio +
+// duración (meses de calendario: 31 ene + 1 mes = 28 feb, igual que Postgres).
+// null = no se sabe (duración sin fecha de inicio). Misma regla que
+// _fecha_fin_contrato en la base, que es la que manda el aviso de vencido.
+export function fechaFinContrato(c: {
+  plazoTipo: "fechas" | "duracion"
+  fechaInicio: string | null
+  fechaFin: string | null
+  duracionCantidad: number | null
+  duracionUnidad: "dias" | "meses" | null
+}): string | null {
+  if (c.plazoTipo === "fechas") return c.fechaFin
+  if (!c.fechaInicio || c.duracionCantidad == null) return null
+  const [a, m, d] = c.fechaInicio.split("-").map(Number)
+  if (c.duracionUnidad === "meses") {
+    const total = m - 1 + c.duracionCantidad
+    const anio = a + Math.floor(total / 12)
+    const mes = total % 12 // 0-11
+    const ultimoDia = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate()
+    return new Date(Date.UTC(anio, mes, Math.min(d, ultimoDia))).toISOString().slice(0, 10)
+  }
+  return new Date(Date.UTC(a, m - 1, d + c.duracionCantidad)).toISOString().slice(0, 10)
+}
+
+// Vencido = aprobado por Subgerencia, sin liquidar y su último día ya pasó
+// (hoy = "AAAA-MM-DD" en Colombia). Como _avisar_contratos_vencidos.
+export function contratoVencido(
+  c: Parameters<typeof fechaFinContrato>[0] & {
+    estado: EstadoContrato
+    minutaEstado: EstadoMinuta | null
+    liquidadoAt: string | null
+  },
+  hoy: string
+): { vencido: boolean; fechaFin: string | null } {
+  const fechaFin = fechaFinContrato(c)
+  const vencido =
+    c.estado === "aprobada" && c.minutaEstado === "aprobada" && !c.liquidadoAt && fechaFin != null && fechaFin < hoy
+  return { vencido, fechaFin }
 }
 
 export function plazoTexto(c: {
