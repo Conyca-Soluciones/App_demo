@@ -236,5 +236,11 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'resolicitar_pago')
          and exists (select 1 from information_schema.columns
                      where table_schema = 'public' and table_name = 'solicitudes_insumos' and column_name = 'cantidad')
+  union all
+  select '20261117000000_enviar_insumos_sin_sugerencias',
+         exists (select 1 from pg_proc where proname = 'enviar_insumos_sin_sugerencias')
+  union all
+  select '20261117100000_recuperar_insumos_borrados',
+         exists (select 1 from public.maestro_insumos where usuario_modificacion = 'recuperado 2026-10-18')
 ) t
 order by 1;

@@ -39,6 +39,7 @@ import {
   buscarInsumosSimilares,
   buscarEquipoSimilares,
   listarManoObraCategoriasCompleto,
+  enviarInsumosSinSugerencias,
   type LoteRevisionInfo,
   type InsumoSimilar,
 } from "@/app/(app)/presupuestos/actions"
@@ -617,6 +618,9 @@ interface Props {
   // que page.tsx refresque SOLO esos colores y valores, no todo el
   // presupuesto)
   onCambio?: (itemIds: string[]) => void
+  // Presupuesto de la versión vigente: habilita "Enviar a aprobación insumos
+  // sin sugerencia" (null en versiones viejas)
+  presupuestoId?: string | null
 }
 
 type Eleccion =
@@ -650,7 +654,7 @@ function textoItem(prefijo: string, item: { codigo: string; descripcion: string 
   return item ? `${prefijo} ${item.codigo} — ${item.descripcion}` : prefijo
 }
 
-export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCerrar, onCambio }: Props) {
+export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCerrar, onCambio, presupuestoId }: Props) {
   const [datos, setDatos] = useState<LoteRevisionInfo | null>(null)
   const [cargando, setCargando] = useState(false)
   // segunda tanda de la carga (automáticos y resueltos), en segundo plano
@@ -710,6 +714,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   const enVueloRef = useRef<Set<string>>(new Set())
 
   // ---------- Transporte: estado del roundtrip por Excel ----------
+  const [enviandoSinSugerencia, setEnviandoSinSugerencia] = useState(false)
+  const [mensajeEnvio, setMensajeEnvio] = useState<{ texto: string; error: boolean } | null>(null)
   const [descargandoExcelTransporte, setDescargandoExcelTransporte] = useState(false)
   const [subiendoExcelTransporte, setSubiendoExcelTransporte] = useState(false)
   const [errorTransporte, setErrorTransporte] = useState<string | null>(null)
@@ -899,6 +905,9 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // ni a transporte (ver actions.ts / handoff), así que esas pestañas no
   // tienen sección de "Automáticos" -- equipo sí, igual que insumos.
   const totalPendientesInsumos = pendientes.length + rechazados.length + autoMatch.length
+  const hayPendientesSinSugerencia = pendientes.some(
+    (f) => !Array.isArray(f.candidatos) || f.candidatos.length === 0
+  )
   const totalPendientesManoObra = pendientesManoObra.length + rechazadosManoObra.length
   const totalPendientesEquipo = pendientesEquipo.length + rechazadosEquipo.length + autoMatchEquipo.length
   const totalPendientesTransporte = pendientesTransporte.length
@@ -1315,6 +1324,33 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     }
   }
 
+  // Manda directo a Aprobación de insumos los pendientes sin ninguna
+  // sugerencia del maestro (una solicitud por insumo, con la cantidad del
+  // Excel en cada línea). Sin ventana de confirmación (decisión del usuario).
+  async function handleEnviarSinSugerencia() {
+    if (!presupuestoId) return
+    setEnviandoSinSugerencia(true)
+    setMensajeEnvio(null)
+    try {
+      const r = await enviarInsumosSinSugerencias(presupuestoId)
+      const partes = [
+        r.lineas > 0
+          ? `${r.insumos} insumo(s) enviados a aprobación (${r.lineas} línea(s)).`
+          : "No había insumos sin sugerencia para enviar.",
+      ]
+      if (r.lineasConSugerencia > 0) {
+        partes.push(`${r.lineasConSugerencia} línea(s) ahora sí tienen sugerencias: revísalas abajo.`)
+      }
+      setMensajeEnvio({ texto: partes.join(" "), error: false })
+      await cargar()
+      onCambio?.(itemIds)
+    } catch (e) {
+      setMensajeEnvio({ texto: e instanceof Error ? e.message : "No se pudieron enviar.", error: true })
+    } finally {
+      setEnviandoSinSugerencia(false)
+    }
+  }
+
   // ---------- Transporte: descargar Excel de pendientes/corrección ----------
   // Se exportan TODAS las líneas de los itemIds actuales (no solo las
   // pendientes) -- así el mismo archivo sirve para cargar por primera
@@ -1608,7 +1644,19 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
                 {tabActiva === "insumos" && pendientes.length > 0 && (
                   <section className="space-y-3">
-                    <h3 className="text-sm font-semibold">Pendientes de resolver</h3>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold">Pendientes de resolver</h3>
+                      {presupuestoId && hayPendientesSinSugerencia && (
+                        <Button size="sm" variant="outline" onClick={handleEnviarSinSugerencia} disabled={enviandoSinSugerencia}>
+                          {enviandoSinSugerencia ? "Enviando…" : "Enviar a aprobación insumos sin sugerencia"}
+                        </Button>
+                      )}
+                    </div>
+                    {mensajeEnvio && (
+                      <p className={`text-sm ${mensajeEnvio.error ? "text-destructive" : "text-emerald-700"}`}>
+                        {mensajeEnvio.texto}
+                      </p>
+                    )}
 
                     {gruposPendientes.size > 1 && (
                       <div className="flex flex-wrap items-center gap-2 border rounded-lg p-2 bg-muted/30">
