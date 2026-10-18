@@ -1205,8 +1205,10 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 
 Decisiones del usuario:
-- **Presupuestos: "Enviar a aprobación los insumos sin sugerencias"** (botón en el
-  banner de pendientes, solo en la versión vigente). `enviarInsumosSinSugerencias`
+- **Presupuestos: "Enviar a aprobación insumos sin sugerencia"** (botón dentro del
+  diálogo de revisión, pestaña Insumos, junto a "Pendientes de resolver"; solo en
+  la versión vigente y si hay pendientes sin candidatos; envía directo, sin
+  confirmación, decisión del usuario). `enviarInsumosSinSugerencias`
   primero vuelve a buscar candidatos (`candidatosInsumoPorTerminos`, el mismo
   ranking del import) para las líneas INSUMO pendientes sin candidatos: el maestro
   pudo cambiar desde el import; las que encuentran algo guardan sus candidatos y se

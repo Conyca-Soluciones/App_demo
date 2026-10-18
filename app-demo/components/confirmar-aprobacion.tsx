@@ -20,8 +20,6 @@ export function ConfirmarAprobacion({
   procesando,
   onConfirmar,
   onCerrar,
-  textoConfirmar = "Aprobar",
-  textoProcesando = "Aprobando...",
 }: {
   abierta: boolean
   titulo: string
@@ -29,8 +27,6 @@ export function ConfirmarAprobacion({
   procesando: boolean
   onConfirmar: () => void
   onCerrar: () => void
-  textoConfirmar?: string
-  textoProcesando?: string
 }) {
   return (
     <Dialog
@@ -53,7 +49,7 @@ export function ConfirmarAprobacion({
             onClick={onConfirmar}
             disabled={procesando}
           >
-            {procesando ? textoProcesando : textoConfirmar}
+            {procesando ? "Aprobando..." : "Aprobar"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -16,7 +16,6 @@ import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError } from "@/lib
 import { parseApuSheet, type BloqueApu } from "@/lib/parse-apu-excel"
 import { agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 import { RevisionApuDialog } from "@/components/revision-apu-dialog"
-import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import {
   crearPresupuesto,
   verPresupuestoDeProyecto,
@@ -38,8 +37,6 @@ import {
   EliminarPresupuesto,
   latidoImportPresupuesto,
   descartarImportAbandonado,
-  enviarInsumosSinSugerencias,
-  type ResultadoEnvioSinSugerencias,
   type ResultadoImportAbandonado,
   type ItemPresupuesto,
   type PresupuestoExistente,
@@ -547,11 +544,6 @@ function PresupuestoDeProyecto() {
   // específicos: hay que poder abrir el diálogo directo en la pestaña
   // "Transporte", no en la de Insumos.
   const [itemIdsTransportePendiente, setItemIdsTransportePendiente] = useState<string[]>([])
-  // "Enviar a aprobación los insumos sin sugerencias"
-  const [confirmandoEnvio, setConfirmandoEnvio] = useState(false)
-  const [enviandoSinSugerencias, setEnviandoSinSugerencias] = useState(false)
-  const [resultadoEnvio, setResultadoEnvio] = useState<ResultadoEnvioSinSugerencias | null>(null)
-  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
   // Qué pestaña debe abrir el diálogo la próxima vez -- por defecto
   // Insumos (mismo comportamiento de siempre), pero el banner de
   // transporte lo cambia a "transporte" antes de abrir.
@@ -692,24 +684,6 @@ function PresupuestoDeProyecto() {
     setItemIdsParaRevisar(itemIdsTransportePendiente)
     setTabInicialRevision("transporte")
     setDialogoRevisionAbierto(true)
-  }
-
-  async function handleEnviarSinSugerencias() {
-    if (!presupuestoDbId) return
-    setEnviandoSinSugerencias(true)
-    setErrorEnvio(null)
-    setResultadoEnvio(null)
-    try {
-      const resultado = await enviarInsumosSinSugerencias(presupuestoDbId)
-      setResultadoEnvio(resultado)
-      setConfirmandoEnvio(false)
-      await refrescarEstadosApu(idsConAlgoPendiente)
-    } catch (e) {
-      setErrorEnvio(e instanceof Error ? e.message : "No se pudieron enviar los insumos.")
-      setConfirmandoEnvio(false)
-    } finally {
-      setEnviandoSinSugerencias(false)
-    }
   }
 
   // Cada Guardar del diálogo ya refrescó sus ítems (onCambio): al cerrar
@@ -1753,56 +1727,15 @@ function PresupuestoDeProyecto() {
         )}
 
         {idsConPendientes.length > 0 && !dialogoRevisionAbierto && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
             <p className="text-sm text-amber-900">
               {idsConPendientes.length} ítem(s) todavía tienen insumos sin resolver 
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {presupuestoDbId && viendoVersionActual && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setConfirmandoEnvio(true)}
-                  disabled={enviandoSinSugerencias || guardandoImportApu}
-                >
-                  {enviandoSinSugerencias ? "Enviando…" : "Enviar a aprobación los insumos sin sugerencias"}
-                </Button>
-              )}
-              <Button size="sm" onClick={handleAbrirRevisionGeneral}>
-                Revisar pendientes
-              </Button>
-            </div>
+            <Button size="sm" onClick={handleAbrirRevisionGeneral}>
+              Revisar pendientes
+            </Button>
           </div>
         )}
-
-        {(resultadoEnvio || errorEnvio) && !dialogoRevisionAbierto && (
-          <div className="rounded-lg border px-4 py-3 text-sm">
-            {errorEnvio ? (
-              <p className="text-destructive">{errorEnvio}</p>
-            ) : resultadoEnvio && (
-              <p>
-                {resultadoEnvio.lineas > 0
-                  ? `${resultadoEnvio.insumos} insumo(s) enviados a Aprobación de insumos (${resultadoEnvio.lineas} línea(s) del presupuesto, cada una con su cantidad del Excel).`
-                  : "No había insumos sin sugerencias para enviar."}
-                {resultadoEnvio.solicitudesNuevas < resultadoEnvio.insumos &&
-                  ` ${resultadoEnvio.insumos - resultadoEnvio.solicitudesNuevas} ya estaban pedidos y se sumaron a esa solicitud.`}
-                {resultadoEnvio.lineasConSugerencia > 0 &&
-                  ` ${resultadoEnvio.lineasConSugerencia} línea(s) ahora sí tienen sugerencias en el maestro: revísalas en "Revisar pendientes".`}
-              </p>
-            )}
-          </div>
-        )}
-
-        <ConfirmarAprobacion
-          abierta={confirmandoEnvio}
-          titulo="Enviar a aprobación los insumos sin sugerencias"
-          detalle="Primero se vuelven a buscar en el maestro los insumos pendientes sin sugerencias. Los que sigan sin ninguna se envían a Aprobación de insumos, uno por insumo, y cada línea del presupuesto conserva su cantidad del Excel: al aprobarlo queda en el APU con esa cantidad. Puede tardar unos segundos."
-          procesando={enviandoSinSugerencias}
-          onConfirmar={handleEnviarSinSugerencias}
-          onCerrar={() => setConfirmandoEnvio(false)}
-          textoConfirmar="Enviar"
-          textoProcesando="Enviando…"
-        />
  
         {(idsConRechazados.length > 0 || idsConSobrecosto.length > 0) && !dialogoRevisionAbierto && (
           <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
@@ -2096,6 +2029,7 @@ function PresupuestoDeProyecto() {
         tabInicial={tabInicialRevision}
         onCerrar={handleCerrarDialogoRevision}
         onCambio={(itemIds) => refrescarEstadosYValores(itemIds)}
+        presupuestoId={viendoVersionActual ? presupuestoDbId : null}
       />
     </>
   )
