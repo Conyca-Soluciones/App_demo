@@ -31,6 +31,7 @@ import type {
   FilaExportTransporte,
   FilaImportTransporte,
 } from "@/lib/apu-import-types"
+import type { FilaPrecioInsumo, ListasPreciosInsumos, SolicitudParaPrecio } from "@/lib/excel-precios-insumos"
 
 //Aprobado
 
@@ -1371,6 +1372,113 @@ export async function rechazarSolicitudInsumo(solicitudId: string, motivo?: stri
     throw new Error("Esta solicitud ya fue resuelta por otra persona. Actualiza la página.")
   }
   await borrarSolicitudResuelta(supabase, "insumo", solicitudId)
+}
+
+// ---------------------------------------------------------------------------
+// Aprobación de insumos por Excel (lib/excel-precios-insumos)
+// ---------------------------------------------------------------------------
+
+export async function contarSolicitudesInsumoPendientes(): Promise<number> {
+  await requerirScope("admin_insumos")
+  const supabase = await createClient()
+  const { count, error } = await supabase
+    .from("solicitudes_insumos")
+    .select("id", { count: "exact", head: true })
+    .eq("estado", "pendiente")
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+/** Todo lo que necesita el Excel: las solicitudes pendientes y las listas. */
+export async function listarSolicitudesInsumoParaPrecio(): Promise<{
+  solicitudes: SolicitudParaPrecio[]
+  listas: ListasPreciosInsumos
+}> {
+  await requerirScope("admin_insumos")
+  const supabase = await createClient()
+
+  const [filas, agrupaciones] = await Promise.all([
+    traerTodo<any>((desde, hasta) =>
+      supabase
+        .from("solicitudes_insumos")
+        .select(
+          "id, descripcion, tipo, u_m, agrupacion, cantidad, created_at, " +
+            "item:presupuesto_items(presupuestos(proyectos(codigo)))," +
+            "lineas:apu_import_revision!apu_import_revision_solicitud_id_fkey(cantidad, presupuesto_items(presupuestos(proyectos(codigo))))"
+        )
+        .eq("estado", "pendiente")
+        .order("descripcion")
+        .order("id")
+        .range(desde, hasta)
+    ),
+    listarAgrupacionesInsumos(),
+  ])
+
+  const codigoProyecto = (item: any): string | null => item?.presupuestos?.proyectos?.codigo ?? null
+  const solicitudes: SolicitudParaPrecio[] = filas.map((s) => {
+    const lineas: any[] = s.lineas ?? []
+    const proyectos = new Set<string>()
+    for (const l of lineas) {
+      const codigo = codigoProyecto(l.presupuesto_items)
+      if (codigo) proyectos.add(codigo)
+    }
+    const codigoSolicitud = codigoProyecto(s.item)
+    if (codigoSolicitud) proyectos.add(codigoSolicitud)
+    // Del import: la suma de lo que pide cada línea del presupuesto. Del
+    // editor de APU (sin líneas): la cantidad que escribió quien lo pidió.
+    const cantidad =
+      lineas.length > 0
+        ? redondear2(lineas.reduce((n, l) => n + Number(l.cantidad ?? 0), 0))
+        : s.cantidad != null
+          ? Number(s.cantidad)
+          : null
+    return {
+      id: s.id,
+      descripcion: s.descripcion,
+      unidadPedida: s.u_m,
+      cantidad,
+      proyectos: Array.from(proyectos).sort(),
+      tipo: s.tipo && TIPOS_MAESTRO.has(s.tipo) ? s.tipo : null,
+      uM: unidadMaestro(s.u_m),
+      agrupacion: s.agrupacion,
+    }
+  })
+
+  return { solicitudes, listas: { tipos: Array.from(TIPOS_MAESTRO), agrupaciones } }
+}
+
+/**
+ * Aprueba una tanda de filas del Excel de precios (cada una con
+ * aprobarSolicitudInsumo: mismas validaciones que la pantalla de Aprobación
+ * de insumos). Un error en una fila no detiene las demás. El navegador manda
+ * tandas chicas para mostrar el avance y no pasar el tiempo máximo.
+ */
+export async function aprobarSolicitudesInsumoDesdeExcel(
+  filas: FilaPrecioInsumo[]
+): Promise<{ aprobadas: string[]; errores: { solicitudId: string; mensaje: string }[] }> {
+  await requerirScope("admin_insumos")
+  if (filas.length > 20) throw new Error("Máximo 20 insumos por tanda.")
+
+  const aprobadas: string[] = []
+  const errores: { solicitudId: string; mensaje: string }[] = []
+  for (const f of filas) {
+    try {
+      await aprobarSolicitudInsumo({
+        solicitudId: f.solicitudId,
+        vrUnitario: f.vrUnitario,
+        tipo: f.tipo,
+        uM: f.uM,
+        agrupacion: f.agrupacion,
+        ivaPorcentaje: f.ivaPorcentaje,
+        unidadUso: f.unidadUso,
+        contenido: f.contenido,
+      })
+      aprobadas.push(f.solicitudId)
+    } catch (e) {
+      errores.push({ solicitudId: f.solicitudId, mensaje: e instanceof Error ? e.message : "No se pudo aprobar." })
+    }
+  }
+  return { aprobadas, errores }
 }
 
 const PRECIOS_PLACEHOLDER = [0, 1]
@@ -3033,12 +3141,40 @@ export async function matchearInsumosApuImport(
     }
   }
 
-  // Antes: buscarInsumosSimilares por cada descripción única = 2 viajes a
-  // la base por descripción (candidatos + precios). Ahora: candidatos de 50
-  // descripciones por llamada (buscar_insumos_candidatos_lote) y UNA pasada
-  // de precios para todos los candidatos elegidos. 800 descripciones:
-  // ~1.600 viajes -> ~16 + 2. Mismo ranking y mismo umbral (0.3).
   const originales = Array.from(unicas.values())
+  const candidatosPorDescripcion = await candidatosInsumoPorTerminos(originales)
+
+  return originales.map((original, i) => {
+    const candidatos = candidatosPorDescripcion[i]
+
+    const mejor = candidatos[0]
+    const tienePlaceholder =
+      !!mejor && (mejor.vr_unitario == null || PRECIOS_PLACEHOLDER.includes(mejor.vr_unitario))
+    const score = mejor ? Math.round(mejor.similitud * 100) : 0
+    const esAutoMatch = !!mejor && score >= UMBRAL_AUTO_MATCH && !tienePlaceholder
+
+    return {
+      descripcionOriginal: original,
+      estado: esAutoMatch ? "auto_match" : "requiere_revision",
+      insumoIdAsignado: esAutoMatch ? mejor!.id : null,
+      candidatosSugeridos: candidatos,
+      precioPlaceholder: tienePlaceholder,
+    }
+  })
+}
+
+/**
+ * Candidatos del maestro para varias descripciones, con el ranking y el
+ * umbral (0.3) del import y el precio efectivo de cada uno. Lo usan el
+ * import y "Enviar a aprobación los insumos sin sugerencias".
+ *
+ * Antes: buscarInsumosSimilares por cada descripción única = 2 viajes a
+ * la base por descripción (candidatos + precios). Ahora: candidatos de 50
+ * descripciones por llamada (buscar_insumos_candidatos_lote) y UNA pasada
+ * de precios para todos los candidatos elegidos. 800 descripciones:
+ * ~1.600 viajes -> ~16 + 2.
+ */
+async function candidatosInsumoPorTerminos(originales: string[]): Promise<InsumoSimilar[][]> {
   const candidatosPorIndice: InsumoSimilar[][] = originales.map(() => [])
   const TERMINOS_POR_LLAMADA = 50
   const tandas: { inicio: number; terminos: string[] }[] = []
@@ -3070,23 +3206,9 @@ export async function matchearInsumosApuImport(
   const conPrecio = await conPreciosEfectivos(candidatosPorIndice.flat())
   const precioPorId = new Map(conPrecio.map((c) => [c.id, c.vr_unitario]))
 
-  return originales.map((original, i) => {
-    const candidatos = candidatosPorIndice[i].map((c) => ({ ...c, vr_unitario: precioPorId.get(c.id) ?? c.vr_unitario }))
-
-    const mejor = candidatos[0]
-    const tienePlaceholder =
-      !!mejor && (mejor.vr_unitario == null || PRECIOS_PLACEHOLDER.includes(mejor.vr_unitario))
-    const score = mejor ? Math.round(mejor.similitud * 100) : 0
-    const esAutoMatch = !!mejor && score >= UMBRAL_AUTO_MATCH && !tienePlaceholder
-
-    return {
-      descripcionOriginal: original,
-      estado: esAutoMatch ? "auto_match" : "requiere_revision",
-      insumoIdAsignado: esAutoMatch ? mejor!.id : null,
-      candidatosSugeridos: candidatos,
-      precioPlaceholder: tienePlaceholder,
-    }
-  })
+  return candidatosPorIndice.map((lista) =>
+    lista.map((c) => ({ ...c, vr_unitario: precioPorId.get(c.id) ?? c.vr_unitario }))
+  )
 }
 
 /**
@@ -4641,6 +4763,89 @@ export async function obtenerPendientesTransporte(
   }
 
   return resultado
+}
+
+export type ResultadoEnvioSinSugerencias = {
+  // líneas que ahora sí tienen sugerencias (el maestro cambió desde el import):
+  // se quedan en "Revisar pendientes"
+  lineasConSugerencia: number
+  // líneas e insumos enviados a Aprobación de insumos
+  lineas: number
+  insumos: number
+  solicitudesNuevas: number
+}
+
+/**
+ * Botón "Enviar a aprobación los insumos sin sugerencias" (Presupuestos).
+ * 1. Vuelve a buscar en el maestro las líneas de insumo pendientes sin
+ *    candidatos de la versión vigente: desde el import pudieron entrar
+ *    insumos (aprobados o recuperados). Las que encuentran algo guardan sus
+ *    candidatos y se quedan para revisar.
+ * 2. Las que siguen sin nada van a Aprobación de insumos con
+ *    `enviar_insumos_sin_sugerencias`: una solicitud por insumo
+ *    (descripción + unidad), y cada línea conserva su cantidad del Excel.
+ */
+export async function enviarInsumosSinSugerencias(presupuestoId: string): Promise<ResultadoEnvioSinSugerencias> {
+  const supabase = await createClient()
+
+  const { data: presupuesto, error: errorPresupuesto } = await supabase
+    .from("presupuestos")
+    .select("version_actual_id")
+    .eq("id", presupuestoId)
+    .maybeSingle()
+  if (errorPresupuesto) throw new Error(errorPresupuesto.message)
+  if (!presupuesto?.version_actual_id) throw new Error("El presupuesto no tiene versión vigente.")
+
+  const lineas = await traerTodo<{ id: string; descripcion_original: string; candidatos: unknown }>((desde, hasta) =>
+    supabase
+      .from("apu_import_revision")
+      .select("id, descripcion_original, candidatos, presupuesto_items!inner(version_id)")
+      .eq("presupuesto_items.version_id", presupuesto.version_actual_id)
+      .eq("tipo", "INSUMO")
+      .eq("estado", "pendiente")
+      .order("id")
+      .range(desde, hasta)
+  )
+  const sinCandidatos = lineas.filter(
+    (l) => (!Array.isArray(l.candidatos) || l.candidatos.length === 0) && l.descripcion_original?.trim()
+  )
+
+  // Una búsqueda por descripción, no por línea.
+  const idsPorDescripcion = new Map<string, { original: string; ids: string[] }>()
+  for (const l of sinCandidatos) {
+    const clave = l.descripcion_original.trim().toLowerCase()
+    const grupo = idsPorDescripcion.get(clave)
+    if (grupo) grupo.ids.push(l.id)
+    else idsPorDescripcion.set(clave, { original: l.descripcion_original, ids: [l.id] })
+  }
+  const grupos = Array.from(idsPorDescripcion.values())
+  const candidatos = await candidatosInsumoPorTerminos(grupos.map((g) => g.original))
+
+  const conSugerencia = grupos
+    .map((g, i) => ({ ids: g.ids, candidatos: candidatos[i] }))
+    .filter((g) => g.candidatos.length > 0)
+  const tandas = conSugerencia.flatMap((g) => trocear(g.ids, 100).map((ids) => ({ ids, candidatos: g.candidatos })))
+  await procesarEnLotes(tandas, 5, async ({ ids, candidatos: lista }) => {
+    const { error } = await supabase
+      .from("apu_import_revision")
+      .update({ candidatos: lista })
+      .in("id", ids)
+      .eq("estado", "pendiente")
+    if (error) throw new Error(error.message)
+  })
+
+  const { data, error } = await supabase.rpc("enviar_insumos_sin_sugerencias", { p_presupuesto_id: presupuestoId })
+  if (error) throw new Error(error.message)
+  const fila = (Array.isArray(data) ? data[0] : data) as
+    | { lineas: number; insumos: number; solicitudes_nuevas: number }
+    | undefined
+
+  return {
+    lineasConSugerencia: conSugerencia.reduce((n, g) => n + g.ids.length, 0),
+    lineas: fila?.lineas ?? 0,
+    insumos: fila?.insumos ?? 0,
+    solicitudesNuevas: fila?.solicitudes_nuevas ?? 0,
+  }
 }
 
 export async function importarPreciosTransporte(

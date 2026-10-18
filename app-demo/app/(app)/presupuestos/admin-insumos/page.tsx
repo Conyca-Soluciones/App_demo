@@ -13,6 +13,7 @@ import {
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { BannerPreciosInsumos } from "@/components/banner-precios-insumos"
 import { useSearchParams, useRouter } from "next/navigation"
 
 const TODOS_LOS_TIPOS = CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string[])
@@ -70,6 +71,13 @@ function AdminInsumosContent() {
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
       .finally(() => setCargando(false))
   }, [])
+
+  // Después de subir el Excel de precios: las aprobadas salen de la lista.
+  function recargarSolicitudes() {
+    listarSolicitudesInsumos()
+      .then(setSolicitudes)
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
+  }
 
   function marcarProcesando(id: string, activo: boolean) {
     setIdsEnProceso((prev) => {
@@ -137,6 +145,8 @@ function AdminInsumosContent() {
         </button>
       </div>
     )}
+
+      <BannerPreciosInsumos onAprobadas={recargarSolicitudes} />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
