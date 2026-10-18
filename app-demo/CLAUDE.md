@@ -2585,6 +2585,13 @@ insumos borrados.
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
 ## Pendientes conocidos (no hechos)
+- **Ítems completos enviados como insumo** (2026-10-18, decisión del usuario:
+  dejarlo así por ahora). En el Excel del Malecón ~106 ítems tienen en la hoja
+  APU UNA sola línea tipo INSUMO que es el ítem mismo ("Ballena vilde o
+  similar. Suministro e instal.", bancas, motobombas, puertas). "Enviar a
+  aprobación insumos sin sugerencia" los manda como insumo nuevo. Opciones
+  pendientes: dejarlos (aprobar con tipo SUBCONTRATO - S), que el botón no los
+  mande y devolverlos a pendientes, o mandarlos con tipo SUBCONTRATO ya puesto.
 - Compras → requisiciones: el filtro "Solo pendientes por comprar" se aplica en
   JS después de traer todo el histórico del proyecto; con
   `requisiciones.estado_compra` guardado se puede filtrar en la base.
