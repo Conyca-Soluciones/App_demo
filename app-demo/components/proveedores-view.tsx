@@ -2,7 +2,8 @@
 
 import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ArrowDown, ArrowUp, ArrowUpDown, Loader2, Plus, Search, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, History, Loader2, Plus, Search, X } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -31,7 +32,7 @@ type Columna = {
 }
 
 const COLUMNAS: Columna[] = [
-  { campo: "idProv", titulo: "ID", ancho: 76 },
+  { campo: "idProv", titulo: "ID", ancho: 104 },
   { campo: "nombre", titulo: "Proveedor", ancho: 300 },
   { campo: "estado", titulo: "Estado", ancho: 116, alinear: "center" },
   { campo: "tipoProveedor", titulo: "Tipo", ancho: 168 },
@@ -419,6 +420,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
   const [paginaMovil, setPaginaMovil] = useState({ clave: "", n: TAMANO_PAGINA_MOVIL })
   const [aviso, setAviso] = useState<Aviso>(null)
   const [nuevoAbierto, setNuevoAbierto] = useState(false)
+  const [historialDe, setHistorialDe] = useState<Proveedor | null>(null)
 
   useEffect(() => {
     listarProveedores()
@@ -693,8 +695,11 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                             } ${c.campo === "nombre" ? "font-medium shadow-[2px_0_0_0_var(--border)]" : ""}`}
                           >
                             {c.campo === "idProv" ? (
-                              <div className="truncate px-3 py-2 text-xs text-muted-foreground tabular-nums" title={p.idProv ?? undefined}>
-                                {p.idProv}
+                              <div className="flex items-center gap-1 pr-1 pl-3">
+                                <span className="min-w-0 flex-1 truncate py-2 text-xs text-muted-foreground tabular-nums" title={p.idProv ?? undefined}>
+                                  {p.idProv}
+                                </span>
+                                <BotonHistorial onClick={() => setHistorialDe(p)} />
                               </div>
                             ) : (
                               <CeldaEditable
@@ -729,7 +734,10 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                         multilinea
                         className="font-medium"
                       />
-                      <p className="px-3 pb-1 text-xs text-muted-foreground tabular-nums">ID {p.idProv}</p>
+                      <div className="flex items-center gap-1 px-3 pb-1">
+                        <p className="text-xs text-muted-foreground tabular-nums">ID {p.idProv}</p>
+                        <BotonHistorial onClick={() => setHistorialDe(p)} />
+                      </div>
                     </div>
                     <div className="w-28 shrink-0">
                       <CeldaEditable proveedor={p} campo="estado" puedeEditar={puedeEditar} onGuardar={guardar} alinear="center" />
@@ -760,6 +768,30 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
           </>
         )}
       </main>
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="proveedor"
+        id={historialDe?.uniqueId ?? null}
+        titulo={`Historial de ${historialDe?.nombre ?? "proveedor"}`}
+        onCerrar={() => setHistorialDe(null)}
+      />
     </>
+  )
+}
+
+function BotonHistorial({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      className="h-7 w-7 shrink-0 p-0 text-muted-foreground"
+      title="Historial de cambios"
+      aria-label="Historial de cambios"
+      onClick={onClick}
+    >
+      <History className="h-3.5 w-3.5" />
+    </Button>
   )
 }

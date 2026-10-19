@@ -242,5 +242,15 @@ select * from (
   union all
   select '20261117100000_recuperar_insumos_borrados',
          exists (select 1 from public.maestro_insumos where usuario_modificacion = 'recuperado 2026-10-18')
+  union all
+  select '20261118000000_perfiles_nombre_y_rol_visibles',
+         exists (select 1 from pg_policies where tablename = 'perfiles' and policyname = 'perfiles_select_nombre_rol')
+         and not has_column_privilege('authenticated', 'public.perfiles', 'email', 'select')
+         and exists (select 1 from pg_policies where tablename = 'roles' and policyname = 'roles_select_autenticados')
+  union all
+  select '20261118100000_historial_pagos_terceros_proveedores',
+         exists (select 1 from pg_trigger where tgname = 'trg_historial_pago')
+         and exists (select 1 from pg_trigger where tgname = 'trg_historial_proveedor')
+         and position('usuario_rol' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
 ) t
 order by 1;

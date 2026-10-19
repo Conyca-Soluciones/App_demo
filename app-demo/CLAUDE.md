@@ -1202,6 +1202,32 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   sobre las órdenes de TODOS los proyectos. Verificado: mismo resultado en los
   3 proyectos y en un caso de prueba con excedente.
 
+## Nombres visibles e historial de pagos, terceros y proveedores (2026-10-19)
+
+Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
+- **Nombre y rol de cada persona visibles para todos** (decisión del usuario,
+  `20261118000000_perfiles_nombre_y_rol_visibles.sql`): `perfiles` se lee en
+  todas sus filas, pero solo `id`, `nombre` y `rol_id` (permiso por columna;
+  correo, usuario y banderas siguen ocultos y los leen las funciones SECURITY
+  DEFINER). `roles` se lee (`id`, `clave`, `nombre`). Antes solo el propio
+  usuario, el Administrador y Compras leían perfiles: "Solicitado por" salía "—".
+  Una columna nueva de `perfiles` que deban leer las pantallas necesita su
+  `grant select (col)`. `obtener_permisos_usuario` usa `es_admin()` en vez de
+  leer la columna.
+- **Historial** (`20261118100000_historial_pagos_terceros_proveedores.sql`):
+  disparadores `trg_historial_pago` (creado, cada cambio de estado, tercero o
+  cuenta cambiados, valor cambiado; los pagos viejos reconstruidos) y
+  `trg_historial_proveedor` (creado; editado con los campos que cambiaron) en
+  `historial_eventos`. Terceros NO escriben nada nuevo: `historial_entidad
+  ('tercero', id)` traduce `terceros_auditoria` (que ya existía) a eventos de
+  tercero y cuentas. `historial_entidad` devuelve también `usuario_rol`; la
+  línea de tiempo muestra "Nombre (Rol)" y "Sistema o carga de datos" sin usuario.
+  Botón Historial en Aprobación de pagos, Consolidado, ficha del tercero y
+  Proveedores.
+- **Siguiente fase** (pendiente): contratistas, minutas, entradas y salidas,
+  solicitudes de insumo/MO/equipo; luego presupuesto, roles y pantalla de
+  Auditoría.
+
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 
 Decisiones del usuario:

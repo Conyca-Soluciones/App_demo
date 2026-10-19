@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { BadgeCheck, Loader2, Pencil, Plus } from "lucide-react"
+import { BadgeCheck, History, Loader2, Pencil, Plus } from "lucide-react"
+import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -169,6 +170,8 @@ function ContenidoTercero({
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [verHistorial, setVerHistorial] = useState(false)
+  const [versionHistorial, setVersionHistorial] = useState(0)
 
   const [datos, setDatos] = useState({
     razonSocial: tercero.razonSocial,
@@ -194,6 +197,7 @@ function ContenidoTercero({
     setAviso(null)
     try {
       onCambio(await accion())
+      setVersionHistorial((v) => v + 1)
       if (mensajeOk) setAviso(mensajeOk)
       return true
     } catch (e) {
@@ -429,6 +433,23 @@ function ContenidoTercero({
               onGuardar={guardarCuenta}
               onCancelar={() => setFormCuenta(null)}
             />
+          </div>
+        )}
+      </section>
+
+      {/* -------------------------------------------------------- historial */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">Historial</h3>
+          <Button size="sm" variant="outline" onClick={() => setVerHistorial((v) => !v)}>
+            <History className="mr-1.5 h-4 w-4" />
+            {verHistorial ? "Ocultar" : "Ver historial"}
+          </Button>
+        </div>
+        {verHistorial && (
+          <div className="rounded-lg border p-3">
+            {/* La versión cambia con cada cambio guardado: así el historial se vuelve a cargar. */}
+            <HistorialTimeline key={versionHistorial} tipo="tercero" id={tercero.id} />
           </div>
         )}
       </section>

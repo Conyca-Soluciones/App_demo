@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Loader2, Wrench } from "lucide-react"
+import { AlertTriangle, History, Loader2, Wrench } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -66,6 +67,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   const [sinItem, setSinItem] = useState(false)
 
   const [resolviendo, setResolviendo] = useState<Pago | null>(null)
+  const [historialDe, setHistorialDe] = useState<Pago | null>(null)
   const [alertas, setAlertas] = useState<AlertasConsolidado | null>(null)
   const [reintentando, setReintentando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -259,16 +261,29 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
     {
       clave: "acciones",
       titulo: "Acciones",
-      ancho: 120,
+      ancho: 160,
       ordenable: false,
       texto: () => "",
-      celda: (p) =>
-        puedeGestionar && puedeResolver(p) ? (
-          <Button size="sm" variant="outline" className="h-8" onClick={() => setResolviendo(p)}>
-            <Wrench className="mr-1.5 h-4 w-4" />
-            Tercero
+      celda: (p) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 shrink-0 p-0"
+            title="Historial del pago"
+            aria-label="Historial del pago"
+            onClick={() => setHistorialDe(p)}
+          >
+            <History className="h-4 w-4" />
           </Button>
-        ) : null,
+          {puedeGestionar && puedeResolver(p) && (
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setResolviendo(p)}>
+              <Wrench className="mr-1.5 h-4 w-4" />
+              Tercero
+            </Button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -456,6 +471,14 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
           setResolviendo(null)
           setPagos((actuales) => (actuales ? actuales.map((x) => (x.id === p.id ? p : x)) : actuales))
         }}
+      />
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="pago"
+        id={historialDe?.id ?? null}
+        titulo={`Historial del pago${historialDe?.item != null ? ` · ITEM ${historialDe.item}` : ""}`}
+        onCerrar={() => setHistorialDe(null)}
       />
     </div>
   )
