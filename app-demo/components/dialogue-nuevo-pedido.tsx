@@ -1,6 +1,6 @@
 "use client"
 
-import { hoyColombia, ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaSinHora, hoyColombia, ZONA_HORARIA } from "@/lib/fechas"
 
 // components/dialogue-nuevo-pedido.tsx
 //
@@ -64,6 +64,20 @@ function estadoLinea(linea: LineaPedido) {
   const completa =
     marcados.length > 0 && marcados.every((it) => esEntero(it.cantidad) && Number(it.cantidad) > 0)
   return { marcados, hayExceso, lista: completa && !hayExceso }
+}
+
+// Qué le falta a una línea para estar lista (null = está lista), para decirlo
+// en pantalla en vez de un mensaje genérico.
+function motivoLinea(linea: LineaPedido): string | null {
+  const { marcados, hayExceso, lista } = estadoLinea(linea)
+  if (lista) return null
+  if (linea.items.every((it) => it.cantidadDisponible <= 0))
+    return "Este insumo no tiene cupo disponible en el presupuesto. Quítalo para poder guardar."
+  if (marcados.length === 0) return "Marca al menos un ítem del presupuesto."
+  if (hayExceso) return "Una cantidad supera lo disponible en el presupuesto."
+  if (marcados.some((it) => it.cantidad.trim() === "")) return "Falta escribir la cantidad."
+  if (marcados.some((it) => !esEntero(it.cantidad))) return "Las cantidades deben ser números enteros."
+  return "La cantidad debe ser mayor que cero."
 }
 
 export function FormularioRequisicion({
@@ -213,8 +227,26 @@ export function FormularioRequisicion({
   // aprobado (calculado en SQL, ver cantidadDisponible). Si cualquier línea
   // no está lista, se bloquea el submit -- también se revalida en el
   // servidor dentro de crearPedido.
-  const lineasListas = lineas.length > 0 && lineas.every((l) => estadoLinea(l).lista)
-  const puedeGuardar = !!fechaRequerida && lineasListas && !guardando
+  const lineaPendiente = lineas.find((l) => motivoLinea(l) !== null)
+  const lineasListas = lineas.length > 0 && !lineaPendiente
+  // Fecha requerida anterior a hoy (Colombia). Al modificar, la fecha
+  // original se respeta aunque ya haya pasado; solo se revisa si se cambia.
+  const hoy = hoyColombia()
+  const fechaPasada =
+    !!fechaRequerida &&
+    fechaRequerida < hoy &&
+    !(edicion && fechaRequerida === edicion.fechaRequerida.slice(0, 10))
+  const puedeGuardar = !!fechaRequerida && !fechaPasada && lineasListas && !guardando
+  // Por qué el botón está deshabilitado (lo primero que falte).
+  const motivoNoGuardar = !fechaRequerida
+    ? "Falta la fecha requerida."
+    : fechaPasada
+      ? "La fecha requerida no puede ser anterior a hoy."
+      : lineas.length === 0
+        ? "Agrega al menos un insumo."
+        : lineaPendiente
+          ? `${lineaPendiente.insumo.insumoDescripcion}: ${motivoLinea(lineaPendiente)}`
+          : null
 
   async function handleGuardar() {
     if (!puedeGuardar) return
@@ -299,8 +331,13 @@ export function FormularioRequisicion({
                 value={fechaRequerida}
                 min={edicion ? undefined : fechaPedido}
                 onChange={(e) => setFechaRequerida(e.target.value)}
-                className="h-10"
+                className={`h-10 ${fechaPasada ? "border-destructive focus-visible:ring-destructive" : ""}`}
               />
+              {fechaPasada && (
+                <p className="text-xs text-destructive">
+                  La fecha requerida no puede ser anterior a hoy ({formatearFechaSinHora(hoy)}).
+                </p>
+              )}
             </div>
           </div>
 
@@ -330,7 +367,7 @@ export function FormularioRequisicion({
 
               <DropdownFlotante
                 anchorRef={inputRef}
-                abierto={(sugerencias.length > 0 || buscando) && !limiteAlcanzado}
+                abierto={puedeBuscar(busqueda) && !limiteAlcanzado}
               >
                 <div className="max-h-72 w-full overflow-auto rounded-lg border bg-background shadow-lg">
                   {buscando && (
@@ -340,7 +377,7 @@ export function FormularioRequisicion({
                     <div className="px-4 py-3 text-sm text-muted-foreground">
                       {sugerencias.length > 0
                         ? "Todos los insumos que coinciden ya están en la requisición."
-                        : `Ningún insumo de este presupuesto coincide con “${busqueda}”.`}
+                        : `No hay insumos con “${busqueda}” en el presupuesto de este proyecto, o están pendientes de aprobación.`}
                     </div>
                   )}
                   {sugerenciasNuevas.map((insumo) => (
@@ -372,7 +409,8 @@ export function FormularioRequisicion({
           ) : (
             <div className="space-y-3">
               {lineas.map((linea) => {
-                const { lista } = estadoLinea(linea)
+                const motivo = motivoLinea(linea)
+                const lista = motivo === null
                 const { insumo } = linea
 
                 return (
@@ -468,11 +506,7 @@ export function FormularioRequisicion({
                         )
                       })}
 
-                      {!lista && (
-                        <p className="pt-1 text-[11px] text-amber-800">
-                          Marca al menos un ítem y escribe su cantidad para poder guardar la requisición.
-                        </p>
-                      )}
+                      {motivo && <p className="pt-1 text-[11px] text-amber-800">{motivo}</p>}
                     </div>
                   </div>
                 )
@@ -501,7 +535,10 @@ export function FormularioRequisicion({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           {/* Acciones */}
-          <div className="flex justify-end gap-3 border-t pt-5">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-5">
+            {!guardando && motivoNoGuardar && (
+              <p className="mr-auto text-xs text-amber-800">{motivoNoGuardar}</p>
+            )}
             <Button
               variant="outline"
               onClick={() => (onTerminar ? onTerminar() : setReinicio((r) => r + 1))}

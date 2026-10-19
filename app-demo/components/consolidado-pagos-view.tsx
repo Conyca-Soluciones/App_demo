@@ -139,7 +139,10 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
     setSinItem(false)
   }
 
-  const totalPagina = pagos ? pagos.reduce((acc, p) => acc + p.valor, 0) : 0
+  // Los anulados y rechazados no se pagan: se listan pero no suman al total.
+  const pagosQueSuman = pagos ? pagos.filter((p) => p.estado !== "anulado" && p.estado !== "rechazado") : []
+  const totalPagina = pagosQueSuman.reduce((acc, p) => acc + p.valor, 0)
+  const pagosExcluidos = (pagos?.length ?? 0) - pagosQueSuman.length
 
   async function handleReintentar() {
     setReintentando(true)
@@ -433,6 +436,9 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
               <div className="text-right text-sm text-muted-foreground">
                 {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total de la página{" "}
                 <span className="font-medium text-foreground tabular-nums">{formatoMoneda(totalPagina)}</span>
+                {pagosExcluidos > 0 && (
+                  <> (sin {pagosExcluidos} {pagosExcluidos === 1 ? "anulado o rechazado" : "anulados o rechazados"})</>
+                )}
               </div>
             </>
           )}
