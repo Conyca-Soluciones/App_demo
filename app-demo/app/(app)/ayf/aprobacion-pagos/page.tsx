@@ -8,10 +8,12 @@ import { AprobacionPagosView } from "@/components/aprobacion-pagos-view"
 export default async function AprobacionPagosPage() {
   const permisos = await obtenerPermisosRol()
   const puedeAprobar = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("aprobar_pagos"))
+  // Volver a solicitar un pago de OC rechazado: aprobar_pagos o gestionar_pagos.
+  const puedeResolicitar = puedeAprobar || Boolean(permisos?.acciones.includes("gestionar_pagos"))
 
   return (
     <MarcoPagina titulo="Aprobación de pagos" subtitulo="Saldos de órdenes de compra y pagos de actas por aprobar">
-      <AprobacionPagosView puedeAprobar={puedeAprobar} />
+      <AprobacionPagosView puedeAprobar={puedeAprobar} puedeResolicitar={puedeResolicitar} />
     </MarcoPagina>
   )
 }

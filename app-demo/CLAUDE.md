@@ -1202,6 +1202,59 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   sobre las órdenes de TODOS los proyectos. Verificado: mismo resultado en los
   3 proyectos y en un caso de prueba con excedente.
 
+## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
+
+Decisiones del usuario:
+- **Presupuestos: "Enviar a aprobación insumos sin sugerencia"** (botón dentro del
+  diálogo de revisión, pestaña Insumos, junto a "Pendientes de resolver"; solo en
+  la versión vigente y si hay pendientes sin candidatos; envía directo, sin
+  confirmación, decisión del usuario). `enviarInsumosSinSugerencias`
+  primero vuelve a buscar candidatos (`candidatosInsumoPorTerminos`, el mismo
+  ranking del import) para las líneas INSUMO pendientes sin candidatos: el maestro
+  pudo cambiar desde el import; las que encuentran algo guardan sus candidatos y se
+  quedan para revisar. Las demás van a `enviar_insumos_sin_sugerencias`
+  (`20261117000000`, SECURITY INVOKER): una solicitud por insumo (descripción sin
+  mayúsculas ni espacios de más + unidad), todas sus líneas en
+  `solicitud_pendiente` con su cantidad del Excel; si ya hay una solicitud pendiente
+  igual, se suman a esa. Al aprobar, `sincronizar_apu_import_revision` crea la línea
+  de APU de cada una (ya soportaba varias líneas por solicitud).
+- **Aprobación de insumos por Excel** (banner en `/presupuestos/admin-insumos`,
+  `components/banner-precios-insumos.tsx`, `lib/excel-precios-insumos.ts`): Descargar
+  Excel = todas las solicitudes pendientes (insumo, unidad y cantidad pedida,
+  proyectos; se llenan tipo, unidad de compra, agrupación, precio SIN IVA, IVA y
+  presentación opcional, con listas desplegables desde una hoja oculta; ID interno en
+  columna oculta). Subir = cada fila con precio y completa se aprueba con
+  `aprobarSolicitudInsumo` (mismas reglas que la pantalla; tandas de 5, 3 a la vez,
+  `aprobarSolicitudesInsumoDesdeExcel`); sin precio se deja para después; errores
+  por fila. Exige `aprobar_insumos`.
+- **Recuperados 172 insumos borrados** (`20261117100000`): de los 911 que borró
+  `20261114200000`, vuelven los que tenían ≥ 3 compras y ≥ 80 % al 19 % (p. ej.
+  CEMENTO X 42.5 KG: 39 de 40 compras al 19 %), con su id, código e historial; IVA
+  19 % y vr_unitario = promedio sin IVA de sus compras al 19 % de los 12 meses antes
+  de su última compra (`usuario_modificacion = 'recuperado 2026-10-18'`). Las líneas
+  de APU y requisiciones borradas con ellos no vuelven. Los otros 739 siguen en
+  `respaldo_borrado_20261015`.
+
+## Prueba completa del flujo (2026-10-15)
+
+Probado de punta a punta sobre el proyecto ZZ-PRUEBA-FLUJO (presupuesto, insumo
+nuevo, requisiciones, OC, almacén, pagos, contratos, actas, control y 11 roles).
+Cambios que salieron de ahí (`20261116000000_insumo_rechazado_y_resolicitar_pago.sql`):
+- **Insumo nuevo rechazado avisa** a quien lo pidió (campanita, tipo
+  `insumo_rechazado`, entidad `presupuesto` -> /presupuestos), con ítem,
+  proyecto y motivo. Disparador `trg_notificar_insumo_rechazado` sobre
+  `solicitudes_insumos` (antes la solicitud se borraba y nadie se enteraba). No
+  avisa si rechaza quien pidió.
+- **Cantidad en la solicitud manual** (`solicitudes_insumos.cantidad`): el
+  editor de APU la pide y `aprobarSolicitudInsumo` crea la línea con esa
+  cantidad, en la unidad que se escribió (con conversión si la presentación lo
+  pide; si no cuadra, no deja aprobar) y revisa los errores. Antes entraba con
+  1 y sin unidad. Del import la cantidad ya salía de la línea del Excel.
+- **Volver a solicitar un pago de OC rechazado** (`resolicitar_pago`, acción
+  `aprobar_pagos` o `gestionar_pagos`; botón en Aprobación de pagos, filtro
+  Rechazados): crea un pago NUEVO por aprobar con los mismos datos; el
+  rechazado queda como registro. Los pagos de actas no (se corrige el acta).
+
 ## IVA en el maestro de insumos (2026-10-15)
 
 Decisión del usuario: el presupuesto va CON IVA (contratos con AIU: el IVA de
@@ -2529,11 +2582,20 @@ requisiciones · `20261009000000` quitar enviada · `20261010000000` entradas po
 orden · `20261010100000` rendimiento (Sofia) · `20261011000000` revisión de
 seguridad/rendimiento · `20261012000000` lista de entradas en SQL.
 Después: `20261108000000` cupo una vez por fila en la búsqueda de insumos de
-la requisición · `20261108100000` estado de requisiciones guardado.
+la requisición · `20261108100000` estado de requisiciones guardado ·
+`20261117000000` enviar insumos sin sugerencias · `20261117100000` recuperar
+insumos borrados.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
 ## Pendientes conocidos (no hechos)
+- **Ítems completos enviados como insumo** (2026-10-18, decisión del usuario:
+  dejarlo así por ahora). En el Excel del Malecón ~106 ítems tienen en la hoja
+  APU UNA sola línea tipo INSUMO que es el ítem mismo ("Ballena vilde o
+  similar. Suministro e instal.", bancas, motobombas, puertas). "Enviar a
+  aprobación insumos sin sugerencia" los manda como insumo nuevo. Opciones
+  pendientes: dejarlos (aprobar con tipo SUBCONTRATO - S), que el botón no los
+  mande y devolverlos a pendientes, o mandarlos con tipo SUBCONTRATO ya puesto.
 - Compras → requisiciones: el filtro "Solo pendientes por comprar" se aplica en
   JS después de traer todo el histórico del proyecto; con
   `requisiciones.estado_compra` guardado se puede filtrar en la base.

@@ -1055,7 +1055,7 @@ export type NotificacionTipo =
   | "minuta_devuelta"
   | "contrato_vencido"
   | "contrato_vencido_juridica"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta"
+export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta" | "presupuesto"
 
 export type Notificacion = {
   id: string

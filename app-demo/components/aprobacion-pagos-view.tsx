@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AlertTriangle, Check, Loader2, X } from "lucide-react"
+import { AlertTriangle, Check, Loader2, RotateCcw, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,7 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { aprobarPago, listarPagosAprobacion, rechazarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
+import { aprobarPago, listarPagosAprobacion, rechazarPago, resolicitarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
   CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
@@ -40,7 +40,13 @@ function EtiquetaEstado({ estado }: { estado: EstadoPago }) {
   )
 }
 
-export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean }) {
+export function AprobacionPagosView({
+  puedeAprobar,
+  puedeResolicitar,
+}: {
+  puedeAprobar: boolean
+  puedeResolicitar: boolean
+}) {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [pagos, setPagos] = useState<Pago[] | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -58,6 +64,8 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
   // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
   const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
   const [motivo, setMotivo] = useState("")
+  // Rechazados que ya se volvieron a solicitar en esta pantalla (se oculta el botón).
+  const [resolicitados, setResolicitados] = useState<Set<string>>(() => new Set())
 
   function cargar(filtros: FiltrosAprobacionPagos = ultimosFiltros, pag: number = pagina) {
     setUltimosFiltros(filtros)
@@ -105,6 +113,25 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
     } finally {
       setProcesandoId(null)
       setPorAprobar(null)
+    }
+  }
+
+  // El pago rechazado se queda como registro; el nuevo entra "por aprobar".
+  async function handleResolicitar(p: Pago) {
+    setProcesandoId(p.id)
+    setError(null)
+    try {
+      const nuevo = await resolicitarPago(p.id)
+      setResolicitados((prev) => new Set(prev).add(p.id))
+      setPagos((actuales) => {
+        if (!actuales) return actuales
+        const sigue = !ultimosFiltros.estado || ultimosFiltros.estado === nuevo.estado
+        return sigue ? [nuevo, ...actuales] : actuales
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo volver a solicitar el pago.")
+    } finally {
+      setProcesandoId(null)
     }
   }
 
@@ -222,10 +249,27 @@ export function AprobacionPagosView({ puedeAprobar }: { puedeAprobar: boolean })
               Rechazar
             </Button>
           </div>
-        ) : p.estado === "rechazado" && p.motivoRechazo ? (
-          <span className="truncate text-xs text-muted-foreground" title={p.motivoRechazo}>
-            {p.motivoRechazo}
-          </span>
+        ) : p.estado === "rechazado" ? (
+          <div className="flex min-w-0 items-center gap-2">
+            {puedeResolicitar && p.ordenNumero != null && !resolicitados.has(p.id) && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0"
+                disabled={procesandoId === p.id}
+                onClick={() => handleResolicitar(p)}
+                title="Crea un pago nuevo por aprobar con los mismos datos; este queda como registro"
+              >
+                <RotateCcw className="mr-1.5 h-4 w-4" />
+                Volver a solicitar
+              </Button>
+            )}
+            {p.motivoRechazo && (
+              <span className="truncate text-xs text-muted-foreground" title={p.motivoRechazo}>
+                {p.motivoRechazo}
+              </span>
+            )}
+          </div>
         ) : null,
     },
   ]

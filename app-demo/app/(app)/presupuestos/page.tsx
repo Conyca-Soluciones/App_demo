@@ -2029,6 +2029,7 @@ function PresupuestoDeProyecto() {
         tabInicial={tabInicialRevision}
         onCerrar={handleCerrarDialogoRevision}
         onCambio={(itemIds) => refrescarEstadosYValores(itemIds)}
+        presupuestoId={viendoVersionActual ? presupuestoDbId : null}
       />
     </>
   )

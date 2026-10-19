@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -33,18 +34,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
-    <div className="hidden w-1/2 flex-col items-center justify-center bg-[#2A85DB] text-white md:flex">        <div className="space-y-2 text-center">
-          <p className="text-3xl font-semibold tracking-tight">CONYCA SOLUCIONES SAS</p>
-          <p className="text-sm text-teal-100"></p>
-        </div>
+    <div className="flex min-h-screen bg-background">
+      {/* Panel de marca: azul CONYCA con los triángulos del logo */}
+      <div className="relative hidden w-1/2 overflow-hidden bg-gradient-to-br from-[#1f2f4d] via-[#2d4a7c] to-[#4266a2] text-white md:flex md:flex-col md:justify-between md:p-12">
+        <svg
+          aria-hidden
+          viewBox="0 0 200 180"
+          className="pointer-events-none absolute -right-16 -bottom-10 w-[520px] text-white opacity-[0.08]"
+        >
+          <polygon points="95,0 135,58 55,75" fill="currentColor" />
+          <polygon points="140,70 195,170 85,170" fill="currentColor" />
+          <polygon points="30,120 75,170 0,170" fill="currentColor" />
+        </svg>
+        <svg aria-hidden viewBox="0 0 200 180" className="h-12 w-12 text-white">
+          <polygon points="95,0 135,58 55,75" fill="currentColor" />
+          <polygon points="140,70 195,170 85,170" fill="currentColor" />
+          <polygon points="30,120 75,170 0,170" fill="currentColor" />
+        </svg>
+        <p className="relative text-xs text-white/50">CONYCA Soluciones S.A.S.</p>
       </div>
 
-      <div className="flex w-full items-center justify-center px-6 md:w-1/2">
-        <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-6">
+      <div className="flex w-full items-center justify-center bg-gradient-to-b from-[#f4f7fc] to-background px-6 md:w-1/2">
+        <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-7">
+          <Image
+            src="/logo-conyca360.png"
+            alt="CONYCA 360"
+            width={1120}
+            height={173}
+            priority
+            className="h-auto w-[260px]"
+          />
           <div className="space-y-1">
-            <h1 className="text-xl font-semibold">Bienvenido</h1>
-            
+            <h1 className="text-2xl font-semibold tracking-tight text-[#1f2f4d] dark:text-foreground">Bienvenido</h1>
+            <p className="text-sm text-muted-foreground">Ingresa con tu correo y contraseña.</p>
           </div>
 
           <div className="space-y-3">
@@ -76,7 +98,7 @@ export default function LoginPage() {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button type="submit" className="w-full" disabled={cargando}>
+          <Button type="submit" className="h-10 w-full bg-[#4266a2] text-white hover:bg-[#365689]" disabled={cargando}>
             {cargando ? "Entrando..." : "Entrar"}
           </Button>
 
