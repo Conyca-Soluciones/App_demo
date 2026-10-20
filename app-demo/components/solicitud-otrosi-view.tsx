@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CheckCircle2, Loader2, PencilLine, Plus, Search, Send, Trash2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, Eye, Loader2, PencilLine, Plus, Search, Send, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
@@ -11,6 +11,7 @@ import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { DetalleOtrosi } from "@/components/detalle-otrosi"
 import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
 import { rutaPdfOtrosi } from "@/components/otrosi-editor"
+import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { nombreTipoContrato, pesos } from "@/lib/contratos"
 import {
@@ -240,6 +241,8 @@ function FormularioOtrosi({
   const [justificacion, setJustificacion] = useState(edicion?.justificacion ?? "")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Contrato abierto en PDF (botón Ver).
+  const [viendo, setViendo] = useState<{ id: string; numeroContrato: string } | null>(null)
 
   // Al corregir uno devuelto el contrato ya está escogido: no hace falta la lista.
   useEffect(() => {
@@ -322,6 +325,9 @@ function FormularioOtrosi({
             {edicion.numeroContrato} · {nombreTipoContrato(edicion)} · {edicion.contratistaNombre}
           </p>
           <p className="text-muted-foreground">{edicion.objeto}</p>
+          <Button size="sm" variant="outline" onClick={() => setViendo({ id: edicion.contratoId, numeroContrato: edicion.numeroContrato })}>
+            <Eye className="size-4" /> Ver contrato
+          </Button>
           {edicion.motivo && <p className="text-orange-800">Motivo de la devolución: {edicion.motivo}</p>}
         </div>
       ) : (
@@ -399,7 +405,7 @@ function FormularioOtrosi({
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">2. Contrato abierto</h3>
               <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[640px] text-sm">
+                <table className="w-full min-w-[700px] text-sm">
                   <thead>
                     <tr className="bg-muted/60 text-left text-xs">
                       <th className="w-8 px-2 py-1.5" />
@@ -410,6 +416,7 @@ function FormularioOtrosi({
                       <th className="px-2 py-1.5 text-right">Valor</th>
                       <th className="px-2 py-1.5">Fin del plazo</th>
                       <th className="px-2 py-1.5 text-right">Otrosí</th>
+                      <th className="w-16 px-2 py-1.5" />
                     </tr>
                   </thead>
                   <tbody>
@@ -434,6 +441,19 @@ function FormularioOtrosi({
                         <td className="px-2 py-1.5 tabular-nums">{c.fechaFin ? formatearFechaSinHora(c.fechaFin) : "Sin fecha"}</td>
                         <td className="px-2 py-1.5 text-right text-xs text-muted-foreground">
                           {c.otrosisAprobados} aprob.{c.otrosisEnTramite > 0 && ` · ${c.otrosisEnTramite} en trámite`}
+                        </td>
+                        <td className="px-2 py-1 text-right">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            title={`Ver el contrato ${c.numeroContrato}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setViendo({ id: c.id, numeroContrato: c.numeroContrato })
+                            }}
+                          >
+                            <Eye className="size-3.5" /> Ver
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -540,6 +560,7 @@ function FormularioOtrosi({
           </div>
         </>
       )}
+      <VerContratoOtrosi contrato={viendo} onCerrar={() => setViendo(null)} />
     </div>
   )
 }

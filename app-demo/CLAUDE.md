@@ -2347,6 +2347,15 @@ código dice solo "GJ-F"). Decisiones del usuario:
 - Probada en un Postgres local con las funciones reales de permisos (flujo
   completo, vencido, liquidado, numeración); las escrituras por el MCP de
   Supabase se cortan a los 60 s.
+- **Ver contrato** (`20261120000000_ver_contrato_otrosi.sql`, pedido del
+  usuario): botón "Ver" en la tabla de contratos abiertos y "Ver contrato" al
+  corregir y en el detalle del otrosí (`components/ver-contrato-otrosi.tsx`).
+  Muestra la minuta GUARDADA del contrato aprobado (o la hoja del general) por
+  `POST /contratos/otrosi-pdf/contrato/[id]` con `contrato_para_ver_otrosi`
+  (pestaña de otrosí + ve el proyecto + minuta aprobada). El PDF por tipo de
+  contrato vive en `lib/pdf-minuta-contrato.tsx` (`pdfMinutaContrato`), que usa
+  también la ruta de Pre-aprobación. Contratos aprobados sin minuta guardada
+  (CJ-14) dicen que no la tienen.
 
 ## Menú de Contratos (2026-10-14)
 
@@ -2663,7 +2672,8 @@ Después: `20261108000000` cupo una vez por fila en la búsqueda de insumos de
 la requisición · `20261108100000` estado de requisiciones guardado ·
 `20261117000000` enviar insumos sin sugerencias · `20261117100000` recuperar
 insumos borrados · `20261118000000` solicitud de mano de obra
-(plantilla 04) · `20261119000000` otrosí.
+(plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
+desde otrosí.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

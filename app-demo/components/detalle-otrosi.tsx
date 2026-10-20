@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Eye, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { nombreTipoContrato, pesos } from "@/lib/contratos"
@@ -33,6 +35,7 @@ export function DetalleOtrosi({
   const [cargado, setCargado] = useState<{ id: string; detalle: OtrosiDetalle } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pestana, setPestana] = useState<"solicitud" | "documento">("solicitud")
+  const [verContrato, setVerContrato] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -51,116 +54,126 @@ export function DetalleOtrosi({
     setCargado(null)
     setError(null)
     setPestana("solicitud")
+    setVerContrato(false)
     onCerrar()
   }
 
   return (
-    <Dialog open={id !== null} onOpenChange={(abierto) => !abierto && cerrar()}>
-      <DialogContent
-        className={
-          documento
-            ? "flex h-[96svh] max-h-[96svh] w-[calc(100vw-1rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none"
-            : "max-h-[92svh] overflow-y-auto sm:max-w-3xl"
-        }
-      >
-        <DialogHeader>
-          <DialogTitle className="flex flex-wrap items-center gap-2">
-            {detalle
-              ? `${detalle.numero !== null ? `Otrosí N° ${detalle.numero}` : "Solicitud de otrosí"} · contrato ${detalle.numeroContrato}`
-              : "Otrosí"}
-            {detalle && (
-              <Badge variant="outline" className={CLASE_ESTADO_OTROSI[detalle.estado]}>
-                {ETIQUETA_ESTADO_OTROSI[detalle.estado]}
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+    <>
+      <Dialog open={id !== null} onOpenChange={(abierto) => !abierto && cerrar()}>
+        <DialogContent
+          className={
+            documento
+              ? "flex h-[96svh] max-h-[96svh] w-[calc(100vw-1rem)] max-w-none flex-col gap-4 overflow-hidden sm:max-w-none"
+              : "max-h-[92svh] overflow-y-auto sm:max-w-3xl"
+          }
+        >
+          <DialogHeader>
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              {detalle
+                ? `${detalle.numero !== null ? `Otrosí N° ${detalle.numero}` : "Solicitud de otrosí"} · contrato ${detalle.numeroContrato}`
+                : "Otrosí"}
+              {detalle && (
+                <Badge variant="outline" className={CLASE_ESTADO_OTROSI[detalle.estado]}>
+                  {ETIQUETA_ESTADO_OTROSI[detalle.estado]}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {documento && detalle && (
-          <div className="-mt-1 flex gap-1 border-b" role="tablist" aria-label="Secciones">
-            {(
-              [
-                ["solicitud", "Solicitud"],
-                ["documento", "Otrosí"],
-              ] as const
-            ).map(([valor, etiqueta]) => (
-              <button
-                key={valor}
-                type="button"
-                role="tab"
-                aria-selected={pestana === valor}
-                onClick={() => setPestana(valor)}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-                  pestana === valor ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {etiqueta}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className={documento ? "-mx-2 min-h-0 flex-1 overflow-y-auto px-2 [scrollbar-gutter:stable] [scrollbar-width:thin]" : "contents"}>
-          {!detalle && !error ? (
-            <div className="flex items-center justify-center py-10 text-muted-foreground">
-              <Loader2 className="mr-2 size-4 animate-spin" /> Cargando...
+          {documento && detalle && (
+            <div className="-mt-1 flex gap-1 border-b" role="tablist" aria-label="Secciones">
+              {(
+                [
+                  ["solicitud", "Solicitud"],
+                  ["documento", "Otrosí"],
+                ] as const
+              ).map(([valor, etiqueta]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="tab"
+                  aria-selected={pestana === valor}
+                  onClick={() => setPestana(valor)}
+                  className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+                    pestana === valor ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {etiqueta}
+                </button>
+              ))}
             </div>
-          ) : (
-            detalle && (
-              <div className="space-y-5 text-sm">
-                <AvisoMotivo detalle={detalle} />
-                {documento && pestana === "documento" ? (
-                  documento(detalle)
-                ) : (
-                  <>
-                    <Tabla
-                      titulo="Contrato"
-                      filas={[
-                        ["Contrato", `${detalle.numeroContrato} · ${nombreTipoContrato(detalle)}`],
-                        ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
-                        ["Contratista", detalle.contratistaNombre],
-                        ["Objeto", detalle.objeto],
-                        ["Valor", pesos(detalle.valor)],
-                        ["Fin del plazo", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
-                      ]}
-                    />
-                    <Tabla
-                      titulo="Solicitud"
-                      filas={[
-                        ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
-                        ["Justificación", <span key="j" className="whitespace-pre-line">{detalle.justificacion}</span>],
-                        ...(detalle.numero !== null && detalle.aprobadoAt
-                          ? ([["Aprobado", `${detalle.aprobadoPorNombre ?? "—"} · ${fechaContrato(detalle.aprobadoAt)}`]] as [string, React.ReactNode][])
-                          : []),
-                      ]}
-                    />
-                    <div className="space-y-2">
-                      <h3 className="text-xs font-semibold text-muted-foreground uppercase">Cláusulas que se modifican</h3>
-                      <ol className="space-y-2">
-                        {detalle.modificaciones.map((m, i) => (
-                          <li key={i} className="rounded-md border p-3">
-                            <p className="font-medium">
-                              {i + 1}. {m.clausula}
-                            </p>
-                            <p className="mt-1 whitespace-pre-line text-muted-foreground">{m.redaccion}</p>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-xs font-semibold text-muted-foreground uppercase">Historial</h3>
-                      <HistorialTimeline tipo="otrosi" id={detalle.id} />
-                    </div>
-                  </>
-                )}
-                {acciones && <div className="flex flex-wrap justify-end gap-2 border-t pt-4">{acciones(detalle)}</div>}
-              </div>
-            )
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+          <div className={documento ? "-mx-2 min-h-0 flex-1 overflow-y-auto px-2 [scrollbar-gutter:stable] [scrollbar-width:thin]" : "contents"}>
+            {!detalle && !error ? (
+              <div className="flex items-center justify-center py-10 text-muted-foreground">
+                <Loader2 className="mr-2 size-4 animate-spin" /> Cargando...
+              </div>
+            ) : (
+              detalle && (
+                <div className="space-y-5 text-sm">
+                  <AvisoMotivo detalle={detalle} />
+                  {documento && pestana === "documento" ? (
+                    documento(detalle)
+                  ) : (
+                    <>
+                      <Tabla
+                        titulo="Contrato"
+                        filas={[
+                          ["Contrato", `${detalle.numeroContrato} · ${nombreTipoContrato(detalle)}`],
+                          ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
+                          ["Contratista", detalle.contratistaNombre],
+                          ["Objeto", detalle.objeto],
+                          ["Valor", pesos(detalle.valor)],
+                          ["Fin del plazo", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
+                        ]}
+                      />
+                      <Button size="sm" variant="outline" onClick={() => setVerContrato(true)}>
+                        <Eye className="size-4" /> Ver contrato
+                      </Button>
+                      <Tabla
+                        titulo="Solicitud"
+                        filas={[
+                          ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
+                          ["Justificación", <span key="j" className="whitespace-pre-line">{detalle.justificacion}</span>],
+                          ...(detalle.numero !== null && detalle.aprobadoAt
+                            ? ([["Aprobado", `${detalle.aprobadoPorNombre ?? "—"} · ${fechaContrato(detalle.aprobadoAt)}`]] as [string, React.ReactNode][])
+                            : []),
+                        ]}
+                      />
+                      <div className="space-y-2">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase">Cláusulas que se modifican</h3>
+                        <ol className="space-y-2">
+                          {detalle.modificaciones.map((m, i) => (
+                            <li key={i} className="rounded-md border p-3">
+                              <p className="font-medium">
+                                {i + 1}. {m.clausula}
+                              </p>
+                              <p className="mt-1 whitespace-pre-line text-muted-foreground">{m.redaccion}</p>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase">Historial</h3>
+                        <HistorialTimeline tipo="otrosi" id={detalle.id} />
+                      </div>
+                    </>
+                  )}
+                  {acciones && <div className="flex flex-wrap justify-end gap-2 border-t pt-4">{acciones(detalle)}</div>}
+                </div>
+              )
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <VerContratoOtrosi
+        contrato={verContrato && detalle ? { id: detalle.contratoId, numeroContrato: detalle.numeroContrato } : null}
+        onCerrar={() => setVerContrato(false)}
+      />
+    </>
   )
 }
 
