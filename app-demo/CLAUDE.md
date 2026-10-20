@@ -1253,6 +1253,13 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   `TipoHistorial` / `NOMBRE_TIPO_HISTORIAL`.
 - El documento reemplazado de un contratista se sigue borrando del bucket
   (solo queda su nombre en el historial).
+- **Proveedores con el mínimo acceso** (`20261118300000_proveedores_lectura_minima.sql`,
+  E2; regla del usuario: acceso a las tablas solo para quien lo necesita):
+  todos los proveedores = Comprar, Editar proveedores, pestaña Proveedores o
+  Administrador; además, quien tiene Registro de OC, Aprobación de OC o Control
+  del proyecto lee SOLO los proveedores de las órdenes que ya puede ver
+  (`proveedores_select_de_ordenes`, subconsulta sobre ordenes_compra con su
+  RLS). Sin sesión, nada. `informacion_bancaria` sigue solo Compras/Administrador.
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 

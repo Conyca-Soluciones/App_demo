@@ -258,5 +258,9 @@ select * from (
          and exists (select 1 from pg_trigger where tgname = 'trg_historial_contratista')
          and exists (select 1 from pg_trigger where tgname = 'trg_historial_usuario')
          and position('''contratista''' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
+  union all
+  select '20261118300000_proveedores_lectura_minima',
+         exists (select 1 from pg_policies where tablename = 'proveedores' and policyname = 'proveedores_select_de_ordenes')
+         and not has_table_privilege('anon', 'public.proveedores', 'select')
 ) t
 order by 1;
