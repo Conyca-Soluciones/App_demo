@@ -2293,11 +2293,17 @@ hoja PDF (no minuta larga); actas generales después.
 
 `20261119000000_otrosis.sql`, plantilla "OTROSÍ" versión 04 (9/05/2025; su
 código dice solo "GJ-F"). Decisiones del usuario:
-- **Solo documento**: el otrosí NO cambia el plazo, el valor ni el anexo del
-  contrato en el sistema (actas y aviso de vencido siguen con lo inicial); lo
-  que cambie (cantidades, valor, plazo) se escribe en la redacción de la
-  cláusula nueva.
-- **No hay otrosí si el plazo inicial ya pasó** (`_fecha_fin_contrato` < hoy
+- **Documento + prórroga opcional**: el otrosí NO cambia el valor ni el anexo
+  del contrato en el sistema; lo que cambie se escribe en la redacción de la
+  cláusula nueva. Lo único que sí aplica es la **prórroga**
+  (`20261123000000_otrosi_prorroga.sql`): en la solicitud un check "¿Se va a
+  extender la fecha?" con la nueva fecha (`otrosis.nueva_fecha_fin`). Al
+  quedar aprobado, `_fecha_fin_contrato` devuelve la del último otrosí
+  aprobado con prórroga (o la inicial, `_fecha_fin_inicial_contrato`), así
+  que actas (vencido), aviso de vencido, contratos abiertos para otrosí y el
+  detalle usan la fecha extendida. `_validar_prorroga_otrosi` exige que sea
+  posterior al fin vigente y a hoy (al crear, reenviar, enviar y aprobar).
+- **No hay otrosí si el plazo vigente ya pasó** (`_fecha_fin_contrato` < hoy
   Colombia; sin fecha fin, p. ej. duración sin inicio, no vence). Se revisa al
   crear, reenviar, enviar a Subgerencia y aprobar
   (`_exigir_contrato_para_otrosi`, que además exige contrato aprobado con
@@ -2528,8 +2534,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   saldo a favor de la empresa, sin pago; exige que no haya actas por aprobar).
   Aprobar la liquidación pone `contratos.liquidado_at`: no recibe más actas.
 - **Vencido** (`_fecha_fin_contrato`: fecha fin, o inicio + duración; sin
-  inicio no vence): no recibe actas de avance, solo la de liquidación (para
-  ampliar el plazo hará falta el otrosí, pendiente). pg_cron diario
+  inicio no vence; con otrosí aprobado con prórroga, su nueva fecha): no
+  recibe actas de avance, solo la de liquidación. pg_cron diario
   `avisar-contratos-vencidos` (6:10 a. m. Colombia, `_avisar_contratos_vencidos`):
   una sola vez por contrato (`contratos.aviso_vencido_at`) a quien lo pidió
   (`contrato_vencido` -> Contratos por grupos) y a Legal / Líder Legal que vean
@@ -2598,8 +2604,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: (otrosí hecho el 2026-10-20 como solo documento: no amplía el
-  plazo ni el valor en el sistema),
+- **Pendiente**: (otrosí: amplía el plazo con la prórroga, pero no el valor
+  en el sistema),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -2694,7 +2700,8 @@ la requisición · `20261108100000` estado de requisiciones guardado ·
 insumos borrados · `20261118000000` solicitud de mano de obra
 (plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
 desde otrosí · `20261121000000` otrosí en el contrato ·
-`20261122000000` historial del contrato con sus otrosí.
+`20261122000000` historial del contrato con sus otrosí ·
+`20261123000000` prórroga del otrosí (nueva fecha de terminación).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

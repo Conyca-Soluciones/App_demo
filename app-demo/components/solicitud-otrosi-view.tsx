@@ -12,7 +12,7 @@ import { DetalleOtrosi } from "@/components/detalle-otrosi"
 import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
 import { rutaPdfOtrosi } from "@/components/otrosi-editor"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
-import { formatearFechaSinHora } from "@/lib/fechas"
+import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import { nombreTipoContrato, pesos } from "@/lib/contratos"
 import {
   CLASE_ESTADO_OTROSI,
@@ -239,6 +239,9 @@ function FormularioOtrosi({
   const [contratoId, setContratoId] = useState<string | null>(edicion?.contratoId ?? null)
   const [modificaciones, setModificaciones] = useState<ModificacionOtrosi[]>(edicion?.modificaciones ?? [{ clausula: "", redaccion: "" }])
   const [justificacion, setJustificacion] = useState(edicion?.justificacion ?? "")
+  // Prórroga: si se marca, la fecha nueva pasa a ser el fin del contrato al aprobarse.
+  const [extender, setExtender] = useState(Boolean(edicion?.nuevaFechaFin))
+  const [nuevaFechaFin, setNuevaFechaFin] = useState(edicion?.nuevaFechaFin ?? "")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Contrato abierto en PDF (botón Ver).
@@ -279,6 +282,7 @@ function FormularioOtrosi({
     : contratistas
   const delContratista = contratistaId ? (porContratista.get(contratistaId) ?? []) : []
   const contratistaElegido = contratistas.find((k) => k.id === contratistaId) ?? null
+  const finVigente = edicion ? edicion.fechaFin : (delContratista.find((x) => x.id === contratoId)?.fechaFin ?? null)
 
   function cambiar(i: number, cambio: Partial<ModificacionOtrosi>) {
     setModificaciones((l) => l.map((x, j) => (j === i ? { ...x, ...cambio } : x)))
@@ -286,7 +290,17 @@ function FormularioOtrosi({
   }
 
   async function enviar() {
-    const problema = validarSolicitudOtrosi({ contratoId, modificaciones, justificacion })
+    const fechaProrroga = extender ? nuevaFechaFin : null
+    if (extender && !nuevaFechaFin) {
+      setError("Escoge la nueva fecha de terminación o quita la marca de extender la fecha.")
+      return
+    }
+    const problema = validarSolicitudOtrosi({
+      contratoId,
+      modificaciones,
+      justificacion,
+      prorroga: { nuevaFechaFin: fechaProrroga, finVigente, hoy: hoyColombia() },
+    })
     if (problema) {
       setError(problema)
       return
@@ -296,10 +310,10 @@ function FormularioOtrosi({
     try {
       const mods = modificaciones.map((m) => ({ clausula: m.clausula.trim(), redaccion: m.redaccion.trim() }))
       if (edicion) {
-        await reenviarOtrosi(edicion.id, mods, justificacion.trim())
+        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga)
         onTerminado(`Otrosí al contrato ${edicion.numeroContrato} corregido y enviado otra vez a Jurídica.`)
       } else {
-        await crearOtrosi(contratoId!, mods, justificacion.trim())
+        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga)
         const c = delContratista.find((x) => x.id === contratoId)
         onTerminado(`Otrosí al contrato ${c?.numeroContrato ?? ""} enviado a Jurídica.`)
       }
@@ -547,6 +561,48 @@ function FormularioOtrosi({
               disabled={enviando}
               className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
             />
+          </section>
+
+          <section className="space-y-2 rounded-md border p-3">
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={extender}
+                onChange={(e) => {
+                  setExtender(e.target.checked)
+                  setError(null)
+                }}
+                disabled={enviando}
+                className="size-4"
+              />
+              ¿Se va a extender la fecha de terminación del contrato?
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Fin vigente: {finVigente ? formatearFechaSinHora(finVigente) : "sin fecha (sin inicio definido)"}
+            </p>
+            {extender && (
+              <div className="space-y-1">
+                <label htmlFor="otrosi-nueva-fecha" className="text-sm">
+                  Nueva fecha de terminación *
+                </label>
+                <input
+                  id="otrosi-nueva-fecha"
+                  type="date"
+                  value={nuevaFechaFin}
+                  min={finVigente && finVigente > hoyColombia() ? finVigente : hoyColombia()}
+                  onChange={(e) => {
+                    setNuevaFechaFin(e.target.value)
+                    setError(null)
+                  }}
+                  disabled={enviando}
+                  className="block rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Cuando el otrosí quede aprobado, esta pasa a ser la fecha de terminación del contrato (actas, avisos de vencimiento y
+                  nuevos otrosí). Recuerda modificar también la cláusula del plazo arriba.
+                </p>
+              </div>
+            )}
           </section>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

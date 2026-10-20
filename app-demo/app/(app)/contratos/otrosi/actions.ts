@@ -40,7 +40,8 @@ export async function contratosParaOtrosi(): Promise<ContratoParaOtrosi[]> {
   return ((data ?? []) as Record<string, unknown>[]).map(mapContratoParaOtrosi)
 }
 
-export async function crearOtrosi(contratoId: string, modificaciones: ModificacionOtrosi[], justificacion: string): Promise<string> {
+// nuevaFechaFin: prórroga opcional (la base revisa que amplíe el plazo vigente).
+export async function crearOtrosi(contratoId: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null): Promise<string> {
   await requerirAccion("solicitar_contratos")
   const problema = validarSolicitudOtrosi({ contratoId, modificaciones, justificacion })
   if (problema) throw new Error(problema)
@@ -49,17 +50,23 @@ export async function crearOtrosi(contratoId: string, modificaciones: Modificaci
     p_contrato_id: contratoId,
     p_modificaciones: modificaciones,
     p_justificacion: justificacion,
+    p_nueva_fecha_fin: nuevaFechaFin || null,
   })
   if (error) throw new Error(error.message)
   return data as string
 }
 
-export async function reenviarOtrosi(id: string, modificaciones: ModificacionOtrosi[], justificacion: string): Promise<void> {
+export async function reenviarOtrosi(id: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null): Promise<void> {
   await requerirAccion("solicitar_contratos")
   const problema = validarSolicitudOtrosi({ contratoId: id, modificaciones, justificacion })
   if (problema) throw new Error(problema)
   const supabase = await createClient()
-  const { error } = await supabase.rpc("reenviar_otrosi", { p_id: id, p_modificaciones: modificaciones, p_justificacion: justificacion })
+  const { error } = await supabase.rpc("reenviar_otrosi", {
+    p_id: id,
+    p_modificaciones: modificaciones,
+    p_justificacion: justificacion,
+    p_nueva_fecha_fin: nuevaFechaFin || null,
+  })
   if (error) throw new Error(error.message)
 }
 

@@ -127,7 +127,7 @@ export function DetalleOtrosi({
                           ["Contratista", detalle.contratistaNombre],
                           ["Objeto", detalle.objeto],
                           ["Valor", pesos(detalle.valor)],
-                          ["Fin del plazo", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
+                          ["Fin del plazo vigente", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
                         ]}
                       />
                       <Button size="sm" variant="outline" onClick={() => setVerContrato(true)}>
@@ -138,6 +138,12 @@ export function DetalleOtrosi({
                         filas={[
                           ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
                           ["Justificación", <span key="j" className="whitespace-pre-line">{detalle.justificacion}</span>],
+                          [
+                            "Extiende la fecha",
+                            detalle.nuevaFechaFin
+                              ? `Sí, hasta el ${formatearFechaSinHora(detalle.nuevaFechaFin)}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
+                              : "No",
+                          ],
                           ...(detalle.numero !== null && detalle.aprobadoAt
                             ? ([["Aprobado", `${detalle.aprobadoPorNombre ?? "—"} · ${fechaContrato(detalle.aprobadoAt)}`]] as [string, React.ReactNode][])
                             : []),

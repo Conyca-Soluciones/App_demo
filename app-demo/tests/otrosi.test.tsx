@@ -70,6 +70,15 @@ describe("solicitud de otrosí", () => {
     expect(validarSolicitudOtrosi({ ...base, justificacion: "  " })).toBe("Escribe por qué se necesita el otrosí.")
     expect(validarSolicitudOtrosi({ ...base, modificaciones: Array.from({ length: 21 }, () => base.modificaciones[0]) })).toMatch(/Máximo 20/)
   })
+  it("prórroga: después del fin vigente y de hoy", () => {
+    const pr = (nuevaFechaFin: string | null, finVigente: string | null) => ({ ...base, prorroga: { nuevaFechaFin, finVigente, hoy: "2026-10-20" } })
+    expect(validarSolicitudOtrosi(pr(null, "2026-12-31"))).toBeNull()
+    expect(validarSolicitudOtrosi(pr("2027-01-31", "2026-12-31"))).toBeNull()
+    expect(validarSolicitudOtrosi(pr("2026-12-31", "2026-12-31"))).toMatch(/posterior a la vigente/)
+    expect(validarSolicitudOtrosi(pr("2026-10-20", null))).toMatch(/posterior a hoy/)
+    expect(validarSolicitudOtrosi(pr("2026-11-01", null))).toBeNull()
+    expect(validarSolicitudOtrosi(pr("31/12/2026", null))).toMatch(/no es válida/)
+  })
   it("vencido: fin antes de hoy; sin fecha no vence", () => {
     expect(contratoVencido("2026-10-19", "2026-10-20")).toBe(true)
     expect(contratoVencido("2026-10-20", "2026-10-20")).toBe(false)

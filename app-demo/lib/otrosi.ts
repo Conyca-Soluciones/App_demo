@@ -33,6 +33,8 @@ export type OtrosiDeContrato = {
   solicitadoPorNombre: string | null
   createdAt: string
   aprobadoAt: string | null
+  // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
+  nuevaFechaFin: string | null
 }
 
 export type EstadoOtrosi = "por_revisar" | "devuelta" | "rechazada" | "en_revision" | "devuelta_subgerencia" | "aprobada"
@@ -100,6 +102,8 @@ export type OtrosiFila = {
   enviadaSubgerenciaAt: string | null
   enviadaSubgerenciaPorNombre: string | null
   aprobadoAt: string | null
+  // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
+  nuevaFechaFin: string | null
 }
 
 export type ContratistaOtrosi = {
@@ -184,6 +188,7 @@ export function mapOtrosiFila(x: Fila): OtrosiFila {
     enviadaSubgerenciaAt: textoONulo(x.enviada_subgerencia_at),
     enviadaSubgerenciaPorNombre: textoONulo(x.enviada_subgerencia_por_nombre),
     aprobadoAt: textoONulo(x.aprobado_at),
+    nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
   }
 }
 
@@ -225,7 +230,14 @@ export function mapOtrosiDetalle(x: Fila): OtrosiDetalle {
 export const MAXIMO_MODIFICACIONES_OTROSI = 20
 
 // Lo mismo que revisa la base (_normalizar_modificaciones_otrosi y crear_otrosi).
-export function validarSolicitudOtrosi(s: { contratoId: string | null; modificaciones: ModificacionOtrosi[]; justificacion: string }): string | null {
+// `prorroga` (opcional): la nueva fecha de terminación, que tiene que quedar
+// después del fin vigente del contrato y de hoy (_validar_prorroga_otrosi).
+export function validarSolicitudOtrosi(s: {
+  contratoId: string | null
+  modificaciones: ModificacionOtrosi[]
+  justificacion: string
+  prorroga?: { nuevaFechaFin: string | null; finVigente: string | null; hoy: string }
+}): string | null {
   if (!s.contratoId) return "Escoge el contrato."
   const mods = s.modificaciones
   if (mods.length === 0) return "Agrega al menos una cláusula a modificar."
@@ -238,10 +250,16 @@ export function validarSolicitudOtrosi(s: { contratoId: string | null; modificac
   }
   if (!s.justificacion.trim()) return "Escribe por qué se necesita el otrosí."
   if (s.justificacion.trim().length > 5000) return "La justificación es muy larga (máximo 5.000 caracteres)."
+  const p = s.prorroga
+  if (p?.nuevaFechaFin) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.nuevaFechaFin)) return "La nueva fecha de terminación no es válida."
+    if (p.finVigente && p.nuevaFechaFin <= p.finVigente) return "La nueva fecha de terminación tiene que ser posterior a la vigente."
+    if (p.nuevaFechaFin <= p.hoy) return "La nueva fecha de terminación tiene que ser posterior a hoy."
+  }
   return null
 }
 
-// El plazo inicial ya terminó (la base tampoco deja hacer otrosí).
+// El plazo vigente ya terminó (la base tampoco deja hacer otrosí).
 export const contratoVencido = (fechaFin: string | null, hoy: string) => Boolean(fechaFin && fechaFin < hoy)
 
 // ---------------------------------------------------------------- documento (minuta del otrosí)
@@ -385,4 +403,5 @@ export const mapOtrosiDeContrato = (x: Fila): OtrosiDeContrato => ({
   solicitadoPorNombre: textoONulo(x.solicitado_por_nombre),
   createdAt: texto(x.created_at),
   aprobadoAt: textoONulo(x.aprobado_at),
+  nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
 })
