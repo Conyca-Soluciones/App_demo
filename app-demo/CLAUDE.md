@@ -2088,7 +2088,7 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   fecha de inicio salen del plazo; las obligaciones específicas se suman a las
   del arrendador. IVA (más / incluido) y servicios públicos (los paga el
   arrendatario / incluidos en el canon) son selectores; el parágrafo de
-  propiedad horizontal es editable. Número: "Nº CJ-<numero> DE <año de firma>".
+  propiedad horizontal es editable. Número: "No. CJ-<numero>-<año de firma>" (la plantilla decía "Nº CJ-<numero> DE <año>"; unificado a pedido del usuario, 2026-10-20).
   La ruta del PDF elige la plantilla por `contratos.tipo` (de la base, no del
   navegador); misma columna `minuta_datos` y misma `guardar_minuta_contrato`
   (sin migración). Las piezas de UI comunes a las dos minutas (origen de cada
@@ -2105,7 +2105,7 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   línea GL con el objeto); forma de pago = texto de la plantilla + anticipo +
   la de la solicitud; plazo en días calendario; tabla de amparos editable (el
   de buen manejo de anticipo solo si hay anticipo); cláusula penal 10 % y
-  multa diaria 0,2 % editables. Número "Nº CJ-<numero>-<año>". La tabla de
+  multa diaria 0,2 % editables. Número "No. CJ-<numero>-<año>" (unificado 2026-10-20). La tabla de
   ítems del editor es `TablaItemsMinuta` (minuta-comun, también la usa mano de
   obra).
 - **PDF de minutas: texto en un solo nodo.** `P` y `Clausula`
