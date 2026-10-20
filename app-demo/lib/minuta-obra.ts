@@ -1,6 +1,10 @@
 // ---------------------------------------------------------------------------
 // Minuta del contrato de obra a todo costo (formato de Jurídica "CONTRATO DE
-// OBRA TC", versión 04).
+// OBRA TC", versión 04) y del contrato de mano de obra (GJ-F-003 versión 04,
+// 9/05/2025): las dos plantillas tienen las mismas 27 cláusulas y casi el
+// mismo texto; `variante` dice cuál es. Las minutas de mano de obra hechas con
+// la plantilla anterior (versión 01, lib/minuta-mano-obra.ts) no tienen
+// `variante` y siguen con su PDF de siempre (esMinutaManoObra04).
 //
 // Igual que las demás minutas: todo lo que la plantilla deja en "XXX" es un
 // campo de MinutaObra, se llena con los datos de la solicitud
@@ -26,9 +30,13 @@ import type { AmparoGarantia } from "@/lib/minuta-suministro"
 
 export const VERSION_MINUTA_OBRA = 1
 
+export type VarianteMinutaObra = "obra" | "mano_obra"
+
 export type MinutaObra = {
   v: number
-  // Firma (cierre)
+  // "obra" = a todo costo; "mano_obra" = solo mano de obra
+  variante: VarianteMinutaObra
+  // Firma (cierre). Obra: "en el Departamento de …"; mano de obra: "en …"
   departamentoFirma: string
   fechaFirma: string // AAAA-MM-DD
   // Contratante: la empresa del proyecto
@@ -67,11 +75,12 @@ export type MinutaObra = {
   obligacionesContratante: string[]
   obligacionesGenerales: string[]
   obligacionesEspecificas: string[]
-  // Décima octava: garantías
+  // Décima octava: garantías ("no" solo en mano de obra: no se exigen)
+  exigeGarantia: "si" | "no"
   amparos: AmparoGarantia[]
   // Décima novena: domicilio
   domicilioDepartamento: string
-  // Vigésima quinta: lugar de ejecución
+  // Vigésima quinta: lugar de ejecución (obra: municipio; mano de obra: departamento)
   municipioEjecucion: string
   // Cláusulas agregadas después de la vigésima séptima
   clausulasAdicionales: ClausulaAdicional[]
@@ -123,6 +132,58 @@ export const OBLIGACIONES_ESPECIFICAS_OBRA = [
   "Atender oportunamente cualquier garantía de los trabajos solicitada por el Contratante, en caso de no atenderla el contratante bajo sus propios medios, buscará subsanar la situación presentada y se descontará del valor por pagar del saldo total a favor del contratista.",
   "Entregar las actividades completamente terminadas y en condiciones de recibo a satisfacción del contratante.",
   "Presentar los soportes de calidad de materiales cuando estos sean requeridos conforme a las especificaciones técnicas del proyecto.",
+]
+
+// ---------------------------------------------------------------- mano de obra (GJ-F-003 versión 04)
+export const OBLIGACIONES_CONTRATANTE_MANO_OBRA = [
+  "Proporcionar a el contratista toda la información necesaria para la adecuada ejecución del objeto contractual.",
+  "Pagar oportunamente el valor del contrato, de conformidad con las condiciones establecidas en el presente documento.",
+  "El contratante se reserva la facultad de dirigir, coordinar y supervisar las actividades de mano de obra a través del supervisor que designe el contratante.",
+  "Exigir al contratista la ejecución idónea y oportuna del objeto del contrato.",
+  "Suministrar oportunamente los materiales e insumos principales que, de acuerdo con el objeto contractual, sean de su responsabilidad.",
+  "Entregar oportunamente las áreas de trabajo necesarias para la ejecución de las actividades contratadas.",
+  "Facilitar la coordinación necesaria para la adecuada ejecución de las actividades.",
+  "Recibir y revisar los informes, actas y demás entregables presentados por el contratista.",
+]
+
+export const OBLIGACIONES_GENERALES_MANO_OBRA = [
+  "Cumplir con lo pactado en este negocio jurídico conforme a lo establecido en el objeto del presente contrato y plazo determinado de acuerdo con las actividades establecidas.",
+  "Realizar su mejor esfuerzo en la ejecución, terminación y entrega de las actividades de mano de obra contratada de modo diligente y competente, dentro de los plazos acordados.",
+  "Obrar con lealtad y buena fe.",
+  "Realizar las afiliaciones al sistema de seguridad social de los empleados que disponga para la ejecución del presente contrato.",
+  "Reportar al contratante cualquier novedad o anomalía que impida la normal ejecución del contrato.",
+  "Responder ante el contratante por la ejecución de actividades que realicen los dependientes del contratista o terceros contratados por éste. El contratista garantizará el trabajo de dichos terceros y de la observancia de los protocolos de salud y seguridad en el trabajo de acuerdo a los reglamentos aplicables al contratante.",
+  "Mantener indemne al contratante, por todo daño a terceros y a bienes que puedan realizar los empleados y/o dependientes del contratista.",
+  "Realizar de manera cumplida los pagos de seguridad social, salarios, liquidaciones, prestaciones sociales y exámenes médicos.",
+  "Aplicar el Sistema Integrado de Gestión, como también cumplir con lo estipulado en el reglamento interno de trabajo, código de conducta y obligaciones en materia de seguridad y salud en el trabajo, sin perjuicio del régimen disciplinario laboral que aplique el contratista a sus dependientes.",
+  "Mantener durante la ejecución del contrato el personal suficiente y técnicamente competente para cumplir oportunamente las actividades contratadas.",
+  "Entregar oportunamente los soportes e informes requeridos por el contratante.",
+]
+
+export const OBLIGACIONES_ESPECIFICAS_MANO_OBRA = [
+  "Ejecutar las actividades de mano de obra correspondientes a las obras civiles objeto del presente contrato.",
+  "Suministrar la totalidad de la mano de obra necesaria para la ejecución de las actividades contratadas.",
+  "Suministrar las herramientas menores y equipos menores que sean necesarios para la ejecución de las actividades, siempre que estos se encuentren comprendidos dentro del alcance económico pactado.",
+  "Ejecutar los trabajos de acuerdo con las cantidades, especificaciones técnicas, diseños, instrucciones y programación aprobados.",
+  "Ejecutar las actividades cumpliendo los estándares de calidad, seguridad y oportunidad exigidos para el proyecto.",
+  "Mantener un registro fotográfico periódico del avance de las actividades ejecutadas.",
+  "Presentar los informes y soportes requeridos por EL CONTRATANTE y/o el supervisor.",
+  "Presentar periódicamente las planillas de seguridad social correspondientes al personal que intervenga en la ejecución del contrato.",
+  "Presentar la relación actualizada del personal vinculado a la obra.",
+  "No modificar cantidades, especificaciones, actividades o alcances sin autorización previa y escrita del supervisor o de EL CONTRATANTE.",
+  "Utilizar de manera adecuada y eficiente los materiales suministrados por EL CONTRATANTE.",
+  "Responder por pérdidas, daños o desperdicios de materiales cuando estos sean imputables a EL CONTRATISTA, sus trabajadores o dependientes.",
+  "Atender oportunamente las deficiencias de ejecución que sean atribuibles a EL CONTRATISTA.",
+  "Mantener un trato respetuoso con los beneficiarios, trabajadores, funcionarios, supervisores y demás personas relacionadas con el proyecto.",
+  "Garantizar permanentemente la presencia en obra de un técnico, ingeniero civil, arquitecto, maestro de obra o persona con experiencia suficiente para coordinar las actividades de mano de obra, según las necesidades del proyecto.",
+  "Mantener las áreas intervenidas en condiciones adecuadas de orden y aseo.",
+  "Recoger y acopiar los escombros generados por las actividades ejecutadas en los lugares indicados por el supervisor, para su posterior manejo conforme a las instrucciones del proyecto.",
+  "Responder por las actuaciones de su personal, incluyendo daños, hurtos, negligencia o abandono injustificado de las actividades.",
+  "Adoptar las medidas necesarias para garantizar la continuidad de las actividades en caso de ausencia o retiro de alguno de sus trabajadores.",
+  "Cumplir las normas de Seguridad y Salud en el Trabajo.",
+  "Acatar las instrucciones técnicas y administrativas impartidas por el supervisor, siempre que estas se encuentren relacionadas con el objeto contractual.",
+  "Informar inmediatamente cualquier inconsistencia, defecto o insuficiencia que advierta en los materiales suministrados por EL CONTRATANTE que pueda afectar la calidad o correcta ejecución de los trabajos.",
+  "No adquirir materiales por cuenta de EL CONTRATANTE sin autorización previa y escrita de este.",
 ]
 
 export const AMPARO_ANTICIPO_OBRA: AmparoGarantia = { amparo: "Buen manejo de anticipo", porcentaje: "100", vigencia: "Término de duración del contrato" }
@@ -193,6 +254,8 @@ function plazoPorDefecto(d: SolicitudContratoDetalle): string {
 const numeroPorcentaje = (p: number) => new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 }).format(p)
 
 export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraMinuta, hoy: string): MinutaObra {
+  const variante: VarianteMinutaObra = d.tipo === "mano_obra" ? "mano_obra" : "obra"
+  const manoObra = variante === "mano_obra"
   const juridica = d.contratistaTipoPersona === "juridica"
   const nit =
     extra.contratistaTipoDocumento === "NIT" && extra.contratistaNumeroDocumento
@@ -215,7 +278,9 @@ export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosEx
 
   return {
     v: VERSION_MINUTA_OBRA,
-    departamentoFirma: d.domicilioDepartamento ?? "",
+    variante,
+    // Mano de obra: "se firma en <ciudad>"; obra: "en el Departamento de …".
+    departamentoFirma: manoObra ? ciudadProyecto : (d.domicilioDepartamento ?? ""),
     fechaFirma: hoy,
     contratanteNombre: extra.empresaNombre ?? CONTRATANTE_POR_DEFECTO.nombre,
     contratanteNit: extra.empresaNit ?? CONTRATANTE_POR_DEFECTO.nit,
@@ -242,16 +307,19 @@ export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosEx
     retencion: d.datosTipo.retencionGarantia === undefined ? "" : d.datosTipo.retencionGarantia ? "si" : "no",
     retencionGarantia: d.datosTipo.retencionGarantia && d.datosTipo.retencionPorcentaje ? `${numeroPorcentaje(d.datosTipo.retencionPorcentaje)}%` : "",
     condicionesPago: d.formaPago.trim(),
-    obligacionesContratante: [...OBLIGACIONES_CONTRATANTE_OBRA],
-    obligacionesGenerales: [...OBLIGACIONES_GENERALES_OBRA],
+    obligacionesContratante: [...(manoObra ? OBLIGACIONES_CONTRATANTE_MANO_OBRA : OBLIGACIONES_CONTRATANTE_OBRA)],
+    obligacionesGenerales: [...(manoObra ? OBLIGACIONES_GENERALES_MANO_OBRA : OBLIGACIONES_GENERALES_OBRA)],
     obligacionesEspecificas: [
-      ...OBLIGACIONES_ESPECIFICAS_OBRA,
+      ...(manoObra ? OBLIGACIONES_ESPECIFICAS_MANO_OBRA : OBLIGACIONES_ESPECIFICAS_OBRA),
       ...d.obligaciones.filter((o) => !esNoAplica(o)),
       ...d.entregables.filter((e) => !esNoAplica(e)).map((e) => `Entregar: ${sinPuntoFinal(e)}.`),
     ],
+    // Obra: siempre hay garantías. Mano de obra: lo dice la solicitud.
+    exigeGarantia: manoObra && d.datosTipo.exigeGarantia === false ? "no" : "si",
     amparos: pct !== null ? [{ ...AMPARO_ANTICIPO_OBRA }, ...AMPAROS_OBRA.map((a) => ({ ...a }))] : AMPAROS_OBRA.map((a) => ({ ...a })),
     domicilioDepartamento: d.domicilioDepartamento ?? DOMICILIO_PLANTILLA_OBRA,
-    municipioEjecucion: ciudadProyecto,
+    // Mano de obra: "en el Departamento de …"; obra: "en el municipio de …".
+    municipioEjecucion: manoObra ? (d.domicilioDepartamento ?? "") : ciudadProyecto,
     clausulasAdicionales: [],
   }
 }
@@ -259,6 +327,7 @@ export function minutaObraPorDefecto(d: SolicitudContratoDetalle, extra: DatosEx
 export function minutaObraVacia(): MinutaObra {
   return {
     v: VERSION_MINUTA_OBRA,
+    variante: "obra",
     departamentoFirma: "",
     fechaFirma: "",
     contratanteNombre: "",
@@ -289,6 +358,7 @@ export function minutaObraVacia(): MinutaObra {
     obligacionesContratante: [],
     obligacionesGenerales: [],
     obligacionesEspecificas: [],
+    exigeGarantia: "si",
     amparos: [],
     domicilioDepartamento: "",
     municipioEjecucion: "",
@@ -332,6 +402,10 @@ export function mezclarMinutaObra(defecto: MinutaObra, guardada: unknown): Minut
       if (TIPOS_DOCUMENTO_ARRENDADOR.some((t) => t.valor === valor)) r[clave] = valor
     } else if (clave === "retencion") {
       if (valor === "" || valor === "si" || valor === "no") r[clave] = valor
+    } else if (clave === "exigeGarantia") {
+      if (valor === "si" || valor === "no") r[clave] = valor
+    } else if (clave === "variante") {
+      if (valor === "obra" || valor === "mano_obra") r[clave] = valor
     } else if (typeof valor === "string") {
       r[clave] = valor
     }
@@ -359,8 +433,8 @@ export function limpiarMinutaObra(m: MinutaObra): MinutaObra {
   }
 }
 
-export const nombreArchivoMinutaObra = (numero: number, contratista: string) =>
-  `minuta-obra-${numero}-${contratista
+export const nombreArchivoMinutaObra = (numero: number, contratista: string, variante: VarianteMinutaObra = "obra") =>
+  `minuta-${variante === "mano_obra" ? "mano-obra" : "obra"}-${numero}-${contratista
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-zA-Z0-9]+/g, "-")
@@ -379,4 +453,18 @@ export function origenCampoObra(clave: keyof MinutaObra, actual: string, defecto
   if (clave === "contratanteNombre") return actual === CONTRATANTE_POR_DEFECTO.nombre ? "plantilla" : "solicitud"
   if (clave === "contratanteNit") return actual === CONTRATANTE_POR_DEFECTO.nit ? "plantilla" : "solicitud"
   return "solicitud"
+}
+
+// ---------------------------------------------------------------- mano de obra: plantilla vieja o nueva
+// Datos de minuta de mano de obra hechos con la plantilla nueva (versión 04).
+// Los de la plantilla vieja (lib/minuta-mano-obra.ts) no traen `variante`.
+export const esMinutaManoObra04 = (datos: unknown): boolean =>
+  Boolean(datos) && typeof datos === "object" && (datos as Record<string, unknown>).variante === "mano_obra"
+
+// Qué plantilla usa un contrato de mano de obra: la vieja solo si su minuta ya
+// se envió a Subgerencia o se aprobó con ella (no se le cambia el texto a un
+// contrato aprobado); todo lo demás va con la nueva.
+export function usaPlantillaManoObra04(minutaEstado: string | null | undefined, datosGuardados: unknown): boolean {
+  if (esMinutaManoObra04(datosGuardados)) return true
+  return !(minutaEstado === "en_revision" || minutaEstado === "aprobada")
 }

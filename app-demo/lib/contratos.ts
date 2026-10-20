@@ -120,7 +120,7 @@ export const OPCIONES_ACTAS: { valor: ActasPeriodicidad; titulo: string }[] = [
 export type IvaCanonSolicitud = "mas_iva" | "incluido"
 
 export type DatosTipoContrato = {
-  // obra
+  // obra y mano de obra
   pagoCadaDias?: number
   retencionGarantia?: boolean
   retencionPorcentaje?: number | null
@@ -133,6 +133,7 @@ export type DatosTipoContrato = {
   // alquiler de vehículo
   bienNombre?: string
   actas?: ActasPeriodicidad
+  // alquiler de vehículo y mano de obra
   exigeGarantia?: boolean
 }
 
@@ -160,13 +161,14 @@ export function datosTipoDesdeBase(x: unknown): DatosTipoContrato {
 // Para mostrar en el detalle de la solicitud: [etiqueta, valor] según el tipo.
 export function datosTipoParaMostrar(tipo: TipoContrato, d: DatosTipoContrato): [string, string][] {
   const siNo = (v: boolean | undefined) => (v === undefined ? "—" : v ? "Sí" : "No")
-  if (tipo === "obra") {
+  if (tipo === "obra" || tipo === "mano_obra") {
     return [
       ["Se pagará cada", d.pagoCadaDias ? `${d.pagoCadaDias} días` : "—"],
       [
         "Retención en garantía",
         d.retencionGarantia === undefined ? "—" : d.retencionGarantia ? `Sí, ${numero(d.retencionPorcentaje ?? 0)} %` : "No",
       ],
+      ...(tipo === "mano_obra" ? [["Garantías", siNo(d.exigeGarantia)] as [string, string]] : []),
     ]
   }
   if (tipo === "arrendamiento") {
@@ -190,11 +192,12 @@ export function datosTipoParaMostrar(tipo: TipoContrato, d: DatosTipoContrato): 
 
 // Al formato de la base: solo las claves del tipo.
 export function datosTipoABase(tipo: TipoContrato, d: DatosTipoContrato): Record<string, unknown> {
-  if (tipo === "obra") {
+  if (tipo === "obra" || tipo === "mano_obra") {
     return {
       pago_cada_dias: d.pagoCadaDias,
       retencion_garantia: d.retencionGarantia,
       ...(d.retencionGarantia ? { retencion_porcentaje: d.retencionPorcentaje } : {}),
+      ...(tipo === "mano_obra" ? { exige_garantia: d.exigeGarantia } : {}),
     }
   }
   if (tipo === "arrendamiento") {
@@ -624,7 +627,7 @@ export function validarSolicitud(
   const departamentoDomicilio = f.departamentoDomicilio.trim().replace(/\s+/g, " ")
   if (!departamentoDomicilio) errores.departamentoDomicilio = "Escribe el departamento de domicilio del contrato."
   const datosTipo: DatosTipoContrato = {}
-  if (f.tipo === "obra") {
+  if (f.tipo === "obra" || f.tipo === "mano_obra") {
     const dias = Number(f.pagoCadaDias.trim())
     if (!Number.isInteger(dias) || dias <= 0) errores.pagoCadaDias = "Escribe cada cuántos días se paga (número entero)."
     else datosTipo.pagoCadaDias = dias
@@ -636,6 +639,10 @@ export function validarSolicitud(
         if (p === null || p <= 0 || p > 100) errores.retencion = "Escribe el porcentaje de retención en garantía (entre 1 y 100)."
         else datosTipo.retencionPorcentaje = p
       }
+    }
+    if (f.tipo === "mano_obra") {
+      if (!f.exigeGarantia) errores.exigeGarantia = "Indica si el contrato exige garantías."
+      else datosTipo.exigeGarantia = f.exigeGarantia === "si"
     }
   } else if (f.tipo === "arrendamiento") {
     const direccion = f.inmuebleDireccion.trim()

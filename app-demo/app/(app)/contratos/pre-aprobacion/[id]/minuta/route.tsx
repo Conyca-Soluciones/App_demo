@@ -18,7 +18,7 @@ import { limpiarMinutaVehiculo, mezclarMinutaVehiculo, minutaVehiculoVacia, nomb
 import { MinutaVehiculoPDF } from "@/components/minuta-vehiculo-pdf"
 import { limpiarMinutaServicios, mezclarMinutaServicios, minutaServiciosVacia, nombreArchivoMinutaServicios } from "@/lib/minuta-servicios"
 import { MinutaServiciosPDF } from "@/components/minuta-servicios-pdf"
-import { limpiarMinutaObra, mezclarMinutaObra, minutaObraVacia, nombreArchivoMinutaObra } from "@/lib/minuta-obra"
+import { esMinutaManoObra04, limpiarMinutaObra, mezclarMinutaObra, minutaObraVacia, nombreArchivoMinutaObra } from "@/lib/minuta-obra"
 import { MinutaObraPDF } from "@/components/minuta-obra-pdf"
 import { buscarMarcaEnPdf } from "@/lib/minuta-pdf-foco"
 import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
@@ -99,7 +99,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let buffer: Buffer
   let archivo: string
-  if (contrato.tipo === "mano_obra") {
+  // Mano de obra con la plantilla nueva (versión 04): mismo PDF que obra, con
+  // su variante. Sin `variante` es una minuta de la plantilla anterior.
+  if ((contrato.tipo === "obra" || contrato.tipo === "mano_obra") && (contrato.tipo === "obra" || esMinutaManoObra04(datos))) {
+    const minuta = limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), datos))
+    // El tipo del contrato manda (de la base, no del navegador).
+    minuta.variante = contrato.tipo === "mano_obra" ? "mano_obra" : "obra"
+    buffer = await renderToBuffer(<MinutaObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
+    archivo = nombreArchivoMinutaObra(numero, minuta.contratistaNombre, minuta.variante)
+  } else if (contrato.tipo === "mano_obra") {
     const minuta = limpiarMinuta(mezclarMinuta(minutaVacia(), datos))
     buffer = await renderToBuffer(<MinutaManoObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
     archivo = nombreArchivoMinuta(numero, minuta.contratistaNombre)
@@ -119,10 +127,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const minuta = limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), datos))
     buffer = await renderToBuffer(<MinutaServiciosPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
     archivo = nombreArchivoMinutaServicios(numero, minuta.contratistaNombre)
-  } else if (contrato.tipo === "obra") {
-    const minuta = limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), datos))
-    buffer = await renderToBuffer(<MinutaObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinutaObra(numero, minuta.contratistaNombre)
   } else {
     return NextResponse.json({ error: "Este tipo de contrato todavía no tiene plantilla de minuta." }, { status: 400 })
   }

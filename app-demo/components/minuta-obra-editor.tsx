@@ -25,7 +25,10 @@ import { origenRenglon, totalItemsMinuta, valorEnLetras, type OrigenDato } from 
 import { TIPOS_DOCUMENTO_ARRENDADOR } from "@/lib/minuta-arrendamiento"
 import {
   CLAUSULAS_OBRA,
+  OBLIGACIONES_CONTRATANTE_MANO_OBRA,
   OBLIGACIONES_CONTRATANTE_OBRA,
+  OBLIGACIONES_ESPECIFICAS_MANO_OBRA,
+  OBLIGACIONES_GENERALES_MANO_OBRA,
   OBLIGACIONES_ESPECIFICAS_OBRA,
   OBLIGACIONES_GENERALES_OBRA,
   PRIMERA_CLAUSULA_ADICIONAL_OBRA,
@@ -36,10 +39,11 @@ import {
 import { guardarMinutaObra, obtenerMinutaObra, type MinutaContratoObra } from "@/app/(app)/contratos/pre-aprobacion/actions"
 
 // ---------------------------------------------------------------------------
-// Editor de la minuta de obra a todo costo dentro del detalle de
-// Pre-aprobación. Mismo funcionamiento que las demás minutas; lleva el anexo
-// N° 1 (actividades, cantidades y valores). El texto fijo de las cláusulas
-// está en components/minuta-obra-pdf.tsx.
+// Editor de la minuta de obra a todo costo y de la de mano de obra (plantilla
+// versión 04; las dos tienen las mismas cláusulas, ver lib/minuta-obra.ts)
+// dentro del detalle de Pre-aprobación. Mismo funcionamiento que las demás
+// minutas; lleva el anexo N° 1 (actividades, cantidades y valores). El texto
+// fijo de las cláusulas está en components/minuta-obra-pdf.tsx.
 // ---------------------------------------------------------------------------
 
 type CampoTexto = { [K in keyof MinutaObra]: MinutaObra[K] extends string ? K : never }[keyof MinutaObra]
@@ -60,6 +64,7 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
   const [foco, setFoco] = useState<string | null>(null)
   const vistaPrevia = useVistaPreviaMinuta(detalle.id, m, foco)
 
+  const mo = detalle.tipo === "mano_obra"
   const editable = puedeEditar && detalle.estado !== "rechazada"
   const deshabilitado = !editable || guardando
 
@@ -143,10 +148,10 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
   function lista(clave: CampoLista) {
     const plantilla =
       clave === "obligacionesContratante"
-        ? OBLIGACIONES_CONTRATANTE_OBRA
+        ? mo ? OBLIGACIONES_CONTRATANTE_MANO_OBRA : OBLIGACIONES_CONTRATANTE_OBRA
         : clave === "obligacionesGenerales"
-          ? OBLIGACIONES_GENERALES_OBRA
-          : OBLIGACIONES_ESPECIFICAS_OBRA
+          ? mo ? OBLIGACIONES_GENERALES_MANO_OBRA : OBLIGACIONES_GENERALES_OBRA
+          : mo ? OBLIGACIONES_ESPECIFICAS_MANO_OBRA : OBLIGACIONES_ESPECIFICAS_OBRA
     const deSolicitud = clave === "obligacionesEspecificas" ? datos!.porDefecto.obligacionesEspecificas : []
     return (
       <ListaEditable
@@ -182,7 +187,7 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
     if (!m) return
     setDescargando(true)
     try {
-      await descargarPdfMinuta(detalle.id, m, nombreArchivoMinutaObra(detalle.numero, m.contratistaNombre))
+      await descargarPdfMinuta(detalle.id, m, nombreArchivoMinutaObra(detalle.numero, m.contratistaNombre, m.variante))
     } catch (e) {
       setAviso({ ok: false, texto: e instanceof Error ? e.message : "No se pudo generar el PDF." })
     } finally {
@@ -216,7 +221,9 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-3">
           <div className="min-w-0 flex-1 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">Plantilla · Contrato de obra a todo costo (versión 04)</p>
+            <p className="font-medium text-foreground">
+              Plantilla · {mo ? "Contrato de mano de obra (GJ-F-003 versión 04)" : "Contrato de obra a todo costo (versión 04)"}
+            </p>
             {datos.guardadaAt ? (
               <p>
                 Guardada el {fechaContrato(datos.guardadaAt)}
@@ -291,7 +298,10 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
 
         <Seccion titulo="Primera y segunda · Proyecto y plazo">
           <div className="grid gap-3 sm:grid-cols-2">
-            {campo("obra", "Proyecto denominado", { ancho: true })}
+            {campo("obra", mo ? "Objeto del proyecto" : "Proyecto denominado", {
+              ancho: true,
+              ayuda: mo ? "«…al proyecto cuyo objeto es: “…”». Viene con el nombre del proyecto: escribe su objeto." : undefined,
+            })}
             {campo("plazo", "Plazo de ejecución", {
               placeholder: "noventa (90) días",
               ayuda: "En el PDF sigue «calendario, contados a partir de la suscripción del acta de inicio».",
@@ -315,7 +325,11 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
               )}
             </div>
             {campo("valorLetras", "Valor en letras", { filas: 2, ayuda: "Se actualiza al cambiar el valor, salvo que lo hayas escrito a mano." })}
-            {campo("anticipoPorcentaje", "Anticipo (% del valor)", { ayuda: "Vacío = sin anticipo (la cuarta dice que no se entrega)." })}
+            {campo("anticipoPorcentaje", "Anticipo (% del valor)", {
+              ayuda: mo
+                ? "Vacío = sin anticipo. En mano de obra el PDF muestra el valor, no el porcentaje."
+                : "Vacío = sin anticipo (la cuarta dice que no se entrega).",
+            })}
             {campo("anticipo", "Anticipo ($)", { ayuda: anticipoNumero === null ? "Se calcula con el porcentaje." : pesos(anticipoNumero) })}
             {campo("anticipoLetras", "Anticipo en letras", { ancho: true })}
             {campo("amortizacion", "Amortización por acta", { placeholder: "30%", ayuda: "«El Anticipo será amortizado en el … en cada cobro de acta parcial»." })}
@@ -338,7 +352,12 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
               disabled={deshabilitado}
             />
             {m.retencion !== "no" &&
-              campo("retencionGarantia", "Porcentaje de retención", { placeholder: "5%", ayuda: "«…retención … de la obra del … del valor del contrato»." })}
+              campo("retencionGarantia", "Porcentaje de retención", {
+                placeholder: "5%",
+                ayuda: mo
+                  ? "«…se efectuará una retención del (…) sobre los valores objeto de pago…»."
+                  : "«Se le hará retención en garantía del (…) de cada factura o cuenta de cobro de acta parcial…».",
+              })}
             {campo("condicionesPago", "Forma de pago de la solicitud (párrafo aparte, opcional)", { filas: 2 })}
           </div>
         </Seccion>
@@ -361,20 +380,36 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
         </Seccion>
 
         <Seccion titulo="Décima octava · Garantías">
-          <TablaAmparosMinuta
-            amparos={m.amparos}
-            porDefecto={datos.porDefecto.amparos}
-            onChange={(amparos) => actualizar({ amparos })}
-            editable={editable}
-            guardando={guardando}
-          />
+          {mo && (
+            <SelectorMinuta
+              id="minuta-exige-garantia"
+              etiqueta="¿Se exigen garantías?"
+              valor={m.exigeGarantia}
+              opciones={[
+                { valor: "si" as const, titulo: "Sí, con la tabla de amparos" },
+                { valor: "no" as const, titulo: "No («no se exigirá la constitución de garantías»)" },
+              ]}
+              origen={m.exigeGarantia === datos.porDefecto.exigeGarantia ? "solicitud" : "editado"}
+              onChange={(exigeGarantia) => exigeGarantia && actualizar({ exigeGarantia })}
+              disabled={deshabilitado}
+            />
+          )}
+          {(!mo || m.exigeGarantia === "si") && (
+            <TablaAmparosMinuta
+              amparos={m.amparos}
+              porDefecto={datos.porDefecto.amparos}
+              onChange={(amparos) => actualizar({ amparos })}
+              editable={editable}
+              guardando={guardando}
+            />
+          )}
         </Seccion>
 
         <Seccion titulo="Domicilio, lugar de ejecución y firma">
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("domicilioDepartamento", "Domicilio: departamento de (décima novena)")}
-            {campo("municipioEjecucion", "Municipio de ejecución (vigésima quinta)")}
-            {campo("departamentoFirma", "Se firma en el Departamento de")}
+            {campo("municipioEjecucion", mo ? "Departamento de ejecución (vigésima quinta)" : "Municipio de ejecución (vigésima quinta)")}
+            {campo("departamentoFirma", mo ? "Se firma en (ciudad)" : "Se firma en el Departamento de")}
             {campo("fechaFirma", "Fecha de firma", { tipo: "date", ayuda: "El año también va en el número: No. CJ-<número>-<año>." })}
           </div>
         </Seccion>

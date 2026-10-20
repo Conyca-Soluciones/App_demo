@@ -2145,6 +2145,26 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   quinta). Obligaciones específicas: las 17 de la plantilla (que salta los
   números 3, 8 y 17; aquí van seguidas) + las de la solicitud y sus
   entregables. Domicilio por defecto "Arauca" (venía fijo en la plantilla).
+  Plantilla actualizada (2026-10-20): el parágrafo tercero de la quinta dice
+  "Se le hará retención en garantía del (X) de cada factura o cuenta de cobro
+  de acta parcial… acta de liquidación del contrato".
+- **Minuta de mano de obra, plantilla GJ-F-003 versión 04** (2026-10-20):
+  mismas 27 cláusulas que obra TC, así que usa el MISMO lib/editor/PDF
+  (`lib/minuta-obra.ts`, `components/minuta-obra-{editor,pdf}.tsx`) con
+  `variante: "mano_obra"` (la calcula `minutaObraPorDefecto` del tipo). Cambia:
+  encabezado "CONTRATO DE MANO DE OBRA", primera ("proyecto cuyo objeto es"),
+  cuarta, quinta, décima primera/cuarta, décima octava (puede decir "no se
+  exigirá la constitución de garantías": `exigeGarantia`), vigésima tercera a
+  sexta, cierre "se firma en…", firmas con el contratante primero y las listas
+  `OBLIGACIONES_*_MANO_OBRA` (8 / 11 / 23). El anexo N° 1 se conserva aunque
+  la plantilla no lo nombra. **Contratos viejos**: las minutas de mano de obra
+  sin `variante` que ya están en revisión o aprobadas siguen con la plantilla
+  anterior (`lib/minuta-mano-obra.ts`, `usaPlantillaManoObra04` /
+  `esMinutaManoObra04`; `plantillaMinutaManoObra` elige el editor y la ruta del
+  PDF elige el componente); las devueltas o sin enviar pasan a la nueva.
+  Solicitud de mano de obra (migración `20261118000000`): pide lo mismo que
+  obra (pago cada X días, retención en garantía y %) + "¿exige garantías?"
+  (`datos_tipo.exige_garantia`), todo obligatorio.
 - **Dato en edición resaltado en la vista previa** (2026-10-13): al entrar a
   un campo del editor, la vista previa se regenera con ese dato en amarillo y
   el visor abre en su página y altura. Cada campo lleva `data-foco` (clave del
@@ -2580,7 +2600,8 @@ seguridad/rendimiento · `20261012000000` lista de entradas en SQL.
 Después: `20261108000000` cupo una vez por fila en la búsqueda de insumos de
 la requisición · `20261108100000` estado de requisiciones guardado ·
 `20261117000000` enviar insumos sin sugerencias · `20261117100000` recuperar
-insumos borrados.
+insumos borrados · `20261118000000` solicitud de mano de obra
+(plantilla 04).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
