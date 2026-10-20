@@ -33,6 +33,15 @@ function rutaDestino(n: Notificacion): string {
   }
   // Actas aprobadas o rechazadas: a quien la hizo, a Elaboración de actas con el acta abierta.
   if (n.entidadTipo === "acta") return `/contratos/actas?ver=${n.entidadId}`
+  // Otrosí: a Jurídica (por revisar, devuelto por Subgerencia) y a Subgerencia
+  // (por aprobar), a Aprobación de otrosí; al ingeniero (devuelto, rechazado,
+  // aprobado), a Solicitud de otrosí. "Aprobado" también le llega a quien lo
+  // envió desde Jurídica, que tiene las dos pestañas.
+  if (n.entidadTipo === "otrosi") {
+    const aJuridicaOSubgerencia =
+      n.tipo === "otrosi_por_revisar" || n.tipo === "otrosi_por_aprobar" || n.tipo === "otrosi_devuelto_subgerencia"
+    return aJuridicaOSubgerencia ? `/contratos/aprobacion-otrosi?ver=${n.entidadId}` : `/contratos/otrosi?ver=${n.entidadId}`
+  }
   // Insumo nuevo rechazado: al presupuesto (del proyecto actual).
   if (n.entidadTipo === "presupuesto") return "/presupuestos"
   return "/almacen/registro-requisiciones"

@@ -2289,12 +2289,73 @@ hoja PDF (no minuta larga); actas generales después.
   contrato sea general (el detalle abre bien, pero "Corregir" está en
   Contratos generales).
 
+## Otrosí `/contratos/otrosi` y `/contratos/aprobacion-otrosi` (2026-10-20)
+
+`20261119000000_otrosis.sql`, plantilla "OTROSÍ" versión 04 (9/05/2025; su
+código dice solo "GJ-F"). Decisiones del usuario:
+- **Solo documento**: el otrosí NO cambia el plazo, el valor ni el anexo del
+  contrato en el sistema (actas y aviso de vencido siguen con lo inicial); lo
+  que cambie (cantidades, valor, plazo) se escribe en la redacción de la
+  cláusula nueva.
+- **No hay otrosí si el plazo inicial ya pasó** (`_fecha_fin_contrato` < hoy
+  Colombia; sin fecha fin, p. ej. duración sin inicio, no vence). Se revisa al
+  crear, reenviar, enviar a Subgerencia y aprobar
+  (`_exigir_contrato_para_otrosi`, que además exige contrato aprobado con
+  minuta aprobada y sin liquidar, y bloquea la fila del contrato).
+- **Flujo**: el ingeniero lo pide (`por_revisar`) -> Jurídica lo arma y lo
+  envía a Subgerencia (`en_revision`), o lo devuelve al ingeniero (`devuelta`,
+  lo corrige y reenvía) o lo rechaza (`rechazada`) -> Subgerencia lo aprueba
+  (`aprobada`, recibe su número: Otrosí N° max+1 de ese contrato, en el orden
+  en que se aprueban) o se lo devuelve a Jurídica (`devuelta_subgerencia`).
+  Acciones de siempre: pedir = `solicitar_contratos`, Jurídica =
+  `aprobar_contratos`, Subgerencia = `aprobar_minutas`.
+- **Tabla** `otrosis` (contrato, proyecto, número, estado, `modificaciones`
+  jsonb [{clausula, redaccion}] 1-20, justificación, motivo de la última
+  devolución, `minuta_datos`, quién/cuándo). Todo por funciones SECURITY
+  DEFINER (`contratos_para_otrosi`, `crear_otrosi`, `reenviar_otrosi`,
+  `guardar_minuta_otrosi`, `resolver_otrosi`, `listar_otrosis`,
+  `detalle_otrosi`, `historial_otrosi`): el ingeniero puede no tener las
+  pestañas que dejan leer `contratos`. Al reenviar se quitan las cláusulas del
+  documento guardado por Jurídica (salen otra vez de lo corregido).
+- **Pantallas**: Solicitud de otrosí (`contratos.solicitar_otrosi`,
+  `components/solicitud-otrosi-view.tsx`): lista con su estado y "Solicitar
+  otrosí": contratista (los que tienen contratos abiertos en los proyectos que
+  ve) -> contrato abierto -> cláusulas (cuál y cómo queda) y justificación.
+  Aprobación de otrosí (`contratos.aprobar_otrosi`,
+  `components/aprobacion-otrosi-view.tsx`): tabla como Aprobación de contratos
+  y diálogo (`components/detalle-otrosi.tsx`) con la pestaña Solicitud y la
+  pestaña Otrosí (editor + vista previa, `components/otrosi-editor.tsx`;
+  Subgerencia lo ve en solo lectura). El ingeniero ve el PDF cuando se aprueba.
+- **Documento**: `lib/otrosi.ts` (`minutaOtrosiPorDefecto`: empresa del
+  proyecto y contratista del directorio, pero lo que ya estaba en la minuta
+  aprobada del contrato gana; ciudad del proyecto; fecha de hoy) y
+  `components/otrosi-pdf.tsx`. Una cláusula por modificación ("Modificar la
+  cláusula X, la cual quedará así:" + redacción), luego cláusulas no
+  modificadas y perfeccionamiento, numeradas seguidas (la plantilla saltaba de
+  SEGUNDA a SEXTO). PDF: `POST /contratos/otrosi-pdf/[id]` (ruta de las dos
+  pestañas); lo de pantalla solo cuenta en `por_revisar` /
+  `devuelta_subgerencia`, después siempre sale lo guardado.
+  `useVistaPreviaMinuta` / `generarPdfMinuta` / `descargarPdfMinuta` aceptan
+  `ruta` para esto.
+- **Avisos** (`notificaciones`, entidad `otrosi`): por revisar -> Legal y Líder
+  Legal; por aprobar -> Subgerencia; devuelto / rechazado / aprobado -> quien
+  lo pidió; devuelto por Subgerencia y aprobado -> quien lo envió desde
+  Jurídica. Historial con entidad `otrosi`.
+- **Permisos**: la migración da `tab.contratos.solicitar_otrosi` a los roles
+  con `tab.contratos.solicitar` y `tab.contratos.aprobar_otrosi` a los que
+  tienen Pre aprobación o Aprobación de contratos.
+- Probada en un Postgres local con las funciones reales de permisos (flujo
+  completo, vencido, liquidado, numeración); las escrituras por el MCP de
+  Supabase se cortan a los 60 s.
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
 (`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
 de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
+**Otrosí** (Solicitud de otrosí = `contratos.solicitar_otrosi`, Aprobación de
+otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
@@ -2508,7 +2569,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: otrosí (ampliar plazo/valor, cuando haya minuta de otrosí),
+- **Pendiente**: (otrosí hecho el 2026-10-20 como solo documento: no amplía el
+  plazo ni el valor en el sistema),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -2601,7 +2663,7 @@ Después: `20261108000000` cupo una vez por fila en la búsqueda de insumos de
 la requisición · `20261108100000` estado de requisiciones guardado ·
 `20261117000000` enviar insumos sin sugerencias · `20261117100000` recuperar
 insumos borrados · `20261118000000` solicitud de mano de obra
-(plantilla 04).
+(plantilla 04) · `20261119000000` otrosí.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

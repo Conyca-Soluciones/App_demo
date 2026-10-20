@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/server"
 // quien puede ver la orden o el pedido: la función SQL lo valida.
 // ---------------------------------------------------------------------------
 
-export type TipoHistorial = "orden_compra" | "pedido" | "requisicion" | "contrato" | "acta"
+export type TipoHistorial = "orden_compra" | "pedido" | "requisicion" | "contrato" | "acta" | "otrosi"
 
 export type EventoHistorial = {
   id: string
@@ -22,7 +22,12 @@ export type EventoHistorial = {
 
 export async function obtenerHistorial(tipo: TipoHistorial, id: string): Promise<EventoHistorial[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("historial_entidad", { p_tipo: tipo, p_id: id })
+  // El otrosí tiene su propia función (20261119000000_otrosis.sql): el
+  // ingeniero que lo pide puede no tener permiso para ver el contrato.
+  const { data, error } =
+    tipo === "otrosi"
+      ? await supabase.rpc("historial_otrosi", { p_id: id })
+      : await supabase.rpc("historial_entidad", { p_tipo: tipo, p_id: id })
   if (error) throw new Error(error.message)
 
   return ((data ?? []) as any[]).map((e) => ({

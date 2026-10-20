@@ -70,6 +70,18 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   minuta_devuelta: { etiqueta: "Minuta devuelta por Subgerencia", tono: "aviso" },
 }
 
+// Eventos de un OTROSÍ (Jurídica y Subgerencia).
+const EVENTOS_OTROSI: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },
+  reenviado: { etiqueta: "Otrosí corregido y enviado otra vez", tono: "neutro" },
+  devuelto: { etiqueta: "Devuelto al ingeniero por Jurídica", tono: "aviso" },
+  rechazado: { etiqueta: "Rechazado por Jurídica", tono: "malo" },
+  enviado_subgerencia: { etiqueta: "Enviado a Subgerencia", tono: "neutro" },
+  reenviado_subgerencia: { etiqueta: "Corregido y enviado otra vez a Subgerencia", tono: "neutro" },
+  devuelto_subgerencia: { etiqueta: "Devuelto a Jurídica por Subgerencia", tono: "aviso" },
+  aprobado: { etiqueta: "Aprobado por Subgerencia", tono: "ok" },
+}
+
 const COLOR_PUNTO = {
   ok: "bg-emerald-500",
   malo: "bg-red-500",
@@ -115,6 +127,7 @@ function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
     if (d.neto != null) return [`Neto a pagar: ${pesosTexto(d.neto)}`]
     return []
   }
+  if (tipo === "otrosi") return e.evento === "aprobado" && d.numero ? [`Otrosí N° ${d.numero}`] : []
   if (tipo === "requisicion") {
     if (e.evento === "creada" && d.insumos) return [`${d.insumos} ${d.insumos === 1 ? "insumo" : "insumos"}`]
     if (e.evento === "rechazado_por_compras" && d.insumo) return [String(d.insumo)]
@@ -186,6 +199,7 @@ export function HistorialTimeline({ tipo, id }: { tipo: TipoHistorial; id: strin
           (tipo === "requisicion" ? EVENTOS_REQUISICION[e.evento] : undefined) ??
           (tipo === "contrato" ? EVENTOS_CONTRATO[e.evento] : undefined) ??
           (tipo === "acta" ? EVENTOS_ACTA[e.evento] : undefined) ??
+          (tipo === "otrosi" ? EVENTOS_OTROSI[e.evento] : undefined) ??
           EVENTOS[e.evento] ?? { etiqueta: e.evento, tono: "neutro" as const }
         const detalle = detalleEvento(e, tipo)
         return (

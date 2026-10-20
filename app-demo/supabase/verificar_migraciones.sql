@@ -246,5 +246,10 @@ select * from (
   select '20261118000000_solicitud_mano_obra_plantilla_04',
          position('in (''obra'', ''mano_obra'')' in pg_get_functiondef(
            'public._guardar_solicitud_contrato(uuid,jsonb,jsonb,jsonb,jsonb,jsonb,boolean)'::regprocedure)) > 0
+  union all
+  select '20261119000000_otrosis',
+         to_regclass('public.otrosis') is not null
+         and exists (select 1 from pg_proc where proname = 'resolver_otrosi')
+         and exists (select 1 from public.rol_permisos where permiso = 'tab.contratos.aprobar_otrosi')
 ) t
 order by 1;
