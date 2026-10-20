@@ -262,5 +262,10 @@ select * from (
   select '20261118300000_proveedores_lectura_minima',
          exists (select 1 from pg_policies where tablename = 'proveedores' and policyname = 'proveedores_select_de_ordenes')
          and not has_table_privilege('anon', 'public.proveedores', 'select')
+  union all
+  select '20261118500000_permisos_por_proyecto',
+         not exists (select 1 from pg_policies where tablename = 'proyectos' and policyname = 'proyectos_select_compras')
+         and exists (select 1 from pg_proc where proname = '_crear_orden_compra_sin_proyecto')
+         and exists (select 1 from pg_proc where proname = '_exigir_proyecto')
 ) t
 order by 1;

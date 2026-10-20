@@ -1260,6 +1260,16 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   del proyecto lee SOLO los proveedores de las órdenes que ya puede ver
   (`proveedores_select_de_ordenes`, subconsulta sobre ordenes_compra con su
   RLS). Sin sesión, nada. `informacion_bancaria` sigue solo Compras/Administrador.
+- **Ningún permiso se salta los proyectos** (`20261118500000_permisos_por_proyecto.sql`,
+  E3; va después de las de la auditoría de RLS 20261118400000-430000): Comprar,
+  aprobar/rechazar/desaprobar/cancelar OC, Aprobar requisiciones y Aprobar
+  insumos valen solo en los proyectos de la persona (asignados, o todos con
+  "Todos los proyectos" en Usuarios y accesos). Se quitó
+  `proyectos_select_compras`; OC, líneas y requisiciones con Comprar exigen el
+  proyecto. Las funciones de escritura de OC y requisiciones se envolvieron
+  (`_<nombre>_sin_proyecto` + `_exigir_proyecto`). Siguen globales: catálogos
+  (proveedores, maestra, histórico de precios) y A&F. Si se agrega una función
+  de escritura sobre OC o requisiciones, debe revisar el proyecto.
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 
