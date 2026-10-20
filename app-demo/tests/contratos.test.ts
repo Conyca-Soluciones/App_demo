@@ -140,7 +140,9 @@ describe("validarSolicitud", () => {
 
   describe("valores unitarios contra el presupuesto", () => {
     const catalogo = new Map<string, ItemPresupuestoContrato>([
-      ["p1", { id: "p1", codigo: "3.1", descripcion: "Muro", unidad: "m2", cantidad: 100, valorUnitario: 28_000, contratado: 40, disponible: 60 }],
+      ["p1", { id: "p1", codigo: "3.1", descripcion: "Muro", unidad: "m2", cantidad: 100, valorUnitario: 28_000, valorManoObra: 0, contratado: 40, disponible: 60 }],
+      ["p3", { id: "p3", codigo: "3.3", descripcion: "Enchape", unidad: "m2", cantidad: 100, valorUnitario: 28_000, valorManoObra: 12_000, contratado: 0, disponible: 100 }],
+      ["p2", { id: "p2", codigo: "3.2", descripcion: "Pañete", unidad: "m2", cantidad: 100, valorUnitario: 15_000, valorManoObra: 0, contratado: 0, disponible: 100 }],
     ])
     const unitarios = (cantidad: string, valorUnitario: string): Partial<SolicitudContratoForm> => ({
       anexoTipo: "valores_unitarios",
@@ -159,6 +161,19 @@ describe("validarSolicitud", () => {
 
     it("el valor unitario no pasa el del presupuesto", () => {
       expect(errores(unitarios("10", "28.001"), catalogo).items).toMatch(/supera/)
+    })
+
+    it("mano de obra: el tope es la mano de obra del APU; sin mano de obra, el ítem completo", () => {
+      const mo = (presupuestoItemId: string, valorUnitario: string): Partial<SolicitudContratoForm> => ({
+        tipo: "mano_obra",
+        anexoTipo: "valores_unitarios",
+        valor: "",
+        items: [{ presupuestoItemId, cantidad: "1", valorUnitario }],
+      })
+      expect(errores(mo("p3", "12.000"), catalogo).items).toBeUndefined()
+      expect(errores(mo("p3", "12.001"), catalogo).items).toMatch(/mano de obra/)
+      expect(errores(mo("p2", "15.000"), catalogo).items).toBeUndefined()
+      expect(errores({ ...mo("p3", "28.000"), tipo: "obra" }, catalogo).items).toBeUndefined()
     })
 
     it("no repite ítems", () => {

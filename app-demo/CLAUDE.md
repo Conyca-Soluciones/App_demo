@@ -1995,7 +1995,15 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   formulario y otra vez en `crear_solicitud_contrato` (con bloqueo de los
   ítems para que dos solicitudes simultáneas no pasen juntas): cantidad <=
   presupuestada menos lo ya contratado, y valor unitario <= el del
-  presupuesto. Lo contratado se suma por presupuesto + código (como las
+  presupuesto. **Mano de obra** (`20261124000000`, decisión del usuario):
+  el tope es la mano de obra del APU + herramienta menor
+  (`_valor_mano_obra_item`, `_tope_valor_unitario_item`; en TS
+  `topeValorUnitario`), porque el ítem completo incluye materiales y
+  equipos; si el APU no tiene mano de obra (2026-10-20: solo 11 de 184 ítems
+  del presupuesto vigente la tienen), el tope es el ítem completo y la
+  actividad queda marcada `contrato_anexo_items.sin_mano_obra` (aviso en el
+  detalle para Jurídica). Los demás tipos (obra todo costo...) siguen con el
+  ítem completo. Lo contratado se suma por presupuesto + código (como las
   requisiciones), así sigue contando en versiones nuevas. Hoy cuentan TODOS
   los contratos; cuando existan estados rechazado/anulado, excluirlos en
   `_contratado_item` e `items_presupuesto_para_contrato`. Un ítem del
@@ -2315,11 +2323,29 @@ código dice solo "GJ-F"). Decisiones del usuario:
     sobre el valor INICIAL (`InfoContratoActa.valorInicial`). Valor global con
     valor cambiado: el % de avance es sobre el vigente y lo cobrado cuenta
     como bruto / valor vigente. Valores unitarios: cada actividad sigue
-    limitada a su cantidad del anexo (el valor solo cambia el tope total).
+    limitada a su cantidad del anexo; para cobrar más van actividades
+    (abajo).
     `_validar_valor_otrosi`: distinto del vigente y no menor que lo cobrado
     en actas no rechazadas. Control de proyecto sigue mostrando
     `contratos.valor`.
   Las dos se revisan al crear, reenviar, enviar a Subgerencia y aprobar.
+  - **Actividades** (`20261124000000_tope_mano_obra_y_actividades_otrosi.sql`,
+    solo contratos por valores unitarios): `otrosis.actividades` = adiciones
+    de cantidad a actividades del contrato (a su valor pactado) y actividades
+    nuevas del presupuesto vigente que el contrato no tenga (precio con el
+    mismo tope del tipo de contrato). Cantidad hasta lo disponible en el
+    presupuesto. Con actividades el valor sube solo: `nuevo_valor` = vigente
+    + lo que suman (lo pone la base; al enviar y aprobar se exige que siga
+    cuadrando: si otro otrosí cambió el valor, hay que devolverlo y
+    reenviarlo). Al aprobar se agregan como filas nuevas de
+    `contrato_anexo_items` con `otrosi_id` y actividad "... (Otrosí N° n)" /
+    "... (adición Otrosí N° n)": el anexo del contrato firmado no cambia (el
+    detalle del contrato filtra `otrosi_id`), las actas las cobran con su
+    propio tope y `_contratado_item` las cuenta. `detalle_acta` muestra las de
+    un otrosí solo en actas hechas o editadas después de aprobarlo. Funciones:
+    `actividades_para_otrosi` (formulario), `_normalizar_actividades_otrosi`,
+    `_valor_con_actividades_otrosi`, `_revisar_valor_y_actividades_otrosi`.
+    En TS: `leerActividadesOtrosi` (`lib/otrosi.ts`).
 - **No hay otrosí si el plazo vigente ya pasó** (`_fecha_fin_contrato` < hoy
   Colombia; sin fecha fin, p. ej. duración sin inicio, no vence). Se revisa al
   crear, reenviar, enviar a Subgerencia y aprobar
@@ -2621,8 +2647,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: (otrosí: cambia plazo y valor total, pero no las cantidades
-  del anexo de los contratos a valores unitarios),
+- **Pendiente**: (otrosí: no baja cantidades ni cambia precios de
+  actividades del contrato),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -2718,7 +2744,8 @@ insumos borrados · `20261118000000` solicitud de mano de obra
 (plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
 desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261122000000` historial del contrato con sus otrosí ·
-`20261123000000` prórroga y nuevo valor del otrosí.
+`20261123000000` prórroga y nuevo valor del otrosí ·
+`20261124000000` tope de mano de obra y actividades por otrosí.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

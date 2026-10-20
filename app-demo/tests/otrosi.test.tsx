@@ -11,6 +11,7 @@ import {
   minutaOtrosiVacia,
   nombreArchivoOtrosi,
   origenCampoOtrosi,
+  leerActividadesOtrosi,
   validarSolicitudOtrosi,
 } from "@/lib/otrosi"
 import { OtrosiPDF } from "@/components/otrosi-pdf"
@@ -158,4 +159,47 @@ describe("documento del otrosí", () => {
     const pdf = await renderToBuffer(<OtrosiPDF minuta={m} numero={2} logo={logo} foco="modificaciones:0" />)
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-")
   }, 60000)
+})
+
+describe("actividades del otrosí", () => {
+  const anexo = [
+    { id: "a1", codigo: "1.1", actividad: "Excavación", unidad: "m3", cantidad: 40, valorUnitario: 30_000, enPresupuesto: true, disponible: 60 },
+    { id: "a2", codigo: "9.9", actividad: "Vieja", unidad: "m2", cantidad: 5, valorUnitario: 1_000, enPresupuesto: false, disponible: 0 },
+  ]
+  const catalogo = [
+    { id: "p2", codigo: "1.2", descripcion: "Concreto", unidad: "m3", cantidad: 50, valorUnitario: 200_000, valorManoObra: 0, contratado: 0, disponible: 50 },
+    { id: "p3", codigo: "1.3", descripcion: "Pañete", unidad: "m2", cantidad: 10, valorUnitario: 50_000, valorManoObra: 31_500, contratado: 0, disponible: 10 },
+  ]
+  const datos = { anexo, catalogo, topeDe: (i: { valorUnitario: number; valorManoObra: number }) => (i.valorManoObra > 0 ? i.valorManoObra : i.valorUnitario) }
+
+  it("suma adiciones (al valor pactado) y nuevas; arma lo que se envía", () => {
+    const r = leerActividadesOtrosi(
+      { adiciones: { a1: "20" }, nuevas: [{ presupuestoItemId: "p3", cantidad: "2,5", valorUnitario: "31.500" }] },
+      datos
+    )
+    expect(r).toEqual({
+      ok: true,
+      envio: [
+        { anexo_item_id: "a1", cantidad: 20 },
+        { presupuesto_item_id: "p3", cantidad: 2.5, valor_unitario: 31_500 },
+      ],
+      total: 600_000 + 78_750,
+    })
+  })
+  it("sin nada: lista vacía", () => {
+    expect(leerActividadesOtrosi({ adiciones: { a1: " " }, nuevas: [] }, datos)).toEqual({ ok: true, envio: [], total: 0 })
+  })
+  it("topes: disponible, precio máximo, fuera del presupuesto, repetidos", () => {
+    const err = (f: Parameters<typeof leerActividadesOtrosi>[0]) => {
+      const r = leerActividadesOtrosi(f, datos)
+      return r.ok ? null : r.error
+    }
+    expect(err({ adiciones: { a1: "61" }, nuevas: [] })).toMatch(/disponible/)
+    expect(err({ adiciones: { a2: "1" }, nuevas: [] })).toMatch(/presupuesto vigente/)
+    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "p3", cantidad: "1", valorUnitario: "31.501" }] })).toMatch(/máximo/)
+    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "p2", cantidad: "1", valorUnitario: "200.000" }] })).toBeNull()
+    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "", cantidad: "1", valorUnitario: "" }] })).toMatch(/Escoge/)
+    const dos = { presupuestoItemId: "p2", cantidad: "1", valorUnitario: "1" }
+    expect(err({ adiciones: {}, nuevas: [dos, dos] })).toMatch(/repetido/)
+  })
 })

@@ -296,6 +296,9 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
     unidad: string
     cantidad: number
     valorUnitario: number
+    // Contrato de mano de obra con un ítem cuyo APU no tiene mano de obra:
+    // su tope fue el ítem completo (para que Jurídica lo revise).
+    sinManoObra?: boolean
   }[]
   documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string; ruta: string; tamano: number }[]
 }
@@ -412,10 +415,19 @@ export type ItemPresupuestoContrato = {
   descripcion: string
   unidad: string | null
   cantidad: number // presupuestada
-  valorUnitario: number // del presupuesto: tope del valor unitario contratado
+  valorUnitario: number // del presupuesto (ítem completo)
+  valorManoObra: number // mano de obra + herramienta menor del APU (0 = sin mano de obra)
   contratado: number // ya en otros contratos
   disponible: number // tope de la cantidad
 }
+
+// Valor unitario máximo de una actividad según el tipo de contrato (igual que
+// _tope_valor_unitario_item): en mano de obra, la mano de obra del APU (+
+// herramienta menor); si el APU no tiene, el ítem completo. Los demás tipos
+// (obra todo costo...), el ítem completo.
+export const topeValorUnitario = (item: { valorUnitario: number; valorManoObra: number }, tipo: string) =>
+  tipo === "mano_obra" && item.valorManoObra > 0 ? Math.min(item.valorManoObra, item.valorUnitario) : item.valorUnitario
+export const sinManoObraEnApu = (item: { valorManoObra: number }, tipo: string) => tipo === "mano_obra" && item.valorManoObra <= 0
 
 export type SolicitudContratoForm = {
   tipo: TipoContrato | ""
@@ -566,8 +578,12 @@ export function validarSolicitud(
           errores.items = `Ítem ${ref.codigo}: la cantidad (${numero(cantidad)}) supera lo disponible en el presupuesto (${numero(ref.disponible)}).`
           break
         }
-        if (valorUnitario > ref.valorUnitario) {
-          errores.items = `Ítem ${ref.codigo}: el valor unitario (${pesos(valorUnitario)}) supera el del presupuesto (${pesos(ref.valorUnitario)}).`
+        const tope = topeValorUnitario(ref, f.tipo)
+        if (valorUnitario > tope) {
+          errores.items =
+            tope < ref.valorUnitario
+              ? `Ítem ${ref.codigo}: el valor unitario (${pesos(valorUnitario)}) supera el de mano de obra del presupuesto (${pesos(tope)}).`
+              : `Ítem ${ref.codigo}: el valor unitario (${pesos(valorUnitario)}) supera el del presupuesto (${pesos(ref.valorUnitario)}).`
           break
         }
       }

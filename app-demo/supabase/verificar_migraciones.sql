@@ -267,5 +267,12 @@ select * from (
                   where table_schema = 'public' and table_name = 'otrosis' and column_name = 'nueva_fecha_fin')
          and exists (select 1 from pg_proc where proname = '_validar_prorroga_otrosi')
          and exists (select 1 from pg_proc where proname = '_valor_contrato')
+  union all
+  select '20261124000000_tope_mano_obra_y_actividades_otrosi',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'otrosis' and column_name = 'actividades')
+         and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contrato_anexo_items' and column_name = 'otrosi_id')
+         and exists (select 1 from pg_proc where proname = 'actividades_para_otrosi')
 ) t
 order by 1;

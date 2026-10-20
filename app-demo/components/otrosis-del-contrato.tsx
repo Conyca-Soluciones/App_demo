@@ -65,6 +65,7 @@ export function OtrosisDelContrato({ contratoId }: { contratoId: string }) {
               <span className="text-xs tabular-nums">prórroga hasta {formatearFechaSinHora(o.nuevaFechaFin)}</span>
             )}
             {o.nuevoValor !== null && <span className="text-xs tabular-nums">nuevo valor {pesos(o.nuevoValor)}</span>}
+            {o.nActividades > 0 && <span className="text-xs tabular-nums">{o.nActividades === 1 ? "1 actividad" : `${o.nActividades} actividades`}</span>}
             <span className="text-xs text-muted-foreground tabular-nums">
               {o.aprobadoAt ? `aprobado el ${fecha(o.aprobadoAt)}` : `pedido el ${fecha(o.createdAt)}`}
             </span>

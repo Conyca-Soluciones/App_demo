@@ -13,19 +13,23 @@ import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comu
 import { rutaPdfOtrosi } from "@/components/otrosi-editor"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
-import { leerNumero, nombreTipoContrato, pesos, pesosEnLetras } from "@/lib/contratos"
+import { SelectorItemPresupuesto } from "@/components/solicitud-contrato-form"
+import { leerNumero, nombreTipoContrato, numero, pesos, pesosEnLetras, sinManoObraEnApu, topeValorUnitario } from "@/lib/contratos"
 import {
   CLASE_ESTADO_OTROSI,
   ETIQUETA_ESTADO_OTROSI,
   MAXIMO_MODIFICACIONES_OTROSI,
+  leerActividadesOtrosi,
   validarSolicitudOtrosi,
+  type ActividadesOtrosiForm,
+  type ActividadesParaOtrosi,
   type ContratoParaOtrosi,
   type EstadoOtrosi,
   type ModificacionOtrosi,
   type OtrosiDetalle,
   type OtrosiFila,
 } from "@/lib/otrosi"
-import { contratosParaOtrosi, crearOtrosi, listarOtrosis, reenviarOtrosi } from "@/app/(app)/contratos/otrosi/actions"
+import { actividadesParaOtrosi, contratosParaOtrosi, crearOtrosi, listarOtrosis, reenviarOtrosi } from "@/app/(app)/contratos/otrosi/actions"
 
 // ---------------------------------------------------------------------------
 // Solicitud de otrosí (ruta /contratos/otrosi): el ingeniero escoge el
@@ -249,6 +253,13 @@ function FormularioOtrosi({
   const [error, setError] = useState<string | null>(null)
   // Contrato abierto en PDF (botón Ver).
   const [viendo, setViendo] = useState<{ id: string; numeroContrato: string } | null>(null)
+  // Actividades (contratos por valores unitarios). Van con el contrato al que
+  // se escribieron: al cambiar de contrato quedan vacías.
+  const [actsEstado, setActsEstado] = useState<{ contratoId: string | null; form: ActividadesOtrosiForm }>(() => ({
+    contratoId: edicion?.contratoId ?? null,
+    form: actividadesDesdeEdicion(edicion),
+  }))
+  const [datosActs, setDatosActs] = useState<{ contratoId: string; datos: ActividadesParaOtrosi | null; error: string | null } | null>(null)
 
   // Al corregir uno devuelto el contrato ya está escogido: no hace falta la lista.
   useEffect(() => {
@@ -290,6 +301,34 @@ function FormularioOtrosi({
   const valorVigente = edicion ? edicion.valor : (contratoElegido?.valor ?? 0)
   const nuevoValor = cambiarValor ? leerNumero(nuevoValorTexto) : null
 
+  const porActividades = (edicion ? edicion.anexoTipo : contratoElegido?.anexoTipo) === "valores_unitarios"
+  const acts = actsEstado.contratoId === contratoId ? actsEstado.form : ACTIVIDADES_VACIAS
+  const cambiarActs = (form: ActividadesOtrosiForm) => {
+    setActsEstado({ contratoId, form })
+    setError(null)
+  }
+  const cargaActs = datosActs && datosActs.contratoId === contratoId ? datosActs : null
+  useEffect(() => {
+    if (!contratoId || !porActividades) return
+    let cancelado = false
+    actividadesParaOtrosi(contratoId)
+      .then((datos) => !cancelado && setDatosActs({ contratoId, datos, error: null }))
+      .catch((e) => !cancelado && setDatosActs({ contratoId, datos: null, error: e instanceof Error ? e.message : "No se pudieron cargar las actividades." }))
+    return () => {
+      cancelado = true
+    }
+  }, [contratoId, porActividades])
+  const lecturaActs =
+    porActividades && cargaActs?.datos
+      ? leerActividadesOtrosi(acts, {
+          anexo: cargaActs.datos.anexo,
+          catalogo: cargaActs.datos.catalogo,
+          topeDe: (item) => topeValorUnitario(item, cargaActs.datos!.tipo),
+        })
+      : null
+  const totalActs = lecturaActs?.ok ? lecturaActs.total : 0
+  const conActividades = Boolean(lecturaActs?.ok && lecturaActs.envio.length > 0)
+
   function cambiar(i: number, cambio: Partial<ModificacionOtrosi>) {
     setModificaciones((l) => l.map((x, j) => (j === i ? { ...x, ...cambio } : x)))
     setError(null)
@@ -301,7 +340,14 @@ function FormularioOtrosi({
       setError("Escoge la nueva fecha de terminación o quita la marca de extender la fecha.")
       return
     }
-    if (cambiarValor && nuevoValor === null) {
+    if (lecturaActs && !lecturaActs.ok) {
+      setError(lecturaActs.error)
+      return
+    }
+    const envioActs = lecturaActs?.ok ? lecturaActs.envio : []
+    // Con actividades el valor lo pone la base (vigente + actividades).
+    const valorEnvio = envioActs.length > 0 ? null : nuevoValor
+    if (envioActs.length === 0 && cambiarValor && nuevoValor === null) {
       setError("Escribe el nuevo valor del contrato o quita la marca de cambiar el valor.")
       return
     }
@@ -310,7 +356,7 @@ function FormularioOtrosi({
       modificaciones,
       justificacion,
       prorroga: { nuevaFechaFin: fechaProrroga, finVigente, hoy: hoyColombia() },
-      cambioValor: { nuevoValor, valorVigente },
+      cambioValor: { nuevoValor: valorEnvio, valorVigente },
     })
     if (problema) {
       setError(problema)
@@ -321,10 +367,10 @@ function FormularioOtrosi({
     try {
       const mods = modificaciones.map((m) => ({ clausula: m.clausula.trim(), redaccion: m.redaccion.trim() }))
       if (edicion) {
-        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga, nuevoValor)
+        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga, valorEnvio, envioActs)
         onTerminado(`Otrosí al contrato ${edicion.numeroContrato} corregido y enviado otra vez a Jurídica.`)
       } else {
-        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga, nuevoValor)
+        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga, valorEnvio, envioActs)
         const c = delContratista.find((x) => x.id === contratoId)
         onTerminado(`Otrosí al contrato ${c?.numeroContrato ?? ""} enviado a Jurídica.`)
       }
@@ -497,8 +543,8 @@ function FormularioOtrosi({
             <div>
               <h3 className="text-sm font-semibold">{edicion ? "Cláusulas que se modifican" : "3. Cláusulas que se modifican"}</h3>
               <p className="text-xs text-muted-foreground">
-                Por cada una: qué cláusula del contrato cambia y cómo queda escrita completa. Si cambian cantidades, valor o plazo, va aquí en la
-                redacción: el contrato no cambia en el sistema.
+                Por cada una: qué cláusula del contrato cambia y cómo queda escrita completa (es lo que sale en el documento). Si cambian el
+                plazo, el valor o las actividades, márcalo también abajo para que el sistema lo tome al aprobarse.
               </p>
             </div>
             {modificaciones.map((m, i) => (
@@ -616,6 +662,40 @@ function FormularioOtrosi({
             )}
           </section>
 
+          {porActividades && (
+            <section className="space-y-2 rounded-md border p-3">
+              <h3 className="text-sm font-semibold">Actividades (opcional)</h3>
+              <p className="text-xs text-muted-foreground">
+                Más cantidad de actividades del contrato (a su valor pactado) o actividades nuevas del presupuesto. Cuando el otrosí quede
+                aprobado se agregan al contrato y se pueden cobrar en las actas; el valor del contrato sube solo.
+              </p>
+              {!cargaActs ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Cargando actividades…
+                </p>
+              ) : cargaActs.error || !cargaActs.datos ? (
+                <p className="text-sm text-destructive">{cargaActs.error}</p>
+              ) : !cargaActs.datos.tienePresupuesto ? (
+                <p className="text-sm text-muted-foreground">El proyecto no tiene presupuesto vigente: no se pueden agregar actividades.</p>
+              ) : (
+                <ActividadesOtrosi datos={cargaActs.datos} form={acts} onChange={cambiarActs} disabled={enviando} />
+              )}
+              {lecturaActs && !lecturaActs.ok && <p className="text-xs text-destructive">{lecturaActs.error}</p>}
+            </section>
+          )}
+
+          {conActividades ? (
+            <section className="space-y-1 rounded-md border p-3 text-sm">
+              <p className="font-semibold">Valor del contrato</p>
+              <p className="tabular-nums">
+                Vigente {pesos(valorVigente)} + actividades {pesos(totalActs)} = <strong>{pesos(valorVigente + totalActs)}</strong>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Con actividades el nuevo valor es este (no se escribe a mano). Al aprobarse pasa a ser el tope de las actas. Recuerda
+                modificar también la cláusula del valor arriba.
+              </p>
+            </section>
+          ) : (
           <section className="space-y-2 rounded-md border p-3">
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input
@@ -658,15 +738,16 @@ function FormularioOtrosi({
                   Cuando el otrosí quede aprobado, este pasa a ser el tope de las actas del contrato (no puede ser menor que lo ya cobrado).
                   El anticipo sigue calculado sobre el valor inicial. Recuerda modificar también la cláusula del valor arriba.
                 </p>
-                {contratoElegido?.anexoTipo === "valores_unitarios" && (
+                {porActividades && (
                   <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Este contrato es a valores unitarios: en las actas cada actividad sigue limitada a la cantidad del anexo; el nuevo
-                    valor solo cambia el tope total.
+                    Este contrato es por actividades: en las actas cada actividad sigue limitada a su cantidad; para cobrar más, agrega
+                    actividades o aumenta cantidades arriba.
                   </p>
                 )}
               </div>
             )}
           </section>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2 border-t pt-4">
@@ -680,6 +761,183 @@ function FormularioOtrosi({
         </>
       )}
       <VerContratoOtrosi contrato={viendo} onCerrar={() => setViendo(null)} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- actividades
+const ACTIVIDADES_VACIAS: ActividadesOtrosiForm = { adiciones: {}, nuevas: [] }
+const comoTexto = (n: number) => String(n).replace(".", ",")
+
+function actividadesDesdeEdicion(edicion: OtrosiDetalle | null): ActividadesOtrosiForm {
+  if (!edicion) return ACTIVIDADES_VACIAS
+  const adiciones: Record<string, string> = {}
+  const nuevas: ActividadesOtrosiForm["nuevas"] = []
+  for (const a of edicion.actividades) {
+    if (a.tipo === "adicion" && a.anexoItemId) adiciones[a.anexoItemId] = comoTexto(a.cantidad)
+    else nuevas.push({ presupuestoItemId: a.presupuestoItemId, cantidad: comoTexto(a.cantidad), valorUnitario: comoTexto(a.valorUnitario) })
+  }
+  return { adiciones, nuevas }
+}
+
+const claseNumero =
+  "w-full rounded-md border bg-background px-2 py-1 text-right text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-primary"
+
+// Adiciones a las actividades del contrato y actividades nuevas del
+// presupuesto (con el tope del tipo de contrato: mano de obra en mano de obra).
+function ActividadesOtrosi({
+  datos,
+  form,
+  onChange,
+  disabled,
+}: {
+  datos: ActividadesParaOtrosi
+  form: ActividadesOtrosiForm
+  onChange: (f: ActividadesOtrosiForm) => void
+  disabled: boolean
+}) {
+  const catalogoPorId = useMemo(() => new Map(datos.catalogo.map((c) => [c.id, c])), [datos.catalogo])
+  const catalogoConTope = useMemo(
+    () => datos.catalogo.map((c) => ({ ...c, valorUnitario: topeValorUnitario(c, datos.tipo) })),
+    [datos.catalogo, datos.tipo]
+  )
+  const usados = new Set(form.nuevas.map((n) => n.presupuestoItemId).filter(Boolean))
+  const cambiarNueva = (i: number, cambio: Partial<ActividadesOtrosiForm["nuevas"][number]>) =>
+    onChange({ ...form, nuevas: form.nuevas.map((n, j) => (j === i ? { ...n, ...cambio } : n)) })
+
+  return (
+    <div className="space-y-3">
+      {datos.anexo.length > 0 && (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1.5 text-left font-medium">Actividad del contrato</th>
+                <th className="px-2 py-1.5 text-right font-medium">Contratada</th>
+                <th className="px-2 py-1.5 text-right font-medium">Valor unitario</th>
+                <th className="px-2 py-1.5 text-right font-medium">Disponible</th>
+                <th className="w-32 px-2 py-1.5 text-right font-medium">Cantidad adicional</th>
+              </tr>
+            </thead>
+            <tbody>
+              {datos.anexo.map((a) => (
+                <tr key={a.id} className="border-t align-top">
+                  <td className="px-2 py-1.5">
+                    {a.codigo && <span className="font-medium tabular-nums">{a.codigo} </span>}
+                    {a.actividad}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">
+                    {numero(a.cantidad)} {a.unidad}
+                  </td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{pesos(a.valorUnitario)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{a.enPresupuesto ? numero(a.disponible) : "No está en el presupuesto"}</td>
+                  <td className="p-1">
+                    <input
+                      aria-label={`Cantidad adicional de ${a.actividad}`}
+                      inputMode="decimal"
+                      value={form.adiciones[a.id] ?? ""}
+                      onChange={(e) => onChange({ ...form, adiciones: { ...form.adiciones, [a.id]: e.target.value } })}
+                      disabled={disabled || !a.enPresupuesto || a.disponible <= 0}
+                      className={claseNumero}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {form.nuevas.length > 0 && (
+        <div className="space-y-2">
+          {form.nuevas.map((n, i) => {
+            const item = n.presupuestoItemId ? catalogoPorId.get(n.presupuestoItemId) : undefined
+            const tope = item ? topeValorUnitario(item, datos.tipo) : 0
+            const cantidad = leerNumero(n.cantidad)
+            const vu = leerNumero(n.valorUnitario)
+            return (
+              <div key={i} className="space-y-2 rounded-md border p-2">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    {item ? (
+                      <>
+                        <p className="text-sm break-words">
+                          <span className="font-medium tabular-nums">{item.codigo}</span> {item.descripcion}
+                        </p>
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          Disponible {numero(item.disponible)} {item.unidad ?? ""} · máx. {pesos(tope)} c/u
+                          {datos.tipo === "mano_obra" && !sinManoObraEnApu(item, datos.tipo) && ` (mano de obra; ítem completo ${pesos(item.valorUnitario)})`}
+                        </p>
+                        {sinManoObraEnApu(item, datos.tipo) && (
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            El APU de este ítem no tiene mano de obra: el tope es el ítem completo y Jurídica lo verá marcado.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <SelectorItemPresupuesto
+                        etiqueta={`Actividad nueva ${i + 1}`}
+                        catalogo={catalogoConTope}
+                        excluir={usados}
+                        disabled={disabled}
+                        onElegir={(c) => cambiarNueva(i, { presupuestoItemId: c.id, valorUnitario: comoTexto(c.valorUnitario) })}
+                      />
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Quitar la actividad nueva ${i + 1}`}
+                    onClick={() => onChange({ ...form, nuevas: form.nuevas.filter((_, j) => j !== i) })}
+                    disabled={disabled}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+                {item && (
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <label className="space-y-0.5">
+                      <span className="text-muted-foreground">Cantidad ({item.unidad ?? "und"})</span>
+                      <input
+                        inputMode="decimal"
+                        value={n.cantidad}
+                        onChange={(e) => cambiarNueva(i, { cantidad: e.target.value })}
+                        disabled={disabled}
+                        className={claseNumero}
+                      />
+                    </label>
+                    <label className="space-y-0.5">
+                      <span className="text-muted-foreground">Valor unitario</span>
+                      <input
+                        inputMode="decimal"
+                        value={n.valorUnitario}
+                        onChange={(e) => cambiarNueva(i, { valorUnitario: e.target.value })}
+                        disabled={disabled}
+                        className={claseNumero}
+                      />
+                    </label>
+                    <div className="space-y-0.5 text-right">
+                      <span className="text-muted-foreground">Total</span>
+                      <p className="py-1 text-sm tabular-nums">{cantidad && vu ? pesos(Math.round(cantidad * vu * 100) / 100) : "—"}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => onChange({ ...form, nuevas: [...form.nuevas, { presupuestoItemId: "", cantidad: "", valorUnitario: "" }] })}
+        disabled={disabled || form.nuevas.length >= 50 || datos.catalogo.length === 0}
+      >
+        <Plus className="size-4" /> Agregar actividad nueva del presupuesto
+      </Button>
     </div>
   )
 }
