@@ -281,5 +281,8 @@ select * from (
          not exists (select 1 from pg_policies where tablename = 'proyectos' and policyname = 'proyectos_select_compras')
          and exists (select 1 from pg_proc where proname = '_crear_orden_compra_sin_proyecto')
          and exists (select 1 from pg_proc where proname = '_exigir_proyecto')
+  union all
+  select '20261118600000_item_apu_por_proyecto_para_requisiciones',
+         exists (select 1 from pg_policies where tablename = 'item_apu' and policyname = 'item_apu_select_de_requisiciones')
 ) t
 order by 1;
