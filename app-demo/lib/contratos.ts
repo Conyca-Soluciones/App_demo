@@ -256,6 +256,8 @@ export type SolicitudContratoFila = {
   retencionGarantiaPct: number
   retencionAnticipoPct: number
   retencionFicPct: number
+  // Otrosí aprobados (columna calculada otrosis_aprobados, 20261121000000).
+  otrosisAprobados?: number
 }
 
 export type ClaseContrato = "grupo" | "general"

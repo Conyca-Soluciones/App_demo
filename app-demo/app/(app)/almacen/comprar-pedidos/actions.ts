@@ -1055,7 +1055,14 @@ export type NotificacionTipo =
   | "minuta_devuelta"
   | "contrato_vencido"
   | "contrato_vencido_juridica"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta" | "presupuesto"
+  | "insumo_rechazado"
+  | "otrosi_por_revisar"
+  | "otrosi_por_aprobar"
+  | "otrosi_devuelto"
+  | "otrosi_rechazado"
+  | "otrosi_aprobado"
+  | "otrosi_devuelto_subgerencia"
+export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta" | "presupuesto" | "otrosi"
 
 export type Notificacion = {
   id: string

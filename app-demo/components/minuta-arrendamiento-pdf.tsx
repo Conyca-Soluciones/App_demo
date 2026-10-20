@@ -26,7 +26,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minu
   const juridica = m.arrendadorTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.arrendadorTipoDocumento)
   const canon = leerNumero(m.canon)
-  const consecutivo = `Nº CJ-${numero} DE ${fecha ? fecha.anio : "20__"}`
+  const consecutivo = `No. CJ-${numero}-${fecha ? fecha.anio : "20__"}`
   const iva = m.iva === "mas_iva" ? "más IVA" : m.iva === "incluido" ? "incluido el IVA" : blanco(null)
   const servicios = OPCIONES_SERVICIOS.find((o) => o.valor === m.serviciosPublicos)?.texto ?? blanco(null)
   const diaFirma = fecha ? (fecha.dia === 1 ? "el primer (1) día" : `el ${cantidadEnLetras(fecha.dia)} día`) : "el ____ día"

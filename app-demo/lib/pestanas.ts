@@ -93,16 +93,21 @@ export const PESTANAS: Pestana[] = [
   // aprobar_minutas = Aprobación de contratos (Subgerencia),
   // cortes = Actas por grupos.
   { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
-  { clave: "contratos.solicitar", titulo: "Contratos por grupos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar"] },
-  { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/generales", rutas: ["/contratos/generales"] },
-  { clave: "contratos.preaprobacion", titulo: "Pre aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion"] },
-  { clave: "contratos.aprobar_minutas", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas"] },
-  { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf"] },
+  { clave: "contratos.solicitar", titulo: "Contratos por grupos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/generales", rutas: ["/contratos/generales", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.preaprobacion", titulo: "Pre aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.aprobar_minutas", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas", "/contratos/otrosi-pdf"] },
+  // Otrosí (20261119000000_otrosis.sql): el PDF va en una ruta de las dos
+  // pestañas; las que ven contratos también la tienen, para abrir el otrosí y
+  // el contrato desde el detalle del contrato (PESTANAS_VER_OTROSI).
+  { clave: "contratos.solicitar_otrosi", titulo: "Solicitud de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/otrosi", rutas: ["/contratos/otrosi", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.aprobar_otrosi", titulo: "Aprobación de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/aprobacion-otrosi", rutas: ["/contratos/aprobacion-otrosi", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/", rutas: [], nota: "Todavía sin página." },
-  { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf"] },
+  { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 
-  { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion"] },
+  { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion", "/contratos/otrosi-pdf"] },
 
   // A&F (Administrativo y Financiero)
   { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos"] },
@@ -138,9 +143,9 @@ export const ACCIONES: Accion[] = [
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
-  { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
-  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso.", seccion: "Contratos" },
-  { clave: "aprobar_minutas", titulo: "Aprobar contratos (Subgerencia)", descripcion: "Aprobar o devolver con motivo la minuta de los contratos que Jurídica pre-aprueba y envía a Subgerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas.", seccion: "Contratos" },
+  { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato y de otrosí de los proyectos a los que tiene acceso.", seccion: "Contratos" },
+  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso. También arma el otrosí y lo envía a Subgerencia, lo devuelve o lo rechaza.", seccion: "Contratos" },
+  { clave: "aprobar_minutas", titulo: "Aprobar contratos (Subgerencia)", descripcion: "Aprobar o devolver con motivo la minuta de los contratos que Jurídica pre-aprueba y envía a Subgerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas. También aprueba o devuelve los otrosí.", seccion: "Contratos" },
   { clave: "elaborar_actas", titulo: "Elaborar actas", descripcion: "Crear actas de los contratos con minuta aprobada de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "ver_datos_bancarios", titulo: "Ver datos bancarios de contratistas", descripcion: "Ver el banco, la cuenta y la certificación bancaria de los contratistas. Sin esta acción se ven como \"Restringido\".", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },

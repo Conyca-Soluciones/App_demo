@@ -23,7 +23,7 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
   const juridica = m.contratistaTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.contratistaTipoDocumento)
   const valor = leerNumero(m.valor)
-  const consecutivo = `Nº CJ-${numero}-${fecha ? fecha.anio : "20__"}`
+  const consecutivo = `No. CJ-${numero}-${fecha ? fecha.anio : "20__"}`
   const lugarFecha = fecha
     ? fecha.dia === 1
       ? `el primer (1) día del mes de ${fecha.mes} de ${fecha.anio}`
