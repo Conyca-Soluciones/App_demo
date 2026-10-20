@@ -258,5 +258,8 @@ select * from (
   select '20261121000000_otrosis_en_contrato',
          exists (select 1 from pg_proc where proname = 'otrosis_de_contrato')
          and exists (select 1 from pg_proc where proname = 'otrosis_aprobados')
+  union all
+  select '20261122000000_historial_otrosis_en_contrato',
+         exists (select 1 from pg_proc where proname = 'historial_otrosis_de_contrato')
 ) t
 order by 1;

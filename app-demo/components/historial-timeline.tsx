@@ -68,6 +68,15 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
   minuta_aprobada: { etiqueta: "Minuta aprobada por Subgerencia", tono: "ok" },
   minuta_devuelta: { etiqueta: "Minuta devuelta por Subgerencia", tono: "aviso" },
+  // Eventos de sus otrosí (historial_otrosis_de_contrato).
+  otrosi_creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },
+  otrosi_reenviado: { etiqueta: "Otrosí corregido y enviado otra vez", tono: "neutro" },
+  otrosi_devuelto: { etiqueta: "Otrosí devuelto al ingeniero por Jurídica", tono: "aviso" },
+  otrosi_rechazado: { etiqueta: "Otrosí rechazado por Jurídica", tono: "malo" },
+  otrosi_enviado_subgerencia: { etiqueta: "Otrosí enviado a Subgerencia", tono: "neutro" },
+  otrosi_reenviado_subgerencia: { etiqueta: "Otrosí corregido y enviado otra vez a Subgerencia", tono: "neutro" },
+  otrosi_devuelto_subgerencia: { etiqueta: "Otrosí devuelto a Jurídica por Subgerencia", tono: "aviso" },
+  otrosi_aprobado: { etiqueta: "Otrosí aprobado por Subgerencia", tono: "ok" },
 }
 
 // Eventos de un OTROSÍ (Jurídica y Subgerencia).
@@ -128,6 +137,12 @@ function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
     return []
   }
   if (tipo === "otrosi") return e.evento === "aprobado" && d.numero ? [`Otrosí N° ${d.numero}`] : []
+  // Evento de un otrosí dentro del historial del contrato: cuál y qué cláusulas.
+  if (tipo === "contrato" && e.evento.startsWith("otrosi_")) {
+    const lineas = [d.otrosi_numero ? `Otrosí N° ${d.otrosi_numero}` : "Otrosí en trámite"]
+    if (d.clausulas) lineas.push(`Cláusulas: ${d.clausulas}`)
+    return lineas
+  }
   if (tipo === "requisicion") {
     if (e.evento === "creada" && d.insumos) return [`${d.insumos} ${d.insumos === 1 ? "insumo" : "insumos"}`]
     if (e.evento === "rechazado_por_compras" && d.insumo) return [String(d.insumo)]
