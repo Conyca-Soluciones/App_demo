@@ -4,7 +4,8 @@ import { leerCantidadEntera } from "@/lib/numeros"
 
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, History, Loader2 } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -376,6 +377,7 @@ function DetalleEntrada({
   const [anulando, setAnulando] = useState<EntradaRegistrada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesandoAnulacion, setProcesandoAnulacion] = useState(false)
+  const [historialDe, setHistorialDe] = useState<EntradaRegistrada | null>(null)
 
   function abrirEdicion(e: EntradaRegistrada) {
     setError(null)
@@ -650,24 +652,30 @@ function DetalleEntrada({
                   {formatoFecha(e.createdAt)} · {e.recibidoPor ?? "—"}
                   {e.remision ? ` · Remisión ${e.remision}` : ""}
                 </span>
-                {!e.anuladaAt && (
-                  <span className="ml-auto flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => abrirEdicion(e)}>
-                      Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setError(null)
-                        setAviso(null)
-                        setAnulando(e)
-                      }}
-                    >
-                      Anular
-                    </Button>
-                  </span>
-                )}
+                <span className="ml-auto flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setHistorialDe(e)}>
+                    <History className="mr-1 h-4 w-4" />
+                    Historial
+                  </Button>
+                  {!e.anuladaAt && (
+                    <>
+                      <Button variant="ghost" size="sm" onClick={() => abrirEdicion(e)}>
+                        Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setError(null)
+                          setAviso(null)
+                          setAnulando(e)
+                        }}
+                      >
+                        Anular
+                      </Button>
+                    </>
+                  )}
+                </span>
               </div>
               <ul className="mt-1 list-disc pl-5">
                 {e.lineas.map((l) => (
@@ -777,6 +785,14 @@ function DetalleEntrada({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="entrada"
+        id={historialDe?.id ?? null}
+        titulo={`Historial de la entrada #${historialDe?.numero ?? ""}`}
+        onCerrar={() => setHistorialDe(null)}
+      />
     </div>
   )
 }

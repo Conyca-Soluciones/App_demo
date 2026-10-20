@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Eye, FileUp, Loader2, Pencil, Plus, Search, X } from "lucide-react"
+import { CheckCircle2, Eye, FileUp, History, Loader2, Pencil, Plus, Search, X } from "lucide-react"
+import { HistorialTimeline } from "@/components/historial-timeline"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -320,6 +321,7 @@ function DetalleContratistaDialog({
 }) {
   // Documento abierto en el visor (dentro del mismo diálogo).
   const [viendo, setViendo] = useState<{ id: string; titulo: string; nombreArchivo: string; mime: string } | null>(null)
+  const [verHistorial, setVerHistorial] = useState(false)
 
   const campos: [string, string][] = c
     ? [
@@ -357,6 +359,7 @@ function DetalleContratistaDialog({
       onOpenChange={(abierto) => {
         if (!abierto) {
           setViendo(null)
+          setVerHistorial(false)
           onCerrar()
         }
       }}
@@ -421,6 +424,21 @@ function DetalleContratistaDialog({
                   )
                 })}
               </ul>
+            </section>
+
+            <section className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Historial</h3>
+                <Button size="sm" variant="outline" onClick={() => setVerHistorial((v) => !v)}>
+                  <History className="size-4" />
+                  {verHistorial ? "Ocultar" : "Ver historial"}
+                </Button>
+              </div>
+              {verHistorial && (
+                <div className="rounded-md border p-3">
+                  <HistorialTimeline tipo="contratista" id={c.id} />
+                </div>
+              )}
             </section>
           </div>
         )}

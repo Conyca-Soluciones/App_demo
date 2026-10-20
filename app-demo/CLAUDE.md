@@ -1224,9 +1224,35 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   línea de tiempo muestra "Nombre (Rol)" y "Sistema o carga de datos" sin usuario.
   Botón Historial en Aprobación de pagos, Consolidado, ficha del tercero y
   Proveedores.
-- **Siguiente fase** (pendiente): contratistas, minutas, entradas y salidas,
-  solicitudes de insumo/MO/equipo; luego presupuesto, roles y pantalla de
-  Auditoría.
+- **Fases 3 y 4** (`20261118200000_historial_completo_y_auditoria.sql`, va
+  después de la anterior): disparadores en contratistas (creado, editado; los
+  datos bancarios solo constan como "(reservado)") y sus documentos (subido /
+  reemplazado / quitado: borrar + subir en la misma transacción se junta en un
+  "reemplazado"), minuta (`minuta_guardada` con lo que cambió; no cuando el
+  guardado es parte de enviar/aprobar), entradas (registrada, editada,
+  `linea_editada`, anulada), salidas, solicitudes de insumo/MO/equipo
+  (solicitada, aprobada, rechazada: se BORRAN al resolverse, el historial
+  queda), presupuestos y versiones (creado, versión creada/descartada,
+  descartado), roles y permisos, usuarios (creado, rol, todos los proyectos,
+  proyectos asignados/quitados). Lo existente se reconstruye (`reconstruido`).
+  Ayudas `_anotar_historial` y `_jsonb_cambios`; `_eventos_terceros_auditoria`
+  traduce terceros_auditoria (la usan historial_entidad y la auditoría).
+  historial_entidad: rol, usuario, solicitudes y lo ya borrado solo para el
+  Administrador.
+- **Auditoría** `/admin/auditoria` (solo Administrador, sección Usuarios y
+  permisos de Admin): `listar_auditoria(tipo, usuario, desde, hasta, offset,
+  limite)` junta historial_eventos y terceros_auditoria, más reciente primero,
+  páginas de 50 (índices por fecha) y una referencia legible por tipo calculada
+  solo para la página. Etiquetas y detalle = los de la línea de tiempo
+  (`definicionEvento`, `detalleEvento`, `quienHizo` en historial-timeline).
+  Botón/sección Historial también en Contratistas, Entradas y Salidas
+  registradas. Presupuesto, roles y usuarios: por ahora solo en Auditoría.
+- Un evento nuevo: agregar su etiqueta en `EVENTOS_POR_TIPO` y, si tiene
+  datos, su detalle en `detalleEvento`; un tipo nuevo: también en el CHECK de
+  `historial_eventos.entidad_tipo`, en historial_entidad (permiso) y en
+  `TipoHistorial` / `NOMBRE_TIPO_HISTORIAL`.
+- El documento reemplazado de un contratista se sigue borrando del bucket
+  (solo queda su nombre en el historial).
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 

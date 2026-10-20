@@ -19,6 +19,15 @@ export type TipoHistorial =
   | "pago"
   | "tercero"
   | "proveedor"
+  | "contratista"
+  | "entrada"
+  | "salida"
+  | "solicitud_insumo"
+  | "solicitud_mano_obra"
+  | "solicitud_equipo"
+  | "presupuesto"
+  | "rol"
+  | "usuario"
 
 export type EventoHistorial = {
   id: string

@@ -252,5 +252,11 @@ select * from (
          exists (select 1 from pg_trigger where tgname = 'trg_historial_pago')
          and exists (select 1 from pg_trigger where tgname = 'trg_historial_proveedor')
          and position('usuario_rol' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
+  union all
+  select '20261118200000_historial_completo_y_auditoria',
+         exists (select 1 from pg_proc where proname = 'listar_auditoria')
+         and exists (select 1 from pg_trigger where tgname = 'trg_historial_contratista')
+         and exists (select 1 from pg_trigger where tgname = 'trg_historial_usuario')
+         and position('''contratista''' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
 ) t
 order by 1;

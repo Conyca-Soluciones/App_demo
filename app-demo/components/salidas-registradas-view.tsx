@@ -3,7 +3,8 @@
 import { leerCantidadEntera } from "@/lib/numeros"
 import { formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { History, Loader2 } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -70,6 +71,7 @@ export function SalidasRegistradasView() {
   const [anulando, setAnulando] = useState<SalidaRegistrada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
+  const [historialDe, setHistorialDe] = useState<SalidaRegistrada | null>(null)
 
   function cargar(filtros: FiltrosSalidas, nuevaPagina: number) {
     if (!proyectoId) return
@@ -272,6 +274,17 @@ export function SalidasRegistradasView() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
+                        <span className="inline-flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            title="Historial de la salida"
+                            aria-label="Historial de la salida"
+                            onClick={() => setHistorialDe(s)}
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
                         {!s.anuladaAt && (
                           <span className="inline-flex gap-1">
                             <Button variant="outline" size="sm" onClick={() => abrirEdicion(s)}>
@@ -292,6 +305,7 @@ export function SalidasRegistradasView() {
                             </Button>
                           </span>
                         )}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -383,6 +397,14 @@ export function SalidasRegistradasView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="salida"
+        id={historialDe?.id ?? null}
+        titulo={`Historial de la salida · ${historialDe?.insumoDescripcion ?? ""}`}
+        onCerrar={() => setHistorialDe(null)}
+      />
     </div>
   )
 }
