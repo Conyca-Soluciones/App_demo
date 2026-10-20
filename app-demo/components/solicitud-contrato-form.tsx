@@ -1096,7 +1096,7 @@ export function SolicitudContratoForm({
           <MensajeError texto={errores.departamentoDomicilio} />
         </div>
 
-        {f.tipo === "obra" && (
+        {(f.tipo === "obra" || f.tipo === "mano_obra") && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1" data-error={Boolean(errores.pagoCadaDias)}>
               <label htmlFor="contrato-pago-cada" className="text-xs font-medium text-muted-foreground">
@@ -1144,6 +1144,19 @@ export function SolicitudContratoForm({
               )}
               <MensajeError texto={errores.retencion} />
             </div>
+            {f.tipo === "mano_obra" && (
+              <div className="space-y-1" data-error={Boolean(errores.exigeGarantia)}>
+                <PreguntaSiNo
+                  id="contrato-garantia-mano-obra"
+                  etiqueta="¿El contrato exige garantías (pólizas)? *"
+                  valor={f.exigeGarantia}
+                  onChange={(v) => cambiar("exigeGarantia", v)}
+                  disabled={enviando}
+                  conError={Boolean(errores.exigeGarantia)}
+                />
+                <MensajeError texto={errores.exigeGarantia} />
+              </div>
+            )}
           </div>
         )}
 

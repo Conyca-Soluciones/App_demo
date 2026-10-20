@@ -294,7 +294,12 @@ export async function construirLibroPreciosInsumos(
   // La columna del ID es la llave al subir el archivo: oculta.
   hoja.getColumn(n).hidden = true
 
-  hoja.views = [{ state: "frozen", ySplit: primera }]
+  // Encabezados y la columna del nombre fijos al moverse. El logo venía en
+  // A:B combinadas; se deja solo en A para que la columna fija no lo parta.
+  const filasMarca = primera - 2
+  hoja.unMergeCells(`A1:B${filasMarca}`)
+  hoja.mergeCells(`A1:A${filasMarca}`)
+  hoja.views = [{ state: "frozen", xSplit: 1, ySplit: primera }]
   return libro
 }
 

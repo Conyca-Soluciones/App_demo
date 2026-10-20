@@ -5,13 +5,18 @@ import {
   AMPAROS_OBRA,
   AMPARO_ANTICIPO_OBRA,
   DOMICILIO_PLANTILLA_OBRA,
+  OBLIGACIONES_CONTRATANTE_MANO_OBRA,
+  OBLIGACIONES_ESPECIFICAS_MANO_OBRA,
   OBLIGACIONES_ESPECIFICAS_OBRA,
+  OBLIGACIONES_GENERALES_MANO_OBRA,
+  esMinutaManoObra04,
   limpiarMinutaObra,
   mezclarMinutaObra,
   minutaObraPorDefecto,
   minutaObraVacia,
   nombreArchivoMinutaObra,
   origenCampoObra,
+  usaPlantillaManoObra04,
 } from "@/lib/minuta-obra"
 
 const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudContratoDetalle => ({
@@ -176,5 +181,49 @@ describe("datos de la solicitud para la minuta de obra", () => {
     expect(sin.retencion).toBe("no")
     expect(sin.retencionGarantia).toBe("")
     expect(mezclarMinutaObra(sin, { retencion: "tal vez" }).retencion).toBe("no")
+  })
+})
+
+describe("mano de obra (plantilla GJ-F-003 versión 04)", () => {
+  const mo = (cambios: Partial<SolicitudContratoDetalle> = {}) =>
+    minutaObraPorDefecto(
+      detalle({ tipo: "mano_obra", domicilioDepartamento: "Arauca", datosTipo: { pagoCadaDias: 15, retencionGarantia: false, exigeGarantia: true }, ...cambios }),
+      extra,
+      "2026-10-13"
+    )
+
+  it("variante, listas de la plantilla y lugares", () => {
+    const m = mo()
+    expect(m.variante).toBe("mano_obra")
+    expect(OBLIGACIONES_CONTRATANTE_MANO_OBRA).toHaveLength(8)
+    expect(OBLIGACIONES_GENERALES_MANO_OBRA).toHaveLength(11)
+    expect(OBLIGACIONES_ESPECIFICAS_MANO_OBRA).toHaveLength(23)
+    expect(m.obligacionesEspecificas.slice(0, 23)).toEqual(OBLIGACIONES_ESPECIFICAS_MANO_OBRA)
+    expect(m.municipioEjecucion).toBe("Arauca")
+    expect(m.departamentoFirma).toBe("Arauca")
+    expect(m.periodicidadPago).toBe("quince (15) días")
+    expect(m.exigeGarantia).toBe("si")
+    expect(minutaObraPorDefecto(detalle(), extra, "2026-10-13").variante).toBe("obra")
+  })
+
+  it("sin garantías cuando la solicitud lo dice; mezclar valida", () => {
+    const m = mo({ datosTipo: { pagoCadaDias: 15, retencionGarantia: false, exigeGarantia: false } })
+    expect(m.exigeGarantia).toBe("no")
+    expect(mezclarMinutaObra(m, { exigeGarantia: "tal vez" }).exigeGarantia).toBe("no")
+    expect(mezclarMinutaObra(m, { exigeGarantia: "si" }).exigeGarantia).toBe("si")
+    expect(mezclarMinutaObra(m, { variante: "otra" }).variante).toBe("mano_obra")
+    expect(nombreArchivoMinutaObra(61, "Construcciones Andinas SAS", "mano_obra")).toBe("minuta-mano-obra-61-construcciones-andinas-sas.pdf")
+  })
+
+  it("las minutas enviadas o aprobadas con la plantilla anterior la conservan", () => {
+    const nueva = mo()
+    expect(esMinutaManoObra04(nueva)).toBe(true)
+    expect(esMinutaManoObra04({ contratanteNombre: "x" })).toBe(false)
+    expect(esMinutaManoObra04(null)).toBe(false)
+    expect(usaPlantillaManoObra04(null, null)).toBe(true)
+    expect(usaPlantillaManoObra04("devuelta", { contratanteNombre: "x" })).toBe(true)
+    expect(usaPlantillaManoObra04("en_revision", { contratanteNombre: "x" })).toBe(false)
+    expect(usaPlantillaManoObra04("aprobada", null)).toBe(false)
+    expect(usaPlantillaManoObra04("aprobada", nueva)).toBe(true)
   })
 })

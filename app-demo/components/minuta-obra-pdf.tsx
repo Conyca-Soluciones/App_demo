@@ -6,13 +6,18 @@ import { PRIMERA_CLAUSULA_ADICIONAL_OBRA, type MinutaObra } from "@/lib/minuta-o
 import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
 
 // ---------------------------------------------------------------------------
-// PDF de la minuta del contrato de obra a todo costo: el texto de la plantilla
-// de Jurídica (versión 04) con los campos de la minuta, y el anexo N° 1. Se
+// PDF de la minuta del contrato de obra a todo costo y del contrato de mano de
+// obra (las dos plantillas de Jurídica versión 04, 9/05/2025): el texto de la
+// plantilla con los campos de la minuta, y el anexo N° 1. `m.variante` dice
+// cuál; donde las dos plantillas dicen lo mismo, el texto es uno solo. Se
 // genera en el servidor (app/(app)/contratos/pre-aprobacion/[id]/minuta/route.tsx).
 // ---------------------------------------------------------------------------
 
-// Así viene el encabezado de la plantilla (el código es el mismo de la de mano de obra).
-const ENCABEZADO = { formato: "CONTRATO DE OBRA TC", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" }
+// Así viene el encabezado de cada plantilla (las dos con el código GJ-F-003).
+const ENCABEZADO = {
+  obra: { formato: "CONTRATO DE OBRA TC", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" },
+  mano_obra: { formato: "CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" },
+}
 
 const numero = (i: number) => `${i + 1}.`
 
@@ -21,6 +26,9 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.contratistaTipoPersona === "juridica"
+  const mo = m.variante === "mano_obra"
+  const encabezado = ENCABEZADO[mo ? "mano_obra" : "obra"]
+  const nombreContrato = mo ? "Contrato de mano de obra" : "Contrato de obra"
   const documento = tipoDocumentoArrendador(m.contratistaTipoDocumento)
   const valor = leerNumero(m.valor)
   const anticipo = leerNumero(m.anticipo)
@@ -33,15 +41,15 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
   const anchos = { actividad: "46%", unidad: "10%", cantidad: "12%", vu: "16%", total: "16%" }
   const anchosAmparo = { amparo: "40%", porcentaje: "20%", vigencia: "40%" }
   const pie = ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
-    `Contrato de obra ${consecutivo} · Página ${pageNumber} de ${totalPages}`
+    `${nombreContrato} ${consecutivo} · Página ${pageNumber} de ${totalPages}`
 
   return (
-    <Document title={`Contrato de obra ${consecutivo}`} author={m.contratanteNombre}>
+    <Document title={`${nombreContrato} ${consecutivo}`} author={m.contratanteNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...encabezado} />
         <Text style={s.footer} fixed render={pie} />
 
-        <Text style={[s.titulo, { marginBottom: 2 }]}>CONTRATO DE MANO DE OBRA TC</Text>
+        <Text style={[s.titulo, { marginBottom: 2 }]}>{mo ? "CONTRATO DE MANO DE OBRA" : "CONTRATO DE MANO DE OBRA TC"}</Text>
         <Text style={s.titulo}>{consecutivo}</Text>
 
         <P>
@@ -50,8 +58,9 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           denominará <Text style={s.b}>EL CONTRATANTE,</Text> de una parte y por la otra,{" "}
           {juridica ? (
             <>
-              <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))},</Text> con Nit. {res("contratistaNit", blanco(m.contratistaNit))}, representada legalmente por{" "}
-              {res("contratistaRepresentante", blanco(m.contratistaRepresentante))}, mayor de edad, identificado con {documento.articulo} {documento.texto} No. {res("contratistaCedula", blanco(m.contratistaCedula))}
+              <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))},</Text> con Nit. {res("contratistaNit", blanco(m.contratistaNit))},{" "}
+              {mo ? "representado por" : "representada legalmente por"} {res("contratistaRepresentante", blanco(m.contratistaRepresentante))},
+              {mo ? "" : " mayor de edad,"} identificado con {documento.articulo} {documento.texto} No. {res("contratistaCedula", blanco(m.contratistaCedula))}
             </>
           ) : (
             <>
@@ -63,18 +72,28 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           jurídico, previo a las siguientes consideraciones:
         </P>
 
-        <Clausula titulo="PRIMERA. OBJETO:">
-          En virtud del presente contrato <Text style={s.b}>EL CONTRATANTE</Text> encarga a <Text style={s.b}>EL CONTRATISTA,</Text> quien se obliga a
-          ejecutar a todo costo, por su cuenta y riesgo, las actividades necesarias para el desarrollo de las obras civiles correspondientes al proyecto
-          denominado: {res("obra", blanco(m.obra))}, de conformidad con las cantidades, actividades, especificaciones técnicas, diseños, planos, presupuestos y demás
-          condiciones contenidas en el anexo Nº 1.
-        </Clausula>
-        <P>
-          El alcance del presente contrato comprende, salvo las actividades o elementos que expresamente se hayan establecido como responsabilidad del EL
-          CONTRATANTE, el suministro de la totalidad de la mano de obra, materiales, insumos, herramientas, equipos, maquinaria, transporte, cargue,
-          descargue, almacenamiento, instalación, disposición de residuos y demás recursos necesarios para la correcta ejecución y entrega de las
-          actividades contratadas.
-        </P>
+        {mo ? (
+          <Clausula titulo="PRIMERA. OBJETO:">
+            En virtud del presente contrato <Text style={s.b}>EL CONTRATANTE</Text> encarga a <Text style={s.b}>EL CONTRATISTA,</Text> quien se obliga a
+            ejecutar, por su cuenta y riesgo, las actividades de mano de obra necesarias para el desarrollo de las obras civiles correspondientes al proyecto
+            cuyo objeto es: “{res("obra", blanco(m.obra))}”.
+          </Clausula>
+        ) : (
+          <>
+            <Clausula titulo="PRIMERA. OBJETO:">
+              En virtud del presente contrato <Text style={s.b}>EL CONTRATANTE</Text> encarga a <Text style={s.b}>EL CONTRATISTA,</Text> quien se obliga a
+              ejecutar a todo costo, por su cuenta y riesgo, las actividades necesarias para el desarrollo de las obras civiles correspondientes al proyecto
+              denominado: {res("obra", blanco(m.obra))}, de conformidad con las cantidades, actividades, especificaciones técnicas, diseños, planos, presupuestos y demás
+              condiciones contenidas en el anexo Nº 1.
+            </Clausula>
+            <P>
+              El alcance del presente contrato comprende, salvo las actividades o elementos que expresamente se hayan establecido como responsabilidad del EL
+              CONTRATANTE, el suministro de la totalidad de la mano de obra, materiales, insumos, herramientas, equipos, maquinaria, transporte, cargue,
+              descargue, almacenamiento, instalación, disposición de residuos y demás recursos necesarios para la correcta ejecución y entrega de las
+              actividades contratadas.
+            </P>
+          </>
+        )}
 
         <Clausula titulo="SEGUNDA. PLAZO DE EJECUCIÓN:">
           El plazo ejecución del presente contrato será de {res("plazo", blanco(m.plazo))} calendario, contados a partir de la suscripción del acta de inicio.
@@ -90,7 +109,16 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         </Clausula>
 
         <Clausula titulo="CUARTA. ANTICIPO:">
-          {conAnticipo ? (
+          {conAnticipo && mo ? (
+            <>
+              Para el presente contrato, será por valor de{" "}
+              <Text style={s.b}>
+                {res("anticipoLetras", blanco(m.anticipoLetras))} (${res("anticipo", anticipo !== null ? pesosSinSimbolo(anticipo) : blanco(m.anticipo))}) M/CTE.
+              </Text>{" "}
+              El anticipo se tramitará una vez suscrito el contrato y aprobadas las pólizas que las ampara. <Text style={s.b}>PARAGRAFO PRIMERO:</Text>{" "}
+              El Anticipo será amortizado en el {res("amortizacion", blanco(m.amortizacion))} en cada cobro de acta parcial.
+            </>
+          ) : conAnticipo ? (
             <>
               El contratante entregará al contratista un anticipo equivalente al {res("anticipoPorcentaje", `${blanco(m.anticipoPorcentaje.replace(/%/g, ""))}%`)} del valor del
               contrato, es decir, la suma de{" "}
@@ -100,13 +128,18 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
               El anticipo se tramitará una vez suscrito el contrato y aprobadas las pólizas que las ampara. <Text style={s.b}>PARAGRAFO PRIMERO:</Text>{" "}
               El Anticipo será amortizado en el {res("amortizacion", blanco(m.amortizacion))} en cada cobro de acta parcial.
             </>
+          ) : mo ? (
+            "El contratante no entregará ningún tipo de anticipo para la ejecución del contrato."
           ) : (
             "El contratante no entregará anticipo al contratista."
           )}
         </Clausula>
 
         <Clausula titulo="QUINTA. FORMA DE PAGO:">
-          Se pagará cada {res("periodicidadPago", blanco(m.periodicidadPago))}, según programación de pago, conforme el avance de la obra y previa aprobación del director de obra.
+          Se pagará cada {res("periodicidadPago", blanco(m.periodicidadPago))}, según programación de pago,{" "}
+          {mo
+            ? "y conforme al avance efectivo de las actividades de mano de obra ejecutadas previa aprobación del corte correspondiente por parte del director de obra o supervisor designado."
+            : "conforme el avance de la obra y previa aprobación del director de obra."}{" "}
           Mediante transferencia electrónica, previa factura electrónica, aprobación del corte, certificación de cumplimiento y soportes de seguridad
           social. <Text style={s.b}>PARAGRAFO PRIMERO:</Text> Las actas antes señaladas deberán ser acompañadas de los siguientes documentos:{" "}
           <Text style={s.b}>1.</Text> Informe de ejecución del contratista con sus respectivos soportes fotográficos de avance de actividades y visto
@@ -119,10 +152,16 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           cumplimiento a la obligación que originó la retención. <Text style={s.b}>PARAGRÁFO TERCERO:</Text>{" "}
           {m.retencion === "no" ? (
             res("retencion", "No se hará retención en garantía sobre los pagos del contrato.")
+          ) : mo ? (
+            <>
+              Como mecanismo de garantía contractual, se efectuará una retención del ({res("retencionGarantia", blanco(m.retencionGarantia))}) sobre los valores
+              objeto de pago, la cual será devuelta a el contratista con ocasión de la liquidación del contrato, previa verificación del cumplimiento de las
+              obligaciones a su cargo.
+            </>
           ) : (
             <>
-              Se le hará retención contra pago de recibo de satisfacción de la obra del {res("retencionGarantia", blanco(m.retencionGarantia))} del valor
-              del contrato, el cual será devuelto al contratista con la expedición del acta de liquidación del contrato.
+              Se le hará retención en garantía del ({res("retencionGarantia", blanco(m.retencionGarantia))}) de cada factura o cuenta de cobro de acta parcial,
+              retención que será pagada con la expedición del acta de liquidación del contrato.
             </>
           )}{" "}
           <Text style={s.b}>PARAGRÁFO CUARTO:</Text> Los pagos se realizarán mediante transferencia electrónica a la
@@ -151,8 +190,9 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         </Clausula>
 
         <Clausula titulo="DECIMA PRIMERA. CONTRATACIÓN DE PERSONAL:">
-          El contratista debe contratar el personal que considere necesario para adelantar la ejecución del objeto del presente contrato, para tal fin
-          deberá por su cuenta y riesgo asumir la responsabilidad del personal a su cargo.
+          {mo
+            ? "El contratista contratará, por su cuenta y riesgo, el personal que considere necesario para la ejecución del objeto contractual. El contratista será el único responsable de las obligaciones laborales, salariales, prestacionales, de seguridad social, parafiscales y demás obligaciones derivadas de las relaciones laborales que establezca con su personal."
+            : "El contratista debe contratar el personal que considere necesario para adelantar la ejecución del objeto del presente contrato, para tal fin deberá por su cuenta y riesgo asumir la responsabilidad del personal a su cargo."}
         </Clausula>
 
         <Clausula titulo="DECIMA SEGUNDA. CLAUSULA PENAL:">
@@ -178,6 +218,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         <Clausula titulo="DECIMA CUARTA. RESPONSABILIDAD:">
           El Contratista es responsable por el cumplimiento de las obligaciones pactadas en el Contrato. Además, responderá por los daños generados al
           contratante y a terceros en la ejecución del Contrato, causados por sus Subcontratistas, dependientes o empleados.
+          {mo ? " El contratista será responsable por la calidad y correcta ejecución de las actividades de mano de obra a su cargo." : ""}
         </Clausula>
 
         <Clausula titulo="DECIMA QUINTA. INDEMNIDAD:">
@@ -195,6 +236,12 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           mutuo acuerdo de las partes.
         </Clausula>
 
+        {mo && m.exigeGarantia === "no" ? (
+          <Clausula titulo="DECIMA OCTAVA. GARANTIAS:">
+            {res("exigeGarantia", "Para la ejecución del presente contrato no se exigirá la constitución de garantías.")}
+          </Clausula>
+        ) : (
+        <>
         <Clausula titulo="DECIMA OCTAVA. GARANTIAS:">
           Para cubrir cualquier hecho constitutivo de incumplimiento, el contratista se compromete a constituir a favor del contratante, una garantía que
           ampare lo siguiente:
@@ -216,9 +263,11 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         <P>
           La garantía deberá estar firmada por el Representante Legal de LA CONTRATISTA, las primas serán de su cargo y deberán estar acompañadas de los
           recibos de cancelación expedidos por la entidad aseguradora, las mismas deberán ser entregadas para su aprobación al contratante a más tardar tres
-          (3) días después de la suscripción del presente contrato <Text style={s.b}>PARAGRAFO PRIMERO:</Text> En caso de ser necesario, el contratista
+          (3) días después de la suscripción del presente contrato{mo ? "." : ""} <Text style={s.b}>PARAGRAFO PRIMERO:</Text> En caso de ser necesario, el contratista
           podrá presentar una garantía diferente a la enunciada, siempre que esta sea aceptada por el contratante.
         </P>
+        </>
+        )}
 
         <Clausula titulo="DECIMA NOVENA. DOMICILIO:">
           Para todos los efectos leales, las partes acuerdan como domicilio el departamento de {res("domicilioDepartamento", blanco(m.domicilioDepartamento))}.
@@ -226,7 +275,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
 
         <Clausula titulo="VIGESIMA. DOCUMENTOS DEL CONTRATO:">
           Forman parte integral del presente contrato el formato de solicitud de contrato elaborado por el director de obra y aprobado por la subgerencia
-          administrativa el cronograma de cumplimiento de ejecución de actividades y todos los documentos que se produzcan durante el desarrollo del mismo.
+          administrativa{mo ? "," : ""} el cronograma de cumplimiento de ejecución de actividades y todos los documentos que se produzcan durante el desarrollo del mismo.
         </Clausula>
 
         <Clausula titulo="VIGESIMA PRIMERA. SOLUCION DE CONTROVERSIAS:">
@@ -240,24 +289,27 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         </Clausula>
 
         <Clausula titulo="VIGESIMA TERCERA. SUPERVISIÓN:">
-          La supervisión del presente contrato y del cumplimiento de las obligaciones derivadas del mismo, estarán a cargo del director de Obra o quien haga
-          sus veces.
+          {mo
+            ? "La supervisión del presente contrato y del cumplimiento de las obligaciones derivadas del mismo, estará a cargo del director de Obra o quien haga sus veces, quien tendrá a cargo la verificación del cumplimiento de las obligaciones, cantidades, calidades, avance y demás condiciones establecidas en el contrato y sus anexos."
+            : "La supervisión del presente contrato y del cumplimiento de las obligaciones derivadas del mismo, estarán a cargo del director de Obra o quien haga sus veces."}
         </Clausula>
 
         <Clausula titulo="VIGESIMA CUARTA. ENTREGABLES:">
           El Contratista se obliga a entregar un registro fotográfico completo de cada una de las actividades realizadas, el cual deberá incluir imágenes
-          tomadas durante el desarrollo de las mismas y al finalizar la ejecución de ellas. Así mismo, deberá presentar paz y salvos laborales
+          tomadas durante el desarrollo de las mismas y al finalizar la ejecución de ellas. Así mismo,{" "}
+          {mo ? "deberá entregar los formatos SST debidamente diligenciados, deberá presentar los" : "deberá presentar"} paz y salvos laborales
           correspondientes a todos los trabajadores vinculados a la obra, incluyendo constancias de pago de salarios, prestaciones sociales, y liquidaciones
           laborales.
         </Clausula>
 
         <Clausula titulo="VIGESIMA QUINTA. - LUGAR DE EJECUCIÓN:">
-          Las actividades objeto del contrato se desarrollarán en el municipio de {res("municipioEjecucion", blanco(m.municipioEjecucion))}.
+          Las actividades objeto del contrato se desarrollarán en el {mo ? "Departamento" : "municipio"} de {res("municipioEjecucion", blanco(m.municipioEjecucion))}.
         </Clausula>
 
         <Clausula titulo="VIGESIMA SEXTA. – REQUISITOS DE PERFECCIONAMIENTO Y EJECUCIÓN:">
-          El presente contrato se perfecciona con la suscripción de las partes, y para su ejecución requiere aprobación de pólizas y suscripción de acta de
-          inicio.
+          {mo
+            ? "El presente contrato se perfecciona con la suscripción de las partes."
+            : "El presente contrato se perfecciona con la suscripción de las partes, y para su ejecución requiere aprobación de pólizas y suscripción de acta de inicio."}
         </Clausula>
 
         <Clausula titulo="VIGESIMA SEPTIMA. – NOTIFICACIONES:">
@@ -271,10 +323,36 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         ))}
 
         <P>
-          En constancia de lo anterior, se firma en el Departamento de {res("departamentoFirma", blanco(m.departamentoFirma))}, {res("fechaFirma", lugarFecha)}.
+          En constancia de lo anterior, se firma en {mo ? "" : "el Departamento de "}
+          {res("departamentoFirma", blanco(m.departamentoFirma))}
+          {mo ? " " : ", "}
+          {res("fechaFirma", lugarFecha)}.
         </P>
 
         <View style={s.firmas} wrap={false}>
+          {mo ? (
+            <>
+          <View style={s.firma}>
+            <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATANTE</Text>
+            <View style={s.firmaLinea} />
+            <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
+            <Text>NIT. {res("contratanteNit", blanco(m.contratanteNit))}</Text>
+            <Text>RL. {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
+            <Text>CC. {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))}</Text>
+          </View>
+          <View style={s.firma}>
+            <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATISTA</Text>
+            <View style={s.firmaLinea} />
+            <Text style={s.b}>{res("contratistaNombre", blanco(m.contratistaNombre))}</Text>
+            {juridica && <Text>NIT. {res("contratistaNit", blanco(m.contratistaNit))}</Text>}
+            {juridica && <Text>RL. {res("contratistaRepresentante", blanco(m.contratistaRepresentante))}</Text>}
+            <Text>
+              {documento.firma} {res("contratistaCedula", blanco(m.contratistaCedula))}
+            </Text>
+          </View>
+            </>
+          ) : (
+            <>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATISTA</Text>
             <View style={s.firmaLinea} />
@@ -293,15 +371,17 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
             <Text>RL. {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
             <Text>CC. {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))}</Text>
           </View>
+            </>
+          )}
         </View>
       </Page>
 
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...encabezado} />
         <Text style={s.footer} fixed render={pie} />
         <Text style={s.titulo}>ANEXO N° 1 — ACTIVIDADES, CANTIDADES Y VALORES</Text>
         <P>
-          Contrato de obra {consecutivo} entre {res("contratanteNombre", blanco(m.contratanteNombre))} y {res("contratistaNombre", blanco(m.contratistaNombre))}, para el proyecto denominado {res("obra", blanco(m.obra))}.
+          {nombreContrato} {consecutivo} entre {res("contratanteNombre", blanco(m.contratanteNombre))} y {res("contratistaNombre", blanco(m.contratistaNombre))}, para el proyecto denominado {res("obra", blanco(m.obra))}.
         </P>
         <View style={s.tabla}>
           <View style={s.tr} fixed>
