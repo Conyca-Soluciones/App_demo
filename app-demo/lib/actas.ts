@@ -112,7 +112,8 @@ export type ActividadContrato = {
 }
 
 export type InfoContratoActa = {
-  valor: number
+  valor: number // vigente: tope de las actas (el del último otrosí aprobado que lo cambió)
+  valorInicial: number // el del contrato firmado: base del anticipo
   anexoTipo: "valor_global" | "valores_unitarios"
   anticipoPorcentaje: number | null
   retencionPorcentaje: number | null
@@ -186,7 +187,7 @@ export type ResumenActa = {
 
 // Mismo cálculo que `_guardar_acta` en la base (redondeo a centavos).
 export function calcularActa(info: InfoContratoActa, f: FormActa): ResumenActa {
-  const anticipoTotal = info.anticipoPorcentaje ? aCentavos((info.valor * info.anticipoPorcentaje) / 100) : 0
+  const anticipoTotal = info.anticipoPorcentaje ? aCentavos((info.valorInicial * info.anticipoPorcentaje) / 100) : 0
   const saldo = aCentavos(info.valor - info.brutoOtras)
   let otros = 0
   for (const d of f.descuentos) otros += leerNumero(d.valor) ?? 0

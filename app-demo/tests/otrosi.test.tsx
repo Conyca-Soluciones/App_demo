@@ -79,6 +79,15 @@ describe("solicitud de otrosí", () => {
     expect(validarSolicitudOtrosi(pr("2026-11-01", null))).toBeNull()
     expect(validarSolicitudOtrosi(pr("31/12/2026", null))).toMatch(/no es válida/)
   })
+  it("nuevo valor: positivo, con centavos a lo sumo y distinto del vigente", () => {
+    const cv = (nuevoValor: number | null) => ({ ...base, cambioValor: { nuevoValor, valorVigente: 1_000_000 } })
+    expect(validarSolicitudOtrosi(cv(null))).toBeNull()
+    expect(validarSolicitudOtrosi(cv(1_500_000))).toBeNull()
+    expect(validarSolicitudOtrosi(cv(800_000.5))).toBeNull()
+    expect(validarSolicitudOtrosi(cv(1_000_000))).toMatch(/igual al vigente/)
+    expect(validarSolicitudOtrosi(cv(0))).toMatch(/no es válido/)
+    expect(validarSolicitudOtrosi(cv(10.123))).toMatch(/dos decimales/)
+  })
   it("vencido: fin antes de hoy; sin fecha no vence", () => {
     expect(contratoVencido("2026-10-19", "2026-10-20")).toBe(true)
     expect(contratoVencido("2026-10-20", "2026-10-20")).toBe(false)

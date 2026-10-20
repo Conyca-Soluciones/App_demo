@@ -126,7 +126,7 @@ export function DetalleOtrosi({
                           ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                           ["Contratista", detalle.contratistaNombre],
                           ["Objeto", detalle.objeto],
-                          ["Valor", pesos(detalle.valor)],
+                          ["Valor vigente", pesos(detalle.valor)],
                           ["Fin del plazo vigente", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
                         ]}
                       />
@@ -142,6 +142,12 @@ export function DetalleOtrosi({
                             "Extiende la fecha",
                             detalle.nuevaFechaFin
                               ? `Sí, hasta el ${formatearFechaSinHora(detalle.nuevaFechaFin)}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
+                              : "No",
+                          ],
+                          [
+                            "Cambia el valor",
+                            detalle.nuevoValor !== null
+                              ? `Sí, a ${pesos(detalle.nuevoValor)}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
                               : "No",
                           ],
                           ...(detalle.numero !== null && detalle.aprobadoAt

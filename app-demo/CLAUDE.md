@@ -2293,16 +2293,33 @@ hoja PDF (no minuta larga); actas generales después.
 
 `20261119000000_otrosis.sql`, plantilla "OTROSÍ" versión 04 (9/05/2025; su
 código dice solo "GJ-F"). Decisiones del usuario:
-- **Documento + prórroga opcional**: el otrosí NO cambia el valor ni el anexo
-  del contrato en el sistema; lo que cambie se escribe en la redacción de la
-  cláusula nueva. Lo único que sí aplica es la **prórroga**
-  (`20261123000000_otrosi_prorroga.sql`): en la solicitud un check "¿Se va a
-  extender la fecha?" con la nueva fecha (`otrosis.nueva_fecha_fin`). Al
-  quedar aprobado, `_fecha_fin_contrato` devuelve la del último otrosí
-  aprobado con prórroga (o la inicial, `_fecha_fin_inicial_contrato`), así
-  que actas (vencido), aviso de vencido, contratos abiertos para otrosí y el
-  detalle usan la fecha extendida. `_validar_prorroga_otrosi` exige que sea
-  posterior al fin vigente y a hoy (al crear, reenviar, enviar y aprobar).
+- **Documento + prórroga y nuevo valor opcionales**
+  (`20261123000000_otrosi_prorroga_y_valor.sql`): el otrosí NO cambia el
+  anexo ni el texto del contrato; lo que cambie se escribe en la redacción de
+  la cláusula nueva. Lo que sí aplica en el sistema, solo cuando el otrosí
+  queda APROBADO (cuenta el último por número):
+  - **Prórroga**: check "¿Se va a extender la fecha?" con la nueva fecha
+    (`otrosis.nueva_fecha_fin`). `_fecha_fin_contrato` devuelve la del último
+    otrosí aprobado con prórroga (o la inicial, `_fecha_fin_inicial_contrato`):
+    actas (vencido), aviso de vencido, contratos abiertos para otrosí y el
+    detalle usan la fecha extendida. `_validar_prorroga_otrosi`: posterior al
+    fin vigente y a hoy.
+  - **Nuevo valor**: check "¿Cambia el valor total?" con el valor
+    (`otrosis.nuevo_valor`). `_valor_contrato(contrato, hasta)` = el del
+    último otrosí aprobado que lo cambió (o `contratos.valor`, que no se
+    toca). Es el tope de las actas (`contrato_para_acta` devuelve `valor`
+    vigente y `valor_inicial`; `_guardar_acta`) y lo que muestran
+    `detalle_acta` (el vigente cuando se hizo o editó el acta: las actas
+    viejas no cambian), `listar_actas_aprobacion`,
+    `buscar_contratos_para_acta` y `contratos_para_otrosi`. El anticipo sigue
+    sobre el valor INICIAL (`InfoContratoActa.valorInicial`). Valor global con
+    valor cambiado: el % de avance es sobre el vigente y lo cobrado cuenta
+    como bruto / valor vigente. Valores unitarios: cada actividad sigue
+    limitada a su cantidad del anexo (el valor solo cambia el tope total).
+    `_validar_valor_otrosi`: distinto del vigente y no menor que lo cobrado
+    en actas no rechazadas. Control de proyecto sigue mostrando
+    `contratos.valor`.
+  Las dos se revisan al crear, reenviar, enviar a Subgerencia y aprobar.
 - **No hay otrosí si el plazo vigente ya pasó** (`_fecha_fin_contrato` < hoy
   Colombia; sin fecha fin, p. ej. duración sin inicio, no vence). Se revisa al
   crear, reenviar, enviar a Subgerencia y aprobar
@@ -2604,8 +2621,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: (otrosí: amplía el plazo con la prórroga, pero no el valor
-  en el sistema),
+- **Pendiente**: (otrosí: cambia plazo y valor total, pero no las cantidades
+  del anexo de los contratos a valores unitarios),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -2701,7 +2718,7 @@ insumos borrados · `20261118000000` solicitud de mano de obra
 (plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
 desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261122000000` historial del contrato con sus otrosí ·
-`20261123000000` prórroga del otrosí (nueva fecha de terminación).
+`20261123000000` prórroga y nuevo valor del otrosí.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

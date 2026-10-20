@@ -262,9 +262,10 @@ select * from (
   select '20261122000000_historial_otrosis_en_contrato',
          exists (select 1 from pg_proc where proname = 'historial_otrosis_de_contrato')
   union all
-  select '20261123000000_otrosi_prorroga',
+  select '20261123000000_otrosi_prorroga_y_valor',
          exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'otrosis' and column_name = 'nueva_fecha_fin')
          and exists (select 1 from pg_proc where proname = '_validar_prorroga_otrosi')
+         and exists (select 1 from pg_proc where proname = '_valor_contrato')
 ) t
 order by 1;

@@ -6,8 +6,9 @@ import { nombreTipoContrato, type ClaseContrato } from "@/lib/contratos"
 // Otrosí de contratos (plantilla "OTROSÍ" versión 04, 9/05/2025). El ingeniero
 // pide qué cláusulas cambian y cómo quedan (Solicitud de otrosí); Jurídica
 // arma el documento y lo envía a Subgerencia, que lo aprueba (Aprobación de
-// otrosí). Es solo documento: no cambia el plazo ni el valor del contrato en
-// el sistema. Base: supabase/migrations/20261119000000_otrosis.sql.
+// otrosí). Es documento; aprobado, su prórroga y su nuevo valor (opcionales)
+// pasan a ser el fin vigente y el tope de las actas. Base:
+// supabase/migrations/20261119000000_otrosis.sql y 20261123000000_otrosi_prorroga_y_valor.sql.
 // ---------------------------------------------------------------------------
 
 // Pestañas desde las que se ven los otrosí (y su PDF): las de otrosí y las que
@@ -35,6 +36,8 @@ export type OtrosiDeContrato = {
   aprobadoAt: string | null
   // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
   nuevaFechaFin: string | null
+  // Nuevo valor total (al aprobarse es el tope de las actas).
+  nuevoValor: number | null
 }
 
 export type EstadoOtrosi = "por_revisar" | "devuelta" | "rechazada" | "en_revision" | "devuelta_subgerencia" | "aprobada"
@@ -68,7 +71,9 @@ export type ContratoParaOtrosi = {
   clase: ClaseContrato
   tipoDetalle: string | null
   objeto: string
-  valor: number
+  valor: number // vigente (el del último otrosí aprobado que lo cambió)
+  // Valores unitarios: las cantidades del anexo siguen siendo topes por actividad.
+  anexoTipo: "valor_global" | "valores_unitarios" | null
   fechaFin: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -104,6 +109,8 @@ export type OtrosiFila = {
   aprobadoAt: string | null
   // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
   nuevaFechaFin: string | null
+  // Nuevo valor total (al aprobarse es el tope de las actas).
+  nuevoValor: number | null
 }
 
 export type ContratistaOtrosi = {
@@ -153,6 +160,7 @@ export function mapContratoParaOtrosi(x: Fila): ContratoParaOtrosi {
     tipoDetalle: textoONulo(x.tipo_detalle),
     objeto: texto(x.objeto),
     valor: Number(x.valor ?? 0),
+    anexoTipo: x.anexo_tipo === "valores_unitarios" || x.anexo_tipo === "valor_global" ? x.anexo_tipo : null,
     fechaFin: textoONulo(x.fecha_fin),
     proyectoCodigo: textoONulo(x.proyecto_codigo),
     proyectoNombre: textoONulo(x.proyecto_nombre),
@@ -189,6 +197,7 @@ export function mapOtrosiFila(x: Fila): OtrosiFila {
     enviadaSubgerenciaPorNombre: textoONulo(x.enviada_subgerencia_por_nombre),
     aprobadoAt: textoONulo(x.aprobado_at),
     nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
+    nuevoValor: x.nuevo_valor == null ? null : Number(x.nuevo_valor),
   }
 }
 
@@ -232,11 +241,14 @@ export const MAXIMO_MODIFICACIONES_OTROSI = 20
 // Lo mismo que revisa la base (_normalizar_modificaciones_otrosi y crear_otrosi).
 // `prorroga` (opcional): la nueva fecha de terminación, que tiene que quedar
 // después del fin vigente del contrato y de hoy (_validar_prorroga_otrosi).
+// `cambioValor` (opcional): el nuevo valor total, distinto del vigente
+// (_validar_valor_otrosi; lo ya cobrado en actas lo revisa la base).
 export function validarSolicitudOtrosi(s: {
   contratoId: string | null
   modificaciones: ModificacionOtrosi[]
   justificacion: string
   prorroga?: { nuevaFechaFin: string | null; finVigente: string | null; hoy: string }
+  cambioValor?: { nuevoValor: number | null; valorVigente: number }
 }): string | null {
   if (!s.contratoId) return "Escoge el contrato."
   const mods = s.modificaciones
@@ -255,6 +267,12 @@ export function validarSolicitudOtrosi(s: {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.nuevaFechaFin)) return "La nueva fecha de terminación no es válida."
     if (p.finVigente && p.nuevaFechaFin <= p.finVigente) return "La nueva fecha de terminación tiene que ser posterior a la vigente."
     if (p.nuevaFechaFin <= p.hoy) return "La nueva fecha de terminación tiene que ser posterior a hoy."
+  }
+  const v = s.cambioValor
+  if (v && v.nuevoValor !== null) {
+    if (!(v.nuevoValor > 0) || v.nuevoValor >= 1e16) return "El nuevo valor del contrato no es válido."
+    if (Math.abs(Math.round(v.nuevoValor * 100) - v.nuevoValor * 100) > 1e-6) return "El nuevo valor del contrato tiene más de dos decimales."
+    if (v.nuevoValor === v.valorVigente) return "El nuevo valor es igual al vigente."
   }
   return null
 }
@@ -404,4 +422,5 @@ export const mapOtrosiDeContrato = (x: Fila): OtrosiDeContrato => ({
   createdAt: texto(x.created_at),
   aprobadoAt: textoONulo(x.aprobado_at),
   nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
+  nuevoValor: x.nuevo_valor == null ? null : Number(x.nuevo_valor),
 })

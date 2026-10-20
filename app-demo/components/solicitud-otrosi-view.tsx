@@ -13,7 +13,7 @@ import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comu
 import { rutaPdfOtrosi } from "@/components/otrosi-editor"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
-import { nombreTipoContrato, pesos } from "@/lib/contratos"
+import { leerNumero, nombreTipoContrato, pesos, pesosEnLetras } from "@/lib/contratos"
 import {
   CLASE_ESTADO_OTROSI,
   ETIQUETA_ESTADO_OTROSI,
@@ -242,6 +242,9 @@ function FormularioOtrosi({
   // Prórroga: si se marca, la fecha nueva pasa a ser el fin del contrato al aprobarse.
   const [extender, setExtender] = useState(Boolean(edicion?.nuevaFechaFin))
   const [nuevaFechaFin, setNuevaFechaFin] = useState(edicion?.nuevaFechaFin ?? "")
+  // Nuevo valor total: si se marca, al aprobarse es el tope de las actas.
+  const [cambiarValor, setCambiarValor] = useState(edicion?.nuevoValor != null)
+  const [nuevoValorTexto, setNuevoValorTexto] = useState(edicion?.nuevoValor != null ? String(edicion.nuevoValor).replace(".", ",") : "")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Contrato abierto en PDF (botón Ver).
@@ -282,7 +285,10 @@ function FormularioOtrosi({
     : contratistas
   const delContratista = contratistaId ? (porContratista.get(contratistaId) ?? []) : []
   const contratistaElegido = contratistas.find((k) => k.id === contratistaId) ?? null
-  const finVigente = edicion ? edicion.fechaFin : (delContratista.find((x) => x.id === contratoId)?.fechaFin ?? null)
+  const contratoElegido = delContratista.find((x) => x.id === contratoId) ?? null
+  const finVigente = edicion ? edicion.fechaFin : (contratoElegido?.fechaFin ?? null)
+  const valorVigente = edicion ? edicion.valor : (contratoElegido?.valor ?? 0)
+  const nuevoValor = cambiarValor ? leerNumero(nuevoValorTexto) : null
 
   function cambiar(i: number, cambio: Partial<ModificacionOtrosi>) {
     setModificaciones((l) => l.map((x, j) => (j === i ? { ...x, ...cambio } : x)))
@@ -295,11 +301,16 @@ function FormularioOtrosi({
       setError("Escoge la nueva fecha de terminación o quita la marca de extender la fecha.")
       return
     }
+    if (cambiarValor && nuevoValor === null) {
+      setError("Escribe el nuevo valor del contrato o quita la marca de cambiar el valor.")
+      return
+    }
     const problema = validarSolicitudOtrosi({
       contratoId,
       modificaciones,
       justificacion,
       prorroga: { nuevaFechaFin: fechaProrroga, finVigente, hoy: hoyColombia() },
+      cambioValor: { nuevoValor, valorVigente },
     })
     if (problema) {
       setError(problema)
@@ -310,10 +321,10 @@ function FormularioOtrosi({
     try {
       const mods = modificaciones.map((m) => ({ clausula: m.clausula.trim(), redaccion: m.redaccion.trim() }))
       if (edicion) {
-        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga)
+        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga, nuevoValor)
         onTerminado(`Otrosí al contrato ${edicion.numeroContrato} corregido y enviado otra vez a Jurídica.`)
       } else {
-        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga)
+        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga, nuevoValor)
         const c = delContratista.find((x) => x.id === contratoId)
         onTerminado(`Otrosí al contrato ${c?.numeroContrato ?? ""} enviado a Jurídica.`)
       }
@@ -601,6 +612,58 @@ function FormularioOtrosi({
                   Cuando el otrosí quede aprobado, esta pasa a ser la fecha de terminación del contrato (actas, avisos de vencimiento y
                   nuevos otrosí). Recuerda modificar también la cláusula del plazo arriba.
                 </p>
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2 rounded-md border p-3">
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={cambiarValor}
+                onChange={(e) => {
+                  setCambiarValor(e.target.checked)
+                  setError(null)
+                }}
+                disabled={enviando}
+                className="size-4"
+              />
+              ¿Cambia el valor total del contrato?
+            </label>
+            <p className="text-xs text-muted-foreground tabular-nums">Valor vigente: {pesos(valorVigente)}</p>
+            {cambiarValor && (
+              <div className="space-y-1">
+                <label htmlFor="otrosi-nuevo-valor" className="text-sm">
+                  Nuevo valor total del contrato (pesos) *
+                </label>
+                <input
+                  id="otrosi-nuevo-valor"
+                  inputMode="decimal"
+                  value={nuevoValorTexto}
+                  onChange={(e) => {
+                    setNuevoValorTexto(e.target.value)
+                    setError(null)
+                  }}
+                  placeholder="Ej. 30.000.000"
+                  disabled={enviando}
+                  className="block w-full max-w-sm rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+                {nuevoValor !== null && nuevoValor > 0 && (
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {pesosEnLetras(nuevoValor)}
+                    {nuevoValor !== valorVigente && ` · ${nuevoValor > valorVigente ? "adición" : "reducción"} de ${pesos(Math.abs(nuevoValor - valorVigente))}`}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Cuando el otrosí quede aprobado, este pasa a ser el tope de las actas del contrato (no puede ser menor que lo ya cobrado).
+                  El anticipo sigue calculado sobre el valor inicial. Recuerda modificar también la cláusula del valor arriba.
+                </p>
+                {contratoElegido?.anexoTipo === "valores_unitarios" && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Este contrato es a valores unitarios: en las actas cada actividad sigue limitada a la cantidad del anexo; el nuevo
+                    valor solo cambia el tope total.
+                  </p>
+                )}
               </div>
             )}
           </section>
