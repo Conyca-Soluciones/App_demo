@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
 import { buscarMarcaEnPdf } from "@/lib/minuta-pdf-foco"
-import { mapOtrosiDetalle, mezclarMinutaOtrosi, minutaOtrosiPorDefecto, nombreArchivoOtrosi } from "@/lib/otrosi"
+import { PESTANAS_VER_OTROSI, mapOtrosiDetalle, mezclarMinutaOtrosi, minutaOtrosiPorDefecto, nombreArchivoOtrosi } from "@/lib/otrosi"
 import { OtrosiPDF } from "@/components/otrosi-pdf"
 
 // @react-pdf/renderer usa APIs de Node -- no corre en el edge runtime.
@@ -21,7 +21,7 @@ const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    await requerirAlgunaPestana(["contratos.solicitar_otrosi", "contratos.aprobar_otrosi"])
+    await requerirAlgunaPestana(PESTANAS_VER_OTROSI)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Sin permiso." }, { status: 403 })
   }

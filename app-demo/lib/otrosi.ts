@@ -10,6 +10,31 @@ import { nombreTipoContrato, type ClaseContrato } from "@/lib/contratos"
 // el sistema. Base: supabase/migrations/20261119000000_otrosis.sql.
 // ---------------------------------------------------------------------------
 
+// Pestañas desde las que se ven los otrosí (y su PDF): las de otrosí y las que
+// ya dejan ver contratos (igual que _puede_ver_otrosis en la base).
+export const PESTANAS_VER_OTROSI = [
+  "contratos.solicitar_otrosi",
+  "contratos.aprobar_otrosi",
+  "contratos.solicitar",
+  "contratos.contratos",
+  "contratos.preaprobacion",
+  "contratos.aprobar_minutas",
+  "contratos.cortes",
+  "contratos.aprobar_actas",
+  "admin.visualizacion",
+]
+
+// Un otrosí visto desde su contrato (otrosis_de_contrato).
+export type OtrosiDeContrato = {
+  id: string
+  numero: number | null
+  estado: EstadoOtrosi
+  clausulas: string
+  solicitadoPorNombre: string | null
+  createdAt: string
+  aprobadoAt: string | null
+}
+
 export type EstadoOtrosi = "por_revisar" | "devuelta" | "rechazada" | "en_revision" | "devuelta_subgerencia" | "aprobada"
 
 export const ETIQUETA_ESTADO_OTROSI: Record<EstadoOtrosi, string> = {
@@ -351,3 +376,13 @@ export const nombreArchivoOtrosi = (numeroContrato: string, numero: number) =>
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "") + ".pdf"
+
+export const mapOtrosiDeContrato = (x: Fila): OtrosiDeContrato => ({
+  id: texto(x.id),
+  numero: numeroONulo(x.numero),
+  estado: x.estado as EstadoOtrosi,
+  clausulas: texto(x.clausulas),
+  solicitadoPorNombre: textoONulo(x.solicitado_por_nombre),
+  createdAt: texto(x.created_at),
+  aprobadoAt: textoONulo(x.aprobado_at),
+})

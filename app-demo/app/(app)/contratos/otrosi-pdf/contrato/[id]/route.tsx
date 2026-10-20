@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer"
 import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana } from "@/lib/permisos"
 import { LOGO_CONYCA_PATH, pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
+import { PESTANAS_VER_OTROSI } from "@/lib/otrosi"
 import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
 import { armarHojaContratoGeneral, nombreArchivoContratoGeneral, type FilaHojaContratoGeneral } from "@/lib/contrato-general-hoja"
 
@@ -17,7 +18,7 @@ export const runtime = "nodejs"
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    await requerirAlgunaPestana(["contratos.solicitar_otrosi", "contratos.aprobar_otrosi"])
+    await requerirAlgunaPestana(PESTANAS_VER_OTROSI)
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Sin permiso." }, { status: 403 })
   }

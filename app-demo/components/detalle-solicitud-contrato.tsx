@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
 import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
 import {
   CLASE_ETAPA_CONTRATO,
@@ -338,6 +339,14 @@ export function DetalleSolicitudContrato({
                   </TablaDocumentos>
                 </div>
                 </>
+              )}
+
+              {/* Rastro de los otrosí (solo los contratos aprobados pueden tenerlos). */}
+              {detalle.estado === "aprobada" && detalle.minutaEstado === "aprobada" && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Otrosí</h3>
+                  <OtrosisDelContrato contratoId={detalle.id} />
+                </div>
               )}
 
               <div className="space-y-2">

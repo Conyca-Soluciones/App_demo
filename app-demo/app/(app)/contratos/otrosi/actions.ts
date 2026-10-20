@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
 import {
+  PESTANAS_VER_OTROSI,
   limpiarMinutaOtrosi,
   mapContratoParaOtrosi,
+  mapOtrosiDeContrato,
   mapOtrosiDetalle,
   mapOtrosiFila,
   mezclarMinutaOtrosi,
@@ -15,6 +17,7 @@ import {
   type EstadoOtrosi,
   type MinutaOtrosi,
   type ModificacionOtrosi,
+  type OtrosiDeContrato,
   type OtrosiDetalle,
   type OtrosiFila,
 } from "@/lib/otrosi"
@@ -149,4 +152,14 @@ export async function resolverOtrosiSubgerencia(id: string, accion: AccionSubger
   const supabase = await createClient()
   const { error } = await supabase.rpc("resolver_otrosi", { p_id: id, p_accion: accion, p_motivo: motivo?.trim() || null, p_minuta: null })
   if (error) throw new Error(error.message)
+}
+
+// Los otrosí de un contrato, para verlos desde el contrato (detalle del
+// contrato, Actas). Puede llamarla quien ve contratos (otrosis_de_contrato).
+export async function otrosisDeContrato(contratoId: string): Promise<OtrosiDeContrato[]> {
+  await requerirAlgunaPestana(PESTANAS_VER_OTROSI)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("otrosis_de_contrato", { p_contrato_id: contratoId })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as Record<string, unknown>[]).map(mapOtrosiDeContrato)
 }

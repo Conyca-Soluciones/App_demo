@@ -2356,6 +2356,18 @@ código dice solo "GJ-F"). Decisiones del usuario:
   contrato vive en `lib/pdf-minuta-contrato.tsx` (`pdfMinutaContrato`), que usa
   también la ruta de Pre-aprobación. Contratos aprobados sin minuta guardada
   (CJ-14) dicen que no la tienen.
+- **Rastro en el contrato** (`20261121000000_otrosis_en_contrato.sql`, pedido
+  del usuario): el detalle de cualquier contrato aprobado (Contratos por
+  grupos, generales, Pre-aprobación, Aprobación de contratos, Control del
+  proyecto) y la ficha del contrato en Actas por grupos muestran sus otrosí
+  (aprobados con su número y los que están en trámite) con "Ver" para abrir el
+  PDF (`components/otrosis-del-contrato.tsx`, `otrosis_de_contrato`). Las
+  listas de contratos tienen la columna "Otrosí" con los aprobados (columna
+  calculada `otrosis_aprobados(contratos)` en `SELECT_FILA_CONTRATO`: **la
+  migración tiene que estar antes que el código**, si no las listas fallan).
+  `_puede_ver_otrosis` (solo lectura) incluye ahora las pestañas que ven
+  contratos (`PESTANAS_VER_OTROSI` en TS) y esas pestañas tienen
+  `/contratos/otrosi-pdf` en sus rutas.
 
 ## Menú de Contratos (2026-10-14)
 
@@ -2673,7 +2685,7 @@ la requisición · `20261108100000` estado de requisiciones guardado ·
 `20261117000000` enviar insumos sin sugerencias · `20261117100000` recuperar
 insumos borrados · `20261118000000` solicitud de mano de obra
 (plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
-desde otrosí.
+desde otrosí · `20261121000000` otrosí en el contrato.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
