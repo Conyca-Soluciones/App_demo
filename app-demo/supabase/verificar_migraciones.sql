@@ -263,6 +263,20 @@ select * from (
          exists (select 1 from pg_policies where tablename = 'proveedores' and policyname = 'proveedores_select_de_ordenes')
          and not has_table_privilege('anon', 'public.proveedores', 'select')
   union all
+  select '20261118400000_rls_minima_compras_almacen',
+         exists (select 1 from pg_policies where tablename = 'ordenes_compra' and policyname = 'ordenes_compra_select_de_pagos')
+  union all
+  select '20261118410000_rls_minima_presupuestos_apu',
+         exists (select 1 from pg_policies where tablename = 'presupuesto_items' and policyname = 'presupuesto_items_select_de_contratos')
+         and not exists (select 1 from pg_policies where tablename = 'maestro_insumos' and policyname = 'autenticados leen y crean insumos')
+  union all
+  select '20261118420000_rls_minima_ayf_empresas',
+         exists (select 1 from pg_policies where tablename = 'empresas_cuentas_bancarias'
+                 and policyname = 'empresas_cuentas_bancarias_select' and qual like '%es_admin%')
+  union all
+  select '20261118430000_tablas_sin_anon',
+         not has_table_privilege('anon', 'public.pagos', 'select')
+  union all
   select '20261118500000_permisos_por_proyecto',
          not exists (select 1 from pg_policies where tablename = 'proyectos' and policyname = 'proyectos_select_compras')
          and exists (select 1 from pg_proc where proname = '_crear_orden_compra_sin_proyecto')
