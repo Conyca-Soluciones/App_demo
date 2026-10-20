@@ -274,5 +274,9 @@ select * from (
          and exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'contrato_anexo_items' and column_name = 'otrosi_id')
          and exists (select 1 from pg_proc where proname = 'actividades_para_otrosi')
+  union all
+  select '20261125000000_control_proyecto_valor_vigente',
+         exists (select 1 from pg_proc where proname = 'control_proyecto'
+                  and pg_get_functiondef(oid) like '%_valor_contrato(c.id)%')
 ) t
 order by 1;

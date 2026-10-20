@@ -2326,8 +2326,8 @@ código dice solo "GJ-F"). Decisiones del usuario:
     limitada a su cantidad del anexo; para cobrar más van actividades
     (abajo).
     `_validar_valor_otrosi`: distinto del vigente y no menor que lo cobrado
-    en actas no rechazadas. Control de proyecto sigue mostrando
-    `contratos.valor`.
+    en actas no rechazadas. Control de proyecto ("contratado" y lista de
+    contratos) usa el valor vigente desde `20261125000000_control_proyecto_valor_vigente.sql`.
   Las dos se revisan al crear, reenviar, enviar a Subgerencia y aprobar.
   - **Actividades** (`20261124000000_tope_mano_obra_y_actividades_otrosi.sql`,
     solo contratos por valores unitarios): `otrosis.actividades` = adiciones
@@ -2745,7 +2745,8 @@ insumos borrados · `20261118000000` solicitud de mano de obra
 desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261122000000` historial del contrato con sus otrosí ·
 `20261123000000` prórroga y nuevo valor del otrosí ·
-`20261124000000` tope de mano de obra y actividades por otrosí.
+`20261124000000` tope de mano de obra y actividades por otrosí ·
+`20261125000000` control de proyecto con el valor vigente de los contratos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
