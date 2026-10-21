@@ -84,8 +84,9 @@ export type FiltrosAprobacionPagos = {
 
 export type FiltrosConsolidado = {
   consolidadoId?: string
-  anio?: number
-  semana?: number
+  // Vacíos o sin enviar = todos. Las semanas valen en cada año elegido.
+  anios?: number[]
+  semanas?: number[]
   estado?: EstadoPago
   tercero?: string
   soloConNovedad?: boolean
@@ -106,6 +107,23 @@ export const formatoFechaHora = (iso: string) =>
 
 // Año y semana ISO (lunes a domingo) de una fecha, en hora de Colombia: la
 // misma regla que usa la base para asignar el ITEM.
+// Lunes a domingo de la semana ISO: (2026, 42) -> "12/10/2026 al 18/10/2026".
+export function fechasSemanaIso(anio: number, semana: number): string {
+  // El 4 de enero siempre cae en la semana 1.
+  const enero4 = new Date(Date.UTC(anio, 0, 4))
+  const lunes = new Date(enero4)
+  lunes.setUTCDate(enero4.getUTCDate() - ((enero4.getUTCDay() || 7) - 1) + (semana - 1) * 7)
+  const domingo = new Date(lunes)
+  domingo.setUTCDate(lunes.getUTCDate() + 6)
+  const f = (d: Date) => d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
+  return `${f(lunes)} al ${f(domingo)}`
+}
+
+// Semanas que tiene el año ISO (52 o 53): la del 28 de diciembre.
+export function semanasDelAnio(anio: number): number {
+  return semanaIso(new Date(Date.UTC(anio, 11, 28, 17))).semana
+}
+
 export function semanaIso(fecha: Date = new Date()): { anio: number; semana: number } {
   const [a, m, d] = fecha
     .toLocaleDateString("en-CA", { timeZone: "America/Bogota" })

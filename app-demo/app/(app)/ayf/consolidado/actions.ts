@@ -20,7 +20,16 @@ export async function listarConsolidadosPago(): Promise<ConsolidadoOpcion[]> {
   return (data ?? []).map((c: any) => ({ id: c.id, nombre: c.nombre }))
 }
 
-// Una página (50) del consolidado de una semana. Todo se filtra en la base:
+// Años o semanas elegidos: enteros en el rango, sin repetir (como mucho 53).
+function enteros(lista: number[] | undefined, min: number, max: number, nombre: string): number[] {
+  const unicos = [...new Set(lista ?? [])]
+  if (unicos.length > 53 || unicos.some((n) => !Number.isInteger(n) || n < min || n > max)) {
+    throw new Error(`El filtro tiene ${nombre}.`)
+  }
+  return unicos
+}
+
+// Una página (50) del consolidado de las semanas elegidas. Todo se filtra en la base:
 // el consolidado, el año y la semana usan el índice (consolidado, año, semana,
 // estado); el nombre del tercero, un join !inner en la misma consulta.
 export async function listarConsolidado(
@@ -38,8 +47,10 @@ export async function listarConsolidado(
     query = query.is("item", null).eq("estado", "aprobado")
   } else {
     query = query.not("item", "is", null)
-    if (filtros.anio !== undefined) query = query.eq("anio", filtros.anio)
-    if (filtros.semana !== undefined) query = query.eq("semana", filtros.semana)
+    const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
+    const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
+    if (anios.length > 0) query = query.in("anio", anios)
+    if (semanas.length > 0) query = query.in("semana", semanas)
   }
   if (filtros.consolidadoId) query = query.eq("consolidado_id", filtros.consolidadoId)
   if (filtros.estado) query = query.eq("estado", filtros.estado)

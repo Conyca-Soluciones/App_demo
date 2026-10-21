@@ -1306,6 +1306,11 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   proyecto suma el BRUTO (lo que cuesta la obra) y lo dice "(bruto)"; A&F paga
   el NETO ("Valor a pagar") y debajo muestra "Bruto del acta" (`actaBruto`, del
   embed `acta:actas(valor_bruto)`; sale solo si quien consulta lee el acta).
+- **Consolidado: varios años y semanas** (decisión del usuario 2026-10-21):
+  `FiltrosConsolidado.anios` / `.semanas` (listas; vacías = todos) con `.in()`
+  en `listarConsolidado`; las semanas valen en cada año elegido. Selector
+  `SelectorNumeros` (`components/selector-numeros.tsx`); por omisión la semana
+  actual. La tabla tiene columna Semana junto al ITEM.
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
