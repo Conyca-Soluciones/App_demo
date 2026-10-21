@@ -281,6 +281,27 @@ export async function verificarCuenta(terceroId: string, cuentaId: string): Prom
   return await cambiarEstado(terceroId, cuentaId, "ACTIVO")
 }
 
+// Certificación bancaria del contratista con el documento de este tercero, para
+// verificar la cuenta con el documento a la vista. Solo quien tiene
+// `verificar_terceros` (lo revisa también la base y la política del bucket).
+// Devuelve un enlace firmado de 2 minutos que descarga el archivo, o null si
+// el tercero no viene de un contratista con certificación.
+export async function enlaceCertificacionTercero(
+  terceroId: string
+): Promise<{ url: string; nombreArchivo: string; contratista: string; subidoAt: string } | null> {
+  await requerirAccion("verificar_terceros")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("certificacion_bancaria_tercero", { p_tercero_id: terceroId })
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  const doc = data as { ruta: string; nombre_archivo: string; contratista: string; subido_at: string }
+  const { data: firmado, error: errorUrl } = await supabase.storage
+    .from("contratistas")
+    .createSignedUrl(doc.ruta, 120, { download: doc.nombre_archivo })
+  if (errorUrl || !firmado) throw new Error(errorUrl?.message ?? "No se pudo abrir la certificación.")
+  return { url: firmado.signedUrl, nombreArchivo: doc.nombre_archivo, contratista: doc.contratista, subidoAt: doc.subido_at }
+}
+
 // Inactivar una cuenta, o reactivarla (vuelve a PENDIENTE: hay que verificarla).
 export async function inactivarCuenta(terceroId: string, cuentaId: string): Promise<Tercero> {
   await requerirAccion("editar_terceros")

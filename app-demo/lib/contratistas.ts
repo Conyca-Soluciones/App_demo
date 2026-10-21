@@ -193,11 +193,13 @@ export function validarContratista(crudo: DatosContratista, opciones?: { sinDato
     if (!TIPOS_DOCUMENTO_PERSONA.some((t) => t.valor === datos.tipoDocumento)) {
       errores.tipoDocumento = "Elige el tipo de documento."
     }
-    const soloNumeros = datos.tipoDocumento === "CC"
-    if (soloNumeros ? !/^[0-9]{5,15}$/.test(datos.numeroDocumento) : !/^[0-9A-Z]{3,20}$/.test(datos.numeroDocumento)) {
-      errores.numeroDocumento = soloNumeros
+    // Solo números en todos los tipos (decisión del usuario 2026-10-21: el
+    // tercero de A&F que se crea desde el contratista exige solo números).
+    const esCedula = datos.tipoDocumento === "CC"
+    if (esCedula ? !/^[0-9]{5,15}$/.test(datos.numeroDocumento) : !/^[0-9]{3,20}$/.test(datos.numeroDocumento)) {
+      errores.numeroDocumento = esCedula
         ? "La cédula debe tener solo números."
-        : "Escribe el número de documento (letras y números)."
+        : "El número de documento debe tener solo números."
     }
     datos.digitoVerificacion = ""
   }
@@ -210,7 +212,7 @@ export function validarContratista(crudo: DatosContratista, opciones?: { sinDato
   if (!datos.direccion) errores.direccion = "Escribe la dirección."
   if (!datos.ciudad) errores.ciudad = "Escribe la ciudad."
   if (!opciones?.sinDatosBancarios) {
-    if (!datos.banco) errores.banco = "Escribe el banco."
+    if (!datos.banco) errores.banco = "Elige el banco."
     if (datos.tipoCuenta !== "ahorros" && datos.tipoCuenta !== "corriente") errores.tipoCuenta = "Elige el tipo de cuenta."
     if (!/^[0-9]{4,20}$/.test(datos.numeroCuenta)) errores.numeroCuenta = "El número de cuenta debe tener solo números."
   }

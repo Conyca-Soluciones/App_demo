@@ -284,5 +284,10 @@ select * from (
   union all
   select '20261118600000_item_apu_por_proyecto_para_requisiciones',
          exists (select 1 from pg_policies where tablename = 'item_apu' and policyname = 'item_apu_select_de_requisiciones')
+  union all
+  select '20261118700000_contratistas_a_terceros',
+         exists (select 1 from pg_trigger where tgname = 'trg_contratista_a_tercero')
+         and exists (select 1 from pg_proc where proname = 'guardar_banco')
+         and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
 ) t
 order by 1;

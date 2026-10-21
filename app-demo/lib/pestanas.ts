@@ -114,6 +114,7 @@ export const PESTANAS: Pestana[] = [
 // Admin del menú, con sus secciones.
 export const PESTANAS_SOLO_ADMIN: { titulo: string; seccion: string; url: string }[] = [
   { titulo: "Control administrativo", seccion: "Empresas y proyectos", url: "/admin" },
+  { titulo: "Bancos", seccion: "Empresas y proyectos", url: "/admin/bancos" },
   { titulo: "Roles y permisos", seccion: "Usuarios y permisos", url: "/admin/roles" },
   { titulo: "Usuarios y accesos", seccion: "Usuarios y permisos", url: "/admin/accesos" },
   { titulo: "Auditoría", seccion: "Usuarios y permisos", url: "/admin/auditoria" },

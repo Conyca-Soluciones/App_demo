@@ -1270,6 +1270,24 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (`_<nombre>_sin_proyecto` + `_exigir_proyecto`). Siguen globales: catálogos
   (proveedores, maestra, histórico de precios) y A&F. Si se agrega una función
   de escritura sobre OC o requisiciones, debe revisar el proyecto.
+- **Contratistas -> Terceros** (`20261118700000_contratistas_a_terceros.sql`,
+  E5; decisiones del usuario 2026-10-21): el banco del contratista es una lista
+  (tabla `bancos`, la misma de Terceros; `trg_contratista_validar_banco` lo
+  exige al crear o al cambiarlo) y el documento es solo números (DV aparte).
+  Tipo de cuenta: "CUENTA CORRIENTE" / "CUENTA AHORROS" en pantalla
+  (`ETIQUETA_TIPO_CUENTA`), en la base siguen `corriente`/`ahorros` y
+  `CORRIENTE`/`AHORROS`. Al crear el contratista o cambiar sus datos bancarios,
+  `trg_contratista_a_tercero` crea el tercero (si no hay uno con ese
+  documento) y le agrega la cuenta SIEMPRE PENDIENTE. `_enlazar_pagos_tercero`
+  (disparadores en terceros y terceros_cuentas) pone el tercero a los pagos de
+  actas "Sin tercero" con ese documento y la cuenta cuando queda UNA verificada.
+  Quien tiene Verificar cuentas de terceros descarga la certificación bancaria
+  del contratista desde la ficha del tercero (`certificacion_bancaria_tercero` +
+  política `contratistas_certificacion_verificar` del bucket). Admin › Bancos
+  (`/admin/bancos`, `guardar_banco` / `listar_bancos_admin`): crear, renombrar
+  (actualiza `contratistas.banco`, con la bandera `app.renombrando_banco` para
+  que no se valide ni se cree cuenta ni historial) y desactivar. Los
+  contratistas de prueba viejos no se convirtieron.
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 

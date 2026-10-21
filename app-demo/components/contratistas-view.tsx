@@ -34,6 +34,7 @@ import {
   crearContratista,
   editarContratista,
   enlaceDocumentoContratista,
+  listarBancosContratista,
   listarContratistas,
   type DocumentoSubido,
 } from "@/app/(app)/contratos/contratistas/actions"
@@ -341,7 +342,7 @@ function DetalleContratistaDialog({
         ...(c.datosBancariosVisibles
           ? ([
               ["Banco", c.banco],
-              ["Cuenta", `${c.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} ${c.numeroCuenta}`],
+              ["Cuenta", `${c.tipoCuenta === "ahorros" ? "CUENTA AHORROS" : "CUENTA CORRIENTE"} ${c.numeroCuenta}`],
             ] as [string, string][])
           : ([["Datos bancarios", "Restringido (solo Director de obra, Jurídica y Gerencia)"]] as [string, string][])),
         ["Creado", `${fechaCreacion(c.createdAt)}${c.creadoPorNombre ? ` por ${c.creadoPorNombre}` : ""}`],
@@ -537,6 +538,20 @@ function ContratistaFormDialog({
     () => new Map<TipoDocumentoContratista, DocumentoContratista>((editando?.documentos ?? []).map((d) => [d.tipo, d])),
     [editando]
   )
+  // Lista de bancos (Admin › Bancos). null = cargando.
+  const [bancos, setBancos] = useState<string[] | null>(null)
+  useEffect(() => {
+    let activo = true
+    listarBancosContratista()
+      .then((lista: string[]) => activo && setBancos(lista))
+      .catch(() => activo && setBancos([]))
+    return () => {
+      activo = false
+    }
+  }, [])
+  // Un contratista viejo puede tener un banco escrito a mano que no está en la
+  // lista: se muestra para no perderlo; si se cambia, hay que elegir uno de la lista.
+  const bancoFueraDeLista = Boolean(valores.banco) && bancos !== null && !bancos.includes(valores.banco)
 
   function limpiar() {
     setValores(FORMULARIO_VACIO)
@@ -721,7 +736,7 @@ function ContratistaFormDialog({
                     </select>
                     {errores.tipoDocumento && <p className="text-xs text-destructive">{errores.tipoDocumento}</p>}
                   </div>
-                  {campoTexto("numeroDocumento", "Número de documento *", { ancho: "sm:col-span-3", inputMode: valores.tipoDocumento === "CC" ? "numeric" : undefined })}
+                  {campoTexto("numeroDocumento", "Número de documento (solo números) *", { ancho: "sm:col-span-3", inputMode: "numeric" })}
                   {campoTexto("cedulaExpedidaEn", "Cédula expedida en *", { ancho: "sm:col-span-3", placeholder: "Ej. Bogotá" })}
                 </>
               )}
@@ -772,7 +787,27 @@ function ContratistaFormDialog({
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Datos bancarios</h3>
             <div className="grid gap-3 sm:grid-cols-6">
-              {campoTexto("banco", "Banco *", { ancho: "sm:col-span-2" })}
+              <div className="min-w-0 space-y-1 sm:col-span-2">
+                <label htmlFor="contratista-banco" className="text-xs font-medium text-muted-foreground">
+                  Banco *
+                </label>
+                <select
+                  id="contratista-banco"
+                  value={valores.banco}
+                  onChange={(e) => cambiar("banco", e.target.value)}
+                  disabled={guardando || bancos === null}
+                  className={claseCampo(Boolean(errores.banco))}
+                >
+                  <option value="">{bancos === null ? "Cargando bancos…" : "— Elige —"}</option>
+                  {bancoFueraDeLista && <option value={valores.banco}>{valores.banco} (fuera de la lista)</option>}
+                  {(bancos ?? []).map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                {errores.banco && <p className="text-xs text-destructive">{errores.banco}</p>}
+              </div>
               <div className="min-w-0 space-y-1 sm:col-span-2">
                 <label htmlFor="contratista-tipoCuenta" className="text-xs font-medium text-muted-foreground">
                   Tipo de cuenta *
@@ -785,8 +820,8 @@ function ContratistaFormDialog({
                   className={claseCampo(Boolean(errores.tipoCuenta))}
                 >
                   <option value="">— Elige —</option>
-                  <option value="ahorros">Ahorros</option>
-                  <option value="corriente">Corriente</option>
+                  <option value="corriente">CUENTA CORRIENTE</option>
+                  <option value="ahorros">CUENTA AHORROS</option>
                 </select>
                 {errores.tipoCuenta && <p className="text-xs text-destructive">{errores.tipoCuenta}</p>}
               </div>
