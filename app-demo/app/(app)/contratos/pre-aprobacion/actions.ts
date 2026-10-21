@@ -34,7 +34,15 @@ import {
   minutaServiciosVacia,
   type MinutaServicios,
 } from "@/lib/minuta-servicios"
-import { limpiarMinutaObra, mezclarMinutaObra, minutaObraPorDefecto, minutaObraVacia, type MinutaObra } from "@/lib/minuta-obra"
+import {
+  esMinutaManoObra04,
+  limpiarMinutaObra,
+  mezclarMinutaObra,
+  minutaObraPorDefecto,
+  minutaObraVacia,
+  usaPlantillaManoObra04,
+  type MinutaObra,
+} from "@/lib/minuta-obra"
 
 // ---------------------------------------------------------------------------
 // Pre-aprobación de contratos: Jurídica revisa las solicitudes de TODOS los
@@ -313,13 +321,17 @@ export async function guardarMinutaServicios(id: string, minuta: MinutaServicios
 }
 
 // ---------------------------------------------------------------- minuta de obra
-// Solicitudes de "Obra" (plantilla de obra a todo costo, lib/minuta-obra.ts).
+// Solicitudes de "Obra" (plantilla de obra a todo costo, lib/minuta-obra.ts) y
+// de "Mano de obra" con la plantilla nueva (versión 04, misma estructura).
 
 export async function obtenerMinutaObra(id: string): Promise<MinutaContratoObra> {
   const base = await cargarBaseMinuta(id)
   const defecto = minutaObraPorDefecto(base.detalle, base.datosExtra, hoyColombia())
+  // Mano de obra con algo guardado en la plantilla vieja: no sirve para la
+  // nueva (otros campos, otro texto), se arranca de la solicitud.
+  const guardada = base.detalle.tipo === "mano_obra" && !esMinutaManoObra04(base.guardadaDatos) ? null : base.guardadaDatos
   return {
-    minuta: mezclarMinutaObra(defecto, base.guardadaDatos),
+    minuta: mezclarMinutaObra(defecto, guardada),
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
@@ -333,6 +345,21 @@ export async function guardarMinutaObra(id: string, minuta: MinutaObra): Promise
   const { error } = await supabase.rpc("guardar_minuta_contrato", { p_id: id, p_datos: datos })
   if (error) throw new Error(error.message)
   return { guardadaAt: new Date().toISOString() }
+}
+
+// Mano de obra: ¿plantilla nueva (versión 04) o la anterior? La anterior solo
+// para minutas ya enviadas o aprobadas con ella (usaPlantillaManoObra04).
+async function plantillaManoObra04(id: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from("contratos").select("minuta_estado, minuta_datos").eq("id", id).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error("La solicitud no existe o no tienes acceso.")
+  return usaPlantillaManoObra04(data.minuta_estado, data.minuta_datos)
+}
+
+export async function plantillaMinutaManoObra(id: string): Promise<"04" | "anterior"> {
+  await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
+  return (await plantillaManoObra04(id)) ? "04" : "anterior"
 }
 
 // ---------------------------------------------------------------- enviar a Subgerencia
@@ -352,6 +379,9 @@ async function minutaParaEnviar(id: string): Promise<unknown> {
 
   switch (contrato.tipo) {
     case "mano_obra":
+      if (await plantillaManoObra04(id)) {
+        return limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), (await obtenerMinutaObra(id)).minuta))
+      }
       return limpiarMinuta((await obtenerMinutaContrato(id)).minuta)
     case "arrendamiento":
       return limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), (await obtenerMinutaArrendamiento(id)).minuta))

@@ -10,6 +10,9 @@
 -- del contrato (valor_bruto * 100 / valor). Las que sí lo tienen siguen igual.
 -- El tope por saldo ya estaba en _guardar_acta y no cambia.
 --
+-- Va después de 20261123000000 y 20261124000000 (otrosí), que también
+-- redefinen estas funciones; este cuerpo es el de esas más el coalesce.
+--
 -- Cambia: contrato_para_acta (avance_otras) y detalle_acta (avance_anterior).
 -- Mismo cuerpo que hoy en la base, solo con ese coalesce.
 

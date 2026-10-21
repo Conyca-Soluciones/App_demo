@@ -24,6 +24,8 @@ import {
   leerNumero,
   pesos,
   numero,
+  sinManoObraEnApu,
+  topeValorUnitario,
   totalAnexo,
   validarSolicitud,
   type CampoSolicitud,
@@ -206,7 +208,7 @@ function MensajeError({ texto }: { texto?: string }) {
 
 // Buscador de un ítem del presupuesto (por código o descripción). Muestra
 // hasta 10 coincidencias; los ítems sin cantidad disponible salen deshabilitados.
-function SelectorItemPresupuesto({
+export function SelectorItemPresupuesto({
   etiqueta,
   catalogo,
   excluir,
@@ -376,6 +378,11 @@ export function SolicitudContratoForm({
   }, [contratistas, busqueda])
 
   const total = f.anexoTipo === "valores_unitarios" ? totalAnexo(f.items) : leerNumero(f.valor)
+  // El buscador muestra el tope según el tipo (mano de obra: la del APU).
+  const catalogoParaSelector = useMemo(
+    () => catalogoAjustado.map((i) => ({ ...i, valorUnitario: topeValorUnitario(i, f.tipo) })),
+    [catalogoAjustado, f.tipo]
+  )
 
   function cambiar<K extends keyof SolicitudContratoForm>(campo: K, valor: SolicitudContratoForm[K], error?: CampoSolicitud) {
     setF((v) => ({ ...v, [campo]: valor }))
@@ -751,7 +758,8 @@ export function SolicitudContratoForm({
                     const v = leerNumero(it.valorUnitario)
                     const subtotal = c !== null && v !== null ? c * v : null
                     const excedeCantidad = Boolean(ref && c !== null && c > ref.disponible)
-                    const excedeValor = Boolean(ref && v !== null && v > ref.valorUnitario)
+                    const tope = ref ? topeValorUnitario(ref, f.tipo) : 0
+                    const excedeValor = Boolean(ref && v !== null && v > tope)
                     const cambiarItem = (cambios: Partial<typeof it>) =>
                       cambiar(
                         "items",
@@ -769,8 +777,16 @@ export function SolicitudContratoForm({
                                   <span className="font-medium tabular-nums">{ref.codigo}</span> {ref.descripcion}
                                 </p>
                                 <p className="text-xs text-muted-foreground tabular-nums">
-                                  Disponible {numero(ref.disponible)} de {numero(ref.cantidad)} · {pesos(ref.valorUnitario)} c/u
+                                  Disponible {numero(ref.disponible)} de {numero(ref.cantidad)} ·{" "}
+                                  {f.tipo === "mano_obra" && !sinManoObraEnApu(ref, f.tipo)
+                                    ? `mano de obra ${pesos(tope)} c/u (ítem completo ${pesos(ref.valorUnitario)})`
+                                    : `${pesos(ref.valorUnitario)} c/u`}
                                 </p>
+                                {sinManoObraEnApu(ref, f.tipo) && (
+                                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                                    El APU de este ítem no tiene mano de obra: el tope es el ítem completo y Jurídica lo verá marcado.
+                                  </p>
+                                )}
                               </div>
                               <button
                                 type="button"
@@ -790,13 +806,13 @@ export function SolicitudContratoForm({
                             )}
                             <SelectorItemPresupuesto
                               etiqueta={`Ítem del presupuesto ${i + 1}`}
-                              catalogo={catalogoAjustado}
+                              catalogo={catalogoParaSelector}
                               excluir={usados}
                               disabled={enviando}
                               onElegir={(item) =>
                                 cambiarItem({
                                   presupuestoItemId: item.id,
-                                  // Se propone el valor del presupuesto; solo se puede bajar.
+                                  // Se propone el tope (mano de obra en mano de obra); solo se puede bajar.
                                   valorUnitario: numero(item.valorUnitario),
                                 })
                               }
@@ -825,7 +841,7 @@ export function SolicitudContratoForm({
                             disabled={enviando || !ref}
                             className={`${claseCampo(excedeValor)} text-right`}
                           />
-                          {excedeValor && <p className="px-1 text-xs text-destructive">Máx. {pesos(ref!.valorUnitario)}</p>}
+                          {excedeValor && <p className="px-1 text-xs text-destructive">Máx. {pesos(tope)}</p>}
                         </td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{subtotal !== null ? pesos(subtotal) : "—"}</td>
                         <td className="p-1 text-center">
@@ -1097,7 +1113,7 @@ export function SolicitudContratoForm({
           <MensajeError texto={errores.departamentoDomicilio} />
         </div>
 
-        {f.tipo === "obra" && (
+        {(f.tipo === "obra" || f.tipo === "mano_obra") && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1" data-error={Boolean(errores.pagoCadaDias)}>
               <label htmlFor="contrato-pago-cada" className="text-xs font-medium text-muted-foreground">
@@ -1145,6 +1161,19 @@ export function SolicitudContratoForm({
               )}
               <MensajeError texto={errores.retencion} />
             </div>
+            {f.tipo === "mano_obra" && (
+              <div className="space-y-1" data-error={Boolean(errores.exigeGarantia)}>
+                <PreguntaSiNo
+                  id="contrato-garantia-mano-obra"
+                  etiqueta="¿El contrato exige garantías (pólizas)? *"
+                  valor={f.exigeGarantia}
+                  onChange={(v) => cambiar("exigeGarantia", v)}
+                  disabled={enviando}
+                  conError={Boolean(errores.exigeGarantia)}
+                />
+                <MensajeError texto={errores.exigeGarantia} />
+              </div>
+            )}
           </div>
         )}
 

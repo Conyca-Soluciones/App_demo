@@ -35,8 +35,9 @@ const base: SolicitudContratoForm = {
   correoNotificacion: "Obras@Contratista.co",
   observaciones: "",
   departamentoDomicilio: "Arauca",
-  pagoCadaDias: "",
-  retencionGarantia: "",
+  // mano de obra (plantilla GJ-F-003 versión 04)
+  pagoCadaDias: "15",
+  retencionGarantia: "no",
   retencionPorcentaje: "",
   inmuebleDireccion: "",
   inmuebleUso: "",
@@ -45,7 +46,7 @@ const base: SolicitudContratoForm = {
   correoFactura: "",
   bienNombre: "",
   actas: "",
-  exigeGarantia: "",
+  exigeGarantia: "si",
 }
 
 const errores = (f: Partial<SolicitudContratoForm>, catalogo?: Map<string, ItemPresupuestoContrato>) => {
@@ -139,7 +140,9 @@ describe("validarSolicitud", () => {
 
   describe("valores unitarios contra el presupuesto", () => {
     const catalogo = new Map<string, ItemPresupuestoContrato>([
-      ["p1", { id: "p1", codigo: "3.1", descripcion: "Muro", unidad: "m2", cantidad: 100, valorUnitario: 28_000, contratado: 40, disponible: 60 }],
+      ["p1", { id: "p1", codigo: "3.1", descripcion: "Muro", unidad: "m2", cantidad: 100, valorUnitario: 28_000, valorManoObra: 0, contratado: 40, disponible: 60 }],
+      ["p3", { id: "p3", codigo: "3.3", descripcion: "Enchape", unidad: "m2", cantidad: 100, valorUnitario: 28_000, valorManoObra: 12_000, contratado: 0, disponible: 100 }],
+      ["p2", { id: "p2", codigo: "3.2", descripcion: "Pañete", unidad: "m2", cantidad: 100, valorUnitario: 15_000, valorManoObra: 0, contratado: 0, disponible: 100 }],
     ])
     const unitarios = (cantidad: string, valorUnitario: string): Partial<SolicitudContratoForm> => ({
       anexoTipo: "valores_unitarios",
@@ -158,6 +161,19 @@ describe("validarSolicitud", () => {
 
     it("el valor unitario no pasa el del presupuesto", () => {
       expect(errores(unitarios("10", "28.001"), catalogo).items).toMatch(/supera/)
+    })
+
+    it("mano de obra: el tope es la mano de obra del APU; sin mano de obra, el ítem completo", () => {
+      const mo = (presupuestoItemId: string, valorUnitario: string): Partial<SolicitudContratoForm> => ({
+        tipo: "mano_obra",
+        anexoTipo: "valores_unitarios",
+        valor: "",
+        items: [{ presupuestoItemId, cantidad: "1", valorUnitario }],
+      })
+      expect(errores(mo("p3", "12.000"), catalogo).items).toBeUndefined()
+      expect(errores(mo("p3", "12.001"), catalogo).items).toMatch(/mano de obra/)
+      expect(errores(mo("p2", "15.000"), catalogo).items).toBeUndefined()
+      expect(errores({ ...mo("p3", "28.000"), tipo: "obra" }, catalogo).items).toBeUndefined()
     })
 
     it("no repite ítems", () => {
@@ -209,7 +225,7 @@ describe("domicilio y datos de la minuta según el tipo", () => {
   })
 
   it("obra: pago cada X días y retención en garantía", () => {
-    const e = errores({ tipo: "obra" })
+    const e = errores({ tipo: "obra", pagoCadaDias: "", retencionGarantia: "" })
     expect(e.pagoCadaDias).toBeTruthy()
     expect(e.retencion).toBeTruthy()
     expect(errores({ tipo: "obra", pagoCadaDias: "15.5", retencionGarantia: "no" }).pagoCadaDias).toBeTruthy()
@@ -218,6 +234,20 @@ describe("domicilio y datos de la minuta según el tipo", () => {
     expect(r.ok && r.datos.datosTipo).toEqual({ pagoCadaDias: 15, retencionGarantia: true, retencionPorcentaje: 5 })
     const sin = validarSolicitud({ ...base, tipo: "obra", pagoCadaDias: "30", retencionGarantia: "no" })
     expect(sin.ok && sin.datos.datosTipo).toEqual({ pagoCadaDias: 30, retencionGarantia: false })
+  })
+
+  it("mano de obra: pago cada X días, retención en garantía y garantías", () => {
+    const e = errores({ pagoCadaDias: "", retencionGarantia: "", exigeGarantia: "" })
+    expect(e.pagoCadaDias && e.retencion && e.exigeGarantia).toBeTruthy()
+    const r = validarSolicitud({ ...base, retencionGarantia: "si", retencionPorcentaje: "5", exigeGarantia: "no" })
+    expect(r.ok && r.datos.datosTipo).toEqual({ pagoCadaDias: 15, retencionGarantia: true, retencionPorcentaje: 5, exigeGarantia: false })
+    expect(datosTipoABase("mano_obra", { pagoCadaDias: 15, retencionGarantia: false, exigeGarantia: true })).toEqual({
+      pago_cada_dias: 15,
+      retencion_garantia: false,
+      exige_garantia: true,
+    })
+    // obra no guarda garantías (su plantilla siempre las exige)
+    expect(datosTipoABase("obra", { pagoCadaDias: 15, retencionGarantia: false, exigeGarantia: true })).toEqual({ pago_cada_dias: 15, retencion_garantia: false })
   })
 
   it("arrendamiento: inmueble, uso, IVA, servicios y correo de la factura", () => {
@@ -243,14 +273,14 @@ describe("domicilio y datos de la minuta según el tipo", () => {
   })
 
   it("alquiler: nombre corto, actas y garantías", () => {
-    const e = errores({ tipo: "alquiler_vehiculo", valorMensual: "1.000.000" })
+    const e = errores({ tipo: "alquiler_vehiculo", valorMensual: "1.000.000", exigeGarantia: "" })
     expect(e.bienNombre && e.actas && e.exigeGarantia).toBeTruthy()
     const r = validarSolicitud({ ...base, tipo: "alquiler_vehiculo", valorMensual: "1.000.000", bienNombre: " Volqueta ", actas: "quincenales", exigeGarantia: "si" })
     expect(r.ok && r.datos.datosTipo).toEqual({ bienNombre: "Volqueta", actas: "quincenales", exigeGarantia: true })
   })
 
   it("los demás tipos no llevan datos extra; ida y vuelta con la base", () => {
-    const r = validarSolicitud(base)
+    const r = validarSolicitud({ ...base, tipo: "suministro_instalacion" })
     expect(r.ok && r.datos.datosTipo).toEqual({})
     expect(datosTipoABase("obra", { pagoCadaDias: 15, retencionGarantia: false })).toEqual({ pago_cada_dias: 15, retencion_garantia: false })
     expect(datosTipoDesdeBase({ bien_nombre: "Grúa", actas: "otra", exige_garantia: false, raro: 1 })).toEqual({ bienNombre: "Grúa", exigeGarantia: false })

@@ -1,25 +1,8 @@
-import path from "path"
 import { NextRequest, NextResponse } from "next/server"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana } from "@/lib/permisos"
-import { limpiarMinuta, mezclarMinuta, minutaVacia, nombreArchivoMinuta } from "@/lib/minuta-mano-obra"
-import { MinutaManoObraPDF } from "@/components/minuta-mano-obra-pdf"
-import {
-  limpiarMinutaArrendamiento,
-  mezclarMinutaArrendamiento,
-  minutaArrendamientoVacia,
-  nombreArchivoMinutaArrendamiento,
-} from "@/lib/minuta-arrendamiento"
-import { MinutaArrendamientoPDF } from "@/components/minuta-arrendamiento-pdf"
-import { limpiarMinutaSuministro, mezclarMinutaSuministro, minutaSuministroVacia, nombreArchivoMinutaSuministro } from "@/lib/minuta-suministro"
-import { MinutaSuministroPDF } from "@/components/minuta-suministro-pdf"
-import { limpiarMinutaVehiculo, mezclarMinutaVehiculo, minutaVehiculoVacia, nombreArchivoMinutaVehiculo } from "@/lib/minuta-vehiculo"
-import { MinutaVehiculoPDF } from "@/components/minuta-vehiculo-pdf"
-import { limpiarMinutaServicios, mezclarMinutaServicios, minutaServiciosVacia, nombreArchivoMinutaServicios } from "@/lib/minuta-servicios"
-import { MinutaServiciosPDF } from "@/components/minuta-servicios-pdf"
-import { limpiarMinutaObra, mezclarMinutaObra, minutaObraVacia, nombreArchivoMinutaObra } from "@/lib/minuta-obra"
-import { MinutaObraPDF } from "@/components/minuta-obra-pdf"
+import { pdfMinutaContrato, LOGO_CONYCA_PATH } from "@/lib/pdf-minuta-contrato"
 import { buscarMarcaEnPdf } from "@/lib/minuta-pdf-foco"
 import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
 import {
@@ -33,7 +16,6 @@ import {
 export const runtime = "nodejs"
 
 const MAXIMO_BYTES = 200_000
-const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 
 // PDF de la minuta con lo que está en pantalla (POST con la minuta en el
 // cuerpo): así la vista previa y la descarga reflejan cambios aún sin
@@ -97,36 +79,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const foco = typeof focoCrudo === "string" && /^[A-Za-z]+(:\d{1,3})?$/.test(focoCrudo) ? focoCrudo : undefined
   const numero = Number(contrato.numero)
 
-  let buffer: Buffer
-  let archivo: string
-  if (contrato.tipo === "mano_obra") {
-    const minuta = limpiarMinuta(mezclarMinuta(minutaVacia(), datos))
-    buffer = await renderToBuffer(<MinutaManoObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinuta(numero, minuta.contratistaNombre)
-  } else if (contrato.tipo === "arrendamiento") {
-    const minuta = limpiarMinutaArrendamiento(mezclarMinutaArrendamiento(minutaArrendamientoVacia(), datos))
-    buffer = await renderToBuffer(<MinutaArrendamientoPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinutaArrendamiento(numero, minuta.arrendadorNombre)
-  } else if (contrato.tipo === "suministro_instalacion") {
-    const minuta = limpiarMinutaSuministro(mezclarMinutaSuministro(minutaSuministroVacia(), datos))
-    buffer = await renderToBuffer(<MinutaSuministroPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinutaSuministro(numero, minuta.contratistaNombre)
-  } else if (contrato.tipo === "alquiler_vehiculo") {
-    const minuta = limpiarMinutaVehiculo(mezclarMinutaVehiculo(minutaVehiculoVacia(), datos))
-    buffer = await renderToBuffer(<MinutaVehiculoPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinutaVehiculo(numero, minuta.contratistaNombre)
-  } else if (contrato.tipo === "prestacion_servicios") {
-    const minuta = limpiarMinutaServicios(mezclarMinutaServicios(minutaServiciosVacia(), datos))
-    buffer = await renderToBuffer(<MinutaServiciosPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinutaServicios(numero, minuta.contratistaNombre)
-  } else if (contrato.tipo === "obra") {
-    const minuta = limpiarMinutaObra(mezclarMinutaObra(minutaObraVacia(), datos))
-    buffer = await renderToBuffer(<MinutaObraPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
-    archivo = nombreArchivoMinutaObra(numero, minuta.contratistaNombre)
-  } else {
+  const pdfMinuta = await pdfMinutaContrato(contrato.tipo, numero, datos, foco)
+  if (!pdfMinuta) {
     return NextResponse.json({ error: "Este tipo de contrato todavía no tiene plantilla de minuta." }, { status: 400 })
   }
-
+  const { buffer, archivo } = pdfMinuta
   const marca = foco ? buscarMarcaEnPdf(buffer) : null
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

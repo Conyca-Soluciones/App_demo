@@ -124,6 +124,19 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
           </Badge>
         ),
       },
+      {
+        clave: "otrosi",
+        titulo: "Otrosí",
+        ancho: 80,
+        alinear: "center",
+        texto: (s) => (s.otrosisAprobados ? String(s.otrosisAprobados) : ""),
+        celda: (s) =>
+          s.otrosisAprobados ? (
+            <Badge variant="outline" className="border-transparent bg-violet-100 text-violet-800" title="Otrosí aprobados: ábrelo para verlos">
+              {s.otrosisAprobados}
+            </Badge>
+          ) : null,
+      },
       { clave: "enviadaPor", titulo: "Enviada por", ancho: 150, texto: (s) => s.minutaEnviadaPorNombre ?? "" },
       { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => (s.minutaEnviadaAt ? fechaContrato(s.minutaEnviadaAt) : ""), claseCelda: "tabular-nums" },
     ],

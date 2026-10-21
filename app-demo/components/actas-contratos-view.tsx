@@ -12,6 +12,7 @@ import { MarcoPagina } from "@/components/encabezado-pagina"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { DetalleActa } from "@/components/detalle-acta"
 import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
+import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos, numero } from "@/lib/contratos"
@@ -298,7 +299,15 @@ function ContratoActas({
             </tr>
             <tr>
               <th>Valor del contrato</th>
-              <td className="font-medium tabular-nums">{pesos(contrato.valor)}</td>
+              <td className="font-medium tabular-nums">
+                {pesos(contrato.valor)}
+                {/* Con otrosí: el contrato firmado no cambia; el valor vigente lo incluye. */}
+                {info && info.valorInicial !== info.valor && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    contrato {pesos(info.valorInicial)} + otrosí {pesos(info.valor - info.valorInicial)}
+                  </span>
+                )}
+              </td>
             </tr>
             <tr>
               <th>Valor en actas</th>
@@ -342,6 +351,12 @@ function ContratoActas({
             <tr>
               <th>Objeto</th>
               <td>{contrato.objeto}</td>
+            </tr>
+            <tr>
+              <th className="align-top">Otrosí</th>
+              <td>
+                <OtrosisDelContrato contratoId={contrato.id} />
+              </td>
             </tr>
           </tbody>
         </table>

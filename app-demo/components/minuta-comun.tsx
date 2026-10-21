@@ -515,8 +515,9 @@ export type PdfMinuta = { blob: Blob; pagina: number | null; altura: number | nu
 
 // `foco` (solo la vista previa): el dato que se está editando sale resaltado y
 // la ruta dice en qué página y a qué altura quedó.
-export async function generarPdfMinuta(id: string, minuta: unknown, signal?: AbortSignal, foco?: string | null): Promise<PdfMinuta> {
-  const r = await fetch(`/contratos/pre-aprobacion/${id}/minuta`, {
+// `ruta`: otra ruta de PDF con el mismo contrato de entrada y salida (el otrosí).
+export async function generarPdfMinuta(id: string, minuta: unknown, signal?: AbortSignal, foco?: string | null, ruta?: string): Promise<PdfMinuta> {
+  const r = await fetch(ruta ?? `/contratos/pre-aprobacion/${id}/minuta`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ minuta, ...(foco ? { foco } : {}) }),
@@ -534,8 +535,8 @@ export async function generarPdfMinuta(id: string, minuta: unknown, signal?: Abo
   return { blob: await r.blob(), pagina: numero("X-Minuta-Pagina"), altura: numero("X-Minuta-Altura") }
 }
 
-export async function descargarPdfMinuta(id: string, minuta: unknown, nombreArchivo: string) {
-  const { blob } = await generarPdfMinuta(id, minuta)
+export async function descargarPdfMinuta(id: string, minuta: unknown, nombreArchivo: string, ruta?: string) {
+  const { blob } = await generarPdfMinuta(id, minuta, undefined, null, ruta)
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -553,7 +554,7 @@ export const focoDeEvento = (e: React.FocusEvent) => (e.target as HTMLElement).c
 // Vista previa: se vuelve a generar un momento después del último cambio, o
 // enseguida al pasar a otro campo (`foco`): ese dato sale resaltado y el
 // visor abre en su página, ajustada a la página completa. `refrescar` la genera otra vez.
-export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string | null) {
+export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string | null, ruta?: string) {
   const [vista, setVista] = useState<{ url: string | null; cargando: boolean; error: string | null; pagina: number | null }>({
     url: null,
     cargando: false,
@@ -572,7 +573,7 @@ export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string 
     minutaAnterior.current = minuta
     const t = setTimeout(() => {
       setVista((v) => ({ ...v, cargando: true, error: null }))
-      generarPdfMinuta(id, minuta, control.signal, foco)
+      generarPdfMinuta(id, minuta, control.signal, foco, ruta)
         .then(({ blob, pagina }) => {
           const url = URL.createObjectURL(blob)
           if (urlVista.current) URL.revokeObjectURL(urlVista.current)
@@ -591,7 +592,7 @@ export function useVistaPreviaMinuta(id: string, minuta: unknown, foco?: string 
       clearTimeout(t)
       control.abort()
     }
-  }, [minuta, id, vuelta, foco])
+  }, [minuta, id, vuelta, foco, ruta])
 
   useEffect(
     () => () => {

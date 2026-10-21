@@ -290,8 +290,44 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'guardar_banco')
          and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
   union all
-  select '20261118800000_avance_anterior_actas_sin_porcentaje',
+  select '20261126000000_avance_anterior_actas_sin_porcentaje',
          position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
          and position('coalesce(o.porcentaje_avance' in pg_get_functiondef('public.detalle_acta(uuid)'::regprocedure)) > 0
+  union all
+  select '20261118000000_solicitud_mano_obra_plantilla_04',
+         position('in (''obra'', ''mano_obra'')' in pg_get_functiondef(
+           'public._guardar_solicitud_contrato(uuid,jsonb,jsonb,jsonb,jsonb,jsonb,boolean)'::regprocedure)) > 0
+  union all
+  select '20261119000000_otrosis',
+         to_regclass('public.otrosis') is not null
+         and exists (select 1 from pg_proc where proname = 'resolver_otrosi')
+         and exists (select 1 from public.rol_permisos where permiso = 'tab.contratos.aprobar_otrosi')
+  union all
+  select '20261120000000_ver_contrato_otrosi',
+         exists (select 1 from pg_proc where proname = 'contrato_para_ver_otrosi')
+  union all
+  select '20261121000000_otrosis_en_contrato',
+         exists (select 1 from pg_proc where proname = 'otrosis_de_contrato')
+         and exists (select 1 from pg_proc where proname = 'otrosis_aprobados')
+  union all
+  select '20261122000000_historial_otrosis_en_contrato',
+         exists (select 1 from pg_proc where proname = 'historial_otrosis_de_contrato')
+  union all
+  select '20261123000000_otrosi_prorroga_y_valor',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'otrosis' and column_name = 'nueva_fecha_fin')
+         and exists (select 1 from pg_proc where proname = '_validar_prorroga_otrosi')
+         and exists (select 1 from pg_proc where proname = '_valor_contrato')
+  union all
+  select '20261124000000_tope_mano_obra_y_actividades_otrosi',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'otrosis' and column_name = 'actividades')
+         and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contrato_anexo_items' and column_name = 'otrosi_id')
+         and exists (select 1 from pg_proc where proname = 'actividades_para_otrosi')
+  union all
+  select '20261125000000_control_proyecto_valor_vigente',
+         exists (select 1 from pg_proc where proname = 'control_proyecto'
+                  and pg_get_functiondef(oid) like '%_valor_contrato(c.id)%')
 ) t
 order by 1;

@@ -152,6 +152,19 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
           </Badge>
         ),
       },
+      {
+        clave: "otrosi",
+        titulo: "Otrosí",
+        ancho: 80,
+        alinear: "center",
+        texto: (s) => (s.otrosisAprobados ? String(s.otrosisAprobados) : ""),
+        celda: (s) =>
+          s.otrosisAprobados ? (
+            <Badge variant="outline" className="border-transparent bg-violet-100 text-violet-800" title="Otrosí aprobados: ábrelo para verlos">
+              {s.otrosisAprobados}
+            </Badge>
+          ) : null,
+      },
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
       { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },
     ],

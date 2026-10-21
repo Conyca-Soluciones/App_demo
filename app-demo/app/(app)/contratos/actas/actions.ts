@@ -101,6 +101,7 @@ export async function obtenerContratoParaActa(contratoId: string, excluirActa?: 
   if (error) throw new Error(error.message)
   return {
     valor: Number(d.valor),
+    valorInicial: Number(d.valor_inicial ?? d.valor),
     anexoTipo: d.anexo_tipo,
     anticipoPorcentaje: num(d.anticipo_porcentaje),
     retencionPorcentaje: num(d.retencion_porcentaje),

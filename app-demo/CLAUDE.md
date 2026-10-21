@@ -1296,7 +1296,7 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (actualiza `contratistas.banco`, con la bandera `app.renombrando_banco` para
   que no se valide ni se cree cuenta ni historial) y desactivar. Los
   contratistas de prueba viejos no se convirtieron.
-- **Avance anterior de actas por %** (`20261118800000_avance_anterior_actas_sin_porcentaje.sql`,
+- **Avance anterior de actas por %** (`20261126000000_avance_anterior_actas_sin_porcentaje.sql`,
   E6): en `contrato_para_acta` (`avance_otras`) y `detalle_acta`
   (`avance_anterior`), un acta sin `porcentaje_avance` (de antes de las actas
   sobre el contrato, como el Acta 1 de CJ-14) cuenta lo cobrado como % del
@@ -2108,7 +2108,15 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   formulario y otra vez en `crear_solicitud_contrato` (con bloqueo de los
   ítems para que dos solicitudes simultáneas no pasen juntas): cantidad <=
   presupuestada menos lo ya contratado, y valor unitario <= el del
-  presupuesto. Lo contratado se suma por presupuesto + código (como las
+  presupuesto. **Mano de obra** (`20261124000000`, decisión del usuario):
+  el tope es la mano de obra del APU + herramienta menor
+  (`_valor_mano_obra_item`, `_tope_valor_unitario_item`; en TS
+  `topeValorUnitario`), porque el ítem completo incluye materiales y
+  equipos; si el APU no tiene mano de obra (2026-10-20: solo 11 de 184 ítems
+  del presupuesto vigente la tienen), el tope es el ítem completo y la
+  actividad queda marcada `contrato_anexo_items.sin_mano_obra` (aviso en el
+  detalle para Jurídica). Los demás tipos (obra todo costo...) siguen con el
+  ítem completo. Lo contratado se suma por presupuesto + código (como las
   requisiciones), así sigue contando en versiones nuevas. Hoy cuentan TODOS
   los contratos; cuando existan estados rechazado/anulado, excluirlos en
   `_contratado_item` e `items_presupuesto_para_contrato`. Un ítem del
@@ -2201,7 +2209,7 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   fecha de inicio salen del plazo; las obligaciones específicas se suman a las
   del arrendador. IVA (más / incluido) y servicios públicos (los paga el
   arrendatario / incluidos en el canon) son selectores; el parágrafo de
-  propiedad horizontal es editable. Número: "Nº CJ-<numero> DE <año de firma>".
+  propiedad horizontal es editable. Número: "No. CJ-<numero>-<año de firma>" (la plantilla decía "Nº CJ-<numero> DE <año>"; unificado a pedido del usuario, 2026-10-20).
   La ruta del PDF elige la plantilla por `contratos.tipo` (de la base, no del
   navegador); misma columna `minuta_datos` y misma `guardar_minuta_contrato`
   (sin migración). Las piezas de UI comunes a las dos minutas (origen de cada
@@ -2218,7 +2226,7 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   línea GL con el objeto); forma de pago = texto de la plantilla + anticipo +
   la de la solicitud; plazo en días calendario; tabla de amparos editable (el
   de buen manejo de anticipo solo si hay anticipo); cláusula penal 10 % y
-  multa diaria 0,2 % editables. Número "Nº CJ-<numero>-<año>". La tabla de
+  multa diaria 0,2 % editables. Número "No. CJ-<numero>-<año>" (unificado 2026-10-20). La tabla de
   ítems del editor es `TablaItemsMinuta` (minuta-comun, también la usa mano de
   obra).
 - **PDF de minutas: texto en un solo nodo.** `P` y `Clausula`
@@ -2258,6 +2266,26 @@ proyecto actual; filtro por estado y proyecto) y las **pre-aprueba**,
   quinta). Obligaciones específicas: las 17 de la plantilla (que salta los
   números 3, 8 y 17; aquí van seguidas) + las de la solicitud y sus
   entregables. Domicilio por defecto "Arauca" (venía fijo en la plantilla).
+  Plantilla actualizada (2026-10-20): el parágrafo tercero de la quinta dice
+  "Se le hará retención en garantía del (X) de cada factura o cuenta de cobro
+  de acta parcial… acta de liquidación del contrato".
+- **Minuta de mano de obra, plantilla GJ-F-003 versión 04** (2026-10-20):
+  mismas 27 cláusulas que obra TC, así que usa el MISMO lib/editor/PDF
+  (`lib/minuta-obra.ts`, `components/minuta-obra-{editor,pdf}.tsx`) con
+  `variante: "mano_obra"` (la calcula `minutaObraPorDefecto` del tipo). Cambia:
+  encabezado "CONTRATO DE MANO DE OBRA", primera ("proyecto cuyo objeto es"),
+  cuarta, quinta, décima primera/cuarta, décima octava (puede decir "no se
+  exigirá la constitución de garantías": `exigeGarantia`), vigésima tercera a
+  sexta, cierre "se firma en…", firmas con el contratante primero y las listas
+  `OBLIGACIONES_*_MANO_OBRA` (8 / 11 / 23). El anexo N° 1 se conserva aunque
+  la plantilla no lo nombra. **Contratos viejos**: las minutas de mano de obra
+  sin `variante` que ya están en revisión o aprobadas siguen con la plantilla
+  anterior (`lib/minuta-mano-obra.ts`, `usaPlantillaManoObra04` /
+  `esMinutaManoObra04`; `plantillaMinutaManoObra` elige el editor y la ruta del
+  PDF elige el componente); las devueltas o sin enviar pasan a la nueva.
+  Solicitud de mano de obra (migración `20261118000000`): pide lo mismo que
+  obra (pago cada X días, retención en garantía y %) + "¿exige garantías?"
+  (`datos_tipo.exige_garantia`), todo obligatorio.
 - **Dato en edición resaltado en la vista previa** (2026-10-13): al entrar a
   un campo del editor, la vista previa se regenera con ese dato en amarillo y
   el visor abre en su página y altura. Cada campo lleva `data-foco` (clave del
@@ -2382,12 +2410,143 @@ hoja PDF (no minuta larga); actas generales después.
   contrato sea general (el detalle abre bien, pero "Corregir" está en
   Contratos generales).
 
+## Otrosí `/contratos/otrosi` y `/contratos/aprobacion-otrosi` (2026-10-20)
+
+`20261119000000_otrosis.sql`, plantilla "OTROSÍ" versión 04 (9/05/2025; su
+código dice solo "GJ-F"). Decisiones del usuario:
+- **Documento + prórroga y nuevo valor opcionales**
+  (`20261123000000_otrosi_prorroga_y_valor.sql`): el otrosí NO cambia el
+  anexo ni el texto del contrato; lo que cambie se escribe en la redacción de
+  la cláusula nueva. Lo que sí aplica en el sistema, solo cuando el otrosí
+  queda APROBADO (cuenta el último por número):
+  - **Prórroga**: check "¿Se va a extender la fecha?" con la nueva fecha
+    (`otrosis.nueva_fecha_fin`). `_fecha_fin_contrato` devuelve la del último
+    otrosí aprobado con prórroga (o la inicial, `_fecha_fin_inicial_contrato`):
+    actas (vencido), aviso de vencido, contratos abiertos para otrosí y el
+    detalle usan la fecha extendida. `_validar_prorroga_otrosi`: posterior al
+    fin vigente y a hoy.
+  - **Nuevo valor**: check "¿Cambia el valor total?" con el valor
+    (`otrosis.nuevo_valor`). `_valor_contrato(contrato, hasta)` = el del
+    último otrosí aprobado que lo cambió (o `contratos.valor`, que no se
+    toca). Es el tope de las actas (`contrato_para_acta` devuelve `valor`
+    vigente y `valor_inicial`; `_guardar_acta`) y lo que muestran
+    `detalle_acta` (el vigente cuando se hizo o editó el acta: las actas
+    viejas no cambian), `listar_actas_aprobacion`,
+    `buscar_contratos_para_acta` y `contratos_para_otrosi`. El anticipo sigue
+    sobre el valor INICIAL (`InfoContratoActa.valorInicial`). Valor global con
+    valor cambiado: el % de avance es sobre el vigente y lo cobrado cuenta
+    como bruto / valor vigente. Valores unitarios: cada actividad sigue
+    limitada a su cantidad del anexo; para cobrar más van actividades
+    (abajo).
+    `_validar_valor_otrosi`: distinto del vigente y no menor que lo cobrado
+    en actas no rechazadas. Control de proyecto ("contratado" y lista de
+    contratos) usa el valor vigente desde `20261125000000_control_proyecto_valor_vigente.sql`.
+  Las dos se revisan al crear, reenviar, enviar a Subgerencia y aprobar.
+  - **Actividades** (`20261124000000_tope_mano_obra_y_actividades_otrosi.sql`,
+    solo contratos por valores unitarios): `otrosis.actividades` = adiciones
+    de cantidad a actividades del contrato (a su valor pactado) y actividades
+    nuevas del presupuesto vigente que el contrato no tenga (precio con el
+    mismo tope del tipo de contrato). Cantidad hasta lo disponible en el
+    presupuesto. Con actividades el valor sube solo: `nuevo_valor` = vigente
+    + lo que suman (lo pone la base; al enviar y aprobar se exige que siga
+    cuadrando: si otro otrosí cambió el valor, hay que devolverlo y
+    reenviarlo). Al aprobar se agregan como filas nuevas de
+    `contrato_anexo_items` con `otrosi_id` y actividad "... (Otrosí N° n)" /
+    "... (adición Otrosí N° n)": el anexo del contrato firmado no cambia (el
+    detalle del contrato filtra `otrosi_id`), las actas las cobran con su
+    propio tope y `_contratado_item` las cuenta. `detalle_acta` muestra las de
+    un otrosí solo en actas hechas o editadas después de aprobarlo. Funciones:
+    `actividades_para_otrosi` (formulario), `_normalizar_actividades_otrosi`,
+    `_valor_con_actividades_otrosi`, `_revisar_valor_y_actividades_otrosi`.
+    En TS: `leerActividadesOtrosi` (`lib/otrosi.ts`).
+- **No hay otrosí si el plazo vigente ya pasó** (`_fecha_fin_contrato` < hoy
+  Colombia; sin fecha fin, p. ej. duración sin inicio, no vence). Se revisa al
+  crear, reenviar, enviar a Subgerencia y aprobar
+  (`_exigir_contrato_para_otrosi`, que además exige contrato aprobado con
+  minuta aprobada y sin liquidar, y bloquea la fila del contrato).
+- **Flujo**: el ingeniero lo pide (`por_revisar`) -> Jurídica lo arma y lo
+  envía a Subgerencia (`en_revision`), o lo devuelve al ingeniero (`devuelta`,
+  lo corrige y reenvía) o lo rechaza (`rechazada`) -> Subgerencia lo aprueba
+  (`aprobada`, recibe su número: Otrosí N° max+1 de ese contrato, en el orden
+  en que se aprueban) o se lo devuelve a Jurídica (`devuelta_subgerencia`).
+  Acciones de siempre: pedir = `solicitar_contratos`, Jurídica =
+  `aprobar_contratos`, Subgerencia = `aprobar_minutas`.
+- **Tabla** `otrosis` (contrato, proyecto, número, estado, `modificaciones`
+  jsonb [{clausula, redaccion}] 1-20, justificación, motivo de la última
+  devolución, `minuta_datos`, quién/cuándo). Todo por funciones SECURITY
+  DEFINER (`contratos_para_otrosi`, `crear_otrosi`, `reenviar_otrosi`,
+  `guardar_minuta_otrosi`, `resolver_otrosi`, `listar_otrosis`,
+  `detalle_otrosi`, `historial_otrosi`): el ingeniero puede no tener las
+  pestañas que dejan leer `contratos`. Al reenviar se quitan las cláusulas del
+  documento guardado por Jurídica (salen otra vez de lo corregido).
+- **Pantallas**: Solicitud de otrosí (`contratos.solicitar_otrosi`,
+  `components/solicitud-otrosi-view.tsx`): lista con su estado y "Solicitar
+  otrosí": contratista (los que tienen contratos abiertos en los proyectos que
+  ve) -> contrato abierto -> cláusulas (cuál y cómo queda) y justificación.
+  Aprobación de otrosí (`contratos.aprobar_otrosi`,
+  `components/aprobacion-otrosi-view.tsx`): tabla como Aprobación de contratos
+  y diálogo (`components/detalle-otrosi.tsx`) con la pestaña Solicitud y la
+  pestaña Otrosí (editor + vista previa, `components/otrosi-editor.tsx`;
+  Subgerencia lo ve en solo lectura). El ingeniero ve el PDF cuando se aprueba.
+- **Documento**: `lib/otrosi.ts` (`minutaOtrosiPorDefecto`: empresa del
+  proyecto y contratista del directorio, pero lo que ya estaba en la minuta
+  aprobada del contrato gana; ciudad del proyecto; fecha de hoy) y
+  `components/otrosi-pdf.tsx`. Una cláusula por modificación ("Modificar la
+  cláusula X, la cual quedará así:" + redacción), luego cláusulas no
+  modificadas y perfeccionamiento, numeradas seguidas (la plantilla saltaba de
+  SEGUNDA a SEXTO). PDF: `POST /contratos/otrosi-pdf/[id]` (ruta de las dos
+  pestañas); lo de pantalla solo cuenta en `por_revisar` /
+  `devuelta_subgerencia`, después siempre sale lo guardado.
+  `useVistaPreviaMinuta` / `generarPdfMinuta` / `descargarPdfMinuta` aceptan
+  `ruta` para esto.
+- **Avisos** (`notificaciones`, entidad `otrosi`): por revisar -> Legal y Líder
+  Legal; por aprobar -> Subgerencia; devuelto / rechazado / aprobado -> quien
+  lo pidió; devuelto por Subgerencia y aprobado -> quien lo envió desde
+  Jurídica. Historial con entidad `otrosi`.
+- **Permisos**: la migración da `tab.contratos.solicitar_otrosi` a los roles
+  con `tab.contratos.solicitar` y `tab.contratos.aprobar_otrosi` a los que
+  tienen Pre aprobación o Aprobación de contratos.
+- Probada en un Postgres local con las funciones reales de permisos (flujo
+  completo, vencido, liquidado, numeración); las escrituras por el MCP de
+  Supabase se cortan a los 60 s.
+- **Ver contrato** (`20261120000000_ver_contrato_otrosi.sql`, pedido del
+  usuario): botón "Ver" en la tabla de contratos abiertos y "Ver contrato" al
+  corregir y en el detalle del otrosí (`components/ver-contrato-otrosi.tsx`).
+  Muestra la minuta GUARDADA del contrato aprobado (o la hoja del general) por
+  `POST /contratos/otrosi-pdf/contrato/[id]` con `contrato_para_ver_otrosi`
+  (pestaña de otrosí + ve el proyecto + minuta aprobada). El PDF por tipo de
+  contrato vive en `lib/pdf-minuta-contrato.tsx` (`pdfMinutaContrato`), que usa
+  también la ruta de Pre-aprobación. Contratos aprobados sin minuta guardada
+  (CJ-14) dicen que no la tienen.
+- **Rastro en el contrato** (`20261121000000_otrosis_en_contrato.sql`, pedido
+  del usuario): el detalle de cualquier contrato aprobado (Contratos por
+  grupos, generales, Pre-aprobación, Aprobación de contratos, Control del
+  proyecto) y la ficha del contrato en Actas por grupos muestran sus otrosí
+  (aprobados con su número y los que están en trámite) con "Ver" para abrir el
+  PDF (`components/otrosis-del-contrato.tsx`, `otrosis_de_contrato`). Las
+  listas de contratos tienen la columna "Otrosí" con los aprobados (columna
+  calculada `otrosis_aprobados(contratos)` en `SELECT_FILA_CONTRATO`: **la
+  migración tiene que estar antes que el código**, si no las listas fallan).
+  `_puede_ver_otrosis` (solo lectura) incluye ahora las pestañas que ven
+  contratos (`PESTANAS_VER_OTROSI` en TS) y esas pestañas tienen
+  `/contratos/otrosi-pdf` en sus rutas.
+- **Historial del contrato con sus otrosí**
+  (`20261122000000_historial_otrosis_en_contrato.sql`, pedido del usuario):
+  `historial_otrosis_de_contrato` devuelve los eventos de los otrosí del
+  contrato con prefijo `otrosi_` (creado, devuelto, enviado a Subgerencia,
+  aprobado...) y en `datos` el número del otrosí y sus cláusulas;
+  `obtenerHistorial("contrato")` los junta por fecha con los del contrato (si
+  esa parte falla, sale el historial del contrato solo). `historial_entidad`
+  no se tocó.
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
 (`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
 de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
+**Otrosí** (Solicitud de otrosí = `contratos.solicitar_otrosi`, Aprobación de
+otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
@@ -2531,8 +2690,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   saldo a favor de la empresa, sin pago; exige que no haya actas por aprobar).
   Aprobar la liquidación pone `contratos.liquidado_at`: no recibe más actas.
 - **Vencido** (`_fecha_fin_contrato`: fecha fin, o inicio + duración; sin
-  inicio no vence): no recibe actas de avance, solo la de liquidación (para
-  ampliar el plazo hará falta el otrosí, pendiente). pg_cron diario
+  inicio no vence; con otrosí aprobado con prórroga, su nueva fecha): no
+  recibe actas de avance, solo la de liquidación. pg_cron diario
   `avisar-contratos-vencidos` (6:10 a. m. Colombia, `_avisar_contratos_vencidos`):
   una sola vez por contrato (`contratos.aviso_vencido_at`) a quien lo pidió
   (`contrato_vencido` -> Contratos por grupos) y a Legal / Líder Legal que vean
@@ -2605,7 +2764,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: otrosí (ampliar plazo/valor, cuando haya minuta de otrosí),
+- **Pendiente**: (otrosí: no baja cantidades ni cambia precios de
+  actividades del contrato),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -2697,7 +2857,13 @@ seguridad/rendimiento · `20261012000000` lista de entradas en SQL.
 Después: `20261108000000` cupo una vez por fila en la búsqueda de insumos de
 la requisición · `20261108100000` estado de requisiciones guardado ·
 `20261117000000` enviar insumos sin sugerencias · `20261117100000` recuperar
-insumos borrados.
+insumos borrados · `20261118000000` solicitud de mano de obra
+(plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
+desde otrosí · `20261121000000` otrosí en el contrato ·
+`20261122000000` historial del contrato con sus otrosí ·
+`20261123000000` prórroga y nuevo valor del otrosí ·
+`20261124000000` tope de mano de obra y actividades por otrosí ·
+`20261125000000` control de proyecto con el valor vigente de los contratos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

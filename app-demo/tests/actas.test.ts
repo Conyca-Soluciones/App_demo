@@ -15,6 +15,7 @@ import {
 
 const info = (cambios: Partial<InfoContratoActa> = {}): InfoContratoActa => ({
   valor: 10_000_000,
+  valorInicial: 10_000_000,
   anexoTipo: "valores_unitarios",
   anticipoPorcentaje: null,
   retencionPorcentaje: null,
@@ -183,4 +184,13 @@ it("actaEditable: solo quien la creó y si no está aprobada", () => {
   expect(actaEditable({ estado: "rechazada", esMio: true })).toBe(true)
   expect(actaEditable({ estado: "aprobada", esMio: true })).toBe(false)
   expect(actaEditable({ estado: "pendiente", esMio: false })).toBe(false)
+})
+
+describe("calcularActa: valor cambiado por otrosí", () => {
+  it("el tope y el % son sobre el valor vigente; el anticipo, sobre el inicial", () => {
+    const i = info({ anexoTipo: "valor_global", valor: 20_000_000, valorInicial: 10_000_000, anticipoPorcentaje: 30, actividades: [] })
+    const r = calcularActa(i, form({ tipo: "final", porcentajeAvance: "100" }))
+    expect(r.bruto).toBe(20_000_000)
+    expect(r.amortizacion).toBe(3_000_000)
+  })
 })
