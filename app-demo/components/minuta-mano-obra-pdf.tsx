@@ -295,7 +295,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: M
           autorización expresa del CONTRATANTE.
         </P>
 
-        <Clausula titulo="OCTAVA. – CLAUSULA PENAL:">
+        <Clausula titulo="OCTAVA. – CLÁUSULA PENAL:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al{" "}
           {res("clausulaPenalPorcentaje", pct(m.clausulaPenalPorcentaje))} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la
           parte afectada por el incumplimiento. PARÁGRAFO. El valor de la cláusula penal, será descontado de cualquier saldo que resultare a favor del
@@ -307,30 +307,30 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: M
           El presente contrato podrá modificarse previo acuerdo de las partes el cual deberá reposar por escrito.
         </Clausula>
 
-        <Clausula titulo="DECIMA. - CAUSALES DE TERMINACIÓN:">
+        <Clausula titulo="DÉCIMA. - CAUSALES DE TERMINACIÓN:">
           Sin perjuicio de lo contemplado en la ley, este contrato se terminará: A) Por vencimiento del término fijado en el presente contrato para la
           ejecución del mismo. B) Por la ejecución del objeto contratado. C) Por grave incumplimiento de las obligaciones del CONTRATISTA o EL
           CONTRATANTE. D) Por mutuo acuerdo de las partes.
         </Clausula>
 
-        <Clausula titulo="DECIMA PRIMERA. - CLÁUSULA PENAL PECUNIARIA:">
+        <Clausula titulo="DÉCIMA PRIMERA. - CLÁUSULA PENAL PECUNIARIA:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al{" "}
           {res("clausulaPenalPorcentaje", pct(m.clausulaPenalPorcentaje))} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la
           parte afectada por el incumplimiento. PARÁGRAFO. El valor de la cláusula penal, será descontado de cualquier saldo que resultare a favor del
           CONTRATISTA en razón de este contrato si lo hubiere. En caso contrario, se iniciarán las acciones judiciales pertinentes.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEGUNDA. - DOMICILIO:">
+        <Clausula titulo="DÉCIMA SEGUNDA. - DOMICILIO:">
           Para todos los efectos legales, las partes acuerdan como domicilio de este contrato el municipio de {res("domicilioMunicipio", blanco(m.domicilioMunicipio))}, departamento
           de {res("domicilioDepartamento", blanco(m.domicilioDepartamento))}.
         </Clausula>
 
-        <Clausula titulo="DECIMA TERCERA. - DOCUMENTOS DEL CONTRATO:">
+        <Clausula titulo="DÉCIMA TERCERA. - DOCUMENTOS DEL CONTRATO:">
           Forman parte integral del presente contrato los anexos {res("anexos", blanco(m.anexos))}, y todos los documentos que se produzcan durante el desarrollo del
           mismo.
         </Clausula>
 
-        <Clausula titulo="DECIMA CUARTA. - CONFIDENCIALIDAD:">
+        <Clausula titulo="DÉCIMA CUARTA. - CONFIDENCIALIDAD:">
           Las partes se comprometen, con carácter mutuo y recíproco, a tratar como “confidencial” toda la información técnica, comercial o de cualquier
           otra naturaleza comprendida y/o que se derive directa o indirectamente de las indicaciones que la contraparte le haya facilitado para el
           desarrollo del objeto del presente contrato (en adelante “la información confidencial”). En consecuencia, ninguna parte podrá revelar total o
@@ -348,7 +348,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: M
           del presente contrato, así como un año después de la finalización del mismo.
         </P>
 
-        <Clausula titulo="DECIMA QUINTA. – SOLUCION DE CONTROVERSIAS:">
+        <Clausula titulo="DÉCIMA QUINTA. – SOLUCIÓN DE CONTROVERSIAS:">
           Cualquier disputa o diferencia que surja con ocasión del objeto y obligaciones de este contrato serán arregladas en lo posible mediante la
           negociación y la conciliación entre las partes, para lo cual se contará con un período de treinta (30) días calendario. Sin embargo, en
           cualquier momento las partes podrán llevar cualquier disputa o controversia o reclamo relacionado con este contrato, incluyendo la existencia,
@@ -358,16 +358,16 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: M
           Conciliación y Arbitraje de la Cámara de Comercio.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEXTA. – GARANTIA GENERAL DE CUMPLIMIENTO:">
+        <Clausula titulo="DÉCIMA SEXTA. – GARANTÍA GENERAL DE CUMPLIMIENTO:">
           El contratista podrá presentar póliza de cumplimiento del contrato en cuantía equivalente al {res("polizaPorcentaje", pct(m.polizaPorcentaje))} del valor total del
           mismo con una vigencia igual a la del término del contrato y dos meses más, o cualquiera otra garantía a satisfacción del contratante.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEPTIMA. – PERFECCIONAMIENTO:">
+        <Clausula titulo="DÉCIMA SÉPTIMA. – PERFECCIONAMIENTO:">
           El presente contrato se perfecciona con la suscripción del mismo por las partes.
         </Clausula>
 
-        <Clausula titulo="DECIMA OCTAVA. – NOTIFICACIONES:">
+        <Clausula titulo="DÉCIMA OCTAVA. – NOTIFICACIONES:">
           Las partes recibirán notificaciones en: El CONTRATANTE al correo electrónico {res("contratanteCorreo", blanco(m.contratanteCorreo))} y el CONTRATISTA al correo
           electrónico {res("contratistaCorreo", blanco(m.contratistaCorreo))}.
         </Clausula>

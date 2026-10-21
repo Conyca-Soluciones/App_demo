@@ -1,9 +1,10 @@
 "use client"
 
 import { leerCantidadEntera } from "@/lib/numeros"
-import { formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { History, Loader2 } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,10 +38,11 @@ import {
   type FiltrosSalidas,
   type SalidaRegistrada,
 } from "@/app/(app)/almacen/salidas/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 const formatoHora = (iso: string) =>
-  new Date(iso).toLocaleString("es-CO", { timeZone: ZONA_HORARIA, dateStyle: "short", timeStyle: "short" })
+  formatearFechaHora(iso)
 
 // Salidas ya registradas del proyecto actual: consultar, corregir (cantidad,
 // quién retira, observaciones) o anular con motivo. Para cambiar de insumo se
@@ -70,6 +72,7 @@ export function SalidasRegistradasView() {
   const [anulando, setAnulando] = useState<SalidaRegistrada | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
+  const [historialDe, setHistorialDe] = useState<SalidaRegistrada | null>(null)
 
   function cargar(filtros: FiltrosSalidas, nuevaPagina: number) {
     if (!proyectoId) return
@@ -178,8 +181,8 @@ export function SalidasRegistradasView() {
         <div className="space-y-1.5">
           <Label>Fecha de la salida</Label>
           <div className="grid grid-cols-2 gap-2">
-            <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} aria-label="Desde" />
-            <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} aria-label="Hasta" />
+            <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} aria-label="Desde" />
+            <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} aria-label="Hasta" />
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -272,6 +275,17 @@ export function SalidasRegistradasView() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
+                        <span className="inline-flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            title="Historial de la salida"
+                            aria-label="Historial de la salida"
+                            onClick={() => setHistorialDe(s)}
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
                         {!s.anuladaAt && (
                           <span className="inline-flex gap-1">
                             <Button variant="outline" size="sm" onClick={() => abrirEdicion(s)}>
@@ -292,6 +306,7 @@ export function SalidasRegistradasView() {
                             </Button>
                           </span>
                         )}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -383,6 +398,14 @@ export function SalidasRegistradasView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="salida"
+        id={historialDe?.id ?? null}
+        titulo={`Historial de la salida · ${historialDe?.insumoDescripcion ?? ""}`}
+        onCerrar={() => setHistorialDe(null)}
+      />
     </div>
   )
 }

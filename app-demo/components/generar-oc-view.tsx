@@ -36,6 +36,7 @@ import {
   maximoPresentaciones,
   presentacionesPara,
 } from "@/lib/presentacion-compra"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // Valor del desplegable "UM disponible" para la opción normal: la unidad de
 // compra del insumo (la del maestro). Cualquier otra es una presentación.
@@ -688,9 +689,8 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
           <div className="space-y-1.5">
             <Label htmlFor="fecha-entrega">Fecha de entrega (opcional)</Label>
-            <Input
+            <CampoFecha
               id="fecha-entrega"
-              type="date"
               value={fechaEntrega}
               onChange={(e) => setFechaEntrega(e.target.value)}
             />
@@ -747,9 +747,8 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                 {saldoModo === "fecha" && (
                   <div className="space-y-1.5">
                     <Label htmlFor="saldo-fecha">Fecha de pago del saldo</Label>
-                    <Input
+                    <CampoFecha
                       id="saldo-fecha"
-                      type="date"
                       min={hoy}
                       value={saldoFecha}
                       onChange={(e) => setSaldoFecha(e.target.value)}

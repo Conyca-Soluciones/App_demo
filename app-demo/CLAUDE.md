@@ -905,6 +905,14 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   corre en UTC: usar `(now() at time zone 'America/Bogota')::date`, no
   `current_date` (`20261006300000_fechas_colombia.sql`). Lo que se renderiza
   en el servidor (PDF de OC) necesita `timeZone: ZONA_HORARIA`.
+- **Fechas siempre dd/mm/aaaa** (decisión del usuario, 2026-10-21). Campos:
+  `CampoFecha` (`components/ui/campo-fecha.tsx`), nunca `<Input type="date">`
+  (el navegador en inglés lo muestra mm/dd/aaaa). Mismo valor "AAAA-MM-DD" y
+  mismo `onChange(e => e.target.value)`; `contenedorClassName` para el ancho,
+  `sinEstilo` para formularios con su propia clase; el botón abre el
+  calendario del navegador. Para mostrar: `formatearFechaSinHora` y
+  `formatearFechaHora` (`lib/fechas.ts`), nunca `toLocaleDateString("es-CO")`
+  sin opciones (da "5/10/2026") ni `dateStyle: "short"` (da "5/10/26").
 - **Cantidades de requisiciones, órdenes de compra, entradas y salidas: solo
   enteros** (decisión del usuario). Todo el flujo igual, para que nunca
   quede un saldo decimal imposible de recibir o sacar. Campos de texto:
@@ -1201,6 +1209,113 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   `v_ordenes_compra_items_costos`). Antes leía la vista, que hace la ventana
   sobre las órdenes de TODOS los proyectos. Verificado: mismo resultado en los
   3 proyectos y en un caso de prueba con excedente.
+
+## Nombres visibles e historial de pagos, terceros y proveedores (2026-10-19)
+
+Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
+- **Nombre y rol de cada persona visibles para todos** (decisión del usuario,
+  `20261118000000_perfiles_nombre_y_rol_visibles.sql`): `perfiles` se lee en
+  todas sus filas, pero solo `id`, `nombre` y `rol_id` (permiso por columna;
+  correo, usuario y banderas siguen ocultos y los leen las funciones SECURITY
+  DEFINER). `roles` se lee (`id`, `clave`, `nombre`). Antes solo el propio
+  usuario, el Administrador y Compras leían perfiles: "Solicitado por" salía "—".
+  Una columna nueva de `perfiles` que deban leer las pantallas necesita su
+  `grant select (col)`. `obtener_permisos_usuario` usa `es_admin()` en vez de
+  leer la columna.
+- **Historial** (`20261118100000_historial_pagos_terceros_proveedores.sql`):
+  disparadores `trg_historial_pago` (creado, cada cambio de estado, tercero o
+  cuenta cambiados, valor cambiado; los pagos viejos reconstruidos) y
+  `trg_historial_proveedor` (creado; editado con los campos que cambiaron) en
+  `historial_eventos`. Terceros NO escriben nada nuevo: `historial_entidad
+  ('tercero', id)` traduce `terceros_auditoria` (que ya existía) a eventos de
+  tercero y cuentas. `historial_entidad` devuelve también `usuario_rol`; la
+  línea de tiempo muestra "Nombre (Rol)" y "Sistema o carga de datos" sin usuario.
+  Botón Historial en Aprobación de pagos, Consolidado, ficha del tercero y
+  Proveedores.
+- **Fases 3 y 4** (`20261118200000_historial_completo_y_auditoria.sql`, va
+  después de la anterior): disparadores en contratistas (creado, editado; los
+  datos bancarios solo constan como "(reservado)") y sus documentos (subido /
+  reemplazado / quitado: borrar + subir en la misma transacción se junta en un
+  "reemplazado"), minuta (`minuta_guardada` con lo que cambió; no cuando el
+  guardado es parte de enviar/aprobar), entradas (registrada, editada,
+  `linea_editada`, anulada), salidas, solicitudes de insumo/MO/equipo
+  (solicitada, aprobada, rechazada: se BORRAN al resolverse, el historial
+  queda), presupuestos y versiones (creado, versión creada/descartada,
+  descartado), roles y permisos, usuarios (creado, rol, todos los proyectos,
+  proyectos asignados/quitados). Lo existente se reconstruye (`reconstruido`).
+  Ayudas `_anotar_historial` y `_jsonb_cambios`; `_eventos_terceros_auditoria`
+  traduce terceros_auditoria (la usan historial_entidad y la auditoría).
+  historial_entidad: rol, usuario, solicitudes y lo ya borrado solo para el
+  Administrador.
+- **Auditoría** `/admin/auditoria` (solo Administrador, sección Usuarios y
+  permisos de Admin): `listar_auditoria(tipo, usuario, desde, hasta, offset,
+  limite)` junta historial_eventos y terceros_auditoria, más reciente primero,
+  páginas de 50 (índices por fecha) y una referencia legible por tipo calculada
+  solo para la página. Etiquetas y detalle = los de la línea de tiempo
+  (`definicionEvento`, `detalleEvento`, `quienHizo` en historial-timeline).
+  Botón/sección Historial también en Contratistas, Entradas y Salidas
+  registradas. Presupuesto, roles y usuarios: por ahora solo en Auditoría.
+- Un evento nuevo: agregar su etiqueta en `EVENTOS_POR_TIPO` y, si tiene
+  datos, su detalle en `detalleEvento`; un tipo nuevo: también en el CHECK de
+  `historial_eventos.entidad_tipo`, en historial_entidad (permiso) y en
+  `TipoHistorial` / `NOMBRE_TIPO_HISTORIAL`.
+- El documento reemplazado de un contratista se sigue borrando del bucket
+  (solo queda su nombre en el historial).
+- **Proveedores con el mínimo acceso** (`20261118300000_proveedores_lectura_minima.sql`,
+  E2; regla del usuario: acceso a las tablas solo para quien lo necesita):
+  todos los proveedores = Comprar, Editar proveedores, pestaña Proveedores o
+  Administrador; además, quien tiene Registro de OC, Aprobación de OC o Control
+  del proyecto lee SOLO los proveedores de las órdenes que ya puede ver
+  (`proveedores_select_de_ordenes`, subconsulta sobre ordenes_compra con su
+  RLS). Sin sesión, nada. `informacion_bancaria` sigue solo Compras/Administrador.
+- **Ningún permiso se salta los proyectos** (`20261118500000_permisos_por_proyecto.sql`,
+  E3; va después de las de la auditoría de RLS 20261118400000-430000): Comprar,
+  aprobar/rechazar/desaprobar/cancelar OC, Aprobar requisiciones y Aprobar
+  insumos valen solo en los proyectos de la persona (asignados, o todos con
+  "Todos los proyectos" en Usuarios y accesos). Se quitó
+  `proyectos_select_compras`; OC, líneas y requisiciones con Comprar exigen el
+  proyecto. Las funciones de escritura de OC y requisiciones se envolvieron
+  (`_<nombre>_sin_proyecto` + `_exigir_proyecto`). Siguen globales: catálogos
+  (proveedores, maestra, histórico de precios) y A&F. Si se agrega una función
+  de escritura sobre OC o requisiciones, debe revisar el proyecto.
+- **Contratistas -> Terceros** (`20261118700000_contratistas_a_terceros.sql`,
+  E5; decisiones del usuario 2026-10-21): el banco del contratista es una lista
+  (tabla `bancos`, la misma de Terceros; `trg_contratista_validar_banco` lo
+  exige al crear o al cambiarlo) y el documento es solo números (DV aparte).
+  Tipo de cuenta: "CUENTA CORRIENTE" / "CUENTA AHORROS" en pantalla
+  (`ETIQUETA_TIPO_CUENTA`), en la base siguen `corriente`/`ahorros` y
+  `CORRIENTE`/`AHORROS`. Al crear el contratista o cambiar sus datos bancarios,
+  `trg_contratista_a_tercero` crea el tercero (si no hay uno con ese
+  documento) y le agrega la cuenta SIEMPRE PENDIENTE. `_enlazar_pagos_tercero`
+  (disparadores en terceros y terceros_cuentas) pone el tercero a los pagos de
+  actas "Sin tercero" con ese documento y la cuenta cuando queda UNA verificada.
+  Quien tiene Verificar cuentas de terceros descarga la certificación bancaria
+  del contratista desde la ficha del tercero (`certificacion_bancaria_tercero` +
+  política `contratistas_certificacion_verificar` del bucket). Admin › Bancos
+  (`/admin/bancos`, `guardar_banco` / `listar_bancos_admin`): crear, renombrar
+  (actualiza `contratistas.banco`, con la bandera `app.renombrando_banco` para
+  que no se valide ni se cree cuenta ni historial) y desactivar. Los
+  contratistas de prueba viejos no se convirtieron.
+- **Avance anterior de actas por %** (`20261126000000_avance_anterior_actas_sin_porcentaje.sql`,
+  E6): en `contrato_para_acta` (`avance_otras`) y `detalle_acta`
+  (`avance_anterior`), un acta sin `porcentaje_avance` (de antes de las actas
+  sobre el contrato, como el Acta 1 de CJ-14) cuenta lo cobrado como % del
+  valor. El tope por saldo ya estaba en `_guardar_acta`; el formulario muestra
+  el saldo y el % máximo que queda.
+  Comparte número con `20261126000000_polizas.sql`: `20261128000000` junta las
+  dos versiones de `contrato_para_acta` (sin `poliza_estado` se bloquean todas las actas).
+- **Bruto y neto de actas** (E7, decisión del usuario 2026-10-21): Control del
+  proyecto suma el BRUTO (lo que cuesta la obra) y lo dice "(bruto)"; A&F paga
+  el NETO ("Valor a pagar") y debajo muestra "Bruto del acta" (`actaBruto`, del
+  embed `acta:actas(valor_bruto)`; sale solo si quien consulta lee el acta).
+- **Consolidado: varios años y semanas** (decisión del usuario 2026-10-21):
+  `FiltrosConsolidado.anios` / `.semanas` (listas; vacías = todos) con `.in()`
+  en `listarConsolidado`; las semanas valen en cada año elegido. Selector
+  `SelectorNumeros` (`components/selector-numeros.tsx`); por omisión la semana
+  actual. La tabla tiene columna Semana junto al ITEM.
+- **ITEM del consolidado**: consecutivo por consolidado y semana
+  (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
+  conserva su ITEM y uno borrado a mano en la base deja el hueco.
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 
@@ -2643,6 +2758,10 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   una sola vez por contrato (`contratos.aviso_vencido_at`) a quien lo pidió
   (`contrato_vencido` -> Contratos por grupos) y a Legal / Líder Legal que vean
   el proyecto (`contrato_vencido_juridica` -> Pre aprobación).
+  El detalle del contrato (a donde lleva el aviso) muestra arriba "Contrato
+  vencido el ..." con la misma regla en TS (`fechaFinContrato` /
+  `contratoVencido` en `lib/contratos.ts`, pruebas en
+  `tests/contrato-vencido.test.ts`; la fila trae `liquidado_at`).
 - **Funciones**: `contrato_para_acta(contrato, excluir_acta)` (todo lo que la
   pantalla necesita: actividades con acumulado, anticipo, retención, vencido,
   final, liquidación...), `_guardar_acta` (común a crear y editar; la base
@@ -2807,7 +2926,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261123000000` prórroga y nuevo valor del otrosí ·
 `20261124000000` tope de mano de obra y actividades por otrosí ·
 `20261125000000` control de proyecto con el valor vigente de los contratos ·
-`20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas.
+`20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas ·
+`20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

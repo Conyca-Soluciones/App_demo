@@ -243,6 +243,57 @@ select * from (
   select '20261117100000_recuperar_insumos_borrados',
          exists (select 1 from public.maestro_insumos where usuario_modificacion = 'recuperado 2026-10-18')
   union all
+  select '20261118000000_perfiles_nombre_y_rol_visibles',
+         exists (select 1 from pg_policies where tablename = 'perfiles' and policyname = 'perfiles_select_nombre_rol')
+         and not has_column_privilege('authenticated', 'public.perfiles', 'email', 'select')
+         and exists (select 1 from pg_policies where tablename = 'roles' and policyname = 'roles_select_autenticados')
+  union all
+  select '20261118100000_historial_pagos_terceros_proveedores',
+         exists (select 1 from pg_trigger where tgname = 'trg_historial_pago')
+         and exists (select 1 from pg_trigger where tgname = 'trg_historial_proveedor')
+         and position('usuario_rol' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
+  union all
+  select '20261118200000_historial_completo_y_auditoria',
+         exists (select 1 from pg_proc where proname = 'listar_auditoria')
+         and exists (select 1 from pg_trigger where tgname = 'trg_historial_contratista')
+         and exists (select 1 from pg_trigger where tgname = 'trg_historial_usuario')
+         and position('''contratista''' in pg_get_functiondef('public.historial_entidad(text,uuid)'::regprocedure)) > 0
+  union all
+  select '20261118300000_proveedores_lectura_minima',
+         exists (select 1 from pg_policies where tablename = 'proveedores' and policyname = 'proveedores_select_de_ordenes')
+         and not has_table_privilege('anon', 'public.proveedores', 'select')
+  union all
+  select '20261118400000_rls_minima_compras_almacen',
+         exists (select 1 from pg_policies where tablename = 'ordenes_compra' and policyname = 'ordenes_compra_select_de_pagos')
+  union all
+  select '20261118410000_rls_minima_presupuestos_apu',
+         exists (select 1 from pg_policies where tablename = 'presupuesto_items' and policyname = 'presupuesto_items_select_de_contratos')
+         and not exists (select 1 from pg_policies where tablename = 'maestro_insumos' and policyname = 'autenticados leen y crean insumos')
+  union all
+  select '20261118420000_rls_minima_ayf_empresas',
+         exists (select 1 from pg_policies where tablename = 'empresas_cuentas_bancarias'
+                 and policyname = 'empresas_cuentas_bancarias_select' and qual like '%es_admin%')
+  union all
+  select '20261118430000_tablas_sin_anon',
+         not has_table_privilege('anon', 'public.pagos', 'select')
+  union all
+  select '20261118500000_permisos_por_proyecto',
+         not exists (select 1 from pg_policies where tablename = 'proyectos' and policyname = 'proyectos_select_compras')
+         and exists (select 1 from pg_proc where proname = '_crear_orden_compra_sin_proyecto')
+         and exists (select 1 from pg_proc where proname = '_exigir_proyecto')
+  union all
+  select '20261118600000_item_apu_por_proyecto_para_requisiciones',
+         exists (select 1 from pg_policies where tablename = 'item_apu' and policyname = 'item_apu_select_de_requisiciones')
+  union all
+  select '20261118700000_contratistas_a_terceros',
+         exists (select 1 from pg_trigger where tgname = 'trg_contratista_a_tercero')
+         and exists (select 1 from pg_proc where proname = 'guardar_banco')
+         and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
+  union all
+  select '20261126000000_avance_anterior_actas_sin_porcentaje',
+         position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
+         and position('coalesce(o.porcentaje_avance' in pg_get_functiondef('public.detalle_acta(uuid)'::regprocedure)) > 0
+  union all
   select '20261118000000_solicitud_mano_obra_plantilla_04',
          position('in (''obra'', ''mano_obra'')' in pg_get_functiondef(
            'public._guardar_solicitud_contrato(uuid,jsonb,jsonb,jsonb,jsonb,jsonb,boolean)'::regprocedure)) > 0
@@ -291,5 +342,9 @@ select * from (
          exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'contrato_polizas' and column_name = 'acta_datos')
          and exists (select 1 from pg_proc where proname = 'guardar_acta_poliza')
+  union all
+  select '20261128000000_contrato_para_acta_poliza_y_avance',
+         position('poliza_estado' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
+         and position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
 ) t
 order by 1;

@@ -52,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 
 // ---------------------------------------------------------------------------
 // El tipo del ítem (ItemPresupuesto) vive en ./actions -- se comparte con
@@ -1183,7 +1184,7 @@ function PresupuestoDeProyecto() {
         idPresupuesto = versionNueva.presupuestoId
         setVersionPendienteDesdeImport(null)
       } else if (!idPresupuesto) {
-        const nombre = `Presupuesto ${proyectoActual?.nombre ?? ""} — ${new Date().toLocaleDateString("es-CO")}`
+        const nombre = `Presupuesto ${proyectoActual?.nombre ?? ""} — ${formatearFechaSinHora(hoyColombia())}`
         const nuevo = await crearPresupuesto(proyectoId, nombre)
         idPresupuesto = nuevo.id
         setPresupuestoDbId(nuevo.id)
@@ -1294,7 +1295,7 @@ function PresupuestoDeProyecto() {
       // encabezado de marca) y después (para el nombre del archivo), así
       // que se calcula una sola vez acá arriba.
       const nombreProyecto = proyectoActual?.nombre ?? "proyecto"
-      const subtituloMarca = `${nombreProyecto} -- generado el ${new Date().toLocaleDateString("es-CO")}`
+      const subtituloMarca = `${nombreProyecto} -- generado el ${formatearFechaSinHora(hoyColombia())}`
 
       // =====================================================
       // 3. LIBRO

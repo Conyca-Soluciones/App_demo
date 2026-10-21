@@ -205,7 +205,7 @@ export default function AdminTecnico() {
                         <TableCell>{req.proyectoCodigo ?? req.proyectoNombre ?? "—"}</TableCell>
                         <TableCell>{req.solicitanteNombre ?? "—"}</TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {new Date(req.createdAt).toLocaleDateString("es-CO")}
+                          {formatearFechaSinHora(req.createdAt)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}

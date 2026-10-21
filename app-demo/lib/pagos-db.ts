@@ -10,7 +10,7 @@ export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
   orden:ordenes_compra(numero),
-  acta:actas(numero, contrato:contratos(numero_contrato)),
+  acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros(razon_social, tipo_documento, numero_documento, dv),
@@ -51,6 +51,9 @@ export function mapPago(f: any): Pago {
         : f.fuente === "acta"
           ? "Acta"
           : "",
+    // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
+    // no es de acta o quien consulta no lee el acta (RLS).
+    actaBruto: f.acta?.valor_bruto != null ? Number(f.acta.valor_bruto) : null,
     proyectoCodigo: f.proyecto?.codigo ?? null,
     proyectoNombre: f.proyecto?.nombre ?? null,
     empresaNombre: f.empresa?.razon_social ?? null,

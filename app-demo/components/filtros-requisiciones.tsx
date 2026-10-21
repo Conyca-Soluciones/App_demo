@@ -17,6 +17,7 @@ import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { buscarUsuarios, buscarInsumosCompras } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { verProyectos, type FiltrosRequisiciones } from "@/app/(app)/almacen/actions"
 import type { EstadoRequisicion } from "@/lib/requisiciones-lineas"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // Panel de filtros de requisiciones, el mismo en el Registro y en la
 // Aprobación. Ningún filtro es obligatorio. En Aprobación el estado ya lo
@@ -240,11 +241,11 @@ export function FiltrosRequisicionesPanel({
           <Label>Rango de fechas</Label>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-            <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} />
           </div>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Final</span>
-            <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} />
           </div>
         </div>
 

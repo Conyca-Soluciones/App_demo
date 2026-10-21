@@ -15,6 +15,7 @@ import {
   type EventoHistorial,
   type TipoHistorial,
 } from "@/app/(app)/almacen/historial/actions"
+import { ACCIONES, PESTANAS } from "@/lib/pestanas"
 
 // Cómo se muestra cada evento. El color del punto indica el "tono":
 // verde = aprobado, rojo = rechazado/cancelado, ámbar = desaprobado.
@@ -68,6 +69,7 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
   minuta_aprobada: { etiqueta: "Minuta aprobada por Subgerencia", tono: "ok" },
   minuta_devuelta: { etiqueta: "Minuta devuelta por Subgerencia", tono: "aviso" },
+  minuta_guardada: { etiqueta: "Minuta guardada", tono: "neutro" },
   // Eventos de sus otrosí (historial_otrosis_de_contrato).
   otrosi_creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },
   otrosi_reenviado: { etiqueta: "Otrosí corregido y enviado otra vez", tono: "neutro" },
@@ -95,12 +97,163 @@ const EVENTOS_OTROSI: Record<string, { etiqueta: string; tono: "ok" | "malo" | "
   aprobado: { etiqueta: "Aprobado por Subgerencia", tono: "ok" },
 }
 
-const COLOR_PUNTO = {
-  ok: "bg-emerald-500",
-  malo: "bg-red-500",
-  aviso: "bg-amber-500",
-  neutro: "bg-slate-400",
+// Pagos de A&F (el evento de un cambio de estado es el nombre del estado nuevo).
+const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creado: { etiqueta: "Pago creado", tono: "neutro" },
+  programado: { etiqueta: "Pago programado", tono: "neutro" },
+  solicitado: { etiqueta: "Pago enviado a aprobación", tono: "neutro" },
+  aprobado: { etiqueta: "Pago aprobado", tono: "ok" },
+  rechazado: { etiqueta: "Pago rechazado", tono: "malo" },
+  anulado: { etiqueta: "Pago anulado", tono: "malo" },
+  liquidado: { etiqueta: "Pago liquidado", tono: "neutro" },
+  en_dispersion: { etiqueta: "Pago en dispersión", tono: "neutro" },
+  dispersado: { etiqueta: "Pago dispersado", tono: "ok" },
+  tercero_cambiado: { etiqueta: "Tercero o cuenta cambiados", tono: "aviso" },
+  valor_cambiado: { etiqueta: "Valor cambiado", tono: "aviso" },
 }
+
+// Terceros y sus cuentas (salen de terceros_auditoria).
+const EVENTOS_TERCERO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  tercero_creado: { etiqueta: "Tercero creado", tono: "neutro" },
+  tercero_editado: { etiqueta: "Datos del tercero editados", tono: "aviso" },
+  tercero_borrado: { etiqueta: "Tercero borrado", tono: "malo" },
+  cuenta_agregada: { etiqueta: "Cuenta agregada", tono: "neutro" },
+  cuenta_verificada: { etiqueta: "Cuenta verificada", tono: "ok" },
+  cuenta_inactivada: { etiqueta: "Cuenta inactivada", tono: "malo" },
+  cuenta_pendiente: { etiqueta: "Cuenta pendiente de verificar", tono: "aviso" },
+  cuenta_modificada: { etiqueta: "Cuenta modificada", tono: "aviso" },
+  cuenta_editada: { etiqueta: "Cuenta editada", tono: "neutro" },
+  cuenta_borrada: { etiqueta: "Cuenta borrada", tono: "malo" },
+}
+
+const EVENTOS_PROVEEDOR: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creado: { etiqueta: "Proveedor creado", tono: "neutro" },
+  editado: { etiqueta: "Proveedor editado", tono: "aviso" },
+}
+
+type DefEvento = { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }
+
+const EVENTOS_CONTRATISTA: Record<string, DefEvento> = {
+  creado: { etiqueta: "Contratista creado", tono: "neutro" },
+  editado: { etiqueta: "Datos del contratista editados", tono: "aviso" },
+  documento_subido: { etiqueta: "Documento subido", tono: "neutro" },
+  documento_reemplazado: { etiqueta: "Documento reemplazado", tono: "aviso" },
+  documento_quitado: { etiqueta: "Documento quitado", tono: "malo" },
+}
+
+const EVENTOS_ENTRADA: Record<string, DefEvento> = {
+  registrada: { etiqueta: "Entrada registrada", tono: "neutro" },
+  editada: { etiqueta: "Entrada editada", tono: "aviso" },
+  linea_editada: { etiqueta: "Cantidad recibida corregida", tono: "aviso" },
+  anulada: { etiqueta: "Entrada anulada", tono: "malo" },
+}
+
+const EVENTOS_SALIDA: Record<string, DefEvento> = {
+  registrada: { etiqueta: "Salida registrada", tono: "neutro" },
+  editada: { etiqueta: "Salida editada", tono: "aviso" },
+  anulada: { etiqueta: "Salida anulada", tono: "malo" },
+}
+
+const EVENTOS_SOLICITUD: Record<string, DefEvento> = {
+  solicitada: { etiqueta: "Solicitud enviada", tono: "neutro" },
+  aprobada: { etiqueta: "Solicitud aprobada", tono: "ok" },
+  rechazada: { etiqueta: "Solicitud rechazada", tono: "malo" },
+}
+
+const EVENTOS_PRESUPUESTO: Record<string, DefEvento> = {
+  creado: { etiqueta: "Presupuesto creado", tono: "neutro" },
+  version_creada: { etiqueta: "Versión creada", tono: "neutro" },
+  version_descartada: { etiqueta: "Versión descartada", tono: "malo" },
+  descartado: { etiqueta: "Presupuesto descartado", tono: "malo" },
+}
+
+const EVENTOS_ROL: Record<string, DefEvento> = {
+  creado: { etiqueta: "Rol creado", tono: "neutro" },
+  renombrado: { etiqueta: "Rol renombrado", tono: "aviso" },
+  eliminado: { etiqueta: "Rol eliminado", tono: "malo" },
+  permiso_agregado: { etiqueta: "Permiso agregado", tono: "ok" },
+  permiso_quitado: { etiqueta: "Permiso quitado", tono: "malo" },
+}
+
+const EVENTOS_USUARIO: Record<string, DefEvento> = {
+  creado: { etiqueta: "Usuario creado", tono: "neutro" },
+  renombrado: { etiqueta: "Nombre cambiado", tono: "aviso" },
+  rol_cambiado: { etiqueta: "Rol cambiado", tono: "aviso" },
+  todos_proyectos: { etiqueta: "Acceso a todos los proyectos", tono: "aviso" },
+  proyecto_asignado: { etiqueta: "Proyecto asignado", tono: "ok" },
+  proyecto_quitado: { etiqueta: "Proyecto quitado", tono: "malo" },
+}
+
+const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>> = {
+  requisicion: EVENTOS_REQUISICION,
+  contrato: EVENTOS_CONTRATO,
+  acta: EVENTOS_ACTA,
+  otrosi: EVENTOS_OTROSI,
+  pago: EVENTOS_PAGO,
+  tercero: EVENTOS_TERCERO,
+  proveedor: EVENTOS_PROVEEDOR,
+  contratista: EVENTOS_CONTRATISTA,
+  entrada: EVENTOS_ENTRADA,
+  salida: EVENTOS_SALIDA,
+  solicitud_insumo: EVENTOS_SOLICITUD,
+  solicitud_mano_obra: EVENTOS_SOLICITUD,
+  solicitud_equipo: EVENTOS_SOLICITUD,
+  presupuesto: EVENTOS_PRESUPUESTO,
+  rol: EVENTOS_ROL,
+  usuario: EVENTOS_USUARIO,
+}
+
+// Nombre de cada tipo (para la pantalla de Auditoría).
+export const NOMBRE_TIPO_HISTORIAL: Record<TipoHistorial, string> = {
+  orden_compra: "Orden de compra",
+  pedido: "Línea de requisición",
+  requisicion: "Requisición",
+  contrato: "Contrato",
+  acta: "Acta",
+  otrosi: "Otrosí",
+  pago: "Pago",
+  tercero: "Tercero",
+  proveedor: "Proveedor",
+  contratista: "Contratista",
+  entrada: "Entrada de almacén",
+  salida: "Salida de almacén",
+  solicitud_insumo: "Solicitud de insumo",
+  solicitud_mano_obra: "Solicitud de mano de obra",
+  solicitud_equipo: "Solicitud de equipo",
+  presupuesto: "Presupuesto",
+  rol: "Rol",
+  usuario: "Usuario",
+}
+
+// "Pestaña: Entradas" / "Acción: Gestionar bodega" desde 'tab.x' / 'accion.x'.
+const TITULO_PERMISO = new Map<string, string>([
+  ...PESTANAS.map((p) => [`tab.${p.clave}`, `Pestaña: ${p.subseccion ? `${p.subseccion} › ` : ""}${p.titulo}`] as const),
+  ...ACCIONES.map((a) => [`accion.${a.clave}`, `Acción: ${a.titulo}`] as const),
+])
+
+// Nombre legible de los campos que se muestran en "qué cambió" (proveedores y
+// terceros). Los que no están aquí salen con su nombre de columna.
+const NOMBRE_CAMPO: Record<string, string> = {
+  nombre: "Nombre",
+  id_prov: "ID",
+  tipo_documento: "Tipo de documento",
+  numero_documento: "Documento",
+  digito_verificacion: "DV",
+  dv: "DV",
+  nombre_contacto: "Contacto",
+  telefono: "Teléfono",
+  correo: "Correo",
+  ciudad: "Ciudad",
+  direccion: "Dirección",
+  estado: "Estado",
+  tipo_proveedor: "Tipo de proveedor",
+  razon_social: "Razón social",
+  nombre_banco: "Nombre para el banco",
+  nombres: "Nombres",
+  apellidos: "Apellidos",
+  observaciones: "Observaciones",
+}
+
 
 const ETIQUETA_ENTREGA: Record<string, string> = {
   sin_entregar: "Sin entregar",
@@ -127,15 +280,119 @@ const formatoFechaHora = (iso: string) =>
 function formatoValor(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—"
   if (typeof v === "boolean") return v ? "Sí" : "No"
+  if (Array.isArray(v)) {
+    const texto = v.map((x) => (typeof x === "object" && x !== null ? JSON.stringify(x) : String(x))).join("; ")
+    return texto.length > 160 ? `${texto.slice(0, 160)}…` : texto || "—"
+  }
+  if (typeof v === "object") {
+    const texto = JSON.stringify(v)
+    return texto.length > 160 ? `${texto.slice(0, 160)}…` : texto
+  }
   return String(v)
 }
 
+// "camara_comercio" -> "Camara comercio" (tipos de documento sin catálogo a mano).
+const textoTipo = (t: unknown) => {
+  const s = String(t ?? "").replace(/_/g, " ")
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+const pesosTexto = (v: unknown) =>
+  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 }).format(Number(v))
+
+// "Campo: antes → después" por cada campo de `cambios` ({campo: {de, a}}).
+function lineasCambios(cambios: Record<string, { de: unknown; a: unknown }> | undefined): string[] {
+  if (!cambios) return []
+  return Object.entries(cambios).map(
+    ([campo, c]) => `${NOMBRE_CAMPO[campo] ?? campo}: ${formatoValor(c?.de)} → ${formatoValor(c?.a)}`
+  )
+}
+
+// Etiqueta y color de un evento (la usan esta línea de tiempo y la Auditoría).
+export function definicionEvento(tipo: TipoHistorial, evento: string): DefEvento {
+  return EVENTOS_POR_TIPO[tipo]?.[evento] ?? EVENTOS[evento] ?? { etiqueta: evento, tono: "neutro" }
+}
+
+export const COLOR_TONO_EVENTO = {
+  ok: "bg-emerald-500",
+  malo: "bg-red-500",
+  aviso: "bg-amber-500",
+  neutro: "bg-slate-400",
+} as const
+
+// "Nombre (Rol)", o "Sistema o carga de datos" si no hubo usuario.
+export function quienHizo(e: Pick<EventoHistorial, "usuarioNombre" | "usuarioRol">): string {
+  return e.usuarioNombre ? `${e.usuarioNombre}${e.usuarioRol ? ` (${e.usuarioRol})` : ""}` : "Sistema o carga de datos"
+}
+
 // Detalle extra de algunos eventos (qué cambió en una modificación, etc.).
-function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
+export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
   const d = e.datos ?? {}
+  if (tipo === "pago") {
+    if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
+    if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
+    if (e.evento === "tercero_cambiado") {
+      const lineas: string[] = []
+      if (d.tercero_de !== d.tercero_a) lineas.push(`Tercero: ${formatoValor(d.tercero_de)} → ${formatoValor(d.tercero_a)}`)
+      if (d.cuenta_de !== d.cuenta_a) lineas.push(`Cuenta: ${formatoValor(d.cuenta_de)} → ${formatoValor(d.cuenta_a)}`)
+      return lineas
+    }
+    return []
+  }
+  if (tipo === "tercero") {
+    if (e.evento === "tercero_editado") return lineasCambios(d.cambios)
+    if (e.evento === "cuenta_modificada" && d.cuenta_antes) return [`${d.cuenta_antes} → ${d.cuenta}`]
+    if (d.cuenta) return [String(d.cuenta)]
+    return []
+  }
+  if (tipo === "proveedor") {
+    if (e.evento === "editado") return lineasCambios(d.cambios)
+    return []
+  }
+  if (tipo === "contratista") {
+    if (e.evento === "editado") return lineasCambios(d.cambios)
+    if (e.evento === "documento_reemplazado") return [`${textoTipo(d.tipo)}: ${formatoValor(d.archivo)} → ${formatoValor(d.archivo_nuevo)}`]
+    if (e.evento === "documento_subido" || e.evento === "documento_quitado") return [`${textoTipo(d.tipo)}: ${formatoValor(d.archivo)}`]
+    if (e.evento === "creado" && d.documento) return [String(d.documento)]
+    return []
+  }
+  if (tipo === "contrato" && e.evento === "minuta_guardada") return lineasCambios(d.cambios)
+  if (tipo === "entrada") {
+    if (e.evento === "registrada" && d.numero != null) return [`Entrada ${d.numero}${d.orden != null ? ` · OC ${d.orden}` : ""}${d.remision ? ` · remisión ${d.remision}` : ""}`]
+    if (e.evento === "linea_editada") return [`${formatoValor(d.insumo)}: ${formatoValor(d.de)} → ${formatoValor(d.a)}`]
+    if (e.evento === "editada") return lineasCambios(d.cambios)
+    return []
+  }
+  if (tipo === "salida") {
+    if (e.evento === "registrada" && d.insumo) return [`${d.insumo}: ${formatoValor(d.cantidad)}${d.retira ? ` · retira ${d.retira}` : ""}`]
+    if (e.evento === "editada") return lineasCambios(d.cambios)
+    return []
+  }
+  if (tipo === "solicitud_insumo" || tipo === "solicitud_mano_obra" || tipo === "solicitud_equipo") {
+    const lineas: string[] = []
+    if (d.descripcion) lineas.push(String(d.descripcion))
+    if (d.item) lineas.push(`Ítem ${d.item}`)
+    return lineas
+  }
+  if (tipo === "presupuesto") {
+    if (e.evento === "version_creada" || e.evento === "version_descartada") return [`Versión ${formatoValor(d.numero)}: ${formatoValor(d.nombre)}`]
+    return [d.proyecto, d.nombre].filter(Boolean).map(String)
+  }
+  if (tipo === "rol") {
+    if (e.evento === "permiso_agregado" || e.evento === "permiso_quitado") {
+      return [`${d.rol ? `${d.rol} · ` : ""}${TITULO_PERMISO.get(String(d.permiso)) ?? formatoValor(d.permiso)}`]
+    }
+    if (e.evento === "renombrado") return [`${formatoValor(d.de)} → ${formatoValor(d.a)}`]
+    return d.nombre ? [String(d.nombre)] : []
+  }
+  if (tipo === "usuario") {
+    if (e.evento === "rol_cambiado" || e.evento === "renombrado") return [`${formatoValor(d.de)} → ${formatoValor(d.a)}`]
+    if (e.evento === "todos_proyectos") return [d.a ? "Ve todos los proyectos" : "Ya no ve todos los proyectos"]
+    if (e.evento === "proyecto_asignado" || e.evento === "proyecto_quitado") return d.proyecto ? [String(d.proyecto)] : []
+    if (e.evento === "creado") return [d.nombre, d.rol].filter(Boolean).map(String)
+    return []
+  }
   if (tipo === "acta") {
-    const pesosTexto = (v: unknown) =>
-      new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 }).format(Number(v))
     if (e.evento === "aprobada" && d.pago_id) return [`Pago creado en A&F por ${pesosTexto(d.neto)}`]
     if (d.neto != null) return [`Neto a pagar: ${pesosTexto(d.neto)}`]
     return []
@@ -214,20 +471,15 @@ export function HistorialTimeline({ tipo, id }: { tipo: TipoHistorial; id: strin
   return (
     <ol className="space-y-3">
       {eventos.map((e) => {
-        const def =
-          (tipo === "requisicion" ? EVENTOS_REQUISICION[e.evento] : undefined) ??
-          (tipo === "contrato" ? EVENTOS_CONTRATO[e.evento] : undefined) ??
-          (tipo === "acta" ? EVENTOS_ACTA[e.evento] : undefined) ??
-          (tipo === "otrosi" ? EVENTOS_OTROSI[e.evento] : undefined) ??
-          EVENTOS[e.evento] ?? { etiqueta: e.evento, tono: "neutro" as const }
+        const def = definicionEvento(tipo, e.evento)
         const detalle = detalleEvento(e, tipo)
         return (
           <li key={e.id} className="flex gap-3 text-sm">
-            <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${COLOR_PUNTO[def.tono]}`} />
+            <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${COLOR_TONO_EVENTO[def.tono]}`} />
             <div className="min-w-0">
               <p className="font-medium">{def.etiqueta}</p>
               <p className="text-xs text-muted-foreground">
-                {e.usuarioNombre ?? "Usuario desconocido"} · {formatoFechaHora(e.createdAt)}
+                {quienHizo(e)} · {formatoFechaHora(e.createdAt)}
                 {e.datos?.reconstruido && " · reconstruido de datos anteriores"}
               </p>
               {detalle.map((linea, i) => (

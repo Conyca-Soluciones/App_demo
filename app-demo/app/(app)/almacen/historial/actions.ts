@@ -3,18 +3,38 @@
 import { createClient } from "@/lib/supabase/server"
 
 // ---------------------------------------------------------------------------
-// Historial (registro de quién hizo qué y cuándo) de una orden de compra o de
-// un pedido. Lo escriben disparadores de la base (ver
-// 20261003000000_historial_y_pedidos.sql) y es inmutable. Ve el historial
-// quien puede ver la orden o el pedido: la función SQL lo valida.
+// Historial (registro de quién hizo qué y cuándo) de órdenes de compra,
+// requisiciones, contratos, actas, pagos, terceros y proveedores. Lo escriben
+// disparadores de la base (20261003000000_historial_y_pedidos.sql y
+// siguientes; terceros sale de terceros_auditoria) y es inmutable. Ve el
+// historial quien puede ver la entidad: la función SQL lo valida.
 // ---------------------------------------------------------------------------
 
-export type TipoHistorial = "orden_compra" | "pedido" | "requisicion" | "contrato" | "acta" | "otrosi"
+export type TipoHistorial =
+  | "orden_compra"
+  | "pedido"
+  | "requisicion"
+  | "contrato"
+  | "acta"
+  | "pago"
+  | "tercero"
+  | "proveedor"
+  | "contratista"
+  | "entrada"
+  | "salida"
+  | "solicitud_insumo"
+  | "solicitud_mano_obra"
+  | "solicitud_equipo"
+  | "presupuesto"
+  | "rol"
+  | "usuario"
+  | "otrosi"
 
 export type EventoHistorial = {
   id: string
   evento: string
   usuarioNombre: string | null
+  usuarioRol: string | null
   motivo: string | null
   datos: Record<string, any> | null
   createdAt: string
@@ -45,6 +65,7 @@ export async function obtenerHistorial(tipo: TipoHistorial, id: string): Promise
     id: e.id,
     evento: e.evento,
     usuarioNombre: e.usuario_nombre,
+    usuarioRol: e.usuario_rol ?? null,
     motivo: e.motivo,
     datos: e.datos,
     createdAt: e.created_at,

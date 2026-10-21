@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Loader2, Wrench } from "lucide-react"
+import { AlertTriangle, History, Loader2, Wrench } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
+import { SelectorNumeros } from "@/components/selector-numeros"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import {
   asignarTerceroPago,
@@ -30,7 +32,9 @@ import {
   ETIQUETA_ESTADO_PAGO,
   ETIQUETA_TIPO_PAGO,
   formatoMoneda,
+  fechasSemanaIso,
   semanaIso,
+  semanasDelAnio,
   type EstadoPago,
   type FiltrosConsolidado,
   type Pago,
@@ -58,14 +62,15 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   const [consolidados, setConsolidados] = useState<ConsolidadoOpcion[]>([])
   const actual = semanaIso()
   const [consolidadoId, setConsolidadoId] = useState("todos")
-  const [anio, setAnio] = useState(String(actual.anio))
-  const [semana, setSemana] = useState(String(actual.semana))
+  const [anios, setAnios] = useState<number[]>([actual.anio])
+  const [semanas, setSemanas] = useState<number[]>([actual.semana])
   const [estado, setEstado] = useState<EstadoPago | "todos">("todos")
   const [tercero, setTercero] = useState("")
   const [soloConNovedad, setSoloConNovedad] = useState(false)
   const [sinItem, setSinItem] = useState(false)
 
   const [resolviendo, setResolviendo] = useState<Pago | null>(null)
+  const [historialDe, setHistorialDe] = useState<Pago | null>(null)
   const [alertas, setAlertas] = useState<AlertasConsolidado | null>(null)
   const [reintentando, setReintentando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -85,6 +90,16 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
 
   // Nombre del consolidado de cada pago, indexado una vez (sin buscar en la
   // lista por cada fila).
+  // Años desde que hay pagos en la app (2026) hasta el actual. Semanas: las
+  // del año si se eligió uno solo (52 o 53); si no, hasta 53.
+  const opcionesAnios = useMemo(() => {
+    const lista: number[] = []
+    for (let y = actual.anio; y >= Math.min(2026, actual.anio); y--) lista.push(y)
+    return lista
+  }, [actual.anio])
+  const totalSemanas = anios.length === 1 ? semanasDelAnio(anios[0]) : 53
+  const opcionesSemanas = useMemo(() => Array.from({ length: totalSemanas }, (_, i) => i + 1), [totalSemanas])
+
   const nombreConsolidado = useMemo(() => new Map(consolidados.map((c) => [c.id, c.nombre])), [consolidados])
 
   function cargar(filtros: FiltrosConsolidado = ultimosFiltros, pag: number = pagina) {
@@ -102,23 +117,11 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   }
 
   function handleConsultar(): boolean {
-    const a = anio.trim() === "" ? undefined : Number(anio)
-    const s = semana.trim() === "" ? undefined : Number(semana)
-    if (!sinItem) {
-      if (a !== undefined && (!Number.isInteger(a) || a < 2020 || a > 2100)) {
-        setError("El año no es válido.")
-        return false
-      }
-      if (s !== undefined && (!Number.isInteger(s) || s < 1 || s > 53)) {
-        setError("La semana debe estar entre 1 y 53.")
-        return false
-      }
-    }
     cargar(
       {
         consolidadoId: consolidadoId === "todos" ? undefined : consolidadoId,
-        anio: sinItem ? undefined : a,
-        semana: sinItem ? undefined : s,
+        anios: sinItem || anios.length === 0 ? undefined : anios,
+        semanas: sinItem || semanas.length === 0 ? undefined : semanas,
         estado: estado === "todos" ? undefined : estado,
         tercero: tercero.trim() || undefined,
         soloConNovedad: soloConNovedad || undefined,
@@ -131,15 +134,18 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
 
   function limpiar() {
     setConsolidadoId("todos")
-    setAnio(String(actual.anio))
-    setSemana(String(actual.semana))
+    setAnios([actual.anio])
+    setSemanas([actual.semana])
     setEstado("todos")
     setTercero("")
     setSoloConNovedad(false)
     setSinItem(false)
   }
 
-  const totalPagina = pagos ? pagos.reduce((acc, p) => acc + p.valor, 0) : 0
+  // Los anulados y rechazados no se pagan: se listan pero no suman al total.
+  const pagosQueSuman = pagos ? pagos.filter((p) => p.estado !== "anulado" && p.estado !== "rechazado") : []
+  const totalPagina = pagosQueSuman.reduce((acc, p) => acc + p.valor, 0)
+  const pagosExcluidos = (pagos?.length ?? 0) - pagosQueSuman.length
 
   async function handleReintentar() {
     setReintentando(true)
@@ -173,6 +179,15 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
       fija: true,
       alinear: "center",
       texto: (p) => (p.item != null ? String(p.item) : ""),
+    },
+    {
+      // Con varias semanas en pantalla, el ITEM solo se entiende con su semana.
+      clave: "semana",
+      titulo: "Semana",
+      ancho: 90,
+      alinear: "center",
+      texto: (p) => (p.semana != null ? `${p.semana} · ${p.anio}` : ""),
+      claseCelda: "tabular-nums",
     },
     {
       clave: "consolidado",
@@ -223,10 +238,18 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
     },
     {
       clave: "valor",
-      titulo: "Valor",
-      ancho: 130,
+      titulo: "Valor a pagar",
+      ancho: 150,
       alinear: "right",
       texto: (p) => formatoMoneda(p.valor),
+      celda: (p) => (
+        <div className="leading-tight">
+          <div>{formatoMoneda(p.valor)}</div>
+          {p.actaBruto != null && p.actaBruto !== p.valor && (
+            <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
+          )}
+        </div>
+      ),
       claseCelda: "tabular-nums",
     },
     {
@@ -256,16 +279,29 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
     {
       clave: "acciones",
       titulo: "Acciones",
-      ancho: 120,
+      ancho: 160,
       ordenable: false,
       texto: () => "",
-      celda: (p) =>
-        puedeGestionar && puedeResolver(p) ? (
-          <Button size="sm" variant="outline" className="h-8" onClick={() => setResolviendo(p)}>
-            <Wrench className="mr-1.5 h-4 w-4" />
-            Tercero
+      celda: (p) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 shrink-0 p-0"
+            title="Historial del pago"
+            aria-label="Historial del pago"
+            onClick={() => setHistorialDe(p)}
+          >
+            <History className="h-4 w-4" />
           </Button>
-        ) : null,
+          {puedeGestionar && puedeResolver(p) && (
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setResolviendo(p)}>
+              <Wrench className="mr-1.5 h-4 w-4" />
+              Tercero
+            </Button>
+          )}
+        </div>
+      ),
     },
   ]
 
@@ -276,7 +312,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Por omisión: la semana actual. El ITEM se numera por consolidado y semana."
+          ayuda="Por omisión: la semana actual. Se pueden elegir varios años y varias semanas (las semanas valen en cada año elegido). El ITEM se numera por consolidado y semana."
         >
           <div className="space-y-1.5">
             <Label>Consolidado</Label>
@@ -297,27 +333,29 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="anio-pagos">Año</Label>
-              <Input
+              <Label htmlFor="anio-pagos">Años</Label>
+              <SelectorNumeros
                 id="anio-pagos"
-                type="number"
-                inputMode="numeric"
-                value={anio}
+                opciones={opcionesAnios}
+                seleccion={anios}
+                onChange={setAnios}
+                textoTodas="Todos"
+                plural="años"
+                columnas={3}
                 disabled={sinItem}
-                onChange={(e) => setAnio(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="semana-pagos">Semana</Label>
-              <Input
+              <Label htmlFor="semana-pagos">Semanas</Label>
+              <SelectorNumeros
                 id="semana-pagos"
-                type="number"
-                inputMode="numeric"
-                min="1"
-                max="53"
-                value={semana}
+                opciones={opcionesSemanas}
+                seleccion={semanas}
+                onChange={setSemanas}
+                textoTodas="Todas"
+                plural="semanas"
+                ayuda={anios.length === 1 ? (n) => fechasSemanaIso(anios[0], n) : undefined}
                 disabled={sinItem}
-                onChange={(e) => setSemana(e.target.value)}
               />
             </div>
           </div>
@@ -421,7 +459,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                 claveFila={(p) => p.id}
                 tarjeta={{
                   titulo: (p) => p.terceroNombre ?? "Sin tercero",
-                  subtitulo: (p) => `ITEM ${p.item ?? "—"} · ${p.empresaNombre ?? ""}`,
+                  subtitulo: (p) => `ITEM ${p.item ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
                   esquina: (p) => (
                     <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[p.estado]}`}>
                       {ETIQUETA_ESTADO_PAGO[p.estado]}
@@ -433,6 +471,9 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
               <div className="text-right text-sm text-muted-foreground">
                 {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total de la página{" "}
                 <span className="font-medium text-foreground tabular-nums">{formatoMoneda(totalPagina)}</span>
+                {pagosExcluidos > 0 && (
+                  <> (sin {pagosExcluidos} {pagosExcluidos === 1 ? "anulado o rechazado" : "anulados o rechazados"})</>
+                )}
               </div>
             </>
           )}
@@ -450,6 +491,14 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
           setResolviendo(null)
           setPagos((actuales) => (actuales ? actuales.map((x) => (x.id === p.id ? p : x)) : actuales))
         }}
+      />
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="pago"
+        id={historialDe?.id ?? null}
+        titulo={`Historial del pago${historialDe?.item != null ? ` · ITEM ${historialDe.item}` : ""}`}
+        onCerrar={() => setHistorialDe(null)}
       />
     </div>
   )

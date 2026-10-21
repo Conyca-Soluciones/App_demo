@@ -314,9 +314,21 @@ export async function crearUsuario(input: CrearUsuarioInput): Promise<{ id: stri
 
   const usuarioId = creado.user.id
 
+  // perfiles.username es NOT NULL y UNIQUE en la base: se llena con la parte
+  // del correo antes de la @ (como los perfiles que ya existen) y, si ya la
+  // usa otro, se le agrega un número.
+  const baseUsername = email.split("@")[0].toLowerCase()
+  const { data: parecidos } = await admin
+    .from("perfiles")
+    .select("username")
+    .like("username", `${baseUsername}%`)
+  const usados = new Set((parecidos ?? []).map((p: { username: string }) => p.username))
+  let username = baseUsername
+  for (let n = 2; usados.has(username); n++) username = `${baseUsername}${n}`
+
   const { error: errorPerfil } = await supabase
     .from("perfiles")
-    .insert({ id: usuarioId, nombre, email })
+    .insert({ id: usuarioId, nombre, email, username })
 
   if (errorPerfil) {
     // no dejar un usuario de auth huérfano sin perfil si esto falla

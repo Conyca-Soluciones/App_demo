@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BannerPreciosInsumos } from "@/components/banner-precios-insumos"
 import { useSearchParams, useRouter } from "next/navigation"
+import { formatearFechaSinHora } from "@/lib/fechas"
 
 const TODOS_LOS_TIPOS = CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string[])
 
@@ -321,7 +322,7 @@ function FilaPendiente({
       </td>
       <td className={`${celda} text-muted-foreground`}>
         <p>{solicitud.solicitadoPorNombre ?? "alguien"}</p>
-        <p>{new Date(solicitud.createdAt).toLocaleDateString("es-CO")}</p>
+        <p>{formatearFechaSinHora(solicitud.createdAt)}</p>
         {solicitud.proyectoNombre && (
           <p className="truncate">
             {solicitud.proyectoNombre}

@@ -52,6 +52,7 @@ import {
   type PermisosOrdenCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { verProyectos } from "@/app/(app)/almacen/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // Valor total de la orden (descuento e IVA incluidos, como el PDF).
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
@@ -290,11 +291,11 @@ export function AprobarOCView() {
             <Label>Rango de fechas</Label>
             <div className="flex items-center gap-2">
               <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-12 text-xs text-muted-foreground">Final</span>
-              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+              <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </div>
           </div>
         </PanelFiltros>

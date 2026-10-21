@@ -12,6 +12,12 @@ export type TipoDocumentoTercero = (typeof TIPOS_DOCUMENTO_TERCERO)[number]
 export const TIPOS_CUENTA_TERCERO = ["AHORROS", "CORRIENTE"] as const
 export type TipoCuentaTercero = (typeof TIPOS_CUENTA_TERCERO)[number]
 
+// Cómo se muestra el tipo de cuenta (igual en Contratistas y en Terceros).
+export const ETIQUETA_TIPO_CUENTA: Record<TipoCuentaTercero, string> = {
+  CORRIENTE: "CUENTA CORRIENTE",
+  AHORROS: "CUENTA AHORROS",
+}
+
 export type EstadoCuentaTercero = "ACTIVO" | "PENDIENTE" | "INACTIVO"
 
 export const ETIQUETA_ESTADO_CUENTA: Record<EstadoCuentaTercero, string> = {

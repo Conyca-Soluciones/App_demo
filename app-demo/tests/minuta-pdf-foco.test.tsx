@@ -46,6 +46,7 @@ const detalle = {
   retencionGarantiaPct: 0,
   retencionAnticipoPct: 0,
   retencionFicPct: 0,
+  liquidadoAt: null,
   contratistaId: "k",
   contratistaCorreo: "",
   contratistaTipoPersona: "juridica",

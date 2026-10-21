@@ -58,7 +58,7 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
               actuando en nombre y representación propia,
             </>
           )}{" "}
-          en adelante <Text style={s.b}>EL CONTRATRISTA,</Text> hemos celebrado el presente <Text style={s.b}>CONTRATO DE PRESTACION DE SERVICIOS,</Text>{" "}
+          en adelante <Text style={s.b}>EL CONTRATISTA,</Text> hemos celebrado el presente <Text style={s.b}>CONTRATO DE PRESTACIÓN DE SERVICIOS,</Text>{" "}
           regido además por las siguientes.
         </P>
         <Text style={[s.p, s.b]}>CLÁUSULAS:</Text>
@@ -71,12 +71,12 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
         <Text style={[s.p, s.b]}>SEGUNDA. – OBLIGACIONES GENERALES DEL CONTRATISTA:</Text>
         <Lista items={m.obligacionesGenerales} resaltado={r("obligacionesGenerales")} marcador={numero} />
         <P>
-          <Text style={s.b}>PARAGRAFO:</Text> EL contratista tiene la obligación como requisito para el pago de los honorarios acordados, presentar los
+          <Text style={s.b}>PARÁGRAFO:</Text> EL contratista tiene la obligación como requisito para el pago de los honorarios acordados, presentar los
           soportes de la afiliación y pago mensual de la seguridad social en salud, pensión y ARL los cuales lo presentará con el informe de actividades
           mensual.
         </P>
 
-        <Text style={[s.p, s.b]}>TERCERA- OBLIGACIONES ESPECIFICAS DEL CONTRATISTA:</Text>
+        <Text style={[s.p, s.b]}>TERCERA- OBLIGACIONES ESPECÍFICAS DEL CONTRATISTA:</Text>
         {m.obligacionesEspecificas.length > 0 ? <Lista items={m.obligacionesEspecificas} resaltado={r("obligacionesEspecificas")} marcador={numero} /> : <P>{blanco(null)}</P>}
 
         <Text style={[s.p, s.b]}>CUARTA-OBLIGACIONES GENERALES DEL CONTRATANTE:</Text>
@@ -100,11 +100,11 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
           incluido todos los costos, descuentos y deducciones que apliquen. Los pagos se realizarán de manera {res("formaPago", blanco(m.formaPago))}
         </Clausula>
         <P>
-          <Text style={s.b}>PARAGRAFO 2:</Text> Los pagos se realizarán previa verificación de las obligaciones del contratista, para lo cual, el
+          <Text style={s.b}>PARÁGRAFO 2:</Text> Los pagos se realizarán previa verificación de las obligaciones del contratista, para lo cual, el
           contratista presentará por escrito un informe de actividades de acuerdo con las obligaciones y/o directrices impartidas por el contratante.
         </P>
 
-        <Clausula titulo="SEPTIMA-SUPERVISIÓN:">
+        <Clausula titulo="SÉPTIMA-SUPERVISIÓN:">
           El contratante ejercerá la vigilancia del cumplimiento de las obligaciones del contratista a través del director de Obra o quien haga sus veces,
           quien deberá cumplir con las siguientes funciones: <Text style={s.b}>a)</Text> Vigilar el cabal cumplimiento de las actividades a efecto de lograr
           el correcto desarrollo del objeto del contrato. <Text style={s.b}>b)</Text> Aprobar los informes de actividades que el contratista presente al
@@ -113,14 +113,14 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
           Inspeccionar las actividades del CONTRATISTA, dar aprobación a las mismas y hacer los reparos a ellas.
         </Clausula>
 
-        <Clausula titulo="OCTAVA- CLAUSULA PENAL PECUNIARIA:">
+        <Clausula titulo="OCTAVA- CLÁUSULA PENAL PECUNIARIA:">
           En caso de incumplimiento parcial o total de las obligaciones a cargo del contratista, el contratante previo aviso escrito podrá hacer efectiva la
           cláusula penal pecuniaria en un monto equivalente ({res("clausulaPenalPorcentaje", pct ? `${pct}%` : blanco(null))}) por ciento del valor del contrato que se haya ejecutado, como
           estimación anticipada y parcial de los perjuicios que se causen, sin perjuicio de que se pueda solicitar al contratista la totalidad del valor de
           los perjuicios causados en lo que excedan del valor de la cláusula penal pecuniaria.
         </Clausula>
         <P>
-          <Text style={s.b}>PARAGRAFO:</Text> El contratista autoriza que el contratante descuente de las sumas que le adeude, los valores correspondientes
+          <Text style={s.b}>PARÁGRAFO:</Text> El contratista autoriza que el contratante descuente de las sumas que le adeude, los valores correspondientes
           a la cláusula penal pecuniaria.
         </P>
 
@@ -129,50 +129,50 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
           {res("departamentoEjecucion", blanco(m.departamentoEjecucion))}.
         </Clausula>
 
-        <Clausula titulo="DECIMA- SUSPENSION, TERMINACION ANTICIPADA O PRORROGA:">
+        <Clausula titulo="DÉCIMA- SUSPENSIÓN, TERMINACIÓN ANTICIPADA O PRÓRROGA:">
           De común acuerdo entre las partes podrán suspender, prorrogar o dar por terminado el contrato antes del vencimiento de su vigencia, mediante acta,
           sin que para efectos del plazo extintivo se compute el tiempo de suspensión.
         </Clausula>
 
-        <Clausula titulo="DECIMA PRIMERA- CAUSALES DE TERMINACIÓN:">
+        <Clausula titulo="DÉCIMA PRIMERA- CAUSALES DE TERMINACIÓN:">
           El presente contrato se podrá terminar en los siguientes eventos: 1. Por vencimiento del plazo de ejecución. 2. Por mutuo acuerdo entre las
           partes. 3. Por el cumplimiento del objeto contractual. 4. En forma unilateral por parte del contratante por el incumplimiento del contratista.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEGUNDA- CESION:">
+        <Clausula titulo="DÉCIMA SEGUNDA- CESIÓN:">
           <Text style={s.b}>EL CONTRATISTA</Text> no podrá ceder parcial ni totalmente la ejecución del presente contrato a un tercero, sin la previa,
           expresa y escrita autorización del contratante.
         </Clausula>
 
-        <Clausula titulo="DECIMA TERCERA- SOLUCIÓN DE CONTROVERSIAS:">
+        <Clausula titulo="DÉCIMA TERCERA- SOLUCIÓN DE CONTROVERSIAS:">
           Las partes acuerdan que en el evento de que surjan controversias entre ellas, por razón o con ocasión del presente contrato, las mismas buscarán
           mecanismos de arreglo directo. Y en caso de fracasar el intento directo, se intentará en cualquier centro de conciliación y arbitraje de la ciudad
           de domicilio contractual.
         </Clausula>
 
-        <Clausula titulo="DECIMA CUARTA- MODIFICACIONES:">
-          El presente contrato podrá modificarse previo acuerdo de las partes el cual deberá constar por escrito. <Text style={s.b}>REGIMEN LEGAL:</Text> El
+        <Clausula titulo="DÉCIMA CUARTA- MODIFICACIONES:">
+          El presente contrato podrá modificarse previo acuerdo de las partes el cual deberá constar por escrito. <Text style={s.b}>RÉGIMEN LEGAL:</Text> El
           presente contrato se regirá por las disposiciones establecidas en el derecho privado. La celebración, interpretación, terminación y ejecución del
           presente Contrato estarán sujetas a la normativa colombiana vigente.
         </Clausula>
 
-        <Clausula titulo="DECIMA QUINTA- INDEPENDENCIA:">
+        <Clausula titulo="DÉCIMA QUINTA- INDEPENDENCIA:">
           El contratista actuará por su cuenta, con autonomía y sin que exista relación laboral, ni subordinación con el contratante, sus derechos se
           limitarán por la naturaleza del contrato, a exigir el cumplimiento de las obligaciones del contratante y el pago oportuno de sus honorarios en este
           documento.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEXTA-CONFIDENCIALIDAD:">
+        <Clausula titulo="DÉCIMA SEXTA-CONFIDENCIALIDAD:">
           El Contratista se compromete a mantener la confidencialidad de toda la información a la que tenga acceso durante la ejecución del contrato. Esto
           incluye, pero no se limita a, datos técnicos, comerciales, financieros y de cualquier otra naturaleza que le sean proporcionados por el Contratante
           o que el Contratista obtenga como resultado de su participación en el proyecto.
         </Clausula>
         <P>
-          <Text style={s.b}>PARAGRAFO:</Text> Esta confidencialidad se mantendrá en vigor incluso después de terminado el contrato y el contratista deberá
+          <Text style={s.b}>PARÁGRAFO:</Text> Esta confidencialidad se mantendrá en vigor incluso después de terminado el contrato y el contratista deberá
           tomar todas las medidas necesarias para que esta información no sea divulgada.
         </P>
 
-        <Clausula titulo="DECIMA SEPTIMA- LIQUIDACIÓN:">
+        <Clausula titulo="DÉCIMA SÉPTIMA- LIQUIDACIÓN:">
           El contratista manifiesta desde ya de forma expresa y voluntaria que si a la finalización del contrato de prestación de servicios, no se encuentra a
           Paz y Salvo con el contratante, de acuerdo a las obligaciones consagradas dentro del presente contrato, autoriza expresa e irrevocablemente para
           deducir de todo concepto resultante de la liquidación final del contrato, el valor de los activos puestos a su disposición para la ejecución de los
@@ -180,15 +180,15 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
           cumplimiento de actividades.
         </Clausula>
         <P>
-          <Text style={s.b}>PARAGRAFO:</Text> Acorde con lo previsto en el parágrafo anterior, el incumplimiento de dichas obligaciones facultará al
+          <Text style={s.b}>PARÁGRAFO:</Text> Acorde con lo previsto en el parágrafo anterior, el incumplimiento de dichas obligaciones facultará al
           contratante para efectuar el pago de las mismas una vez la empresa verifique el cumplimiento de estas por parte del contratista.
         </P>
 
-        <Clausula titulo="DECIMA OCTAVA - DOMICILIO CONTRACTUAL:">
+        <Clausula titulo="DÉCIMA OCTAVA - DOMICILIO CONTRACTUAL:">
           Para todos los efectos legales el presente contrato tendrá como domicilio la ciudad de {res("domicilioCiudad", blanco(m.domicilioCiudad))}.
         </Clausula>
 
-        <Clausula titulo="DECIMA NOVENA: NOTIFICACIONES">
+        <Clausula titulo="DÉCIMA NOVENA: NOTIFICACIONES">
           para todos los efectos de notificaciones, las partes autorizan las siguientes direcciones: El Contratista en el correo electrónico{" "}
           {res("contratistaCorreo", blanco(m.contratistaCorreo))} y el contratante al correo {res("contratanteCorreo", blanco(m.contratanteCorreo))}.
         </Clausula>

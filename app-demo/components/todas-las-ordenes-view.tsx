@@ -51,6 +51,7 @@ import {
   type EstadoOrdenVisible,
 } from "@/lib/ordenes-compra-estado"
 import { descargarExcelOrdenes, type VistaOrdenes } from "@/lib/exportar-ordenes-compra"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -362,11 +363,11 @@ export function TodasLasOrdenesView() {
             <Label>Rango de fechas</Label>
             <div className="flex items-center gap-2">
               <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-12 text-xs text-muted-foreground">Final</span>
-              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+              <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </div>
           </div>
         </PanelFiltros>

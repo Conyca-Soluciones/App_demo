@@ -90,6 +90,17 @@ async function conDatosBancarios(
   })
 }
 
+// Bancos para el formulario del contratista: la misma lista de Terceros (los
+// activos), que se administra en Admin › Bancos. La base exige uno de esta
+// lista al crear o al cambiar los datos bancarios.
+export async function listarBancosContratista(): Promise<string[]> {
+  await requerirAccion("gestionar_contratistas")
+  const supabase = await createClient()
+  const { data, error } = await supabase.from("bancos").select("nombre").eq("activo", true).order("nombre")
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((b: { nombre: string }) => b.nombre)
+}
+
 export async function listarContratistas(): Promise<Contratista[]> {
   const permisos = await obtenerPermisosRol()
   if (

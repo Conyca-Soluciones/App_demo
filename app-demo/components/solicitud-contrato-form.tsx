@@ -43,6 +43,7 @@ import {
   reenviarSolicitudContrato,
   type DocumentoContratoSubido,
 } from "@/app/(app)/contratos/solicitar/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // ---------------------------------------------------------------------------
 // Formulario de solicitud de contrato. El director elige el tipo (eso define
@@ -992,14 +993,14 @@ export function SolicitudContratoForm({
             <label htmlFor="contrato-inicio" className="text-xs font-medium text-muted-foreground">
               {f.plazoTipo === "fechas" ? "Fecha de inicio *" : "Inicio estimado (opcional)"}
             </label>
-            <input id="contrato-inicio" type="date" value={f.fechaInicio} onChange={(e) => cambiar("fechaInicio", e.target.value, "plazo")} disabled={enviando} className={claseCampo(Boolean(errores.plazo))} />
+            <CampoFecha sinEstilo id="contrato-inicio" value={f.fechaInicio} onChange={(e) => cambiar("fechaInicio", e.target.value, "plazo")} disabled={enviando} className={claseCampo(Boolean(errores.plazo))} />
           </div>
           {f.plazoTipo === "fechas" ? (
             <div className="space-y-1">
               <label htmlFor="contrato-fin" className="text-xs font-medium text-muted-foreground">
                 Fecha de fin *
               </label>
-              <input id="contrato-fin" type="date" value={f.fechaFin} min={f.fechaInicio || undefined} onChange={(e) => cambiar("fechaFin", e.target.value, "plazo")} disabled={enviando} className={claseCampo(Boolean(errores.plazo))} />
+              <CampoFecha sinEstilo id="contrato-fin" value={f.fechaFin} min={f.fechaInicio || undefined} onChange={(e) => cambiar("fechaFin", e.target.value, "plazo")} disabled={enviando} className={claseCampo(Boolean(errores.plazo))} />
             </div>
           ) : (
             <div className="space-y-1">

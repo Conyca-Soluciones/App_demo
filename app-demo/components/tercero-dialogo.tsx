@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { BadgeCheck, Loader2, Pencil, Plus } from "lucide-react"
+import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
+import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import {
   actualizarTercero,
   agregarCuenta,
   crearTercero,
+  enlaceCertificacionTercero,
   inactivarCuenta,
   reactivarCuenta,
   verificarCuenta,
@@ -22,6 +24,7 @@ import {
   CLASE_ESTADO_CUENTA,
   ETIQUETA_ESTADO_CUENTA,
   TIPOS_CUENTA_TERCERO,
+  ETIQUETA_TIPO_CUENTA,
   TIPOS_DOCUMENTO_TERCERO,
   documentoFormateado,
   soloDigitos,
@@ -90,7 +93,7 @@ function CamposCuenta({
           <SelectContent>
             {TIPOS_CUENTA_TERCERO.map((t) => (
               <SelectItem key={t} value={t}>
-                {t === "AHORROS" ? "Ahorros" : "Corriente"}
+                {ETIQUETA_TIPO_CUENTA[t]}
               </SelectItem>
             ))}
           </SelectContent>
@@ -169,6 +172,8 @@ function ContenidoTercero({
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [verHistorial, setVerHistorial] = useState(false)
+  const [versionHistorial, setVersionHistorial] = useState(0)
 
   const [datos, setDatos] = useState({
     razonSocial: tercero.razonSocial,
@@ -194,11 +199,32 @@ function ContenidoTercero({
     setAviso(null)
     try {
       onCambio(await accion())
+      setVersionHistorial((v) => v + 1)
       if (mensajeOk) setAviso(mensajeOk)
       return true
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo completar la acción.")
       return false
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  // La certificación viene del contratista con el mismo documento (si existe).
+  async function descargarCertificacion() {
+    setOcupado(true)
+    setError(null)
+    setAviso(null)
+    try {
+      const cert = await enlaceCertificacionTercero(tercero.id)
+      if (!cert) {
+        setAviso("Este tercero no tiene certificación bancaria: no viene de un contratista o el contratista no la subió.")
+      } else {
+        window.open(cert.url, "_blank", "noopener")
+        setAviso(`Certificación de ${cert.contratista}: ${cert.nombreArchivo}.`)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo abrir la certificación.")
     } finally {
       setOcupado(false)
     }
@@ -332,6 +358,18 @@ function ContenidoTercero({
           )}
         </div>
 
+        {puedeVerificar && tercero.cuentas.some((c) => c.estado === "PENDIENTE") && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <span className="min-w-0 flex-1">
+              Hay cuentas pendientes de verificar. Compáralas con la certificación bancaria antes de verificarlas.
+            </span>
+            <Button size="sm" variant="outline" disabled={ocupado} onClick={descargarCertificacion}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Descargar certificación bancaria
+            </Button>
+          </div>
+        )}
+
         {tercero.cuentas.length === 0 && formCuenta !== "nueva" && (
           <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
             Este tercero no tiene cuentas bancarias: no se le puede pagar por transferencia.
@@ -360,7 +398,7 @@ function ContenidoTercero({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">
-                      {c.bancoNombre} · {c.tipoCuenta === "AHORROS" ? "Ahorros" : "Corriente"}
+                      {c.bancoNombre} · {ETIQUETA_TIPO_CUENTA[c.tipoCuenta]}
                     </div>
                     <div className="font-mono text-sm">{c.numeroCuenta}</div>
                     {c.etiqueta && <div className="text-xs text-muted-foreground">{c.etiqueta}</div>}
@@ -429,6 +467,23 @@ function ContenidoTercero({
               onGuardar={guardarCuenta}
               onCancelar={() => setFormCuenta(null)}
             />
+          </div>
+        )}
+      </section>
+
+      {/* -------------------------------------------------------- historial */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">Historial</h3>
+          <Button size="sm" variant="outline" onClick={() => setVerHistorial((v) => !v)}>
+            <History className="mr-1.5 h-4 w-4" />
+            {verHistorial ? "Ocultar" : "Ver historial"}
+          </Button>
+        </div>
+        {verHistorial && (
+          <div className="rounded-lg border p-3">
+            {/* La versión cambia con cada cambio guardado: así el historial se vuelve a cargar. */}
+            <HistorialTimeline key={versionHistorial} tipo="tercero" id={tercero.id} />
           </div>
         )}
       </section>

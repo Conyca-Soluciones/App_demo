@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { AlertTriangle, Check, Loader2, RotateCcw, X } from "lucide-react"
+import { AlertTriangle, Check, History, Loader2, RotateCcw, X } from "lucide-react"
+import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +25,7 @@ import {
   type FiltrosAprobacionPagos,
   type Pago,
 } from "@/lib/pagos"
+import { formatearFechaSinHora } from "@/lib/fechas"
 
 const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "solicitado", etiqueta: "Por aprobar" },
@@ -63,6 +65,7 @@ export function AprobacionPagosView({
   const [rechazando, setRechazando] = useState<Pago | null>(null)
   // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
   const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
+  const [historialDe, setHistorialDe] = useState<Pago | null>(null)
   const [motivo, setMotivo] = useState("")
   // Rechazados que ya se volvieron a solicitar en esta pantalla (se oculta el botón).
   const [resolicitados, setResolicitados] = useState<Set<string>>(() => new Set())
@@ -189,10 +192,18 @@ export function AprobacionPagosView({
     { clave: "empresa", titulo: "Empresa", ancho: 220, texto: (p) => p.empresaNombre ?? "" },
     {
       clave: "valor",
-      titulo: "Valor",
-      ancho: 130,
+      titulo: "Valor a pagar",
+      ancho: 150,
       alinear: "right",
       texto: (p) => formatoMoneda(p.valor),
+      celda: (p) => (
+        <div className="leading-tight">
+          <div>{formatoMoneda(p.valor)}</div>
+          {p.actaBruto != null && p.actaBruto !== p.valor && (
+            <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
+          )}
+        </div>
+      ),
       claseCelda: "tabular-nums",
     },
     {
@@ -201,7 +212,7 @@ export function AprobacionPagosView({
       ancho: 110,
       texto: (p) =>
         p.estado === "programado" && p.fechaProgramada
-          ? `Desde ${new Date(p.fechaProgramada + "T00:00:00").toLocaleDateString("es-CO")}`
+          ? `Desde ${formatearFechaSinHora(p.fechaProgramada)}`
           : p.solicitadoEn
             ? formatoFechaHora(p.solicitadoEn)
             : "",
@@ -225,11 +236,22 @@ export function AprobacionPagosView({
     {
       clave: "acciones",
       titulo: "Acciones",
-      ancho: 210,
+      ancho: 250,
       ordenable: false,
       texto: () => "",
-      celda: (p) =>
-        puedeAprobar && p.estado === "solicitado" ? (
+      celda: (p) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 shrink-0 p-0"
+            title="Historial del pago"
+            aria-label="Historial del pago"
+            onClick={() => setHistorialDe(p)}
+          >
+            <History className="h-4 w-4" />
+          </Button>
+          {puedeAprobar && p.estado === "solicitado" ? (
           <div className="flex items-center gap-2">
             <Button size="sm" className="h-8 w-24" disabled={procesandoId === p.id} onClick={() => setPorAprobar(p)}>
               <Check className="mr-1.5 h-4 w-4" />
@@ -270,7 +292,9 @@ export function AprobacionPagosView({
               </span>
             )}
           </div>
-        ) : null,
+          ) : null}
+        </div>
+      ),
     },
   ]
 
@@ -399,6 +423,14 @@ export function AprobacionPagosView({
         procesando={porAprobar !== null && procesandoId === porAprobar.id}
         onConfirmar={() => porAprobar && handleAprobar(porAprobar)}
         onCerrar={() => setPorAprobar(null)}
+      />
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="pago"
+        id={historialDe?.id ?? null}
+        titulo={`Historial del pago${historialDe?.origen ? ` — ${historialDe.origen}` : ""}`}
+        onCerrar={() => setHistorialDe(null)}
       />
     </div>
   )

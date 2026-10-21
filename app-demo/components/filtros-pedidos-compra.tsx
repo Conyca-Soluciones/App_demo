@@ -14,6 +14,7 @@ import {
   buscarInsumosCompras,
   type FiltrosPedidosCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 type FiltrosPedidosCompraPanelProps = {
   onConsultar: (filtros: FiltrosPedidosCompra) => void
@@ -166,15 +167,14 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
           <Label>Rango de fechas Requisiciones</Label>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-            <Input
-              type="date"
+            <CampoFecha
               value={fechaPedidoInicio}
               onChange={(e) => setFechaPedidoInicio(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Final</span>
-            <Input type="date" value={fechaPedidoFin} onChange={(e) => setFechaPedidoFin(e.target.value)} />
+            <CampoFecha value={fechaPedidoFin} onChange={(e) => setFechaPedidoFin(e.target.value)} />
           </div>
         </div>
 
@@ -182,11 +182,11 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
           <Label>Rango de fechas Requerimientos</Label>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-            <Input type="date" value={fechaReqInicio} onChange={(e) => setFechaReqInicio(e.target.value)} />
+            <CampoFecha value={fechaReqInicio} onChange={(e) => setFechaReqInicio(e.target.value)} />
           </div>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Final</span>
-            <Input type="date" value={fechaReqFin} onChange={(e) => setFechaReqFin(e.target.value)} />
+            <CampoFecha value={fechaReqFin} onChange={(e) => setFechaReqFin(e.target.value)} />
           </div>
         </div>
 
@@ -194,15 +194,14 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
           <Label>Rango de fechas Aprobación</Label>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-            <Input
-              type="date"
+            <CampoFecha
               value={fechaAprobInicio}
               onChange={(e) => setFechaAprobInicio(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2">
             <span className="w-12 text-xs text-muted-foreground">Final</span>
-            <Input type="date" value={fechaAprobFin} onChange={(e) => setFechaAprobFin(e.target.value)} />
+            <CampoFecha value={fechaAprobFin} onChange={(e) => setFechaAprobFin(e.target.value)} />
           </div>
         </div>
 

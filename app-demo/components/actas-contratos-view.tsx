@@ -50,6 +50,7 @@ import {
   obtenerContratoParaActa,
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // Actas por grupos: se busca el contrato o el contratista (con un solo
 // contrato se escoge solo; con varios, se elige en la lista). Del contrato se
@@ -643,13 +644,13 @@ function FormularioActa({
               <label className="text-xs font-medium text-muted-foreground" htmlFor="acta-desde">
                 Período: desde
               </label>
-              <Input id="acta-desde" type="date" className="h-9 w-44" value={form.periodoDesde} onChange={(e) => cambiar({ periodoDesde: e.target.value })} />
+              <CampoFecha id="acta-desde" contenedorClassName="w-44" className="h-9" value={form.periodoDesde} onChange={(e) => cambiar({ periodoDesde: e.target.value })} />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground" htmlFor="acta-hasta">
                 Hasta (fecha de corte)
               </label>
-              <Input id="acta-hasta" type="date" className="h-9 w-44" value={form.periodoHasta} onChange={(e) => cambiar({ periodoHasta: e.target.value })} />
+              <CampoFecha id="acta-hasta" contenedorClassName="w-44" className="h-9" value={form.periodoHasta} onChange={(e) => cambiar({ periodoHasta: e.target.value })} />
             </div>
           </div>
 
@@ -724,7 +725,15 @@ function FormularioActa({
                   texto={`${numero(info.avanceOtras + (r.avance ?? 0))} %`}
                   rojo={info.avanceOtras + (r.avance ?? 0) > 100}
                 />
-                <Cifra titulo="Valor esta acta" texto={pesos(r.bruto)} fuerte />
+                <Cifra titulo="Valor esta acta" texto={pesos(r.bruto)} fuerte rojo={r.bruto > r.saldoContrato} />
+                <p
+                  className={`text-xs sm:col-span-4 ${
+                    r.bruto > r.saldoContrato || info.avanceOtras + (r.avance ?? 0) > 100 ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  Saldo del contrato: {pesos(r.saldoContrato)}. Lo máximo que se puede cobrar en esta acta es{" "}
+                  {numero(Math.max(Math.min(100 - info.avanceOtras, info.valor > 0 ? (r.saldoContrato * 100) / info.valor : 0), 0))} %.
+                </p>
               </div>
             ))}
 

@@ -48,6 +48,7 @@ const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudCont
   retencionGarantiaPct: 0,
   retencionAnticipoPct: 0,
   retencionFicPct: 0,
+  liquidadoAt: null,
   contratistaId: "k1",
   contratistaCorreo: "a@b.co",
   contratistaTipoPersona: "natural",

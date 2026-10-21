@@ -25,7 +25,7 @@ import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/bad
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
 import { createClient } from "@/lib/supabase/client"
-import { formatearFechaSinHora } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import {
   obtenerRequisicion,
   cancelarRequisicion,
@@ -264,11 +264,7 @@ export function RequisicionDetalleView({
             <div className="space-y-1">
               <p className="text-muted-foreground">Última modificación</p>
               <p>
-                {new Date(req.modificadaAt).toLocaleString("es-CO", {
-                  timeZone: "America/Bogota",
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}
+                {formatearFechaHora(req.modificadaAt)}
               </p>
             </div>
           )}

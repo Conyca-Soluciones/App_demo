@@ -26,6 +26,7 @@ import {
   type PrecioProveedor,
 } from "@/lib/control-proyecto"
 import { listarOrdenesControl, obtenerControlProyecto } from "@/app/(app)/admin/visualizacion/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // ---------------------------------------------------------------------------
 // Control del proyecto: a dónde va la plata del proyecto actual (el de la
@@ -74,7 +75,7 @@ export function ControlProyectoView() {
 
   return (
     <>
-      <EncabezadoPagina titulo="Control del proyecto" subtitulo="Distribucion: presupuesto, compras y actas aprobadas, y avance." />
+      <EncabezadoPagina titulo="Control del proyecto" subtitulo="Distribución: presupuesto, compras y actas aprobadas, y avance." />
       <main className="mx-auto w-full max-w-5xl space-y-5 p-4 sm:p-6">
         {!proyecto ? (
           <SinProyecto />
@@ -201,26 +202,26 @@ function Resumen({ datos }: { datos: ControlProyecto }) {
           valor={pct(t.pctActas)}
           detalle={
             datos.contratado > 0
-              ? `${pesosCortos(datos.actasContratadas)} de ${pesosCortos(datos.contratado)} contratado`
+              ? `${pesosCortos(datos.actasContratadas)} en actas (bruto) de ${pesosCortos(datos.contratado)} contratado`
               : "Sin contratos aprobados"
           }
         />
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-medium">Distribucion</h2>
+        <h2 className="text-sm font-medium">Distribución</h2>
         <div className="flex h-4 overflow-hidden rounded bg-muted" aria-hidden="true">
           <div className={COLOR.compras} style={{ width: `${barra.compras}%` }} />
           <div className={COLOR.actas} style={{ width: `${barra.actas}%` }} />
         </div>
         <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
           <Leyenda color={COLOR.compras} texto={`Compras ${pesosCortos(datos.compras)}`} />
-          <Leyenda color={COLOR.actas} texto={`Actas ${pesosCortos(datos.actas)}`} />
+          <Leyenda color={COLOR.actas} texto={`Actas (bruto) ${pesosCortos(datos.actas)}`} />
           <Leyenda color="bg-muted-foreground/20" texto={`Disponible ${pesosCortos(t.disponible)}`} />
         </div>
         <p className="text-xs text-muted-foreground">
           Compras = órdenes de compra aprobadas (con IVA){datos.excedentes > 0 && `; de eso, ${pesosCortos(datos.excedentes)} son excedentes de compras`}.
-          Disponible = presupuesto − compras − actas aprobadas (las requisiciones sin orden de compra no se descuentan).
+          Actas = valor bruto de las actas aprobadas, antes de descuentos (anticipo, retención en garantía, retenciones); en A&F el pago es el neto. Disponible = presupuesto − compras − actas aprobadas (las requisiciones sin orden de compra no se descuentan).
           {datos.presupuestoManoObra > 0 && ` Contratado: ${pct(t.pctContratadoMo)} del presupuesto de mano de obra.`}
           {barra.sobrepasa && " Lo gastado ya supera el presupuesto."}
         </p>
@@ -449,7 +450,7 @@ function Contratos({ datos }: { datos: ControlProyecto }) {
                 <div className={`h-full ${COLOR.actas}`} style={{ width: `${Math.min(p, 100)}%` }} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Actas aprobadas {pesosCortos(c.actasAprobadas)} ({pct(p)}) · saldo {pesosCortos(Math.max(c.valor - c.actasAprobadas, 0))}
+                Actas aprobadas (bruto) {pesosCortos(c.actasAprobadas)} ({pct(p)}) · saldo {pesosCortos(Math.max(c.valor - c.actasAprobadas, 0))}
                 {c.actasPorAprobar > 0 && ` · ${pesosCortos(c.actasPorAprobar)} por aprobar`}
               </p>
             </li>
@@ -501,11 +502,11 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
       >
         <label className="space-y-1 text-xs text-muted-foreground">
           Desde
-          <Input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className="w-40" />
+          <CampoFecha value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} contenedorClassName="w-40" />
         </label>
         <label className="space-y-1 text-xs text-muted-foreground">
           Hasta
-          <Input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className="w-40" />
+          <CampoFecha value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} contenedorClassName="w-40" />
         </label>
         <button
           type="submit"
