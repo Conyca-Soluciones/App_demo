@@ -20,13 +20,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Pencil, Plus, Search, X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
-import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { TablaExcel, PaginacionExcel, type ColumnaExcel, CLASE_CELDA_EXCEL, CLASE_ENCABEZADO_EXCEL, CLASE_MARCO_EXCEL, CLASE_TABLA_EXCEL } from "@/components/tabla-excel"
 import { useSearchParams, useRouter } from "next/navigation"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
-const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
-const celda = "border-r px-3 py-2 text-xs last:border-r-0"
+const headClasses = CLASE_ENCABEZADO_EXCEL
+const celda = `${CLASE_CELDA_EXCEL} text-xs`
 
 // Solicitudes pendientes o el catálogo completo (mano_obra_categorias o
 // equipo_categorias según `recurso`). Las solicitudes resueltas se borran,
@@ -314,8 +314,8 @@ function TablaPendientes({
   onRechazar: (s: SolicitudRecurso, motivo: string) => void
 }) {
   return (
-    <div className="overflow-x-auto rounded-none border">
-      <table className="w-full border-separate border-spacing-0">
+    <div className={CLASE_MARCO_EXCEL}>
+      <table className={CLASE_TABLA_EXCEL}>
         <thead>
           <tr>
             <th className={`${headClasses} w-64`}>Categoría</th>
@@ -402,7 +402,7 @@ function FilaPendiente({
 
   return (
     <tr
-      className={`border-b align-top hover:bg-muted/30 ${CLASE_FILA_DOBLE_CLIC}`}
+      className={`align-top hover:bg-muted/30 ${CLASE_FILA_DOBLE_CLIC}`}
       title={AYUDA_DOBLE_CLIC}
       onDoubleClick={alDobleClic(() => setViendo(true))}
     >

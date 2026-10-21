@@ -153,4 +153,21 @@
   html {
     @apply font-sans;
   }
+
+  /* Un solo lenguaje de tablas en toda la app (el de TablaExcel): encabezado
+     azul con texto pequeño y celdas marcadas. Está en la capa base, así que lo
+     que cada tabla ponga con clases (ancho, relleno, alineación) gana. Las
+     listas de registros usan TablaExcel; esto iguala las demás (líneas de un
+     formulario o de un detalle). data-tabla-libre = sin este estilo. */
+  table:not([data-tabla-libre]) {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  table:not([data-tabla-libre]) > thead > tr > th {
+    @apply border-r border-b border-primary-foreground/15 bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0;
+  }
+  table:not([data-tabla-libre]) > tbody > tr > td,
+  table:not([data-tabla-libre]) > tfoot > tr > td {
+    @apply border-r border-b last:border-r-0;
+  }
 }

@@ -4,14 +4,6 @@ import { formatearFechaSinHora } from "@/lib/fechas"
 
 import { useState } from "react"
 import { FileText, X } from "lucide-react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -29,7 +21,8 @@ import {
   type PedidoParaComprar,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { nombreUnidad, textoConversionCompra } from "@/lib/unidades"
-import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 
 // Ya se compró algo, pero no todo: no se "rechaza", se cierra el saldo.
 const esParcial = (p: PedidoParaComprar) => p.pendienteUso < p.cantidadUso - 1e-9
@@ -87,6 +80,123 @@ export function TablaPedidosCompra({
     (x, y) => (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
   )
 
+  const columnas: ColumnaExcel<PedidoParaComprar>[] = [
+    {
+      clave: "requisicion",
+      titulo: "# Requisición",
+      ancho: 120,
+      fija: true,
+      texto: (p) => (p.requisicionNumero != null ? String(p.requisicionNumero) : ""),
+      valorOrden: (p) => p.requisicionNumero,
+      claseCelda: "font-medium tabular-nums",
+    },
+    { clave: "insumo", titulo: "Insumo", ancho: 280, flexible: true, texto: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}` },
+    { clave: "um", titulo: "UM", ancho: 120, texto: (p) => p.um ?? "" },
+    {
+      clave: "cantidad",
+      titulo: "Cantidad",
+      ancho: 130,
+      alinear: "right",
+      texto: (p) => p.cantidadPendiente.toLocaleString("es-CO"),
+      valorOrden: (p) => p.cantidadPendiente,
+      celda: (p) => {
+        const conversion = textoConversionCompra(p.cantidadUso, p.unidadUso, p.factor, p.um)
+        return (
+          <span className="flex flex-col items-end leading-tight tabular-nums">
+            <span>{p.cantidadPendiente.toLocaleString("es-CO")}</span>
+            {conversion && <span className="text-[11px] text-muted-foreground">{conversion}</span>}
+          </span>
+        )
+      },
+    },
+    {
+      clave: "valor",
+      titulo: "Vr. Unit. Proyectado",
+      ancho: 150,
+      alinear: "right",
+      texto: (p) => (p.valorUnitarioProyectado != null ? formatoMoneda.format(p.valorUnitarioProyectado) : ""),
+      valorOrden: (p) => p.valorUnitarioProyectado,
+      claseCelda: "tabular-nums",
+    },
+    { clave: "solicitante", titulo: "Solicitante", ancho: 150, texto: (p) => p.solicitadoPorNombre ?? "" },
+    { clave: "pedido", titulo: "Fecha Ped.", ancho: 110, alinear: "center", texto: (p) => formatoFecha(p.fechaPedido), valorOrden: (p) => p.fechaPedido, claseCelda: "tabular-nums" },
+    {
+      clave: "requerida",
+      titulo: "Fecha Req.",
+      ancho: 110,
+      alinear: "center",
+      texto: (p) => formatearFechaSinHora(p.fechaRequerida),
+      valorOrden: (p) => p.fechaRequerida,
+      claseCelda: "tabular-nums",
+    },
+    {
+      clave: "obs",
+      titulo: "Obs",
+      ancho: 70,
+      alinear: "center",
+      ordenable: false,
+      texto: (p) => p.observaciones ?? "",
+      celda: (p) =>
+        p.observaciones ? (
+          <span title={p.observaciones}>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </span>
+        ) : (
+          <span className="text-muted-foreground/60">—</span>
+        ),
+    },
+    {
+      clave: "urgente",
+      titulo: "Urgente",
+      ancho: 100,
+      alinear: "center",
+      texto: (p) => (p.urgente ? "Urgente" : ""),
+      celda: (p) => (p.urgente ? <Badge variant="destructive">Urgente</Badge> : <span className="text-muted-foreground/60">—</span>),
+    },
+    {
+      clave: "rechazar",
+      titulo: "Rechazar",
+      ancho: 90,
+      alinear: "center",
+      ordenable: false,
+      texto: () => "",
+      celda: (p) => (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+          title={esParcial(p) ? "Cerrar saldo" : "Rechazar"}
+          disabled={p.cantidadPendiente <= 0}
+          aria-label={`${esParcial(p) ? "Cerrar saldo de la requisición de" : "Rechazar insumo"} ${p.insumoDescripcion}`}
+          onClick={() => {
+            setError(null)
+            setPedidoARechazar(p)
+          }}
+        >
+          <X className="h-5 w-5" strokeWidth={3} />
+        </Button>
+      ),
+    },
+    {
+      clave: "comprar",
+      titulo: "Comprar",
+      ancho: 90,
+      alinear: "center",
+      ordenable: false,
+      texto: () => "",
+      celda: (p) => (
+        <Checkbox
+          aria-label={`Comprar requisición de ${p.insumoDescripcion}`}
+          disabled={p.cantidadPendiente <= 0}
+          checked={seleccionados.has(p.id)}
+          onCheckedChange={() => onToggleSeleccion(p.id)}
+        />
+      ),
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(ordenados, columnas)
+
   if (pedidos.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
@@ -97,105 +207,22 @@ export function TablaPedidosCompra({
 
   return (
     <>
-      <div className="flex-1 overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="whitespace-nowrap"># Requisición</TableHead>
-              <TableHead className="min-w-64">Insumo</TableHead>
-              <TableHead>UM</TableHead>
-              <TableHead className="text-right">Cantidad</TableHead>
-              <TableHead className="text-right">Vr. Unit. Proyectado</TableHead>
-              <TableHead>Solicitante</TableHead>
-              <TableHead>Fecha Ped.</TableHead>
-              <TableHead>Fecha Req.</TableHead>
-              <TableHead>Obs</TableHead>
-              <TableHead className="text-center">Urgente</TableHead>
-              <TableHead className="text-center">Rechazar</TableHead>
-              <TableHead className="text-center">Comprar</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ordenados.map((pedido) => {
-              return (
-                <TableRow
-                  key={pedido.id}
-                  className={`${CLASE_FILA_DOBLE_CLIC} ${pedido.urgente ? "bg-amber-50" : ""}`}
-                  title={AYUDA_DOBLE_CLIC}
-                  onDoubleClick={alDobleClic(() => setViendo(pedido))}
-                >
-                  <TableCell className="font-medium">{pedido.requisicionNumero ?? "—"}</TableCell>
-                  {/* whitespace-normal: TableCell trae nowrap por defecto y los
-                      nombres largos se salían de la columna encima de las
-                      demás. Ahora bajan de línea dentro de su ancho. */}
-                  <TableCell className="min-w-64 max-w-md whitespace-normal break-words">
-                    <span className="text-muted-foreground">{pedido.insumoCodigo} · </span>
-                    {pedido.insumoDescripcion}
-                  </TableCell>
-                  <TableCell>{pedido.um ?? "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {pedido.cantidadPendiente.toLocaleString("es-CO")}
-                    {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um) && (
-                      <span className="block whitespace-nowrap text-[11px] text-muted-foreground">
-                        {textoConversionCompra(pedido.cantidadUso, pedido.unidadUso, pedido.factor, pedido.um)}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {pedido.valorUnitarioProyectado != null
-                      ? formatoMoneda.format(pedido.valorUnitarioProyectado)
-                      : "—"}
-                  </TableCell>
-                  <TableCell>{pedido.solicitadoPorNombre ?? "—"}</TableCell>
-                  <TableCell>{formatoFecha(pedido.fechaPedido)}</TableCell>
-                  <TableCell>{formatearFechaSinHora(pedido.fechaRequerida)}</TableCell>
-                  <TableCell>
-                    {pedido.observaciones ? (
-                      <span title={pedido.observaciones}>
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {pedido.urgente ? (
-                      <Badge variant="destructive">Urgente</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      title={esParcial(pedido) ? "Cerrar saldo" : "Rechazar"}
-                      disabled={pedido.cantidadPendiente <= 0}
-                      aria-label={`${esParcial(pedido) ? "Cerrar saldo de la requisición de" : "Rechazar insumo"} ${pedido.insumoDescripcion}`}
-                      onClick={() => {
-                        setError(null)
-                        setPedidoARechazar(pedido)
-                      }}
-                    >
-                      <X className="h-5 w-5" strokeWidth={3} />
-                    </Button>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Checkbox
-                      aria-label={`Comprar requisición de ${pedido.insumoDescripcion}`}
-                      disabled={pedido.cantidadPendiente <= 0}
-                      checked={seleccionados.has(pedido.id)}
-                      onCheckedChange={() => onToggleSeleccion(pedido.id)}
-                    />
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
-      </div>
+      <TablaExcel
+        filas={ordenadas}
+        columnas={columnas}
+        claveFila={(p) => p.id}
+        orden={orden}
+        onOrdenar={ordenar}
+        onDobleClickFila={setViendo}
+        tituloFila={AYUDA_DOBLE_CLIC}
+        fondoFila={(p) => (p.urgente ? "bg-amber-50" : undefined)}
+        tarjeta={{
+          titulo: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
+          subtitulo: (p) => `Requisición # ${p.requisicionNumero ?? "—"} · ${p.solicitadoPorNombre ?? "—"}`,
+          esquina: (p) => columnas.find((c) => c.clave === "comprar")!.celda!(p),
+          campos: ["um", "cantidad", "valor", "requerida", "urgente", "rechazar"],
+        }}
+      />
 
       <VentanaDetalle
         abierta={viendo !== null}

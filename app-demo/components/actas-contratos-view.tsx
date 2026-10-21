@@ -51,7 +51,8 @@ import {
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
-import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
 
 // Actas por grupos: se busca el contrato o el contratista (con un solo
 // contrato se escoge solo; con varios, se elige en la lista). Del contrato se
@@ -257,6 +258,49 @@ function ContratoActas({
   const permitidos = info ? tiposPermitidos(info) : null
   const siguiente = (actas?.reduce((max, a) => Math.max(max, a.numero), 0) ?? 0) + 1
 
+  const columnasActas: ColumnaExcel<ActaResumen>[] = [
+    { clave: "numero", titulo: "Acta", ancho: 90, fija: true, texto: (a) => `Acta ${a.numero}`, valorOrden: (a) => a.numero, claseCelda: "font-medium" },
+    { clave: "tipo", titulo: "Tipo", ancho: 150, texto: (a) => ETIQUETA_TIPO_ACTA[a.tipo] },
+    { clave: "periodo", titulo: "Período", ancho: 190, flexible: true, texto: (a) => textoPeriodo(a.periodoDesde, a.periodoHasta), claseCelda: "tabular-nums" },
+    {
+      clave: "elaborada",
+      titulo: "Elaborada",
+      ancho: 200,
+      texto: (a) => `${formatearFechaSinHora(a.createdAt)}${a.creadoPorNombre ? ` · ${a.creadoPorNombre}` : ""}`,
+      valorOrden: (a) => a.createdAt,
+    },
+    { clave: "bruto", titulo: "Valor bruto", ancho: 140, alinear: "right", texto: (a) => pesos(a.valorBruto), valorOrden: (a) => a.valorBruto, claseCelda: "tabular-nums" },
+    { clave: "neto", titulo: "Neto a pagar", ancho: 140, alinear: "right", texto: (a) => pesos(a.neto), valorOrden: (a) => a.neto, claseCelda: "font-medium tabular-nums" },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 150,
+      alinear: "center",
+      texto: (a) => ETIQUETA_ESTADO_ACTA[a.estado],
+      celda: (a) => <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>,
+    },
+    ...(puedeElaborar
+      ? [
+          {
+            clave: "acciones",
+            titulo: "Acciones",
+            ancho: 120,
+            alinear: "center" as const,
+            ordenable: false,
+            texto: () => "",
+            celda: (a: ActaResumen) =>
+              actaEditable(a) ? (
+                <Button size="sm" variant="outline" className="h-7" onClick={() => editarDesdeLista(a.id)} disabled={abriendoEdicion != null}>
+                  {abriendoEdicion === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                  Editar
+                </Button>
+              ) : null,
+          },
+        ]
+      : []),
+  ]
+  const { ordenadas: ordenadasActas, orden: ordenActas, ordenar: ordenarActas } = useOrdenExcel(actas ?? [], columnasActas)
+
   function cerrarActa() {
     if (verActa != null && verActa === verActaInicial) onCerrarActaInicial()
     setVerActa(null)
@@ -419,63 +463,23 @@ function ContratoActas({
           ) : actas.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Este contrato todavía no tiene actas.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr className="[&_th]:px-4 [&_th]:py-2 [&_th]:font-medium">
-                    <th>Acta</th>
-                    <th>Tipo</th>
-                    <th>Período</th>
-                    <th>Elaborada</th>
-                    <th className="text-right">Valor bruto</th>
-                    <th className="text-right">Neto a pagar</th>
-                    <th className="text-center">Estado</th>
-                    {puedeElaborar && <th className="w-28" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {actas.map((a) => (
-                    <tr
-                      key={a.id}
-                      className={`border-t hover:bg-muted/40 [&_td]:px-4 [&_td]:py-2 ${CLASE_FILA_DOBLE_CLIC}`}
-                      title={AYUDA_DOBLE_CLIC}
-                      onDoubleClick={alDobleClic(() => setVerActa(a.id))}
-                    >
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => setVerActa(a.id)}
-                          title={`Ver el acta ${a.numero}`}
-                          className="cursor-pointer rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-                        >
-                          Acta {a.numero}
-                        </button>
-                      </td>
-                      <td>{ETIQUETA_TIPO_ACTA[a.tipo]}</td>
-                      <td className="tabular-nums">{textoPeriodo(a.periodoDesde, a.periodoHasta)}</td>
-                      <td>
-                        {formatearFechaSinHora(a.createdAt)}
-                        {a.creadoPorNombre && <span className="block text-xs text-muted-foreground">{a.creadoPorNombre}</span>}
-                      </td>
-                      <td className="text-right tabular-nums">{pesos(a.valorBruto)}</td>
-                      <td className="text-right font-medium tabular-nums">{pesos(a.neto)}</td>
-                      <td className="text-center">
-                        <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>
-                      </td>
-                      {puedeElaborar && (
-                        <td className="text-right">
-                          {actaEditable(a) && (
-                            <Button size="sm" variant="outline" onClick={() => editarDesdeLista(a.id)} disabled={abriendoEdicion != null}>
-                              {abriendoEdicion === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
-                              Editar
-                            </Button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="p-3">
+              <TablaExcel
+                filas={ordenadasActas}
+                columnas={columnasActas}
+                claveFila={(a) => a.id}
+                orden={ordenActas}
+                onOrdenar={ordenarActas}
+                onDobleClickFila={(a) => setVerActa(a.id)}
+                tituloFila={AYUDA_DOBLE_CLIC}
+                claseAltoMax="max-h-[60svh]"
+                tarjeta={{
+                  titulo: (a) => `Acta ${a.numero} · ${ETIQUETA_TIPO_ACTA[a.tipo]}`,
+                  subtitulo: (a) => textoPeriodo(a.periodoDesde, a.periodoHasta),
+                  esquina: (a) => columnasActas.find((c) => c.clave === "estado")!.celda!(a),
+                  campos: ["elaborada", "bruto", "neto", "acciones"],
+                }}
+              />
             </div>
           )}
         </section>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Loader2, Download, Ban, Eye } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,14 +27,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   exportarOrdenesCompra,
   listarTodasLasOrdenesCompra,
   obtenerPermisosOrdenCompra,
@@ -52,7 +44,8 @@ import {
 } from "@/lib/ordenes-compra-estado"
 import { descargarExcelOrdenes, type VistaOrdenes } from "@/lib/exportar-ordenes-compra"
 import { CampoFecha } from "@/components/ui/campo-fecha"
-import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -183,13 +176,9 @@ export function TodasLasOrdenesView() {
     }
   }
 
-  // PDF y Acciones de una orden (iguales en las dos vistas; en la detallada
-  // ocupan todas las filas de sus insumos).
-  function celdasAcciones(orden: OrdenCompraListado, filas = 1) {
-    return (
-      <>
-        <TableCell rowSpan={filas} className="text-center align-top">
-          {orden.estado === "aprobada" ? (
+  // PDF y botones de una orden (celdas de las dos vistas).
+  function pdfOrden(orden: OrdenCompraListado) {
+    return orden.estado === "aprobada" ? (
             <a
               href={`/almacen/ordenes-compra/${orden.id}/pdf`}
               target="_blank"
@@ -201,12 +190,14 @@ export function TodasLasOrdenesView() {
             </a>
           ) : (
             <span className="text-muted-foreground">—</span>
-          )}
-        </TableCell>
-        <TableCell rowSpan={filas} className="align-top">
-          {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
-              lado, Cancelar / Retirar cuando aplica. */}
-          <div className="flex items-center gap-2">
+          )
+  }
+
+  // Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su lado,
+  // Cancelar / Retirar cuando aplica.
+  function botonesOrden(orden: OrdenCompraListado) {
+    return (
+      <div className="flex items-center gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -235,10 +226,108 @@ export function TodasLasOrdenesView() {
               )}
             </div>
           </div>
-        </TableCell>
-      </>
     )
   }
+
+  const columnas: ColumnaExcel<OrdenCompraListado>[] = [
+    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (o) => String(o.numero), valorOrden: (o) => o.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "proyecto", titulo: "Proyecto", ancho: 170, texto: (o) => o.proyectoCodigo ?? o.proyectoNombre ?? "" },
+    { clave: "proveedor", titulo: "Proveedor", ancho: 240, flexible: true, texto: (o) => o.proveedorNombre },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 130,
+      alinear: "center",
+      texto: (o) => ESTADO_VISIBLE_BADGE[o.estadoVisible].label,
+      celda: (o) => <Badge variant="outline" className={ESTADO_VISIBLE_BADGE[o.estadoVisible].clase}>{ESTADO_VISIBLE_BADGE[o.estadoVisible].label}</Badge>,
+    },
+    { clave: "creadaPor", titulo: "Creada por", ancho: 160, texto: (o) => o.creadaPorNombre ?? "" },
+    { clave: "fecha", titulo: "Fecha", ancho: 160, texto: (o) => formatoFecha(o.createdAt), valorOrden: (o) => o.createdAt, claseCelda: "tabular-nums" },
+    { clave: "valor", titulo: "Valor total", ancho: 140, alinear: "right", texto: (o) => formatoMoneda.format(o.valorTotal), valorOrden: (o) => o.valorTotal, claseCelda: "tabular-nums" },
+    { clave: "pdf", titulo: "PDF", ancho: 70, alinear: "center", ordenable: false, texto: () => "", celda: (o) => pdfOrden(o) },
+    { clave: "acciones", titulo: "Acciones", ancho: 290, ordenable: false, texto: () => "", celda: (o) => botonesOrden(o) },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(ordenes ?? [], columnas)
+
+  // Vista detallada: filas de insumo + una de total por orden (en una pasada).
+  type FilaDetalle = {
+    clave: string
+    tipo: "linea" | "vacia" | "total"
+    primera: boolean
+    orden: OrdenCompraListado
+    linea: OrdenCompraListado["lineas"][number] | null
+  }
+  const filasDetalle: FilaDetalle[] = []
+  for (const o of ordenes ?? []) {
+    if (o.lineas.length === 0) filasDetalle.push({ clave: `${o.id}-vacia`, tipo: "vacia", primera: true, orden: o, linea: null })
+    o.lineas.forEach((l, i) => filasDetalle.push({ clave: l.id, tipo: "linea", primera: i === 0, orden: o, linea: l }))
+    filasDetalle.push({ clave: `${o.id}-total`, tipo: "total", primera: false, orden: o, linea: null })
+  }
+  const deOrden = (f: FilaDetalle, valor: string) => (f.primera ? valor : "")
+  const columnasDetalle: ColumnaExcel<FilaDetalle>[] = [
+    { clave: "numero", titulo: "N°", ancho: 80, fija: true, ordenable: false, texto: (f) => deOrden(f, String(f.orden.numero)), claseCelda: "font-medium tabular-nums" },
+    { clave: "proyecto", titulo: "Proyecto", ancho: 150, ordenable: false, texto: (f) => deOrden(f, f.orden.proyectoCodigo ?? f.orden.proyectoNombre ?? "") },
+    { clave: "proveedor", titulo: "Proveedor", ancho: 200, ordenable: false, texto: (f) => deOrden(f, f.orden.proveedorNombre) },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 120,
+      alinear: "center",
+      ordenable: false,
+      texto: (f) => deOrden(f, ESTADO_VISIBLE_BADGE[f.orden.estadoVisible].label),
+      celda: (f) =>
+        f.primera ? (
+          <Badge variant="outline" className={ESTADO_VISIBLE_BADGE[f.orden.estadoVisible].clase}>{ESTADO_VISIBLE_BADGE[f.orden.estadoVisible].label}</Badge>
+        ) : null,
+    },
+    { clave: "creadaPor", titulo: "Creada por", ancho: 150, ordenable: false, texto: (f) => deOrden(f, f.orden.creadaPorNombre ?? "") },
+    { clave: "fecha", titulo: "Fecha", ancho: 150, ordenable: false, texto: (f) => deOrden(f, formatoFecha(f.orden.createdAt)), claseCelda: "tabular-nums" },
+    {
+      clave: "insumo",
+      titulo: "Insumo",
+      ancho: 260,
+      flexible: true,
+      ordenable: false,
+      texto: (f) =>
+        f.tipo === "total"
+          ? `Total de la orden ${f.orden.numero}`
+          : f.tipo === "vacia"
+            ? "Sin insumos."
+            : `${f.linea!.insumoCodigo != null ? `${f.linea!.insumoCodigo} - ` : ""}${f.linea!.insumoDescripcion}`,
+      celda: (f) =>
+        f.tipo === "total" ? (
+          <span className="w-full text-right text-xs font-medium text-muted-foreground">Total de la orden {f.orden.numero}</span>
+        ) : f.tipo === "vacia" ? (
+          <span className="text-muted-foreground">Sin insumos.</span>
+        ) : (
+          <span className="truncate" title={f.linea!.insumoDescripcion}>
+            {f.linea!.insumoCodigo != null ? `${f.linea!.insumoCodigo} - ` : ""}
+            {f.linea!.insumoDescripcion}
+          </span>
+        ),
+    },
+    { clave: "um", titulo: "UM", ancho: 110, ordenable: false, texto: (f) => f.linea?.um ?? "" },
+    { clave: "cantidad", titulo: "Cantidad", ancho: 100, alinear: "right", ordenable: false, texto: (f) => (f.linea ? formatoNumero(f.linea.cantidad) : ""), claseCelda: "tabular-nums" },
+    { clave: "precio", titulo: "Precio unitario", ancho: 130, alinear: "right", ordenable: false, texto: (f) => (f.linea ? formatoMoneda.format(f.linea.precioUnitario) : ""), claseCelda: "tabular-nums" },
+    { clave: "desc", titulo: "Desc.", ancho: 80, alinear: "right", ordenable: false, texto: (f) => (f.linea ? formatoPorcentaje(f.linea.porcentajeDescuento) : ""), claseCelda: "tabular-nums" },
+    { clave: "iva", titulo: "IVA", ancho: 80, alinear: "right", ordenable: false, texto: (f) => (f.linea ? formatoPorcentaje(f.linea.porcentajeIva) : ""), claseCelda: "tabular-nums" },
+    {
+      clave: "valor",
+      titulo: "Valor total",
+      ancho: 140,
+      alinear: "right",
+      ordenable: false,
+      texto: (f) => (f.tipo === "total" ? formatoMoneda.format(f.orden.valorTotal) : f.linea ? formatoMoneda.format(f.linea.total) : ""),
+      claseCelda: "tabular-nums",
+      celda: (f) => (
+        <span className={f.tipo === "total" ? "font-semibold" : ""}>
+          {f.tipo === "total" ? formatoMoneda.format(f.orden.valorTotal) : f.linea ? formatoMoneda.format(f.linea.total) : ""}
+        </span>
+      ),
+    },
+    { clave: "pdf", titulo: "PDF", ancho: 70, alinear: "center", ordenable: false, texto: () => "", celda: (f) => (f.primera ? pdfOrden(f.orden) : null) },
+    { clave: "acciones", titulo: "Acciones", ancho: 290, ordenable: false, texto: () => "", celda: (f) => (f.primera ? botonesOrden(f.orden) : null) },
+  ]
 
   async function confirmarCancelacion() {
     if (!cancelando || !motivo.trim()) return
@@ -413,125 +502,40 @@ export function TodasLasOrdenesView() {
               Descargar Excel
             </Button>
           </div>
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          {vista === "resumida" ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>N°</TableHead>
-                <TableHead>Proyecto</TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Creada por</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead className="text-right">Valor total</TableHead>
-                <TableHead className="text-center">PDF</TableHead>
-                <TableHead className="w-[290px]">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordenes.map((orden) => {
-                const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
-                return (
-                  <TableRow key={orden.id} className={CLASE_FILA_DOBLE_CLIC} title={AYUDA_DOBLE_CLIC} onDoubleClick={alDobleClic(() => setAbiertaId(orden.id))}>
-                    <TableCell>{orden.numero}</TableCell>
-                    <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
-                    <TableCell>{orden.proveedorNombre}</TableCell>
-                    <TableCell>
-                      {/* El flex va en un div: una celda con display:flex deja de ser
-                          celda de tabla y se descuadra respecto al resto de la fila. */}
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
-                    <TableCell>{formatoFecha(orden.createdAt)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatoMoneda.format(orden.valorTotal)}</TableCell>
-                    {celdasAcciones(orden)}
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-          ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>N°</TableHead>
-                <TableHead>Proyecto</TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Creada por</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead className="min-w-64">Insumo</TableHead>
-                <TableHead>UM</TableHead>
-                <TableHead className="text-right">Cantidad</TableHead>
-                <TableHead className="text-right">Precio unitario</TableHead>
-                <TableHead className="text-right">Desc.</TableHead>
-                <TableHead className="text-right">IVA</TableHead>
-                <TableHead className="text-right">Valor total</TableHead>
-                <TableHead className="text-center">PDF</TableHead>
-                <TableHead className="w-[290px]">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordenes.map((orden) => {
-                const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
-                // Los datos de la orden ocupan sus insumos + la fila del total.
-                const filas = Math.max(orden.lineas.length, 1) + 1
-                const datosOrden = (
-                  <>
-                    <TableCell rowSpan={filas} className="align-top font-medium">{orden.numero}</TableCell>
-                    <TableCell rowSpan={filas} className="align-top">{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
-                    <TableCell rowSpan={filas} className="align-top">{orden.proveedorNombre}</TableCell>
-                    <TableCell rowSpan={filas} className="align-top">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell rowSpan={filas} className="align-top">{orden.creadaPorNombre ?? "—"}</TableCell>
-                    <TableCell rowSpan={filas} className="align-top">{formatoFecha(orden.createdAt)}</TableCell>
-                  </>
-                )
-                return (
-                  <Fragment key={orden.id}>
-                    {orden.lineas.length === 0 ? (
-                      <TableRow className={`border-b-0 ${CLASE_FILA_DOBLE_CLIC}`} title={AYUDA_DOBLE_CLIC} onDoubleClick={alDobleClic(() => setAbiertaId(orden.id))}>
-                        {datosOrden}
-                        <TableCell colSpan={7} className="text-muted-foreground">Sin insumos.</TableCell>
-                        {celdasAcciones(orden, filas)}
-                      </TableRow>
-                    ) : (
-                      orden.lineas.map((l, i) => (
-                        <TableRow key={l.id} className={`border-b-0 ${CLASE_FILA_DOBLE_CLIC}`} title={AYUDA_DOBLE_CLIC} onDoubleClick={alDobleClic(() => setAbiertaId(orden.id))}>
-                          {i === 0 && datosOrden}
-                          <TableCell className="whitespace-normal">
-                            {l.insumoCodigo != null ? `${l.insumoCodigo} - ` : ""}
-                            {l.insumoDescripcion}
-                          </TableCell>
-                          <TableCell>{l.um ?? "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatoNumero(l.cantidad)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatoMoneda.format(l.precioUnitario)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatoPorcentaje(l.porcentajeDescuento)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatoPorcentaje(l.porcentajeIva)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{formatoMoneda.format(l.total)}</TableCell>
-                          {i === 0 && celdasAcciones(orden, filas)}
-                        </TableRow>
-                      ))
-                    )}
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableCell colSpan={6} className="text-right text-xs font-medium text-muted-foreground">
-                        Total de la orden {orden.numero}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">{formatoMoneda.format(orden.valorTotal)}</TableCell>
-                    </TableRow>
-                  </Fragment>
-                )
-              })}
-            </TableBody>
-          </Table>
-          )}
-        </div>
+        {vista === "resumida" ? (
+          <TablaExcel
+            filas={ordenadas}
+            columnas={columnas}
+            claveFila={(o) => o.id}
+            orden={orden}
+            onOrdenar={ordenar}
+            onDobleClickFila={(o) => setAbiertaId(o.id)}
+            tituloFila={AYUDA_DOBLE_CLIC}
+            tarjeta={{
+              titulo: (o) => `OC N° ${o.numero}`,
+              subtitulo: (o) => `${o.proyectoCodigo ?? o.proyectoNombre ?? "—"} · ${o.proveedorNombre}`,
+              esquina: (o) => <Badge variant="outline" className={ESTADO_VISIBLE_BADGE[o.estadoVisible].clase}>{ESTADO_VISIBLE_BADGE[o.estadoVisible].label}</Badge>,
+              campos: ["creadaPor", "fecha", "valor", "pdf", "acciones"],
+            }}
+          />
+        ) : (
+          // Detallada: una fila por insumo y una de total por orden; los datos
+          // de la orden van solo en su primera fila.
+          <TablaExcel
+            filas={filasDetalle}
+            columnas={columnasDetalle}
+            claveFila={(f) => f.clave}
+            onDobleClickFila={(f) => setAbiertaId(f.orden.id)}
+            tituloFila={AYUDA_DOBLE_CLIC}
+            fondoFila={(f) => (f.tipo === "total" ? "bg-muted/40" : undefined)}
+            vacioEnBlanco
+            tarjeta={{
+              titulo: (f) => (f.tipo === "total" ? `Total de la orden ${f.orden.numero}` : `OC N° ${f.orden.numero}`),
+              subtitulo: (f) => (f.linea ? `${f.linea.insumoCodigo != null ? `${f.linea.insumoCodigo} - ` : ""}${f.linea.insumoDescripcion}` : f.orden.proveedorNombre),
+              campos: ["um", "cantidad", "precio", "valor"],
+            }}
+          />
+        )}
         </>
       )}
           {ordenes !== null && ordenes.length > 0 && (

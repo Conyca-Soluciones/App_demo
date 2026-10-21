@@ -53,7 +53,8 @@ import {
   type OrdenEntradaFila,
 } from "@/app/(app)/almacen/entradas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
-import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -119,6 +120,29 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
   const [numero, setNumero] = useState("")
   const [proveedor, setProveedor] = useState("")
   const [usuario, setUsuario] = useState<OpcionBuscador | null>(null)
+
+  const columnas: ColumnaExcel<OrdenEntradaFila>[] = [
+    { clave: "numero", titulo: "OC N°", ancho: 90, fija: true, texto: (o) => String(o.numero), valorOrden: (o) => o.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "proveedor", titulo: "Proveedor", ancho: 260, flexible: true, texto: (o) => o.proveedorNombre },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 160,
+      alinear: "center",
+      texto: (o) => ESTADO_BADGE[o.estadoEntrega].label,
+      celda: (o) => <Badge variant="outline" className={ESTADO_BADGE[o.estadoEntrega].clase}>{ESTADO_BADGE[o.estadoEntrega].label}</Badge>,
+    },
+    { clave: "persona", titulo: "Persona que hizo la entrada", ancho: 220, texto: (o) => o.entradaPersona ?? "" },
+    {
+      clave: "fecha",
+      titulo: "Fecha de la entrada",
+      ancho: 170,
+      texto: (o) => (o.entradaFecha ? formatoFechaHora(o.entradaFecha) : ""),
+      valorOrden: (o) => o.entradaFecha,
+      claseCelda: "tabular-nums",
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(ordenes ?? [], columnas)
   const [estado, setEstado] = useState<EstadoEntrega | "todos">("todos")
   // "Solo por Recibir" (marcado de entrada): entrega pendiente o parcial.
   const [soloPorRecibir, setSoloPorRecibir] = useState(true)
@@ -300,45 +324,24 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
               Ninguna orden de compra de este proyecto coincide con los filtros.
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>OC N°</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Persona que hizo la entrada</TableHead>
-                    <TableHead>Fecha de la entrada</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ordenes.map((o) => {
-                    const badge = ESTADO_BADGE[o.estadoEntrega]
-                    return (
-                      <TableRow
-                        key={o.id}
-                        className={`${CLASE_FILA_DOBLE_CLIC} hover:bg-muted/50`}
-                        title={AYUDA_DOBLE_CLIC}
-                        onDoubleClick={alDobleClic(() => {
-                          setAviso(null)
-                          setOrdenId(o.id)
-                        })}
-                      >
-                        <TableCell>{o.numero}</TableCell>
-                        <TableCell>{o.proveedorNombre}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
-                        </TableCell>
-                        <TableCell>{o.entradaPersona ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {o.entradaFecha ? formatoFechaHora(o.entradaFecha) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <TablaExcel
+              filas={ordenadas}
+              columnas={columnas}
+              claveFila={(o) => o.id}
+              orden={orden}
+              onOrdenar={ordenar}
+              onDobleClickFila={(o) => {
+                setAviso(null)
+                setOrdenId(o.id)
+              }}
+              tituloFila={AYUDA_DOBLE_CLIC}
+              tarjeta={{
+                titulo: (o) => `OC N° ${o.numero}`,
+                subtitulo: (o) => o.proveedorNombre,
+                esquina: (o) => <Badge variant="outline" className={ESTADO_BADGE[o.estadoEntrega].clase}>{ESTADO_BADGE[o.estadoEntrega].label}</Badge>,
+                campos: ["persona", "fecha"],
+              }}
+            />
           )}
           {ordenes !== null && ordenes.length > 0 && (
             <PaginacionSimple

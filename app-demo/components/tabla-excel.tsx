@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { alDobleClic } from "@/components/ventana-detalle"
 
@@ -32,9 +33,19 @@ export type ColumnaExcel<T> = {
   // Render propio (badge, botón...). Si no, se muestra `texto` truncado.
   celda?: (fila: T) => React.ReactNode
   claseCelda?: string
+  // Valor para ordenar (números, fechas ISO); si no, se ordena por `texto`.
+  valorOrden?: (fila: T) => string | number | null
 }
 
 export type OrdenExcel = { clave: string; dir: "asc" | "desc" }
+
+// Las mismas clases de TablaExcel para tablas hechas a mano con <table> que no
+// pueden ser TablaExcel (filas con campos para llenar, de alto variable).
+export const CLASE_MARCO_EXCEL = "overflow-auto rounded-lg border"
+export const CLASE_TABLA_EXCEL = "w-full border-separate border-spacing-0 text-sm"
+export const CLASE_ENCABEZADO_EXCEL =
+  "sticky top-0 z-20 border-r border-b border-primary-foreground/15 bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
+export const CLASE_CELDA_EXCEL = "border-r border-b px-3 py-2 align-top last:border-r-0"
 
 type Props<T> = {
   filas: T[]
@@ -52,6 +63,11 @@ type Props<T> = {
   }
   // Alto máximo de la tabla (scroll interno con encabezado fijo).
   claseAltoMax?: string
+  // Fondo de la fila (ej. urgente en ámbar); reemplaza el fondo normal.
+  fondoFila?: (fila: T) => string | undefined
+  // Celdas vacías en blanco en vez de "—" (tablas con filas que agrupan,
+  // como la vista detallada de órdenes de compra).
+  vacioEnBlanco?: boolean
 }
 
 export function TablaExcel<T>({
@@ -64,6 +80,8 @@ export function TablaExcel<T>({
   tituloFila,
   tarjeta,
   claseAltoMax = "max-h-[calc(100svh-19.5rem)]",
+  fondoFila,
+  vacioEnBlanco = false,
 }: Props<T>) {
   // Offset izquierdo de cada columna fija: suma de los anchos anteriores.
   const izquierda = new Map<string, number>()
@@ -152,11 +170,12 @@ export function TablaExcel<T>({
                 {columnas.map((c) => {
                   const izq = izquierda.get(c.clave)
                   const texto = c.texto(fila)
+                  const fondo = fondoFila?.(fila) ?? "bg-background"
                   return (
                     <td
                       key={c.clave}
                       style={izq !== undefined ? { left: izq } : undefined}
-                      className={`h-9 max-w-0 border-r border-b bg-background p-0 align-middle last:border-r-0 group-hover:bg-muted ${
+                      className={`h-9 max-w-0 border-r border-b ${fondo} p-0 align-middle last:border-r-0 group-hover:bg-muted ${
                         izq !== undefined ? "sticky z-10" : ""
                       } ${c.clave === ultimaFija ? "shadow-[2px_0_0_0_var(--border)]" : ""}`}
                     >
@@ -171,7 +190,7 @@ export function TablaExcel<T>({
                           className={`truncate px-3 py-2 ${alineacion(c.alinear)} ${c.claseCelda ?? ""}`}
                           title={texto || undefined}
                         >
-                          {texto || <span className="text-muted-foreground/60">—</span>}
+                          {texto || (vacioEnBlanco ? null : <span className="text-muted-foreground/60">—</span>)}
                         </div>
                       )}
                     </td>
@@ -186,7 +205,12 @@ export function TablaExcel<T>({
       {/* ---------- Tarjetas (poco espacio) ---------- */}
       <ul className="grid items-start gap-3 @xl:grid-cols-2 @3xl:hidden">
         {filas.map((fila) => (
-          <li key={claveFila(fila)} className="overflow-hidden rounded-lg border">
+          <li
+            key={claveFila(fila)}
+            className={`overflow-hidden rounded-lg border ${fondoFila?.(fila) ?? ""} ${onDobleClickFila ? "cursor-pointer" : ""}`}
+            onDoubleClick={onDobleClickFila ? alDobleClic(() => onDobleClickFila(fila)) : undefined}
+            title={tituloFila}
+          >
             <div className="flex items-start gap-2 border-b bg-muted/40 px-3 py-2">
               <div className="min-w-0 flex-1">
                 <div className="font-medium break-words">{tarjeta.titulo(fila)}</div>
@@ -252,4 +276,33 @@ export function PaginacionExcel({
       </div>
     </div>
   )
+}
+
+// Orden por columna de lo que ya está en pantalla (la página cargada o una
+// lista que se trae completa). Clic en el encabezado: asc -> desc. Las claves
+// se calculan una vez por fila (n log n, no n² comparaciones de texto).
+export function useOrdenExcel<T>(filas: T[], columnas: ColumnaExcel<T>[], inicial: OrdenExcel | null = null) {
+  const [orden, setOrden] = useState<OrdenExcel | null>(inicial)
+  const ordenadas = useMemo(() => {
+    if (!orden) return filas
+    const col = columnas.find((c) => c.clave === orden.clave)
+    if (!col) return filas
+    const claves = filas.map((f) => {
+      const v = col.valorOrden ? col.valorOrden(f) : col.texto(f)
+      return typeof v === "string" ? v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() : v
+    })
+    const indices = filas.map((_, i) => i)
+    const factor = orden.dir === "asc" ? 1 : -1
+    indices.sort((a, b) => {
+      const x = claves[a]
+      const y = claves[b]
+      if (x == null || x === "") return y == null || y === "" ? 0 : 1
+      if (y == null || y === "") return -1
+      return (x < y ? -1 : x > y ? 1 : 0) * factor
+    })
+    return indices.map((i) => filas[i])
+  }, [filas, columnas, orden])
+  const ordenar = (clave: string) =>
+    setOrden((o) => (o?.clave === clave ? { clave, dir: o.dir === "asc" ? "desc" : "asc" } : { clave, dir: "asc" }))
+  return { ordenadas, orden, ordenar }
 }

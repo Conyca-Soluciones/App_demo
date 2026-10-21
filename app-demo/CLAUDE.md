@@ -2850,6 +2850,22 @@ Resumen para quien (Claude o persona) retome el trabajo. Rama de trabajo: **`lcp
   al elegir una pestaña, y una flecha en la orilla lo abre en la ruta actual.
   Para una pestaña nueva de A&F: entrada en `PESTANAS` con `modulo: "ayf"`.
 - **Columnas de tablas en Aprobación**: sin columna de estado de compras.
+- **Un solo lenguaje de tablas** (decisión del usuario, 2026-10-21: "mantener el
+  lenguaje de diseño homogéneo en toda la app"). Toda LISTA de registros usa
+  `TablaExcel` (encabezado azul, columnas marcadas, flechas para ordenar,
+  tarjetas en pantallas angostas, número como texto, no como enlace). Orden:
+  `useOrdenExcel(filas, columnas)` ordena lo que está en pantalla (la página
+  cargada); `valorOrden` para números y fechas; `fondoFila` para resaltar
+  (urgente en ámbar, sobrecosto en rojo, total en gris); `vacioEnBlanco` para
+  filas que agrupan (vista detallada de OC). Las tablas que no son listas
+  (líneas de un formulario o detalle) toman el mismo aspecto solas: estilo base
+  de `components/ui/table.tsx` y una regla en `app/globals.css` (capa base)
+  para todo `<table>` (encabezado azul y bordes; lo que la tabla ponga con
+  clases gana; `data-tabla-libre` la excluye). Ojo: si un `<th>` del
+  encabezado pone su propio fondo claro, también debe poner el color del texto
+  (la regla lo deja blanco). Tablas con campos en cada fila (Aprobación de
+  insumos y de MO): `CLASE_MARCO_EXCEL`, `CLASE_TABLA_EXCEL`,
+  `CLASE_ENCABEZADO_EXCEL`, `CLASE_CELDA_EXCEL` de tabla-excel.
 - **Doble clic abre el detalle en TODAS las listas** (decisión del usuario,
   2026-10-21; reemplaza "botón Ver que abre el detalle, no al hacer clic en la
   fila"): ventana común `VentanaDetalle` (`components/ventana-detalle.tsx`) con

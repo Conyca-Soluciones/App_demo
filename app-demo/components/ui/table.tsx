@@ -4,6 +4,10 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// Mismo lenguaje visual que TablaExcel (components/tabla-excel.tsx): encabezado
+// azul con texto pequeño, columnas y filas marcadas. Se usa en las tablas que
+// no son listas de registros (líneas de un formulario o de un detalle); las
+// listas usan TablaExcel.
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -13,7 +17,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       <table
         data-slot="table"
         className={cn(
-          "w-full caption-bottom text-sm",
+          "w-full caption-bottom border-separate border-spacing-0 text-sm",
           className
         )}
         {...props}
@@ -61,7 +65,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
         className
       )}
       {...props}
@@ -74,7 +78,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-12 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+        "h-auto border-r border-b border-primary-foreground/15 bg-primary px-3 py-2.5 text-left align-middle text-xs font-medium whitespace-nowrap text-primary-foreground last:border-r-0 [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -87,7 +91,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-3 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "border-r border-b px-3 py-2 align-middle whitespace-nowrap last:border-r-0 [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
