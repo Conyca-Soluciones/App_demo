@@ -2656,6 +2656,14 @@ otrosí.
   detalle del acta (quien elabora actas): soporte tipo `firmada_contratista`
   (`subir_acta_firmada_contratista`; una por acta, reemplaza la anterior;
   evento `firmada_contratista` en el historial). No se ofrece al elaborar.
+- **Órdenes de compra** (`20261130100000_firmas_ordenes_compra.sql`): al
+  aprobar una OC se copian las firmas de quien la elaboró (`created_by`) y quien
+  la aprobó (`trg_firmar_oc_aprobada`; no exige firma). Desaprobar y volver a
+  aprobar renueva fecha y código: el PDF congelado lleva el código de la firma
+  de quien aprobó en su ruta (`<entidad>/<id>-<código>.pdf`), así que se congela
+  otra vez y el registro se reemplaza (la huella vieja ya no verifica). La
+  migración firma las OC y actas aprobadas después de que quien aprobó registró
+  su firma. "Registra tu firma" también para Comprar y Aprobar OC.
 - **Mis pendientes** (`20261130000000_pendientes_firma_y_polizas.sql`, recrea
   `_pendientes_de` de main): `mi_firma` le sale a quien elabora o aprueba
   documentos (elaborar_actas, aprobar_pagos, aprobar_contratos,
@@ -3000,7 +3008,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas ·
 `20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr) ·
 `20261129000000` firmas electrónicas (fase 1) ·
-`20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`).
+`20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`) ·
+`20261130100000` firmas en órdenes de compra.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

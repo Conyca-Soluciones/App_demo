@@ -9,7 +9,7 @@ import { formatearFechaHora } from "@/lib/fechas"
 // para poder probarlas).
 // ---------------------------------------------------------------------------
 
-export type EntidadFirmada = "acta" | "poliza"
+export type EntidadFirmada = "acta" | "poliza" | "orden_compra"
 export type PapelFirma = "elaboro" | "aprobo" | "juridica"
 
 export type FirmaDocumento = {
@@ -80,10 +80,17 @@ export function textoFirmado(f: FirmaDocumento): string {
   return `Firmado electrónicamente el ${formatearFechaHora(f.firmadoAt)} · Código ${formatearCodigo(f.codigo)}`
 }
 
+// La firma de quien aprueba: con ella el documento queda firmado y su código
+// es la versión del PDF congelado (una OC desaprobada y vuelta a aprobar
+// renueva el código y se congela otra vez).
+export function firmaPrincipal(entidad: EntidadFirmada, firmas: FirmaDocumento[]): FirmaDocumento | null {
+  return firmaDe(firmas, entidad === "poliza" ? "juridica" : "aprobo")
+}
+
 // ¿El documento se aprobó con firmas (desde esta fase)? Solo esos se congelan:
 // un acta aprobada antes no tiene firmas y su PDF sigue saliendo como antes.
 export function documentoFirmado(entidad: EntidadFirmada, firmas: FirmaDocumento[]): boolean {
-  return firmas.some((f) => f.papel === (entidad === "acta" ? "aprobo" : "juridica"))
+  return firmaPrincipal(entidad, firmas) !== null
 }
 
 // ---------------------------------------------------------------- limpieza de la imagen

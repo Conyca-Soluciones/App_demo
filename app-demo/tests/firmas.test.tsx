@@ -15,6 +15,8 @@ import {
 } from "@/lib/firmas"
 import { ActaPDF } from "@/components/acta-pdf"
 import { ActaPolizaPDF } from "@/components/acta-poliza-pdf"
+import { OrdenCompraPDF } from "@/components/orden-compra-pdf"
+import type { OrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { actaPolizaPorDefecto, mapDatosActaPoliza } from "@/lib/acta-poliza"
 import type { ActaDetalle } from "@/lib/actas"
 
@@ -122,6 +124,24 @@ describe("PDF con firmas", () => {
     })
     const firma = { papel: "juridica" as const, nombre: "Ana", cargo: "Legal", imagen: PNG, codigo: "ABCDABCDABCD", firmadoAt: "2026-10-21T21:00:00Z" }
     const pdf = await renderToBuffer(<ActaPolizaPDF acta={actaPolizaPorDefecto(d, "2026-10-21")} logo={LOGO} firma={firma} />)
+    expect(pdf.subarray(0, 4).toString()).toBe("%PDF")
+  })
+})
+
+describe("orden de compra firmada", () => {
+  it("genera el PDF con las firmas de quien elaboró y aprobó", async () => {
+    const { firmas } = mapFirmasDeDocumento(crudo)
+    const orden = {
+      id: "o1", numero: 50, estado: "aprobada", estadoEntrega: "pendiente", estadoVisible: "aprobada",
+      proyectoCodigo: "P1", proyectoNombre: "Proyecto", proyectoCiudad: null, empresaNombre: null, empresaNit: null,
+      empresaLogoUrl: null, proveedorNombre: "Proveedor", proveedorNit: null, proveedorDireccion: null, proveedorCiudad: null,
+      proveedorTelefono: null, proveedorEmail: null, proveedorContacto: null, sitioEntrega: null, fechaEntrega: null,
+      contactoNombre: null, telefono: null, ciudad: null, email: null, condicionesPago: null, observaciones: null,
+      creadaPorNombre: "Dir Uno", creadaPorId: null, createdAt: "2026-10-21T15:00:00Z", aprobadaPorNombre: "AyF Tres",
+      aprobadaAt: "2026-10-21T16:00:00Z", motivoRechazo: null, motivoDesaprobacion: null, motivoCancelacion: null,
+      canceladaAt: null, anticipoPorcentaje: null, saldoModo: null, saldoFecha: null, lineas: [],
+    } as unknown as OrdenCompraDetalle
+    const pdf = await renderToBuffer(<OrdenCompraPDF orden={orden} firmas={firmas} />)
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF")
   })
 })

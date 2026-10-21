@@ -6,10 +6,21 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { hoyColombia } from "@/lib/fechas"
 import { ETIQUETA_TIPO_ACTA } from "@/lib/actas"
 import { actaPolizaPorDefecto, mapDatosActaPoliza, mezclarActaPoliza, nombreArchivoActaPoliza } from "@/lib/acta-poliza"
-import { documentoFirmado, firmaDe, mapFirmasDeDocumento, type DocumentoCongelado, type EntidadFirmada, type FirmasDeDocumento } from "@/lib/firmas"
+import {
+  documentoFirmado,
+  firmaDe,
+  firmaPrincipal,
+  mapFirmasDeDocumento,
+  type DocumentoCongelado,
+  type EntidadFirmada,
+  type FirmaDocumento,
+  type FirmasDeDocumento,
+} from "@/lib/firmas"
 import { ActaPDF } from "@/components/acta-pdf"
 import { ActaPolizaPDF } from "@/components/acta-poliza-pdf"
+import { OrdenCompraPDF } from "@/components/orden-compra-pdf"
 import { obtenerActa } from "@/app/(app)/contratos/actas/actions"
+import { obtenerOrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
 // ---------------------------------------------------------------------------
 // PDF de documentos firmados (SOLO servidor: usa la service role). Un
@@ -46,10 +57,13 @@ async function descargar(ruta: string): Promise<Uint8Array | null> {
   return data ? new Uint8Array(await data.arrayBuffer()) : null
 }
 
-// El PDF congelado; si todavía no existe, lo genera, lo sube y lo registra.
+// El PDF congelado; si todavía no existe para esta versión (el código de la
+// firma de quien aprobó), lo genera, lo sube y lo registra. Una versión nueva
+// (OC vuelta a aprobar) reemplaza el registro: la huella vieja ya no verifica.
 export async function pdfCongelado(
   entidad: EntidadFirmada,
   id: string,
+  version: string,
   registro: DocumentoCongelado | null,
   generar: () => Promise<Uint8Array>
 ): Promise<{ pdf: Uint8Array; sha256: string | null }> {
@@ -57,7 +71,8 @@ export async function pdfCongelado(
     console.error("SUPABASE_SERVICE_ROLE_KEY no está configurada: el PDF firmado no se congela.")
     return { pdf: await generar(), sha256: null }
   }
-  if (registro) {
+  const ruta = `${entidad}/${id}-${version}.pdf`
+  if (registro && registro.ruta === ruta) {
     const pdf = await descargar(registro.ruta)
     if (!pdf) throw new Error("No se encontró el PDF firmado guardado. Avisa al administrador.")
     const hash = sha256Hex(pdf)
@@ -66,7 +81,6 @@ export async function pdfCongelado(
   }
 
   const admin = createAdminClient()
-  const ruta = `${entidad}/${id}.pdf`
   let pdf = await generar()
   const { error: errorSubir } = await admin.storage.from(BUCKET).upload(ruta, pdf, { contentType: "application/pdf", upsert: false })
   if (errorSubir) {
@@ -81,29 +95,47 @@ export async function pdfCongelado(
   const hash = sha256Hex(pdf)
   const { error } = await admin
     .from("documentos_firmados")
-    .upsert({ entidad, entidad_id: id, ruta, sha256: hash, tamano: pdf.byteLength }, { onConflict: "entidad,entidad_id", ignoreDuplicates: true })
+    .upsert({ entidad, entidad_id: id, ruta, sha256: hash, tamano: pdf.byteLength }, { onConflict: "entidad,entidad_id" })
   if (error) console.error(`No se pudo registrar ${ruta}:`, error.message)
   return { pdf, sha256: hash }
+}
+
+// Congelado si el documento está aprobado con firmas; si no, el PDF de siempre.
+async function firmadoOVivo(
+  entidad: EntidadFirmada,
+  id: string,
+  aprobado: boolean,
+  { firmas, congelado: registro }: FirmasDeDocumento,
+  generar: () => Promise<Uint8Array>
+): Promise<{ pdf: Uint8Array; sha256: string | null }> {
+  const principal: FirmaDocumento | null = aprobado ? firmaPrincipal(entidad, firmas) : null
+  if (principal) return pdfCongelado(entidad, id, principal.codigo, registro, generar)
+  return { pdf: await generar(), sha256: null }
 }
 
 const sinTildes = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "")
 
 // ---------------------------------------------------------------- acta de obra
 export async function pdfActa(supabase: Supabase, id: string): Promise<PdfDocumento> {
-  const [acta, { firmas, congelado: registro }] = await Promise.all([obtenerActa(id), leerFirmas(supabase, "acta", id)])
+  const [acta, f] = await Promise.all([obtenerActa(id), leerFirmas(supabase, "acta", id)])
   const nombre = sinTildes(`${ETIQUETA_TIPO_ACTA[acta.tipo].toLowerCase().replace(/\s+/g, "-")}-${acta.numero}-${acta.numeroContrato}.pdf`)
-  const generar = async () => new Uint8Array(await renderToBuffer(<ActaPDF acta={acta} logo={LOGO_CONYCA_PATH} firmas={firmas} />))
-  if (acta.estado === "aprobada" && documentoFirmado("acta", firmas)) {
-    return { nombre, ...(await pdfCongelado("acta", id, registro, generar)) }
-  }
-  return { nombre, pdf: await generar(), sha256: null }
+  const generar = async () => new Uint8Array(await renderToBuffer(<ActaPDF acta={acta} logo={LOGO_CONYCA_PATH} firmas={f.firmas} />))
+  return { nombre, ...(await firmadoOVivo("acta", id, acta.estado === "aprobada", f, generar)) }
+}
+
+// ---------------------------------------------------------------- orden de compra (solo aprobada)
+export async function pdfOrdenCompra(supabase: Supabase, id: string): Promise<PdfDocumento> {
+  const [orden, f] = await Promise.all([obtenerOrdenCompraDetalle(id), leerFirmas(supabase, "orden_compra", id)])
+  if (orden.estado !== "aprobada") throw new Error("Solo se puede descargar el PDF de una orden ya aprobada.")
+  const generar = async () => new Uint8Array(await renderToBuffer(<OrdenCompraPDF orden={orden} firmas={f.firmas} />))
+  return { nombre: `orden-compra-${orden.numero}.pdf`, ...(await firmadoOVivo("orden_compra", id, true, f, generar)) }
 }
 
 // ---------------------------------------------------------------- acta de aprobación de póliza
 // `minuta` = lo que Jurídica tiene en pantalla sin guardar (solo cuenta con la
 // póliza por revisar). Aprobada con firma, sale siempre el PDF congelado.
 export async function pdfActaPoliza(supabase: Supabase, id: string, minuta?: unknown, foco?: string): Promise<PdfDocumento> {
-  const [{ data, error }, { firmas, congelado: registro }] = await Promise.all([
+  const [{ data, error }, f] = await Promise.all([
     supabase.rpc("datos_acta_poliza", { p_id: id }),
     leerFirmas(supabase, "poliza", id),
   ])
@@ -112,7 +144,7 @@ export async function pdfActaPoliza(supabase: Supabase, id: string, minuta?: unk
   const base = mezclarActaPoliza(actaPolizaPorDefecto(d, hoyColombia()), d.actaDatos)
   const editable = d.poliza.estado === "por_revisar"
   const nombre = nombreArchivoActaPoliza(d.contrato.numeroContrato)
-  const firmada = d.poliza.estado === "aprobada" && documentoFirmado("poliza", firmas)
+  const firmada = d.poliza.estado === "aprobada" && documentoFirmado("poliza", f.firmas)
   const acta = { ...(editable ? mezclarActaPoliza(base, minuta) : base), numeroContrato: d.contrato.numeroContrato }
   const generar = async () =>
     new Uint8Array(
@@ -122,10 +154,9 @@ export async function pdfActaPoliza(supabase: Supabase, id: string, minuta?: unk
           logo={LOGO_CONYCA_PATH}
           foco={firmada ? undefined : foco}
           borrador={d.poliza.estado !== "aprobada"}
-          firma={firmaDe(firmas, "juridica")}
+          firma={firmaDe(f.firmas, "juridica")}
         />
       )
     )
-  if (firmada) return { nombre, ...(await pdfCongelado("poliza", id, registro, generar)) }
-  return { nombre, pdf: await generar(), sha256: null }
+  return { nombre, ...(await firmadoOVivo("poliza", id, firmada, f, generar)) }
 }

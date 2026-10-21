@@ -362,5 +362,9 @@ select * from (
   select '20261130000000_pendientes_firma_y_polizas',
          exists (select 1 from pg_proc where proname = '_pendientes_de'
                   and pg_get_functiondef(oid) like '%mi_firma%' and pg_get_functiondef(oid) like '%poliza_por_revisar%')
+  union all
+  select '20261130100000_firmas_ordenes_compra',
+         exists (select 1 from pg_trigger where tgname = 'trg_firmar_oc_aprobada')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%or public.tiene_accion(p_uid, ''aprobar_oc'')%')
 ) t
 order by 1;
