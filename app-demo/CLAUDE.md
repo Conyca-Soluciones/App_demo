@@ -2674,16 +2674,20 @@ otrosí.
   pendiente o devuelta) y `poliza_por_revisar` (Jurídica con la pestaña).
   OJO: quien vuelva a recrear `_pendientes_de` debe conservar estos bloques.
 - **Representantes legales** (`20261201000000_representantes_legales.sql`,
-  decisiones del usuario 2026-10-21): `empresa_representantes` (principal, uno
-  activo por empresa, y suplentes; documento, expedición, `perfil_id` si usa la
-  app, `imagen_firma` si no). Los registra Subgerencia (acción
-  `aprobar_minutas`) en Contratos › Representantes legales
-  (`contratos.representantes`, `components/representantes-legales-view.tsx`;
-  la firma se dibuja o se sube con el mismo editor de Mi firma). Un principal
-  nuevo deja inactivo al anterior. Sin políticas: todo por funciones
-  (`listar_representantes_legales`, `guardar_representante_legal`,
-  `desactivar_representante_legal`, `representantes_de_contrato` sin la
-  imagen). La minuta trae al principal (`DatosExtraMinuta.empresaRepresentante`
+  decisiones del usuario 2026-10-21): `empresa_representantes` (un principal y
+  un suplente activos por empresa; documento, expedición, `perfil_id` si usa la
+  app, `imagen_firma` si no). Los DATOS se registran en Admin › Empresas
+  (botón "Representantes", `components/representantes-empresa-dialog.tsx`,
+  `guardar_representantes_empresa`, solo Administrador): mismo documento =
+  corregir datos y conservar la firma; otro documento = el anterior queda
+  inactivo y entra el nuevo (o vuelve uno anterior con ese documento, con su
+  firma; el intercambio principal <-> suplente también conserva las firmas).
+  La FIRMA la pone Subgerencia (acción `aprobar_minutas`) en Contratos › Firmas
+  de representantes (`contratos.representantes`,
+  `components/representantes-legales-view.tsx`, `guardar_firma_representante`;
+  dibujada o subida con el editor de Mi firma, y el usuario si usa la app).
+  Sin políticas: todo por funciones (`listar_representantes_legales`,
+  `representantes_de_contrato` sin la imagen). La minuta trae al principal (`DatosExtraMinuta.empresaRepresentante`
   en `cargarBaseMinuta`) y Jurídica lo cambia por un suplente con
   `SelectorRepresentante` (en los 6 editores). Al aprobar la minuta,
   `trg_firmar_representante_contrato` copia la firma del representante CUYA

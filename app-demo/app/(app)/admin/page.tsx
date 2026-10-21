@@ -13,6 +13,7 @@ import {
   actualizarLogoEmpresa,
   listarConsolidados,
   asignarConsolidadoEmpresa,
+  listarRepresentantesEmpresas,
   type Proyecto,
   type Empresa,
   type Consolidado,
@@ -26,6 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { RepresentantesEmpresaDialog } from "@/components/representantes-empresa-dialog"
+import { principalActivo, suplenteActivo, type EmpresaConRepresentantes, type RepresentanteLegal } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
 // Tab de Proyectos
@@ -318,6 +321,20 @@ function TabEmpresas({
 
   const proyectosDe = (empresaId: string) => proyectos.filter((p) => p.empresaId === empresaId).length
 
+  // Representante legal y suplente de cada empresa (una sola carga, por id).
+  const [representantes, setRepresentantes] = useState<Map<string, RepresentanteLegal[]>>(new Map())
+  const [versionRep, setVersionRep] = useState(0)
+  const [repEditando, setRepEditando] = useState<Empresa | null>(null)
+  useEffect(() => {
+    let vigente = true
+    listarRepresentantesEmpresas()
+      .then((lista: EmpresaConRepresentantes[]) => vigente && setRepresentantes(new Map(lista.map((x) => [x.id, x.representantes]))))
+      .catch(() => vigente && setRepresentantes(new Map()))
+    return () => {
+      vigente = false
+    }
+  }, [versionRep])
+
   async function handleCrear() {
     if (!nitNuevo.trim() || !razonNueva.trim()) return
     setCreando(true)
@@ -531,9 +548,13 @@ function TabEmpresas({
                     Quitar logo
                   </Button>
                 )}
+                <Button size="sm" variant="ghost" onClick={() => setRepEditando(e)}>
+                  Representantes
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => empezarAEditar(e)}>
                   Editar
                 </Button>
+                <ResumenRepresentantes reps={representantes.get(e.id) ?? []} />
                 <Button
                   size="sm"
                   variant="ghost"
@@ -553,7 +574,32 @@ function TabEmpresas({
           </p>
         )}
       </div>
+      {repEditando && (
+        <RepresentantesEmpresaDialog
+          empresa={repEditando}
+          principal={principalActivo(representantes.get(repEditando.id) ?? [])}
+          suplente={suplenteActivo(representantes.get(repEditando.id) ?? [])}
+          onCerrar={() => setRepEditando(null)}
+          onGuardado={() => {
+            setRepEditando(null)
+            setVersionRep((v) => v + 1)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// Debajo de la empresa: quién es su representante legal y su suplente.
+function ResumenRepresentantes({ reps }: { reps: RepresentanteLegal[] }) {
+  const p = principalActivo(reps)
+  const su = suplenteActivo(reps)
+  const texto = (r: RepresentanteLegal) => `${r.nombre} (${r.tipoDocumento} ${r.numeroDocumento})`
+  return (
+    <p className="basis-full pl-[52px] text-xs text-muted-foreground">
+      {p ? `Representante legal: ${texto(p)}` : <span className="text-amber-700">Sin representante legal</span>}
+      {su ? ` · Suplente: ${texto(su)}` : ""}
+    </p>
   )
 }
 

@@ -7,18 +7,16 @@ import {
   mapEmpresasRepresentantes,
   mapFirmaRepresentante,
   mapRepresentante,
-  soloDigitos,
-  validarRepresentante,
-  type DatosRepresentante,
   type EmpresaConRepresentantes,
   type FirmaRepresentanteContrato,
   type RepresentanteLegal,
 } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
-// Representantes legales (pestaña contratos.representantes; registrar y
-// cambiar exige la acción aprobar_minutas, Subgerencia). Todo pasa por las
-// funciones de 20261201000000_representantes_legales.sql.
+// Firmas de representantes legales (pestaña contratos.representantes; poner
+// la firma exige la acción aprobar_minutas, Subgerencia). Los datos del
+// representante se registran en Admin › Empresas. Todo pasa por las funciones
+// de 20261201000000_representantes_legales.sql.
 // ---------------------------------------------------------------------------
 
 export async function listarRepresentantesLegales(): Promise<EmpresaConRepresentantes[]> {
@@ -29,41 +27,26 @@ export async function listarRepresentantesLegales(): Promise<EmpresaConRepresent
   return mapEmpresasRepresentantes(data)
 }
 
-// imagenFirma: undefined = no cambia; null = quitarla; texto = PNG nuevo.
-export async function guardarRepresentanteLegal(
-  id: string | null,
-  empresaId: string,
-  datos: DatosRepresentante,
-  imagenFirma?: string | null
-): Promise<string> {
+// Subgerencia: la firma de un representante y, si usa la app, su usuario.
+// Cada campo solo cambia si viene: imagenFirma null = quitarla; perfilId null =
+// no usa la app.
+export async function guardarFirmaRepresentante(
+  id: string,
+  cambios: { imagenFirma?: string | null; perfilId?: string | null }
+): Promise<void> {
   await requerirAccion("aprobar_minutas")
-  const problema = validarRepresentante(datos)
-  if (problema) throw new Error(problema)
+  const { imagenFirma, perfilId } = cambios
   if (imagenFirma && (!imagenFirma.startsWith("data:image/png;base64,") || imagenFirma.length > MAXIMO_CARACTERES_FIRMA)) {
     throw new Error("La firma no es válida.")
   }
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("guardar_representante_legal", {
+  const { error } = await supabase.rpc("guardar_firma_representante", {
     p_id: id,
-    p_empresa_id: empresaId,
     p_datos: {
-      tipo: datos.tipo,
-      nombre: datos.nombre.trim(),
-      tipo_documento: datos.tipoDocumento,
-      numero_documento: soloDigitos(datos.numeroDocumento),
-      expedida_en: datos.expedidaEn.trim(),
-      perfil_id: datos.perfilId,
       ...(imagenFirma !== undefined ? { imagen_firma: imagenFirma } : {}),
+      ...(perfilId !== undefined ? { perfil_id: perfilId } : {}),
     },
   })
-  if (error) throw new Error(error.message)
-  return String(data)
-}
-
-export async function desactivarRepresentanteLegal(id: string): Promise<void> {
-  await requerirAccion("aprobar_minutas")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("desactivar_representante_legal", { p_id: id })
   if (error) throw new Error(error.message)
 }
 

@@ -35,8 +35,7 @@ export function SelectorRepresentante({
   if (reps.lista.length === 0)
     return (
       <p className="mb-2 text-xs text-muted-foreground">
-        La empresa no tiene representantes legales registrados (Contratos › Representantes legales): el contrato se aprueba sin
-        su firma.
+        La empresa no tiene representantes legales registrados (Admin › Empresas): el contrato se aprueba sin su firma.
       </p>
     )
   const actual = soloDigitos(documentoActual)

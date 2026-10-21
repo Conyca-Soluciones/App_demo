@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // Representantes legales de las empresas (20261201000000_representantes_legales.sql).
-// Cada empresa tiene un principal y puede tener suplentes; los registra
-// Subgerencia. Su firma (la de su "Mi firma" si usa la app, o la que sube
-// Subgerencia) se pone en el contrato al aprobar la minuta: firma el
-// representante cuya cédula está en la minuta.
+// Cada empresa tiene un representante legal (principal) y un suplente: sus
+// datos se registran en Admin › Empresas; la firma la pone Subgerencia en
+// Contratos › Firmas de representantes (o, si usa la app, su "Mi firma"). Se
+// pone en el contrato al aprobar la minuta: firma el representante cuya cédula
+// está en la minuta.
 // ---------------------------------------------------------------------------
 
 export type TipoRepresentante = "principal" | "suplente"
@@ -34,14 +35,24 @@ export type RepresentanteLegal = {
 
 export type EmpresaConRepresentantes = { id: string; razonSocial: string; nit: string | null; representantes: RepresentanteLegal[] }
 
+// Lo que se registra en Admin › Empresas (sin la firma).
 export type DatosRepresentante = {
-  tipo: TipoRepresentante
   nombre: string
   tipoDocumento: TipoDocumentoRepresentante
   numeroDocumento: string
   expedidaEn: string
-  perfilId: string | null
 }
+
+export const representanteVacio = (): DatosRepresentante => ({ nombre: "", tipoDocumento: "CC", numeroDocumento: "", expedidaEn: "" })
+
+export function datosDeRepresentante(r: RepresentanteLegal | null | undefined): DatosRepresentante {
+  return r
+    ? { nombre: r.nombre, tipoDocumento: r.tipoDocumento, numeroDocumento: r.numeroDocumento, expedidaEn: r.expedidaEn ?? "" }
+    : representanteVacio()
+}
+
+// Sin nombre ni documento = la empresa queda sin él.
+export const representanteEnBlanco = (d: DatosRepresentante) => !d.nombre.trim() && !soloDigitos(d.numeroDocumento)
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function mapRepresentante(r: any): RepresentanteLegal {
@@ -82,11 +93,31 @@ export function origenFirmaRepresentante(r: RepresentanteLegal): "usuario" | "su
 
 export const soloDigitos = (s: string) => s.replace(/\D/g, "")
 
-export function validarRepresentante(d: DatosRepresentante): string | null {
-  if (d.nombre.trim().length < 3) return "Escribe el nombre del representante."
+export function validarRepresentante(d: DatosRepresentante, quien = "del representante"): string | null {
+  if (d.nombre.trim().length < 3) return `Escribe el nombre ${quien}.`
   const doc = soloDigitos(d.numeroDocumento)
-  if (doc.length < 4 || doc.length > 15) return "El número de documento debe tener solo números (4 a 15)."
+  if (doc.length < 4 || doc.length > 15) return `El documento ${quien} debe tener solo números (4 a 15).`
   return null
+}
+
+// Principal y suplente de Admin › Empresas: cada uno vacío o completo, y no la misma persona.
+export function validarRepresentantesEmpresa(principal: DatosRepresentante, suplente: DatosRepresentante): string | null {
+  if (!representanteEnBlanco(principal)) {
+    const p = validarRepresentante(principal, "del representante legal")
+    if (p) return p
+  }
+  if (!representanteEnBlanco(suplente)) {
+    const p = validarRepresentante(suplente, "del suplente")
+    if (p) return p
+  }
+  const dp = soloDigitos(principal.numeroDocumento)
+  if (dp && dp === soloDigitos(suplente.numeroDocumento)) return "El representante legal y el suplente no pueden ser la misma persona."
+  return null
+}
+
+// El suplente activo de una empresa.
+export function suplenteActivo(reps: RepresentanteLegal[]): RepresentanteLegal | null {
+  return reps.find((r) => r.activo && r.tipo === "suplente") ?? null
 }
 
 // El principal activo de una empresa (el que llena la minuta).
@@ -116,10 +147,10 @@ export function textoFirmaRepresentante(f: FirmaRepresentanteContrato): { texto:
     case "ok":
       return { texto: `Al aprobar se pone la firma de ${f.nombre} (representante legal${f.tipo === "suplente" ? " suplente" : ""} de ${f.empresa}).`, bloquea: false }
     case "sin_firma":
-      return { texto: `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: súbela en Contratos › Representantes legales antes de aprobar.`, bloquea: true }
+      return { texto: `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: ponla en Contratos › Firmas de representantes antes de aprobar.`, bloquea: true }
     case "no_coincide":
       return {
-        texto: `El representante de la minuta (${[f.minutaNombre, f.minutaDocumento && `C.C. ${f.minutaDocumento}`].filter(Boolean).join(", ") || "sin datos"}) no está registrado en ${f.empresa}: regístralo en Representantes legales o devuelve la minuta a Jurídica.`,
+        texto: `El representante de la minuta (${[f.minutaNombre, f.minutaDocumento && `C.C. ${f.minutaDocumento}`].filter(Boolean).join(", ") || "sin datos"}) no está registrado en ${f.empresa}: regístralo en Admin › Empresas o devuelve la minuta a Jurídica.`,
         bloquea: true,
       }
     default:

@@ -3,6 +3,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requerirAdmin } from "@/lib/permisos"
+import {
+  mapEmpresasRepresentantes,
+  representanteEnBlanco,
+  soloDigitos,
+  validarRepresentantesEmpresa,
+  type DatosRepresentante,
+  type EmpresaConRepresentantes,
+} from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
 // Empresas -- consorcios/razones sociales bajo las cuales CONYCA ejecuta
@@ -373,4 +381,39 @@ export async function cambiarPasswordUsuario(usuarioId: string, nuevaPassword: s
   if (error) {
     throw new Error(error.message)
   }
+}
+// ---------------------------------------------------------------------------
+// Representantes legales de las empresas (20261201000000): el principal y el
+// suplente se registran aquí; la firma la pone Subgerencia en Contratos ›
+// Firmas de representantes.
+// ---------------------------------------------------------------------------
+
+export async function listarRepresentantesEmpresas(): Promise<EmpresaConRepresentantes[]> {
+  await requerirAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("listar_representantes_legales")
+  if (error) throw new Error(error.message)
+  return mapEmpresasRepresentantes(data)
+}
+
+// Vacío (sin nombre ni documento) = la empresa queda sin él.
+export async function guardarRepresentantesEmpresa(
+  empresaId: string,
+  principal: DatosRepresentante,
+  suplente: DatosRepresentante
+): Promise<void> {
+  await requerirAdmin()
+  const problema = validarRepresentantesEmpresa(principal, suplente)
+  if (problema) throw new Error(problema)
+  const aBase = (d: DatosRepresentante) =>
+    representanteEnBlanco(d)
+      ? null
+      : { nombre: d.nombre.trim(), tipo_documento: d.tipoDocumento, numero_documento: soloDigitos(d.numeroDocumento), expedida_en: d.expedidaEn.trim() }
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("guardar_representantes_empresa", {
+    p_empresa_id: empresaId,
+    p_principal: aBase(principal),
+    p_suplente: aBase(suplente),
+  })
+  if (error) throw new Error(error.message)
 }

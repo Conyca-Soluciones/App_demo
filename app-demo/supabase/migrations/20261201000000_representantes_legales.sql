@@ -1,13 +1,15 @@
 -- Representantes legales de las empresas (2026-10-21, firmas fase 2).
 -- Decisiones del usuario:
---   * Cada empresa tiene un representante legal principal y puede tener
---     suplentes. Los registra Subgerencia (acción aprobar_minutas, pestaña
---     Contratos › Representantes legales).
---   * Algunos usan la app (se enlazan a su usuario y firma con su "Mi firma");
---     de los que no, Subgerencia sube la firma.
---   * Su firma la pone la aprobación de Subgerencia sobre la minuta: el
---     representante que firma es el de la minuta (se busca por su cédula entre
---     los activos de la empresa del proyecto). Así el texto y la firma siempre
+--   * Cada empresa tiene un representante legal (principal) y un suplente. Sus
+--     datos (nombre y documento) se registran en Admin › Empresas, donde se
+--     crean las empresas (solo Administrador: guardar_representantes_empresa).
+--   * La firma la pone Subgerencia (acción aprobar_minutas) en Contratos ›
+--     Firmas de representantes (guardar_firma_representante): la dibuja o la
+--     sube; si el representante usa la app, se enlaza a su usuario y firma con
+--     su "Mi firma".
+--   * La firma se pone en el contrato cuando Subgerencia aprueba la minuta:
+--     firma el representante cuya cédula está en la minuta (se busca entre los
+--     activos de la empresa del proyecto), así el texto y la firma siempre
 --     coinciden. Si la empresa no tiene representantes registrados, la minuta
 --     se aprueba como antes (sin firma). Si los tiene y la minuta trae otro, o
 --     el representante no tiene firma, no deja aprobar (dice qué falta).
@@ -33,9 +35,11 @@ create table if not exists public.empresa_representantes (
 create index if not exists idx_empresa_representantes_empresa on public.empresa_representantes (empresa_id) where activo;
 create index if not exists idx_empresa_representantes_perfil on public.empresa_representantes (perfil_id);
 create index if not exists idx_empresa_representantes_actualizado_por on public.empresa_representantes (actualizado_por);
--- Un solo principal activo por empresa; la misma persona una vez por empresa.
+-- Un principal y un suplente activos por empresa; la misma persona una vez.
 create unique index if not exists uq_empresa_representante_principal
   on public.empresa_representantes (empresa_id) where activo and tipo = 'principal';
+create unique index if not exists uq_empresa_representante_suplente
+  on public.empresa_representantes (empresa_id) where activo and tipo = 'suplente';
 create unique index if not exists uq_empresa_representante_documento
   on public.empresa_representantes (empresa_id, numero_documento) where activo;
 alter table public.empresa_representantes enable row level security;
@@ -74,7 +78,7 @@ as $$
 $$;
 revoke all on function public._puede_ver_contrato_rl(uuid) from public, anon, authenticated;
 
--- ---------------------------------------------------------------- gestión (Subgerencia)
+-- ---------------------------------------------------------------- gestión
 create or replace function public._fila_representante(r public.empresa_representantes, p_con_imagen boolean)
 returns jsonb
 language sql
@@ -92,7 +96,8 @@ as $$
 $$;
 revoke all on function public._fila_representante(public.empresa_representantes, boolean) from public, anon, authenticated;
 
--- Todas las empresas con sus representantes (activos e inactivos), con la firma.
+-- Todas las empresas con sus representantes (activos e inactivos), con la
+-- firma: Admin › Empresas y Contratos › Firmas de representantes.
 create or replace function public.listar_representantes_legales()
 returns jsonb
 language plpgsql
@@ -100,7 +105,7 @@ stable security definer
 set search_path = public
 as $$
 begin
-  if not public.tiene_accion(auth.uid(), 'aprobar_minutas') then
+  if not (public.tiene_accion(auth.uid(), 'aprobar_minutas') or public.es_admin(auth.uid())) then
     raise exception 'No tienes permiso para ver los representantes legales.';
   end if;
   return coalesce((
@@ -117,78 +122,104 @@ $$;
 revoke all on function public.listar_representantes_legales() from public, anon;
 grant execute on function public.listar_representantes_legales() to authenticated;
 
--- Crear (p_id null) o editar. imagen_firma solo cambia si viene la clave
--- (null = quitarla). Un principal nuevo deja inactivo al anterior.
-create or replace function public.guardar_representante_legal(p_id uuid, p_empresa_id uuid, p_datos jsonb)
-returns uuid
+-- Admin › Empresas: el principal y el suplente de una empresa. Cada uno es
+-- {nombre, tipo_documento, numero_documento, expedida_en} o null / vacío
+-- (= la empresa queda sin él). Con el mismo documento se corrigen los datos y
+-- se conserva la firma; con otro, el anterior queda inactivo (los contratos
+-- que firmó no cambian) y entra uno nuevo sin firma (o vuelve uno anterior de
+-- la empresa con ese documento, con su firma).
+create or replace function public._guardar_representante_empresa(p_empresa_id uuid, p_tipo text, p jsonb)
+returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_id uuid := p_id;
-  v_tipo text := p_datos->>'tipo';
-  v_doc text := regexp_replace(coalesce(p_datos->>'numero_documento', ''), '[^0-9]', '', 'g');
-  v_perfil uuid := nullif(p_datos->>'perfil_id', '')::uuid;
-  v_empresa uuid := p_empresa_id;
+  v_doc text := regexp_replace(coalesce(p->>'numero_documento', ''), '[^0-9]', '', 'g');
+  v_nombre text := btrim(coalesce(p->>'nombre', ''));
+  v_tipo_doc text := coalesce(nullif(p->>'tipo_documento', ''), 'CC');
+  v_expedida text := nullif(btrim(coalesce(p->>'expedida_en', '')), '');
+  v_anterior uuid;
+  v_titulo text := case when p_tipo = 'principal' then 'del representante legal' else 'del suplente' end;
 begin
-  if not public.tiene_accion(v_uid, 'aprobar_minutas') then
-    raise exception 'No tienes permiso para registrar representantes legales.';
+  if v_nombre = '' and v_doc = '' then
+    return; -- sin él (guardar_representantes_empresa ya dejó inactivo al anterior)
   end if;
-  if v_tipo not in ('principal', 'suplente') then
-    raise exception 'Escoge si es el representante principal o un suplente.';
-  end if;
-  if length(btrim(coalesce(p_datos->>'nombre', ''))) < 3 then
-    raise exception 'Escribe el nombre del representante.';
+  if length(v_nombre) < 3 then
+    raise exception 'Escribe el nombre %.', v_titulo;
   end if;
   if v_doc !~ '^[0-9]{4,15}$' then
-    raise exception 'El número de documento debe tener solo números (4 a 15).';
+    raise exception 'El documento % debe tener solo números (4 a 15).', v_titulo;
   end if;
-  if p_datos ? 'imagen_firma' and p_datos->>'imagen_firma' is not null
-     and (p_datos->>'imagen_firma' not like 'data:image/png;base64,%' or length(p_datos->>'imagen_firma') > 300000) then
-    raise exception 'La firma no es válida.';
-  end if;
-
-  if v_id is not null then
-    select empresa_id into v_empresa from empresa_representantes where id = v_id for update;
-    if not found then
-      raise exception 'El representante no existe.';
-    end if;
-  elsif not exists (select 1 from empresas where id = v_empresa) then
-    raise exception 'La empresa no existe.';
+  if v_tipo_doc not in ('CC', 'CE', 'PPT', 'PA') then
+    raise exception 'Tipo de documento no válido.';
   end if;
 
-  if v_tipo = 'principal' then
-    update empresa_representantes set activo = false, actualizado_at = now(), actualizado_por = v_uid
-     where empresa_id = v_empresa and activo and tipo = 'principal' and id is distinct from v_id;
+  -- El mismo de antes: se corrigen sus datos (conserva la firma).
+  update empresa_representantes
+     set nombre = v_nombre, tipo_documento = v_tipo_doc, expedida_en = v_expedida,
+         actualizado_at = now(), actualizado_por = v_uid
+   where empresa_id = p_empresa_id and activo and tipo = p_tipo and numero_documento = v_doc;
+  if found then
+    return;
   end if;
-
-  if v_id is null then
-    insert into empresa_representantes (empresa_id, tipo, nombre, tipo_documento, numero_documento, expedida_en,
-                                        perfil_id, imagen_firma, actualizado_por)
-    values (v_empresa, v_tipo, btrim(p_datos->>'nombre'), coalesce(nullif(p_datos->>'tipo_documento', ''), 'CC'), v_doc,
-            nullif(btrim(coalesce(p_datos->>'expedida_en', '')), ''), v_perfil, p_datos->>'imagen_firma', v_uid)
-    returning id into v_id;
-  else
+  -- ¿Ya fue representante de la empresa con ese documento? Vuelve con su firma.
+  select id into v_anterior from empresa_representantes
+   where empresa_id = p_empresa_id and numero_documento = v_doc and not activo
+   order by actualizado_at desc limit 1;
+  if v_anterior is not null then
     update empresa_representantes
-       set tipo = v_tipo, nombre = btrim(p_datos->>'nombre'),
-           tipo_documento = coalesce(nullif(p_datos->>'tipo_documento', ''), 'CC'), numero_documento = v_doc,
-           expedida_en = nullif(btrim(coalesce(p_datos->>'expedida_en', '')), ''), perfil_id = v_perfil,
-           imagen_firma = case when p_datos ? 'imagen_firma' then p_datos->>'imagen_firma' else imagen_firma end,
-           activo = true, actualizado_at = now(), actualizado_por = v_uid
-     where id = v_id;
+       set tipo = p_tipo, nombre = v_nombre, tipo_documento = v_tipo_doc, expedida_en = v_expedida, activo = true,
+           actualizado_at = now(), actualizado_por = v_uid
+     where id = v_anterior;
+  else
+    insert into empresa_representantes (empresa_id, tipo, nombre, tipo_documento, numero_documento, expedida_en, actualizado_por)
+    values (p_empresa_id, p_tipo, v_nombre, v_tipo_doc, v_doc, v_expedida, v_uid);
   end if;
-  return v_id;
-exception
-  when unique_violation then
-    raise exception 'Ya hay un representante activo con ese documento en la empresa.';
 end;
 $$;
-revoke all on function public.guardar_representante_legal(uuid, uuid, jsonb) from public, anon;
-grant execute on function public.guardar_representante_legal(uuid, uuid, jsonb) to authenticated;
+revoke all on function public._guardar_representante_empresa(uuid, text, jsonb) from public, anon, authenticated;
 
-create or replace function public.desactivar_representante_legal(p_id uuid)
+create or replace function public.guardar_representantes_empresa(p_empresa_id uuid, p_principal jsonb, p_suplente jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.es_admin(auth.uid()) then
+    raise exception 'Solo el Administrador registra los representantes legales.';
+  end if;
+  if not exists (select 1 from empresas where id = p_empresa_id) then
+    raise exception 'La empresa no existe.';
+  end if;
+  if nullif(regexp_replace(coalesce(p_principal->>'numero_documento', ''), '[^0-9]', '', 'g'), '')
+     = nullif(regexp_replace(coalesce(p_suplente->>'numero_documento', ''), '[^0-9]', '', 'g'), '') then
+    raise exception 'El representante legal y el suplente no pueden ser la misma persona.';
+  end if;
+  -- Primero quedan inactivos los que cambian de lugar o se van (así un
+  -- intercambio principal <-> suplente no choca con los índices únicos y cada
+  -- uno vuelve con su firma).
+  update empresa_representantes r
+     set activo = false, actualizado_at = now(), actualizado_por = auth.uid()
+   where r.empresa_id = p_empresa_id and r.activo
+     and r.numero_documento is distinct from regexp_replace(coalesce(
+           (case when r.tipo = 'principal' then p_principal else p_suplente end)->>'numero_documento', ''), '[^0-9]', '', 'g');
+  perform public._guardar_representante_empresa(p_empresa_id, 'suplente', coalesce(p_suplente, '{}'::jsonb));
+  perform public._guardar_representante_empresa(p_empresa_id, 'principal', coalesce(p_principal, '{}'::jsonb));
+exception
+  when unique_violation then
+    raise exception 'El representante legal y el suplente no pueden ser la misma persona.';
+end;
+$$;
+revoke all on function public.guardar_representantes_empresa(uuid, jsonb, jsonb) from public, anon;
+grant execute on function public.guardar_representantes_empresa(uuid, jsonb, jsonb) to authenticated;
+
+-- Contratos › Firmas de representantes (Subgerencia): la firma de un
+-- representante activo y, si usa la app, su usuario. Cada clave solo cambia si
+-- viene: imagen_firma (null = quitarla) y perfil_id (null = no usa la app).
+create or replace function public.guardar_firma_representante(p_id uuid, p_datos jsonb)
 returns void
 language plpgsql
 security definer
@@ -196,14 +227,28 @@ set search_path = public
 as $$
 begin
   if not public.tiene_accion(auth.uid(), 'aprobar_minutas') then
-    raise exception 'No tienes permiso para cambiar representantes legales.';
+    raise exception 'No tienes permiso para poner la firma de los representantes legales.';
   end if;
-  update empresa_representantes set activo = false, actualizado_at = now(), actualizado_por = auth.uid()
-   where id = p_id;
+  if p_datos ? 'imagen_firma' and p_datos->>'imagen_firma' is not null
+     and (p_datos->>'imagen_firma' not like 'data:image/png;base64,%' or length(p_datos->>'imagen_firma') > 300000) then
+    raise exception 'La firma no es válida.';
+  end if;
+  update empresa_representantes
+     set imagen_firma = case when p_datos ? 'imagen_firma' then p_datos->>'imagen_firma' else imagen_firma end,
+         perfil_id = case when p_datos ? 'perfil_id' then nullif(p_datos->>'perfil_id', '')::uuid else perfil_id end,
+         actualizado_at = now(), actualizado_por = auth.uid()
+   where id = p_id and activo;
+  if not found then
+    raise exception 'El representante no existe o ya no está activo (actualiza la página).';
+  end if;
 end;
 $$;
-revoke all on function public.desactivar_representante_legal(uuid) from public, anon;
-grant execute on function public.desactivar_representante_legal(uuid) to authenticated;
+revoke all on function public.guardar_firma_representante(uuid, jsonb) from public, anon;
+grant execute on function public.guardar_firma_representante(uuid, jsonb) to authenticated;
+
+-- Versiones anteriores de este archivo (nunca corridas en producción).
+drop function if exists public.guardar_representante_legal(uuid, uuid, jsonb);
+drop function if exists public.desactivar_representante_legal(uuid);
 
 -- ---------------------------------------------------------------- representante de un contrato
 -- Representantes activos de la empresa del proyecto del contrato (sin la
@@ -305,10 +350,10 @@ begin
   if v->>'estado' = 'sin_registro' then
     return null;
   elsif v->>'estado' = 'no_coincide' then
-    raise exception 'El representante legal de la minuta (%) no está registrado como representante de %. Regístralo en Contratos › Representantes legales o devuelve la minuta a Jurídica para corregirlo.',
+    raise exception 'El representante legal de la minuta (%) no está registrado como representante de %. Regístralo en Admin › Empresas o devuelve la minuta a Jurídica para corregirlo.',
       coalesce(nullif(concat_ws(', C.C. ', v->>'minuta_nombre', v->>'minuta_documento'), ''), 'sin datos'), v->>'empresa';
   elsif v->>'estado' = 'sin_firma' then
-    raise exception 'Falta la firma de %, representante legal de %: súbela en Contratos › Representantes legales.',
+    raise exception 'Falta la firma de %, representante legal de %: ponla en Contratos › Firmas de representantes.',
       v->>'nombre', v->>'empresa';
   end if;
   insert into documento_firmas (entidad, entidad_id, papel, perfil_id, nombre, cargo, imagen, firmado_at)

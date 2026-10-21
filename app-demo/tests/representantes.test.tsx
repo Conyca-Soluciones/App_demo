@@ -8,6 +8,7 @@ import {
   principalActivo,
   textoFirmaRepresentante,
   validarRepresentante,
+  validarRepresentantesEmpresa,
 } from "@/lib/representantes"
 import { minutaObraVacia } from "@/lib/minuta-obra"
 import { MinutaObraPDF } from "@/components/minuta-obra-pdf"
@@ -42,10 +43,16 @@ describe("representantes legales", () => {
     expect(mapEmpresasRepresentantes(null)).toEqual([])
   })
   it("valida nombre y documento", () => {
-    const base = { tipo: "principal" as const, nombre: "Ana Pérez", tipoDocumento: "CC" as const, numeroDocumento: "1.234.567", expedidaEn: "", perfilId: null }
+    const base = { nombre: "Ana Pérez", tipoDocumento: "CC" as const, numeroDocumento: "1.234.567", expedidaEn: "" }
+    const vacio = { nombre: "", tipoDocumento: "CC" as const, numeroDocumento: "", expedidaEn: "" }
     expect(validarRepresentante(base)).toBeNull()
     expect(validarRepresentante({ ...base, nombre: "A" })).toMatch(/nombre/)
     expect(validarRepresentante({ ...base, numeroDocumento: "12" })).toMatch(/documento/)
+    // Admin › Empresas: cada uno vacío o completo, y no la misma persona.
+    expect(validarRepresentantesEmpresa(base, vacio)).toBeNull()
+    expect(validarRepresentantesEmpresa(vacio, vacio)).toBeNull()
+    expect(validarRepresentantesEmpresa(base, { ...vacio, nombre: "Beto" })).toMatch(/suplente/)
+    expect(validarRepresentantesEmpresa(base, { ...base, nombre: "Otro", numeroDocumento: "1234567" })).toMatch(/misma persona/)
   })
   it("dice a Subgerencia quién firma o qué falta", () => {
     expect(textoFirmaRepresentante(mapFirmaRepresentante({ estado: "ok", nombre: "Ana", tipo: "principal", empresa: "CONYCA" }))).toMatchObject({ bloquea: false })
