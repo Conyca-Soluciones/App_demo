@@ -290,6 +290,11 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'guardar_banco')
          and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
   union all
+  select '20261127000000_mis_pendientes',
+         exists (select 1 from pg_proc where proname = 'mis_pendientes')
+         and exists (select 1 from pg_proc where proname = 'contar_mis_pendientes')
+         and not has_function_privilege('authenticated', 'public._pendientes_de(uuid)', 'execute')
+  union all
   select '20261126000000_avance_anterior_actas_sin_porcentaje',
          position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
          and position('coalesce(o.porcentaje_avance' in pg_get_functiondef('public.detalle_acta(uuid)'::regprocedure)) > 0

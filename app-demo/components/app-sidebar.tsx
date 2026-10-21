@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { ChevronLeft, ChevronRight, HardHat, Landmark, Settings } from "lucide-react"
+import { ChevronLeft, ChevronRight, HardHat, Inbox, Landmark, Settings } from "lucide-react"
 
 import {
   Sidebar,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useAnchoSidebar } from "@/components/app-shell"
 import { construirModulos, type ModuloClave, type PermisosRol } from "@/lib/pestanas"
+import { contarMisPendientes } from "@/app/(app)/pendientes/actions"
 
 // El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
@@ -54,6 +55,19 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   // resalta sin abrir nada.
   const [moduloAbierto, setModuloAbierto] = useState<ModuloClave | null>(null)
   const [seccionAbierta, setSeccionAbierta] = useState<string | null>(null)
+
+  // Cuántas cosas le tocan a la persona (Mis pendientes). Se vuelve a contar al
+  // cambiar de página: resolver algo y volver baja el número.
+  const [pendientes, setPendientes] = useState<number | null>(null)
+  useEffect(() => {
+    let activo = true
+    contarMisPendientes()
+      .then((n: number) => activo && setPendientes(n))
+      .catch(() => activo && setPendientes(null))
+    return () => {
+      activo = false
+    }
+  }, [pathname])
 
   const modulo = modulos.find((m) => m.clave === moduloAbierto) ?? null
   const seccion = modulo?.grupos.find((g) => g.titulo === seccionAbierta) ?? null
@@ -113,6 +127,31 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
         >
           <SidebarContent>
             <SidebarMenu className="p-2">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/pendientes"}
+                  onClick={() => {
+                    setModuloAbierto(null)
+                    setSeccionAbierta(null)
+                    router.push("/pendientes")
+                  }}
+                  title="Lo que te toca hacer"
+                >
+                  {/* El número va sobre el ícono: la columna de módulos es angosta. */}
+                  <span className="relative shrink-0">
+                    <Inbox className="size-4" />
+                    {pendientes != null && pendientes > 0 && (
+                      <span
+                        aria-label={`${pendientes} pendientes`}
+                        className="absolute -top-2 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-medium text-white tabular-nums"
+                      >
+                        {pendientes > 99 ? "99+" : pendientes}
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-medium">Pendientes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               {modulos.map((m) => {
                 const contieneActual = ubicacionActual?.modulo === m.clave
                 return (

@@ -1311,6 +1311,22 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   en `listarConsolidado`; las semanas valen en cada año elegido. Selector
   `SelectorNumeros` (`components/selector-numeros.tsx`); por omisión la semana
   actual. La tabla tiene columna Semana junto al ITEM.
+- **Mis pendientes** (T1, `/pendientes`, `20261127000000_mis_pendientes.sql`;
+  decisiones del usuario 2026-10-21): bandeja POR PERSONA, no por rol; le sale a
+  todos los que pueden resolverlo y el primero que lo resuelve lo quita de la
+  de todos; solo en la app (sin correo por ahora). No se guarda: `_pendientes_de(uid)`
+  (interna, sin grant) lo calcula del estado de cada cosa con tres reglas
+  visibles: acción de la matriz (`tiene_accion`), proyectos (`proyectos_visibles`;
+  A&F, maestra de insumos y cuentas de terceros son globales como su RLS) y lo
+  suyo (contrato/otrosí devuelto, acta rechazada, contrato vencido, requisiciones
+  atrasadas = "seguimiento"). `mis_pendientes(p_por_grupo)` agrupa por tipo con
+  total, suma, vencidos, el más viejo y como mucho 20 filas; `contar_mis_pendientes()`
+  da el número del menú (solo "hacer"). Ambas usan `auth.uid()`. Títulos y
+  acción de cada tipo en `lib/pendientes.ts` (`GRUPOS_PENDIENTES`). Es la
+  pantalla de entrada después de elegir proyecto y la primera opción del menú;
+  abrir un pendiente de otro proyecto cambia antes el proyecto actual. **Si se
+  agrega un paso con aprobación, sumarlo en `_pendientes_de` y en
+  `GRUPOS_PENDIENTES`.** Pólizas (rama de spr) falta sumarlas al unirlas.
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
