@@ -125,7 +125,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minu
           de Precios al Consumidor), certificado por el DANE a corte de diciembre del año inmediatamente anterior.
         </Clausula>
 
-        <Clausula titulo="SEPTIMA. - ENTREGA DEL INMUEBLE.">
+        <Clausula titulo="SÉPTIMA. - ENTREGA DEL INMUEBLE.">
           La entrega del inmueble se llevará a cabo una vez finalizado el plazo del contrato, fecha en la cual se suscribirá la correspondiente acta de entrega
           y recibo a conformidad, así como el inventario los cuales se firmarán en pliego separado y que para todos los efectos legales forman parte de este
           contrato. El arrendatario se obliga desde ya a conservar el inmueble y restituirlo en las mismas condiciones salvo el deterioro causado por el uso y
@@ -158,7 +158,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minu
           una violación a la cláusula de confidencialidad del presente contrato.
         </Clausula>
 
-        <Clausula titulo="DECIMA. - SERVICIOS PÚBLICOS.">
+        <Clausula titulo="DÉCIMA. - SERVICIOS PÚBLICOS.">
           <Text style={s.b}>El ARRENDADOR</Text> se compromete a entregar el inmueble objeto de arriendo con los servicios de agua y energía eléctrica
           debidamente legalizados y al día cuyos pagos deberá asumir el ARRENDATARIO a partir de la entrega y recibo del inmueble.
         </Clausula>
@@ -193,7 +193,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minu
           centro de conciliación corresponderá al de la Cámara de comercio del lugar del inmueble tomado en arrendamiento.
         </Clausula>
 
-        <Clausula titulo="DÉCIMA SEPTIMA. INDEMNIDAD.">
+        <Clausula titulo="DÉCIMA SÉPTIMA. INDEMNIDAD.">
           <Text style={s.b}>El ARRENDADOR</Text> mantendrá indemne al ARRENDATARIO contra todo reclamo, demanda, acción legal y costo que pueda causarse o
           surgir durante la ejecución del objeto contractual y, que sea de su responsabilidad. Se consideran como hechos imputables al ARRENDADOR, todas las
           acciones u omisiones y en general cualquier incumplimiento de sus obligaciones contractuales. En caso de que se entable un reclamo, demanda o acción

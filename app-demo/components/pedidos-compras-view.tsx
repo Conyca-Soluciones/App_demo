@@ -105,7 +105,7 @@ function PedidosCompraDeProyecto() {
       {seleccionados.size > 0 && (
         <div className="flex shrink-0 items-center justify-between rounded-lg border bg-card px-4 py-3 shadow-lg">
           <span className="text-sm">
-            <strong>{seleccionados.size}</strong> requisición{seleccionados.size === 1 ? "" : "es"} seleccionada
+            <strong>{seleccionados.size}</strong> {seleccionados.size === 1 ? "requisición" : "requisiciones"} seleccionada
             {seleccionados.size === 1 ? "" : "s"} para comprar
           </span>
           <Button onClick={handleGenerarOC}>

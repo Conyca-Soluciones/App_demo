@@ -1,6 +1,6 @@
 "use client"
 
-import { formatearFechaSinHora, hoyColombia, ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora, hoyColombia, ZONA_HORARIA } from "@/lib/fechas"
 
 // components/dialogue-nuevo-pedido.tsx
 //
@@ -29,6 +29,7 @@ import {
   type InsumoAgrupado,
   type LineaPedido,
 } from "@/app/(app)/almacen/types"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 interface FormularioRequisicionProps {
   // Solo importa dentro de un diálogo: el formulario se reinicia al abrirlo.
@@ -311,23 +312,18 @@ export function FormularioRequisicion({
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Fecha requisición</label>
-              <Input type="date" value={fechaPedido} readOnly tabIndex={-1} className="pointer-events-none h-10 bg-muted/40" />
+              <CampoFecha value={fechaPedido} readOnly tabIndex={-1} className="pointer-events-none h-10 bg-muted/40" />
               {edicion?.modificadaAt && (
                 <p className="text-xs text-muted-foreground">
                   Última modificación:{" "}
-                  {new Date(edicion.modificadaAt).toLocaleString("es-CO", {
-                    timeZone: ZONA_HORARIA,
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
+                  {formatearFechaHora(edicion.modificadaAt)}
                 </p>
               )}
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Fecha requerida</label>
-              <Input
-                type="date"
+              <CampoFecha
                 value={fechaRequerida}
                 min={edicion ? undefined : fechaPedido}
                 onChange={(e) => setFechaRequerida(e.target.value)}

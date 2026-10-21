@@ -289,5 +289,9 @@ select * from (
          exists (select 1 from pg_trigger where tgname = 'trg_contratista_a_tercero')
          and exists (select 1 from pg_proc where proname = 'guardar_banco')
          and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
+  union all
+  select '20261118800000_avance_anterior_actas_sin_porcentaje',
+         position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
+         and position('coalesce(o.porcentaje_avance' in pg_get_functiondef('public.detalle_acta(uuid)'::regprocedure)) > 0
 ) t
 order by 1;

@@ -52,6 +52,7 @@ import {
   type FiltrosEntradas,
   type OrdenEntradaFila,
 } from "@/app/(app)/almacen/entradas/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -263,11 +264,11 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
             <Label>Fecha de la entrada</Label>
             <div className="flex items-center gap-2">
               <span className="w-12 text-xs text-muted-foreground">Inicial</span>
-              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <span className="w-12 text-xs text-muted-foreground">Final</span>
-              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+              <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} />
             </div>
           </div>
         </PanelFiltros>

@@ -68,7 +68,7 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
         </Clausula>
         <View style={[s.tabla, { marginBottom: 10 }]}>
           <View style={s.tr} fixed>
-            <Text style={[s.th, { width: anchos.item, textAlign: "center" }]}>ITEM</Text>
+            <Text style={[s.th, { width: anchos.item, textAlign: "center" }]}>ÍTEM</Text>
             <Text style={[s.th, { width: anchos.detalle }]}>DETALLE</Text>
             <Text style={[s.th, { width: anchos.und, textAlign: "center" }]}>UND</Text>
             <Text style={[s.th, { width: anchos.cant, textAlign: "right" }]}>CANT</Text>
@@ -122,16 +122,16 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
           del mismo.
         </Clausula>
 
-        <Clausula titulo="SEPTIMA. - LUGAR DE EJECUCIÓN:">
+        <Clausula titulo="SÉPTIMA. - LUGAR DE EJECUCIÓN:">
           Las actividades objeto del contrato, se desarrollarán en la ciudad de {res("ciudadEjecucion", blanco(m.ciudadEjecucion))}.
         </Clausula>
 
-        <Clausula titulo="OCTAVA - SOLUCION DIRECTA DE LAS CONTROVERSIAS CONTRACTUALES:">
+        <Clausula titulo="OCTAVA - SOLUCIÓN DIRECTA DE LAS CONTROVERSIAS CONTRACTUALES:">
           Se considera que las diferencias o discrepancias, surgidas de la actividad contractual, se solucionan de manera ágil, rápida y directa para lo cual
           se acudirá a la conciliación, transacción o cualquier otro mecanismo de solución de controversia contractual previsto en la ley.
         </Clausula>
 
-        <Clausula titulo="NOVENA - GARANTIA:">
+        <Clausula titulo="NOVENA - GARANTÍA:">
           El CONTRATISTA constituirá a favor del CONTRATANTE las garantía que se describen más adelante y que sean aceptables para el contratante, en origen y
           forma, expedidas por una compañía de seguros legalmente establecida en Colombia.
         </Clausula>
@@ -155,7 +155,7 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
           ))}
         </View>
 
-        <Clausula titulo="DECIMA. – CLAUSULA PENAL Y MULTAS:">
+        <Clausula titulo="DÉCIMA. – CLÁUSULA PENAL Y MULTAS:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al{" "}
           {res("clausulaPenalPorcentaje", pct(m.clausulaPenalPorcentaje))} del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la parte
           afectada por el incumplimiento. PARÁGRAFO. El valor de la cláusula penal, será descontado de cualquier saldo que resultare a favor del CONTRATISTA
@@ -165,7 +165,7 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
           adeudados.
         </Clausula>
 
-        <Clausula titulo="DECIMA PRIMERA. - MODIFICACIONES:">
+        <Clausula titulo="DÉCIMA PRIMERA. - MODIFICACIONES:">
           El presente contrato podrá modificarse previo acuerdo de las partes el cual deberá reposar por escrito.
         </Clausula>
 
@@ -173,21 +173,21 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
           EL CONTRATISTA no podrá ceder ni total, ni parcialmente este contrato, ni subcontratar sin autorización expresa y por escrito del contratante.
         </Clausula>
 
-        <Clausula titulo="DECIMA TERCERA. - CAUSALES DE TERMINACIÓN:">
+        <Clausula titulo="DÉCIMA TERCERA. - CAUSALES DE TERMINACIÓN:">
           Sin perjuicio de lo contemplado en la ley, este contrato se terminará: A) Por vencimiento del término fijado en el presente contrato para la
           ejecución del mismo. B) Por la ejecución del objeto contratado. C) Por grave incumplimiento de las obligaciones del CONTRATISTA o EL CONTRATANTE. E)
           Por mutuo acuerdo de las partes.
         </Clausula>
 
-        <Clausula titulo="DECIMA CUARTA. - DOMICILIO:">
+        <Clausula titulo="DÉCIMA CUARTA. - DOMICILIO:">
           Para todos los efectos legales, las partes acuerdan como domicilio de este contrato la Ciudad {res("domicilioCiudad", blanco(m.domicilioCiudad))}.
         </Clausula>
 
-        <Clausula titulo="DECIMA QUINTA. - DOCUMENTOS DEL CONTRATO:">
+        <Clausula titulo="DÉCIMA QUINTA. - DOCUMENTOS DEL CONTRATO:">
           Forman parte integral del presente contrato la cotización presentada por el CONTRATISTA.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEXTA. - CONFIDENCIALIDAD:">
+        <Clausula titulo="DÉCIMA SEXTA. - CONFIDENCIALIDAD:">
           Las partes se comprometen, con carácter mutuo y recíproco, a tratar como “confidencial” toda la información técnica, comercial o de cualquier otra
           naturaleza comprendida y/o que se derive directa o indirectamente de las indicaciones que la contraparte le haya facilitado para el desarrollo del
           objeto del presente contrato (en adelante “la información confidencial”). En consecuencia, ninguna parte podrá revelar total o parcialmente, de
@@ -204,12 +204,12 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
           presente contrato, así como un año después de la finalización del mismo.
         </P>
 
-        <Clausula titulo="DECIMA SEPTIMA. – PERFECCIONAMIENTO:">
+        <Clausula titulo="DÉCIMA SÉPTIMA. – PERFECCIONAMIENTO:">
           El presente contrato se perfecciona con la firma de los de los que intervinieron en el mismo y para su ejecución requiere la constitución y
           aprobación de las Garantías exigidas.
         </Clausula>
 
-        <Clausula titulo="DECIMA OCTAVA. – NOTIFICACIONES:">
+        <Clausula titulo="DÉCIMA OCTAVA. – NOTIFICACIONES:">
           Las partes recibirán notificaciones en: El CONTRATANTE al correo electrónico {res("contratanteCorreo", blanco(m.contratanteCorreo))} y el CONTRATISTA al correo electrónico{" "}
           {res("contratistaCorreo", blanco(m.contratistaCorreo))}.
         </Clausula>

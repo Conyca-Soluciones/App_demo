@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PanelFiltros } from "@/components/panel-filtros"
@@ -18,6 +17,7 @@ import {
 import { listarAuditoria, type FilaAuditoria, type FiltrosAuditoria } from "@/app/(app)/admin/auditoria/actions"
 import { listarUsuariosAcceso } from "@/app/(app)/admin/accesos/actions"
 import type { TipoHistorial } from "@/app/(app)/almacen/historial/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // ---------------------------------------------------------------------------
 // Auditoría (solo Administrador): todo el historial de la plataforma, más
@@ -207,8 +207,8 @@ export function AuditoriaView() {
 
           <div className="space-y-1.5">
             <Label>Fechas</Label>
-            <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} aria-label="Desde" />
-            <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} aria-label="Hasta" />
+            <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} aria-label="Desde" />
+            <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} aria-label="Hasta" />
           </div>
         </PanelFiltros>
 

@@ -26,6 +26,7 @@ import {
   type PrecioProveedor,
 } from "@/lib/control-proyecto"
 import { listarOrdenesControl, obtenerControlProyecto } from "@/app/(app)/admin/visualizacion/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // ---------------------------------------------------------------------------
 // Control del proyecto: a dónde va la plata del proyecto actual (el de la
@@ -74,7 +75,7 @@ export function ControlProyectoView() {
 
   return (
     <>
-      <EncabezadoPagina titulo="Control del proyecto" subtitulo="Distribucion: presupuesto, compras y actas aprobadas, y avance." />
+      <EncabezadoPagina titulo="Control del proyecto" subtitulo="Distribución: presupuesto, compras y actas aprobadas, y avance." />
       <main className="mx-auto w-full max-w-5xl space-y-5 p-4 sm:p-6">
         {!proyecto ? (
           <SinProyecto />
@@ -208,7 +209,7 @@ function Resumen({ datos }: { datos: ControlProyecto }) {
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-medium">Distribucion</h2>
+        <h2 className="text-sm font-medium">Distribución</h2>
         <div className="flex h-4 overflow-hidden rounded bg-muted" aria-hidden="true">
           <div className={COLOR.compras} style={{ width: `${barra.compras}%` }} />
           <div className={COLOR.actas} style={{ width: `${barra.actas}%` }} />
@@ -501,11 +502,11 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
       >
         <label className="space-y-1 text-xs text-muted-foreground">
           Desde
-          <Input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} className="w-40" />
+          <CampoFecha value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} contenedorClassName="w-40" />
         </label>
         <label className="space-y-1 text-xs text-muted-foreground">
           Hasta
-          <Input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} className="w-40" />
+          <CampoFecha value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} contenedorClassName="w-40" />
         </label>
         <button
           type="submit"

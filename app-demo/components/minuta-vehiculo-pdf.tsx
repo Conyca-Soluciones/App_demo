@@ -12,7 +12,7 @@ import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } fr
 // ---------------------------------------------------------------------------
 
 // Así viene el encabezado de la plantilla (el código es el mismo de la de mano de obra).
-const ENCABEZADO = { formato: "CONTRATO DE ALQUILER DE VEHICULO O MAQUINARIA", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" }
+const ENCABEZADO = { formato: "CONTRATO DE ALQUILER DE VEHÍCULO O MAQUINARIA", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" }
 
 const numero = (i: number) => `${i + 1}.`
 const pct = (t: string) => `${blanco(t.replace(/%/g, ""))}%`
@@ -43,7 +43,7 @@ export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foc
           render={({ pageNumber, totalPages }) => `Contrato de alquiler de vehículo o maquinaria ${consecutivo} · Página ${pageNumber} de ${totalPages}`}
         />
 
-        <Text style={[s.titulo, { marginBottom: 2 }]}>CONTRATO DE ALQUILER DE VEHICULO O MAQUINARIA</Text>
+        <Text style={[s.titulo, { marginBottom: 2 }]}>CONTRATO DE ALQUILER DE VEHÍCULO O MAQUINARIA</Text>
         <Text style={s.titulo}>{consecutivo}</Text>
 
         <P>
@@ -67,9 +67,9 @@ export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foc
 
         <Clausula titulo="PRIMERA. OBJETO:">
           Entregar en calidad alquiler y poner a disposición de este, para su utilización durante el periodo contratado, {res("bien", blanco(m.bien))} para uso en el
-          proyecto {res("obra", blanco(m.obra))}. <Text style={s.b}>PARAGRAFO.</Text> La maquinaria deberá ser entregada en condiciones óptimas de funcionamiento,
+          proyecto {res("obra", blanco(m.obra))}. <Text style={s.b}>PARÁGRAFO.</Text> La maquinaria deberá ser entregada en condiciones óptimas de funcionamiento,
           seguridad, operación y conservación, y deberá ser apta para desarrollar las actividades para las cuales se contrata.{" "}
-          <Text style={s.b}>PARAGRAFO SEGUNDO.</Text> Hacen parte de la maquinaria y serán entregados para su operación los accesorios y componentes
+          <Text style={s.b}>PARÁGRAFO SEGUNDO.</Text> Hacen parte de la maquinaria y serán entregados para su operación los accesorios y componentes
           relacionados en la Oferta Mercantil No. {res("ofertaMercantil", blanco(m.ofertaMercantil))}.
         </Clausula>
 
@@ -109,10 +109,10 @@ export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foc
         <Text style={[s.p, s.b]}>SEXTA. OBLIGACIONES DEL CONTRATANTE:</Text>
         <Lista items={m.obligacionesContratante} resaltado={r("obligacionesContratante")} marcador={numero} />
 
-        <Text style={[s.p, s.b]}>SEPTIMA. OBLIGACIONES GENERALES DEL CONTRATISTA:</Text>
+        <Text style={[s.p, s.b]}>SÉPTIMA. OBLIGACIONES GENERALES DEL CONTRATISTA:</Text>
         <Lista items={m.obligacionesGenerales} resaltado={r("obligacionesGenerales")} marcador={numero} />
 
-        <Text style={[s.p, s.b]}>OCTAVA. OBLIGACIONES ESPECIFICAS DEL CONTRATISTA:</Text>
+        <Text style={[s.p, s.b]}>OCTAVA. OBLIGACIONES ESPECÍFICAS DEL CONTRATISTA:</Text>
         <Lista items={especificas} resaltado={r("obligacionesEspecificas")} marcador={numero} />
 
         <Clausula titulo="NOVENA. INDEPENDENCIA DEL CONTRATISTA:">
@@ -121,33 +121,33 @@ export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foc
           genera prestaciones laborales a su favor.
         </Clausula>
 
-        <Clausula titulo="DECIMA. CESIÓN O SUBCONTRATACIÓN DEL OBJETO DEL CONTRATO:">
+        <Clausula titulo="DÉCIMA. CESIÓN O SUBCONTRATACIÓN DEL OBJETO DEL CONTRATO:">
           El contratista no podrá ceder a persona alguna natural o jurídica, Nacional o extranjera, el presente contrato ni subcontratar el objeto
           contratado. Para la cesión del presente contrato se requiere de previa autorización por escrito del contratante.
         </Clausula>
 
-        <Clausula titulo="DECIMA PRIMERA. MANTENIMIENTO Y REPARACIONES.">
+        <Clausula titulo="DÉCIMA PRIMERA. MANTENIMIENTO Y REPARACIONES.">
           El mantenimiento preventivo y correctivo derivado del desgaste normal del vehículo/maquinaria y de su utilización conforme a las especificaciones
           del fabricante estará a cargo de el contratista, salvo pacto escrito en contrario.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEGUNDA. RESPONSABILIDAD:">El Contratista es responsable por el cumplimiento de las obligaciones pactadas en el Contrato.</Clausula>
+        <Clausula titulo="DÉCIMA SEGUNDA. RESPONSABILIDAD:">El Contratista es responsable por el cumplimiento de las obligaciones pactadas en el Contrato.</Clausula>
 
-        <Clausula titulo="DECIMA TERCERA. - MODIFICACIONES:">
+        <Clausula titulo="DÉCIMA TERCERA. - MODIFICACIONES:">
           El presente contrato podrá modificarse previo acuerdo de las partes el cual deberá constar por escrito.
         </Clausula>
 
-        <Clausula titulo="DECIMA CUARTA. CAUSALES DE TERMINACIÓN:">
+        <Clausula titulo="DÉCIMA CUARTA. CAUSALES DE TERMINACIÓN:">
           Sin perjuicio de lo contemplado en la ley, este contrato se terminará: 1. Por vencimiento del término fijado en el presente contrato para la
           ejecución del mismo. 2. Por la ejecución del objeto contratado. 3. Por incumplimiento de las obligaciones del contratista o el contratante. 4. Por
           mutuo acuerdo de las partes.
         </Clausula>
 
         {m.garantia === "no_exige" ? (
-          <Clausula titulo="DECIMA QUINTA. GARANTÍAS:">Para la ejecución del presente contrato no se exigirá la constitución de garantías.</Clausula>
+          <Clausula titulo="DÉCIMA QUINTA. GARANTÍAS:">Para la ejecución del presente contrato no se exigirá la constitución de garantías.</Clausula>
         ) : m.garantia === "exige" ? (
           <>
-            <Clausula titulo="DECIMA QUINTA. GARANTÍAS:">
+            <Clausula titulo="DÉCIMA QUINTA. GARANTÍAS:">
               Para cubrir cualquier hecho constitutivo de incumplimiento, el contratista se compromete a constituir a favor del contratante, una garantía que
               ampare lo siguiente:
             </Clausula>
@@ -168,54 +168,54 @@ export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foc
             <P>
               La garantía deberá estar firmada por el Representante Legal de LA CONTRATISTA, las primas serán de su cargo y deberán estar acompañadas de los
               recibos de cancelación expedidos por la entidad aseguradora, las mismas deberán ser entregadas para su aprobación al contratante a más tardar
-              tres (3) días después de la suscripción del presente contrato. <Text style={s.b}>PARAGRAFO PRIMERO:</Text> En caso de ser necesario, el
+              tres (3) días después de la suscripción del presente contrato. <Text style={s.b}>PARÁGRAFO PRIMERO:</Text> En caso de ser necesario, el
               contratista podrá presentar una garantía diferente a la enunciada, siempre que esta sea aceptada por el contratante.
             </P>
           </>
         ) : (
-          <Clausula titulo="DECIMA QUINTA. GARANTÍAS:">__________</Clausula>
+          <Clausula titulo="DÉCIMA QUINTA. GARANTÍAS:">__________</Clausula>
         )}
 
-        <Clausula titulo="DECIMA SEXTA. PERÍODOS ADICIONALES Y PRÓRROGA.">
+        <Clausula titulo="DÉCIMA SEXTA. PERÍODOS ADICIONALES Y PRÓRROGA.">
           La utilización de la {res("bienNombre", blanco(m.bienNombre).toUpperCase())} por un período adicional deberá ser solicitada formalmente por el contratante con una
           anticipación mínima de diez (10) días. La solicitud del contratante no genera por sí misma obligación del contratista de aceptar la prórroga o
           período adicional, el cual estará sujeto a la aceptación expresa del contratista.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEPTIMA. DOMICILIO:">
+        <Clausula titulo="DÉCIMA SÉPTIMA. DOMICILIO:">
           Para todos los efectos leales, las partes acuerdan como domicilio de este contrato la ciudad de {res("domicilio", blanco(m.domicilio))}.
         </Clausula>
 
-        <Clausula titulo="DECIMA OCTAVA. DOCUMENTOS DEL CONTRATO:">
+        <Clausula titulo="DÉCIMA OCTAVA. DOCUMENTOS DEL CONTRATO:">
           Forma parte integral del presente contrato la Oferta Mercantil No. {res("ofertaMercantil", blanco(m.ofertaMercantil))}, presentada y aceptada por las partes, junto con
           los demás documentos que expresamente se incorporen al negocio jurídico. Las condiciones técnicas, económicas y operativas contenidas en la Oferta
           Mercantil No. {res("ofertaMercantil", blanco(m.ofertaMercantil))} se mantienen vigentes y deberán interpretarse de manera armónica con el presente contrato.
         </Clausula>
 
-        <Clausula titulo="DECIMA NOVENA. SOLUCION DE CONTROVERSIAS:">
+        <Clausula titulo="DÉCIMA NOVENA. SOLUCIÓN DE CONTROVERSIAS:">
           Cualquier disputa o diferencia que surja con ocasión del objeto y obligaciones de este contrato serán arregladas en lo posible mediante la
           negociación y la conciliación entre las partes.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA. LIQUIDACIÓN DEL CONTRATO:">
+        <Clausula titulo="VIGÉSIMA. LIQUIDACIÓN DEL CONTRATO:">
           El término para la liquidación bilateral del contrato será de dos (2) meses siguientes a la expiración del término previsto para la ejecución del
           contrato.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA PRIMERA. SUPERVISIÓN:">
+        <Clausula titulo="VIGÉSIMA PRIMERA. SUPERVISIÓN:">
           La supervisión del presente contrato y del cumplimiento de las obligaciones derivadas del mismo, estarán a cargo del director de Obra o quien haga
           sus veces.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA SEGUNDA- LUGAR DE EJECUCIÓN:">
+        <Clausula titulo="VIGÉSIMA SEGUNDA- LUGAR DE EJECUCIÓN:">
           Las actividades objeto del contrato se desarrollarán en la ciudad de {res("ciudadEjecucion", blanco(m.ciudadEjecucion))} – {res("departamentoEjecucion", blanco(m.departamentoEjecucion))}.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA TERCERA. – REQUISITOS DE PERFECCIONAMIENTO Y EJECUCIÓN:">
+        <Clausula titulo="VIGÉSIMA TERCERA. – REQUISITOS DE PERFECCIONAMIENTO Y EJECUCIÓN:">
           El presente contrato se perfecciona con la suscripción de las partes.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA CUARTA. – NOTIFICACIONES:">
+        <Clausula titulo="VIGÉSIMA CUARTA. – NOTIFICACIONES:">
           Las partes autorizan recibir notificaciones en las siguientes direcciones El contratante al correo electrónico {res("contratanteCorreo", blanco(m.contratanteCorreo))} y el
           contratista al correo electrónico {res("contratistaCorreo", blanco(m.contratistaCorreo))}.
         </Clausula>

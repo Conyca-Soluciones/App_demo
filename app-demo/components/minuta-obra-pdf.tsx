@@ -97,7 +97,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
               <Text style={s.b}>
                 {res("anticipoLetras", blanco(m.anticipoLetras))} (${res("anticipo", anticipo !== null ? pesosSinSimbolo(anticipo) : blanco(m.anticipo))}) M/CTE.
               </Text>{" "}
-              El anticipo se tramitará una vez suscrito el contrato y aprobadas las pólizas que las ampara. <Text style={s.b}>PARAGRAFO PRIMERO:</Text>{" "}
+              El anticipo se tramitará una vez suscrito el contrato y aprobadas las pólizas que las ampara. <Text style={s.b}>PARÁGRAFO PRIMERO:</Text>{" "}
               El Anticipo será amortizado en el {res("amortizacion", blanco(m.amortizacion))} en cada cobro de acta parcial.
             </>
           ) : (
@@ -108,7 +108,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         <Clausula titulo="QUINTA. FORMA DE PAGO:">
           Se pagará cada {res("periodicidadPago", blanco(m.periodicidadPago))}, según programación de pago, conforme el avance de la obra y previa aprobación del director de obra.
           Mediante transferencia electrónica, previa factura electrónica, aprobación del corte, certificación de cumplimiento y soportes de seguridad
-          social. <Text style={s.b}>PARAGRAFO PRIMERO:</Text> Las actas antes señaladas deberán ser acompañadas de los siguientes documentos:{" "}
+          social. <Text style={s.b}>PARÁGRAFO PRIMERO:</Text> Las actas antes señaladas deberán ser acompañadas de los siguientes documentos:{" "}
           <Text style={s.b}>1.</Text> Informe de ejecución del contratista con sus respectivos soportes fotográficos de avance de actividades y visto
           bueno del supervisor. <Text style={s.b}>2.</Text> Factura electrónica o documento asimilable. <Text style={s.b}>3.</Text> Planillas de
           seguridad social pagadas del personal a cargo del contratista que haya intervenido en la ejecución del contrato, de acuerdo con la lista de
@@ -133,10 +133,10 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         <Text style={[s.p, s.b]}>SEXTA. OBLIGACIONES DEL CONTRATANTE:</Text>
         <Lista items={m.obligacionesContratante} resaltado={r("obligacionesContratante")} marcador={numero} />
 
-        <Text style={[s.p, s.b]}>SEPTIMA. OBLIGACIONES GENERALES DEL CONTRATISTA:</Text>
+        <Text style={[s.p, s.b]}>SÉPTIMA. OBLIGACIONES GENERALES DEL CONTRATISTA:</Text>
         <Lista items={m.obligacionesGenerales} resaltado={r("obligacionesGenerales")} marcador={numero} />
 
-        <Text style={[s.p, s.b]}>OCTAVA. OBLIGACIONES ESPECIFICAS DEL CONTRATISTA:</Text>
+        <Text style={[s.p, s.b]}>OCTAVA. OBLIGACIONES ESPECÍFICAS DEL CONTRATISTA:</Text>
         <Lista items={m.obligacionesEspecificas} resaltado={r("obligacionesEspecificas")} marcador={numero} />
 
         <Clausula titulo="NOVENA. INDEPENDENCIA DEL CONTRATISTA:">
@@ -145,17 +145,17 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           genera prestaciones laborales a su favor.
         </Clausula>
 
-        <Clausula titulo="DECIMA. CESIÓN O SUBCONTRATACIÓN DEL OBJETO DEL CONTRATO:">
+        <Clausula titulo="DÉCIMA. CESIÓN O SUBCONTRATACIÓN DEL OBJETO DEL CONTRATO:">
           El contratista no podrá ceder a persona alguna natural o jurídica, Nacional o extranjera, el presente contrato ni subcontratar el objeto
           contratado. Para la cesión del presente contrato se requiere de previa autorización por escrito del contratante.
         </Clausula>
 
-        <Clausula titulo="DECIMA PRIMERA. CONTRATACIÓN DE PERSONAL:">
+        <Clausula titulo="DÉCIMA PRIMERA. CONTRATACIÓN DE PERSONAL:">
           El contratista debe contratar el personal que considere necesario para adelantar la ejecución del objeto del presente contrato, para tal fin
           deberá por su cuenta y riesgo asumir la responsabilidad del personal a su cargo.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEGUNDA. CLAUSULA PENAL:">
+        <Clausula titulo="DÉCIMA SEGUNDA. CLÁUSULA PENAL:">
           En caso de incumplimiento de las obligaciones a cargo de alguna de las partes, habrá lugar al pago de una sanción pecuniaria equivalente al diez
           por ciento (10%) del valor del contrato, suma que se tendrá como pago parcial pero no definitivo de los perjuicios que sufra la parte afectada.
           En caso de incumplimiento del contratista se pondrá en conocimiento el incumplimiento de la obligación, la cual generará imposición de multa por
@@ -166,7 +166,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           pertinentes.
         </Clausula>
 
-        <Clausula titulo="DECIMA TERCERA. MULTA:">
+        <Clausula titulo="DÉCIMA TERCERA. MULTA:">
           En caso de incumplimiento parcial o total de las obligaciones establecidas en el presente contrato por parte del Contratista, este deberá pagar al
           Contratante una multa de apremio equivalente al cero punto uno por ciento (0.1%) del valor total del contrato por cada día de incumplimiento o
           mora. Lo anterior es sin perjuicio de la facultad del Contratante para hacer exigible la cláusula penal en caso de reiteración de 3 veces del
@@ -175,27 +175,27 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           que se haya causado a su favor y esté pendiente de pago por el Contratante y/o de la suma derivada de la Retención en Garantía.
         </Clausula>
 
-        <Clausula titulo="DECIMA CUARTA. RESPONSABILIDAD:">
+        <Clausula titulo="DÉCIMA CUARTA. RESPONSABILIDAD:">
           El Contratista es responsable por el cumplimiento de las obligaciones pactadas en el Contrato. Además, responderá por los daños generados al
           contratante y a terceros en la ejecución del Contrato, causados por sus Subcontratistas, dependientes o empleados.
         </Clausula>
 
-        <Clausula titulo="DECIMA QUINTA. INDEMNIDAD:">
+        <Clausula titulo="DÉCIMA QUINTA. INDEMNIDAD:">
           El contratista mantendrá indemne al contratante contra todo reclamo, demanda, acción legal y costos que puedan causarse o surgir por daños o
           lesiones a personas o propiedades de terceros, que se ocasionen durante la ejecución del objeto de este contrato.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEXTA. - MODIFICACIONES:">
+        <Clausula titulo="DÉCIMA SEXTA. - MODIFICACIONES:">
           El presente contrato podrá modificarse previo acuerdo de las partes el cual deberá constar por escrito.
         </Clausula>
 
-        <Clausula titulo="DECIMA SEPTIMA. CAUSALES DE TERMINACIÓN:">
+        <Clausula titulo="DÉCIMA SÉPTIMA. CAUSALES DE TERMINACIÓN:">
           Sin perjuicio de lo contemplado en la ley, este contrato se terminará: 1. Por vencimiento del término fijado en el presente contrato para la
           ejecución del mismo. 2. Por la ejecución del objeto contratado. 3. Por incumplimiento de las obligaciones del contratista o el contratante. 4. Por
           mutuo acuerdo de las partes.
         </Clausula>
 
-        <Clausula titulo="DECIMA OCTAVA. GARANTIAS:">
+        <Clausula titulo="DÉCIMA OCTAVA. GARANTÍAS:">
           Para cubrir cualquier hecho constitutivo de incumplimiento, el contratista se compromete a constituir a favor del contratante, una garantía que
           ampare lo siguiente:
         </Clausula>
@@ -216,51 +216,51 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
         <P>
           La garantía deberá estar firmada por el Representante Legal de LA CONTRATISTA, las primas serán de su cargo y deberán estar acompañadas de los
           recibos de cancelación expedidos por la entidad aseguradora, las mismas deberán ser entregadas para su aprobación al contratante a más tardar tres
-          (3) días después de la suscripción del presente contrato <Text style={s.b}>PARAGRAFO PRIMERO:</Text> En caso de ser necesario, el contratista
+          (3) días después de la suscripción del presente contrato <Text style={s.b}>PARÁGRAFO PRIMERO:</Text> En caso de ser necesario, el contratista
           podrá presentar una garantía diferente a la enunciada, siempre que esta sea aceptada por el contratante.
         </P>
 
-        <Clausula titulo="DECIMA NOVENA. DOMICILIO:">
+        <Clausula titulo="DÉCIMA NOVENA. DOMICILIO:">
           Para todos los efectos leales, las partes acuerdan como domicilio el departamento de {res("domicilioDepartamento", blanco(m.domicilioDepartamento))}.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA. DOCUMENTOS DEL CONTRATO:">
+        <Clausula titulo="VIGÉSIMA. DOCUMENTOS DEL CONTRATO:">
           Forman parte integral del presente contrato el formato de solicitud de contrato elaborado por el director de obra y aprobado por la subgerencia
           administrativa el cronograma de cumplimiento de ejecución de actividades y todos los documentos que se produzcan durante el desarrollo del mismo.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA PRIMERA. SOLUCION DE CONTROVERSIAS:">
+        <Clausula titulo="VIGÉSIMA PRIMERA. SOLUCIÓN DE CONTROVERSIAS:">
           Cualquier disputa o diferencia que surja con ocasión del objeto y obligaciones de este contrato serán arregladas en lo posible mediante la
           negociación y la conciliación entre las partes.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA SEGUNDA. LIQUIDACIÓN DEL CONTRATO:">
+        <Clausula titulo="VIGÉSIMA SEGUNDA. LIQUIDACIÓN DEL CONTRATO:">
           El término para la liquidación bilateral del contrato será de dos (2) mes siguiente a la expiración del término previsto para la ejecución del
           contrato.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA TERCERA. SUPERVISIÓN:">
+        <Clausula titulo="VIGÉSIMA TERCERA. SUPERVISIÓN:">
           La supervisión del presente contrato y del cumplimiento de las obligaciones derivadas del mismo, estarán a cargo del director de Obra o quien haga
           sus veces.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA CUARTA. ENTREGABLES:">
+        <Clausula titulo="VIGÉSIMA CUARTA. ENTREGABLES:">
           El Contratista se obliga a entregar un registro fotográfico completo de cada una de las actividades realizadas, el cual deberá incluir imágenes
           tomadas durante el desarrollo de las mismas y al finalizar la ejecución de ellas. Así mismo, deberá presentar paz y salvos laborales
           correspondientes a todos los trabajadores vinculados a la obra, incluyendo constancias de pago de salarios, prestaciones sociales, y liquidaciones
           laborales.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA QUINTA. - LUGAR DE EJECUCIÓN:">
+        <Clausula titulo="VIGÉSIMA QUINTA. - LUGAR DE EJECUCIÓN:">
           Las actividades objeto del contrato se desarrollarán en el municipio de {res("municipioEjecucion", blanco(m.municipioEjecucion))}.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA SEXTA. – REQUISITOS DE PERFECCIONAMIENTO Y EJECUCIÓN:">
+        <Clausula titulo="VIGÉSIMA SEXTA. – REQUISITOS DE PERFECCIONAMIENTO Y EJECUCIÓN:">
           El presente contrato se perfecciona con la suscripción de las partes, y para su ejecución requiere aprobación de pólizas y suscripción de acta de
           inicio.
         </Clausula>
 
-        <Clausula titulo="VIGESIMA SEPTIMA. – NOTIFICACIONES:">
+        <Clausula titulo="VIGÉSIMA SÉPTIMA. – NOTIFICACIONES:">
           El contratante en el correo electrónico {res("contratanteCorreo", blanco(m.contratanteCorreo))} y el contratista al correo electrónico {res("contratistaCorreo", blanco(m.contratistaCorreo))}.
         </Clausula>
 

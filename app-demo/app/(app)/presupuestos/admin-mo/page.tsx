@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { useSearchParams, useRouter } from "next/navigation"
+import { formatearFechaSinHora } from "@/lib/fechas"
 
 const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
@@ -404,7 +405,7 @@ function FilaPendiente({
       </td>
       <td className={`${celda} text-muted-foreground`}>
         <p>{solicitud.solicitadoPorNombre ?? "alguien"}</p>
-        <p>{new Date(solicitud.createdAt).toLocaleDateString("es-CO")}</p>
+        <p>{formatearFechaSinHora(solicitud.createdAt)}</p>
         {solicitud.proyectoNombre && (
           <p className="truncate">
             {solicitud.proyectoNombre}

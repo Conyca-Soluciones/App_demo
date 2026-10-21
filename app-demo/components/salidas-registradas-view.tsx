@@ -1,7 +1,7 @@
 "use client"
 
 import { leerCantidadEntera } from "@/lib/numeros"
-import { formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import { useState } from "react"
 import { History, Loader2 } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
@@ -38,10 +38,11 @@ import {
   type FiltrosSalidas,
   type SalidaRegistrada,
 } from "@/app/(app)/almacen/salidas/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 const formatoHora = (iso: string) =>
-  new Date(iso).toLocaleString("es-CO", { timeZone: ZONA_HORARIA, dateStyle: "short", timeStyle: "short" })
+  formatearFechaHora(iso)
 
 // Salidas ya registradas del proyecto actual: consultar, corregir (cantidad,
 // quién retira, observaciones) o anular con motivo. Para cambiar de insumo se
@@ -180,8 +181,8 @@ export function SalidasRegistradasView() {
         <div className="space-y-1.5">
           <Label>Fecha de la salida</Label>
           <div className="grid grid-cols-2 gap-2">
-            <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} aria-label="Desde" />
-            <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} aria-label="Hasta" />
+            <CampoFecha value={desde} onChange={(e) => setDesde(e.target.value)} aria-label="Desde" />
+            <CampoFecha value={hasta} onChange={(e) => setHasta(e.target.value)} aria-label="Hasta" />
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">

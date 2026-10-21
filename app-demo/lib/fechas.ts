@@ -37,3 +37,20 @@ export function sumarDiasFecha(fecha: string, dias: number): string {
   const [a, m, d] = fecha.split("-").map(Number)
   return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10)
 }
+
+// Marca de tiempo -> "05/10/2026, 3:04 p. m." en hora de Colombia (siempre
+// dd/mm/aaaa; `dateStyle: "short"` daba "5/10/26").
+export function formatearFechaHora(valor: string | null | undefined): string {
+  if (!valor) return "—"
+  const d = new Date(valor)
+  return Number.isNaN(d.getTime())
+    ? valor
+    : d.toLocaleString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: ZONA_HORARIA,
+      })
+}

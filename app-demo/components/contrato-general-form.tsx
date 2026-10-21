@@ -17,6 +17,7 @@ import {
 } from "@/lib/contratos"
 import { listarContratistas } from "@/app/(app)/contratos/contratistas/actions"
 import { crearContratoGeneral, reenviarContratoGeneral } from "@/app/(app)/contratos/generales/actions"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 
 // ---------------------------------------------------------------------------
 // Formulario del contrato general (como el "Contrato General" de Sinco): es
@@ -296,12 +297,14 @@ export function ContratoGeneralFormulario({
             />
           </Campo>
           <Campo id="general-inicio" etiqueta="Fecha de inicio *" error={errores.plazo}>
-            <input id="general-inicio" type="date" value={f.fechaInicio} onChange={(e) => cambiar("fechaInicio", e.target.value, "plazo")} disabled={enviando} className={claseCampo(Boolean(errores.plazo))} />
+            <CampoFecha
+              sinEstilo
+              id="general-inicio" value={f.fechaInicio} onChange={(e) => cambiar("fechaInicio", e.target.value, "plazo")} disabled={enviando} className={claseCampo(Boolean(errores.plazo))} />
           </Campo>
           <Campo id="general-fin" etiqueta="Fecha de terminación *">
-            <input
+            <CampoFecha
+              sinEstilo
               id="general-fin"
-              type="date"
               value={f.fechaFin}
               min={f.fechaInicio || undefined}
               onChange={(e) => cambiar("fechaFin", e.target.value, "plazo")}

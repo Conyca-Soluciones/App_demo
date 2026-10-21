@@ -1,4 +1,4 @@
-import { formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
 import path from "path"
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { numeroALetrasCOP } from "@/lib/numero-a-letras"
@@ -286,7 +286,7 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
 
         <View style={styles.footer} fixed>
           <Text>
-            Generado el {new Date().toLocaleString("es-CO")} · Las firmas se muestran como constancia
+            Generado el {formatearFechaHora(new Date().toISOString())} · Las firmas se muestran como constancia
             mientras se habilitan las firmas digitalizadas.
           </Text>
           <Text render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />

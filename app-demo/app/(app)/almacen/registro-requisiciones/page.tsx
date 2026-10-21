@@ -151,7 +151,7 @@ export default function RegistroRequisiciones() {
                         </td>
                         <td className={celda}>{r.solicitanteNombre ?? "—"}</td>
                         <td className={`${celda} text-center`}>
-                          {new Date(r.createdAt).toLocaleDateString("es-CO")}
+                          {formatearFechaSinHora(r.createdAt)}
                         </td>
                         <td className={`${celda} text-center`}>
                           {r.fechaRequerida ? formatearFechaSinHora(r.fechaRequerida) : "—"}

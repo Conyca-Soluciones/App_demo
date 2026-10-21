@@ -25,6 +25,7 @@ import {
   type FiltrosAprobacionPagos,
   type Pago,
 } from "@/lib/pagos"
+import { formatearFechaSinHora } from "@/lib/fechas"
 
 const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "solicitado", etiqueta: "Por aprobar" },
@@ -203,7 +204,7 @@ export function AprobacionPagosView({
       ancho: 110,
       texto: (p) =>
         p.estado === "programado" && p.fechaProgramada
-          ? `Desde ${new Date(p.fechaProgramada + "T00:00:00").toLocaleDateString("es-CO")}`
+          ? `Desde ${formatearFechaSinHora(p.fechaProgramada)}`
           : p.solicitadoEn
             ? formatoFechaHora(p.solicitadoEn)
             : "",

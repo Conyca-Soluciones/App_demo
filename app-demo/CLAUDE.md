@@ -905,6 +905,14 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   corre en UTC: usar `(now() at time zone 'America/Bogota')::date`, no
   `current_date` (`20261006300000_fechas_colombia.sql`). Lo que se renderiza
   en el servidor (PDF de OC) necesita `timeZone: ZONA_HORARIA`.
+- **Fechas siempre dd/mm/aaaa** (decisión del usuario, 2026-10-21). Campos:
+  `CampoFecha` (`components/ui/campo-fecha.tsx`), nunca `<Input type="date">`
+  (el navegador en inglés lo muestra mm/dd/aaaa). Mismo valor "AAAA-MM-DD" y
+  mismo `onChange(e => e.target.value)`; `contenedorClassName` para el ancho,
+  `sinEstilo` para formularios con su propia clase; el botón abre el
+  calendario del navegador. Para mostrar: `formatearFechaSinHora` y
+  `formatearFechaHora` (`lib/fechas.ts`), nunca `toLocaleDateString("es-CO")`
+  sin opciones (da "5/10/2026") ni `dateStyle: "short"` (da "5/10/26").
 - **Cantidades de requisiciones, órdenes de compra, entradas y salidas: solo
   enteros** (decisión del usuario). Todo el flujo igual, para que nunca
   quede un saldo decimal imposible de recibir o sacar. Campos de texto:
@@ -1288,6 +1296,15 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (actualiza `contratistas.banco`, con la bandera `app.renombrando_banco` para
   que no se valide ni se cree cuenta ni historial) y desactivar. Los
   contratistas de prueba viejos no se convirtieron.
+- **Avance anterior de actas por %** (`20261118800000_avance_anterior_actas_sin_porcentaje.sql`,
+  E6): en `contrato_para_acta` (`avance_otras`) y `detalle_acta`
+  (`avance_anterior`), un acta sin `porcentaje_avance` (de antes de las actas
+  sobre el contrato, como el Acta 1 de CJ-14) cuenta lo cobrado como % del
+  valor. El tope por saldo ya estaba en `_guardar_acta`; el formulario muestra
+  el saldo y el % máximo que queda.
+- **ITEM del consolidado**: consecutivo por consolidado y semana
+  (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
+  conserva su ITEM y uno borrado a mano en la base deja el hueco.
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 
