@@ -2467,6 +2467,22 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
   `_puede_ver_otrosis` / `PESTANAS_VER_OTROSI` (ver el PDF del contrato).
 - Probada en el Postgres local (flujo completo, devolución, bloqueo de actas,
   backfill dos veces).
+- **Acta de aprobación** (`20261127000000_acta_poliza.sql`, plantilla GJ-F-013
+  versión 03 de Jurídica): en Aprobación de pólizas la pestaña "Póliza y acta"
+  muestra lado a lado la póliza y el acta (`components/acta-poliza-editor.tsx`:
+  Llenar / Vista previa, Guardar, PDF). Se llena sola (`actaPolizaPorDefecto`,
+  `lib/acta-poliza.ts`, con `datos_acta_poliza`): número y objeto del contrato,
+  empresa, contratista, supervisor = director que pidió el contrato y su correo
+  (de `auth.users`), amparos de la minuta del contrato (valor = % × valor
+  vigente), fecha de hoy y quien aprueba; aseguradora y certificado de pago se
+  escriben. Cada dato marca su origen y se edita. Guardar =
+  `guardar_acta_poliza` (`contrato_polizas.acta_datos`, solo por revisar);
+  aprobar manda el acta de pantalla (`resolver_poliza(..., p_acta)`, que exige
+  aseguradora y un amparo con `_validar_acta_poliza`) y queda fija. PDF:
+  `POST /contratos/poliza-acta/[id]` (`components/acta-poliza-pdf.tsx`; los
+  huecos de "pegar amparos / soporte de pago" son una tabla y un texto; página
+  de control de cambios fija; "BORRADOR" sin aprobar). El ingeniero ve el acta
+  de las aprobadas en Pólizas ("Acta").
 
 ## Menú de Contratos (2026-10-14)
 
@@ -2791,7 +2807,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261123000000` prórroga y nuevo valor del otrosí ·
 `20261124000000` tope de mano de obra y actividades por otrosí ·
 `20261125000000` control de proyecto con el valor vigente de los contratos ·
-`20261126000000` pólizas.
+`20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

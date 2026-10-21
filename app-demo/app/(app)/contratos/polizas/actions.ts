@@ -4,6 +4,15 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
 import { PESTANAS_VER_OTROSI } from "@/lib/otrosi"
+import { hoyColombia } from "@/lib/fechas"
+import {
+  actaPolizaPorDefecto,
+  limpiarActaPoliza,
+  mapDatosActaPoliza,
+  mezclarActaPoliza,
+  validarActaPoliza,
+  type ActaPoliza,
+} from "@/lib/acta-poliza"
 import {
   mapContratoPoliza,
   mapPoliza,
@@ -127,10 +136,54 @@ export async function polizaPorRevisarDeContrato(contratoId: string): Promise<st
   return polizas.find((p) => p.estado === "por_revisar")?.id ?? polizas[0]?.id ?? null
 }
 
-export async function resolverPoliza(id: string, accion: "aprobar" | "devolver", motivo: string): Promise<void> {
+// Aprobar lleva el acta de aprobación (la de pantalla); la base la exige.
+export async function resolverPoliza(id: string, accion: "aprobar" | "devolver", motivo: string, acta?: ActaPoliza): Promise<void> {
   await requerirPestana("contratos.aprobar_polizas")
   if (accion === "devolver" && !motivo.trim()) throw new Error("Escribe el motivo de la devolución.")
+  if (accion === "aprobar") {
+    if (!acta) throw new Error("Llena el acta de aprobación de la póliza antes de aprobarla.")
+    const problema = validarActaPoliza(acta)
+    if (problema) throw new Error(problema)
+  }
   const supabase = await createClient()
-  const { error } = await supabase.rpc("resolver_poliza", { p_id: id, p_accion: accion, p_motivo: motivo.trim() || null })
+  const { error } = await supabase.rpc("resolver_poliza", {
+    p_id: id,
+    p_accion: accion,
+    p_motivo: motivo.trim() || null,
+    p_acta: accion === "aprobar" && acta ? limpiarActaPoliza(acta) : null,
+  })
   if (error) throw new Error(error.message)
+}
+
+// ---------------------------------------------------------------- acta de aprobación
+export type DocumentoActaPoliza = {
+  acta: ActaPoliza // lo guardado sobre lo calculado
+  porDefecto: ActaPoliza
+  editable: boolean // la póliza está por revisar
+  guardadaAt: string | null
+  guardadaPorNombre: string | null
+}
+
+export async function obtenerActaPoliza(id: string): Promise<DocumentoActaPoliza> {
+  await requerirAlgunaPestana(PESTANAS_VER_OTROSI)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("datos_acta_poliza", { p_id: id })
+  if (error) throw new Error(error.message)
+  const d = mapDatosActaPoliza((data ?? {}) as Record<string, unknown>)
+  const porDefecto = actaPolizaPorDefecto(d, hoyColombia())
+  return {
+    acta: mezclarActaPoliza(porDefecto, d.actaDatos),
+    porDefecto,
+    editable: d.poliza.estado === "por_revisar",
+    guardadaAt: d.actaActualizadaAt,
+    guardadaPorNombre: d.actaActualizadaPorNombre,
+  }
+}
+
+export async function guardarActaPoliza(id: string, acta: ActaPoliza): Promise<{ guardadaAt: string }> {
+  await requerirPestana("contratos.aprobar_polizas")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("guardar_acta_poliza", { p_id: id, p_acta: limpiarActaPoliza(acta) })
+  if (error) throw new Error(error.message)
+  return { guardadaAt: String(data) }
 }

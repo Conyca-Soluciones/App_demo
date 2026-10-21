@@ -284,5 +284,10 @@ select * from (
                   where table_schema = 'public' and table_name = 'contratos' and column_name = 'poliza_estado')
          and exists (select 1 from pg_proc where proname = 'resolver_poliza')
          and exists (select 1 from pg_trigger where tgname = 'trg_poliza_al_aprobar_minuta')
+  union all
+  select '20261127000000_acta_poliza',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contrato_polizas' and column_name = 'acta_datos')
+         and exists (select 1 from pg_proc where proname = 'guardar_acta_poliza')
 ) t
 order by 1;

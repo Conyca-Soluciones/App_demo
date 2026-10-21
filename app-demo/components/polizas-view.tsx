@@ -12,6 +12,8 @@ import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { VisorDocumento } from "@/components/visor-documento"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
+import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
+import { rutaPdfActaPoliza } from "@/components/acta-poliza-editor"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -196,6 +198,7 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
   const [aviso, setAviso] = useState<string | null>(null)
   const [viendo, setViendo] = useState<Poliza | null>(null)
   const [verContrato, setVerContrato] = useState(false)
+  const [verActa, setVerActa] = useState<Poliza | null>(null)
   const entrada = useRef<HTMLInputElement>(null)
 
   function cargar() {
@@ -333,6 +336,11 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
                 <Button size="xs" variant="outline" onClick={() => setViendo(p)}>
                   <Eye className="size-3.5" /> Ver
                 </Button>
+                {p.estado === "aprobada" && (
+                  <Button size="xs" variant="outline" onClick={() => setVerActa(p)} title="Acta de aprobación de la póliza (GJ-F-013)">
+                    <FileText className="size-3.5" /> Acta
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -356,6 +364,25 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
         </DialogContent>
       </Dialog>
       <VerContratoOtrosi contrato={verContrato ? { id: c.id, numeroContrato: c.numeroContrato } : null} onCerrar={() => setVerContrato(false)} />
+      <Dialog open={verActa !== null} onOpenChange={(abierto) => !abierto && setVerActa(null)}>
+        <DialogContent className="flex h-[96svh] max-h-[96svh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-3 overflow-hidden sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Acta de aprobación de la póliza · contrato {c.numeroContrato}</DialogTitle>
+          </DialogHeader>
+          {verActa && <PdfActa polizaId={verActa.id} />}
+        </DialogContent>
+      </Dialog>
     </section>
+  )
+}
+
+const SIN_CAMBIOS = {}
+// El acta guardada (la póliza ya está aprobada: la ruta ignora lo que se mande).
+function PdfActa({ polizaId }: { polizaId: string }) {
+  const vista = useVistaPreviaMinuta(polizaId, SIN_CAMBIOS, null, rutaPdfActaPoliza(polizaId))
+  return (
+    <div className="min-h-0 flex-1">
+      <PanelVistaPrevia {...vista} />
+    </div>
   )
 }

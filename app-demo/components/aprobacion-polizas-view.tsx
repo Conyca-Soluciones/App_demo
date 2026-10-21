@@ -12,6 +12,8 @@ import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
 import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
+import { ActaPolizaEditor } from "@/components/acta-poliza-editor"
+import { validarActaPoliza, type ActaPoliza } from "@/lib/acta-poliza"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos } from "@/lib/contratos"
@@ -26,10 +28,12 @@ import {
 import {
   enlacePoliza,
   listarPolizasAprobacion,
+  obtenerActaPoliza,
   obtenerPoliza,
   polizaPorRevisarDeContrato,
   polizasDeContrato,
   resolverPoliza,
+  type DocumentoActaPoliza,
 } from "@/app/(app)/contratos/polizas/actions"
 
 // ---------------------------------------------------------------------------
@@ -241,11 +245,16 @@ function DetallePoliza({
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
+  // Acta de aprobación (GJ-F-013): cargada por póliza; lo de pantalla es lo que se aprueba.
+  const [docActa, setDocActa] = useState<{ id: string; doc: DocumentoActaPoliza | null; error: string | null } | null>(null)
+  const [actaEdit, setActaEdit] = useState<{ id: string; acta: ActaPoliza } | null>(null)
+  const [errorAprobar, setErrorAprobar] = useState<string | null>(null)
   // Al abrir otra póliza, se vuelve a la primera pestaña.
   const [idPrevio, setIdPrevio] = useState(id)
   if (id !== idPrevio) {
     setIdPrevio(id)
     setPestana("poliza")
+    setErrorAprobar(null)
   }
 
   useEffect(() => {
@@ -254,6 +263,9 @@ function DetallePoliza({
     obtenerPoliza(id)
       .then((poliza) => !cancelado && setCarga({ id, poliza, error: null }))
       .catch((e) => !cancelado && setCarga({ id, poliza: null, error: e instanceof Error ? e.message : "No se pudo abrir la póliza." }))
+    obtenerActaPoliza(id)
+      .then((doc) => !cancelado && setDocActa({ id, doc, error: null }))
+      .catch((e) => !cancelado && setDocActa({ id, doc: null, error: e instanceof Error ? e.message : "No se pudo cargar el acta." }))
     return () => {
       cancelado = true
     }
@@ -261,6 +273,24 @@ function DetallePoliza({
 
   const actual = carga && carga.id === id ? carga : null
   const p = actual?.poliza ?? null
+  const acta = docActa && docActa.id === id ? docActa : null
+  const actaPantalla = actaEdit && actaEdit.id === id ? actaEdit.acta : (acta?.doc?.acta ?? null)
+  const cambiosActa = Boolean(actaEdit && actaEdit.id === id)
+
+  function pedirAprobacion() {
+    if (!actaPantalla) {
+      setErrorAprobar("El acta todavía no ha cargado.")
+      return
+    }
+    const problema = validarActaPoliza(actaPantalla)
+    if (problema) {
+      setErrorAprobar(`Acta de aprobación: ${problema}`)
+      setPestana("poliza")
+      return
+    }
+    setErrorAprobar(null)
+    setAccion("aprobar")
+  }
 
   async function confirmar() {
     if (!accion || !p) return
@@ -271,7 +301,7 @@ function DetallePoliza({
     setProcesando(true)
     setErrorAccion(null)
     try {
-      await resolverPoliza(p.id, accion, motivo)
+      await resolverPoliza(p.id, accion, motivo, accion === "aprobar" ? (actaPantalla ?? undefined) : undefined)
       onResuelta(
         accion === "aprobar"
           ? `Póliza del contrato ${p.contrato.numeroContrato} aprobada: ya se pueden hacer actas.`
@@ -305,7 +335,7 @@ function DetallePoliza({
                 <div className="flex gap-1" role="tablist">
                   {(
                     [
-                      ["poliza", "Póliza"],
+                      ["poliza", "Póliza y acta"],
                       ["contrato", "Contrato"],
                       ["informacion", "Contrato y contratista"],
                     ] as [Pestana, string][]
@@ -324,7 +354,34 @@ function DetallePoliza({
               )}
               <div className="min-h-0 flex-1 overflow-auto">
                 {pestana === "poliza" ? (
-                  <ArchivoPoliza poliza={p} />
+                  // Lado a lado: la póliza y el acta de aprobación (editable y exportable).
+                  <div className="grid h-full min-h-[70svh] gap-4 lg:grid-cols-2">
+                    <ArchivoPoliza poliza={p} />
+                    {!acta ? (
+                      <div className="flex items-center justify-center text-muted-foreground">
+                        <Loader2 className="mr-2 size-4 animate-spin" /> Cargando acta...
+                      </div>
+                    ) : !acta.doc || !actaPantalla ? (
+                      <p className="text-sm text-destructive">{acta.error}</p>
+                    ) : (
+                      <ActaPolizaEditor
+                        polizaId={p.id}
+                        documento={acta.doc}
+                        acta={actaPantalla}
+                        cambios={cambiosActa}
+                        editable={puedeResolver && acta.doc.editable}
+                        onChange={(nueva) => {
+                          setActaEdit({ id: p.id, acta: nueva })
+                          setErrorAprobar(null)
+                        }}
+                        onGuardada={(guardadaAt) => {
+                          const d = acta.doc!
+                          setDocActa({ id: p.id, doc: { ...d, acta: actaPantalla, guardadaAt, guardadaPorNombre: null }, error: null })
+                          setActaEdit(null)
+                        }}
+                      />
+                    )}
+                  </div>
                 ) : pestana === "contrato" ? (
                   <PdfContrato id={p.contrato.id} />
                 ) : (
@@ -333,10 +390,11 @@ function DetallePoliza({
               </div>
               {puedeResolver && p.estado === "por_revisar" && (
                 <DialogFooter>
+                  {errorAprobar && <p className="mr-auto self-center text-sm text-destructive">{errorAprobar}</p>}
                   <Button variant="outline" className="border-orange-300 text-orange-800 hover:bg-orange-50" onClick={() => setAccion("devolver")}>
                     <Undo2 className="size-4" /> Devolver al ingeniero
                   </Button>
-                  <Button onClick={() => setAccion("aprobar")}>
+                  <Button onClick={pedirAprobacion}>
                     <CheckCircle2 className="size-4" /> Aprobar póliza
                   </Button>
                 </DialogFooter>
@@ -366,7 +424,7 @@ function DetallePoliza({
               </DialogHeader>
               <p className="text-sm text-muted-foreground">
                 {accion === "aprobar"
-                  ? "El contrato queda con la póliza aprobada y ya se pueden hacer actas. Quien la subió y el director reciben una notificación."
+                  ? "Se aprueba con el acta que está en pantalla (queda fija). El contrato queda con la póliza aprobada y ya se pueden hacer actas. Quien la subió y el director reciben una notificación."
                   : "El contrato vuelve a quedar con la póliza pendiente; quien la subió y el director reciben el motivo y suben otra."}
               </p>
               {accion === "devolver" && (
