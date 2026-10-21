@@ -108,8 +108,15 @@ export function accionesDeFila<T>(columnas: ColumnaExcel<T>[], fila: T | null, c
 
 // Los campos de la ventana a partir de las columnas de una TablaExcel (mismo
 // título y mismo contenido que la celda), sin las columnas de botones.
-export function camposDesdeColumnas<T>(columnas: ColumnaExcel<T>[], fila: T, quitar: string[] = ["acciones"]): CampoDetalle[] {
+// `soloTexto`: columnas cuya celda es un botón o un campo (editar en la fila):
+// en la ventana van como texto, para que la información quede fija.
+export function camposDesdeColumnas<T>(
+  columnas: ColumnaExcel<T>[],
+  fila: T,
+  quitar: string[] = ["acciones"],
+  soloTexto: string[] = []
+): CampoDetalle[] {
   return columnas
     .filter((c) => !quitar.includes(c.clave) && c.titulo.trim() !== "")
-    .map((c) => ({ etiqueta: c.titulo, valor: c.celda ? c.celda(fila) : c.texto(fila) }))
+    .map((c) => ({ etiqueta: c.titulo, valor: c.celda && !soloTexto.includes(c.clave) ? c.celda(fila) : c.texto(fila) }))
 }

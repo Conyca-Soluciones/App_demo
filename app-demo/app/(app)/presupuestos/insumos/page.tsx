@@ -492,7 +492,7 @@ export default function MaestroInsumos() {
         onCerrar={() => setViendo(null)}
         titulo={viendo?.descripcion}
         subtitulo={viendo ? <span className="font-mono">{viendo.codigo}</span> : undefined}
-        campos={viendo ? camposDesdeColumnas(columnasTabla, viendo) : []}
+        campos={viendo ? camposDesdeColumnas(columnasTabla, viendo, ["acciones"], ["presentacion"]) : []}
         onEditar={
           viendo && puedeEditar
             ? () => {
