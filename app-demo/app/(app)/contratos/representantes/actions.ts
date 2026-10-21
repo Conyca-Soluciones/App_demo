@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
+import { requerirAccion, requerirAlgunaPestana } from "@/lib/permisos"
 import { MAXIMO_CARACTERES_FIRMA } from "@/lib/firmas"
 import {
   mapEmpresasRepresentantes,
@@ -13,14 +13,14 @@ import {
 } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
-// Firmas de representantes legales (pestaña contratos.representantes; poner
-// la firma exige la acción aprobar_minutas, Subgerencia). Los datos del
-// representante se registran en Admin › Empresas. Todo pasa por las funciones
-// de 20261201000000_representantes_legales.sql.
+// Firmas de representantes legales: las adjunta el Administrador (Admin ›
+// Empresas, donde se registran los representantes) o Subgerencia (acción
+// aprobar_minutas, botón «Adjuntar firma de RL» en Aprobación de contratos).
+// Todo pasa por las funciones de 20261201000000_representantes_legales.sql.
 // ---------------------------------------------------------------------------
 
 export async function listarRepresentantesLegales(): Promise<EmpresaConRepresentantes[]> {
-  await requerirPestana("contratos.representantes")
+  await requerirAccion("aprobar_minutas") // el Administrador también pasa
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("listar_representantes_legales")
   if (error) throw new Error(error.message)
@@ -53,7 +53,7 @@ export async function guardarFirmaRepresentante(
 // Usuarios para enlazar a un representante que usa la app (nombre visible
 // para todos, 20261118000000).
 export async function listarUsuariosParaRepresentante(): Promise<{ id: string; nombre: string }[]> {
-  await requerirPestana("contratos.representantes")
+  await requerirAccion("aprobar_minutas")
   const supabase = await createClient()
   const { data, error } = await supabase.from("perfiles").select("id, nombre").order("nombre").limit(1000)
   if (error) throw new Error(error.message)

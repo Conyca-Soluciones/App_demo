@@ -2682,10 +2682,13 @@ otrosí.
   corregir datos y conservar la firma; otro documento = el anterior queda
   inactivo y entra el nuevo (o vuelve uno anterior con ese documento, con su
   firma; el intercambio principal <-> suplente también conserva las firmas).
-  La FIRMA la pone Subgerencia (acción `aprobar_minutas`) en Contratos › Firmas
-  de representantes (`contratos.representantes`,
-  `components/representantes-legales-view.tsx`, `guardar_firma_representante`;
-  dibujada o subida con el editor de Mi firma, y el usuario si usa la app).
+  La FIRMA se adjunta ahí mismo ("Adjuntar firma" debajo de cada empresa) o,
+  para Subgerencia (acción `aprobar_minutas`), con el botón «Adjuntar firma de
+  RL» de Aprobación de contratos (diálogo con
+  `components/representantes-legales-view.tsx`; `FirmaRepresentanteDialog` lo
+  usan los dos; `guardar_firma_representante` = aprobar_minutas o
+  Administrador; dibujada o subida con el editor de Mi firma, y el usuario si
+  usa la app). No hay pestaña aparte.
   Sin políticas: todo por funciones (`listar_representantes_legales`,
   `representantes_de_contrato` sin la imagen). La minuta trae al principal (`DatosExtraMinuta.empresaRepresentante`
   en `cargarBaseMinuta`) y Jurídica lo cambia por un suplente con

@@ -28,7 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { RepresentantesEmpresaDialog } from "@/components/representantes-empresa-dialog"
-import { principalActivo, suplenteActivo, type EmpresaConRepresentantes, type RepresentanteLegal } from "@/lib/representantes"
+import { FirmaRepresentanteDialog } from "@/components/representantes-legales-view"
+import { origenFirmaRepresentante, principalActivo, suplenteActivo, type EmpresaConRepresentantes, type RepresentanteLegal } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
 // Tab de Proyectos
@@ -325,6 +326,7 @@ function TabEmpresas({
   const [representantes, setRepresentantes] = useState<Map<string, RepresentanteLegal[]>>(new Map())
   const [versionRep, setVersionRep] = useState(0)
   const [repEditando, setRepEditando] = useState<Empresa | null>(null)
+  const [firmaEditando, setFirmaEditando] = useState<{ empresa: string; rep: RepresentanteLegal } | null>(null)
   useEffect(() => {
     let vigente = true
     listarRepresentantesEmpresas()
@@ -554,7 +556,7 @@ function TabEmpresas({
                 <Button size="sm" variant="ghost" onClick={() => empezarAEditar(e)}>
                   Editar
                 </Button>
-                <ResumenRepresentantes reps={representantes.get(e.id) ?? []} />
+                <ResumenRepresentantes reps={representantes.get(e.id) ?? []} onFirma={(r) => setFirmaEditando({ empresa: e.razonSocial, rep: r })} />
                 <Button
                   size="sm"
                   variant="ghost"
@@ -586,19 +588,37 @@ function TabEmpresas({
           }}
         />
       )}
+      {firmaEditando && (
+        <FirmaRepresentanteDialog
+          empresa={firmaEditando.empresa}
+          rep={firmaEditando.rep}
+          onCerrar={() => setFirmaEditando(null)}
+          onGuardado={() => {
+            setFirmaEditando(null)
+            setVersionRep((v) => v + 1)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-// Debajo de la empresa: quién es su representante legal y su suplente.
-function ResumenRepresentantes({ reps }: { reps: RepresentanteLegal[] }) {
+// Debajo de la empresa: su representante legal y su suplente, con su firma.
+function ResumenRepresentantes({ reps, onFirma }: { reps: RepresentanteLegal[]; onFirma: (r: RepresentanteLegal) => void }) {
   const p = principalActivo(reps)
   const su = suplenteActivo(reps)
-  const texto = (r: RepresentanteLegal) => `${r.nombre} (${r.tipoDocumento} ${r.numeroDocumento})`
+  const linea = (titulo: string, r: RepresentanteLegal) => (
+    <span className="inline-flex items-center gap-1.5">
+      {titulo}: {r.nombre} ({r.tipoDocumento} {r.numeroDocumento})
+      <button type="button" onClick={() => onFirma(r)} className="rounded px-1.5 py-0.5 text-primary underline-offset-2 hover:underline">
+        {origenFirmaRepresentante(r) ? "Firma ✓" : "Adjuntar firma"}
+      </button>
+    </span>
+  )
   return (
-    <p className="basis-full pl-[52px] text-xs text-muted-foreground">
-      {p ? `Representante legal: ${texto(p)}` : <span className="text-amber-700">Sin representante legal</span>}
-      {su ? ` · Suplente: ${texto(su)}` : ""}
+    <p className="flex basis-full flex-wrap gap-x-4 pl-[52px] text-xs text-muted-foreground">
+      {p ? linea("Representante legal", p) : <span className="text-amber-700">Sin representante legal</span>}
+      {su && linea("Suplente", su)}
     </p>
   )
 }

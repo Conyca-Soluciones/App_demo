@@ -3,10 +3,11 @@
 --   * Cada empresa tiene un representante legal (principal) y un suplente. Sus
 --     datos (nombre y documento) se registran en Admin › Empresas, donde se
 --     crean las empresas (solo Administrador: guardar_representantes_empresa).
---   * La firma la pone Subgerencia (acción aprobar_minutas) en Contratos ›
---     Firmas de representantes (guardar_firma_representante): la dibuja o la
---     sube; si el representante usa la app, se enlaza a su usuario y firma con
---     su "Mi firma".
+--   * La firma se adjunta en el mismo lugar (Admin › Empresas) o, para
+--     Subgerencia (acción aprobar_minutas), con el botón «Adjuntar firma de RL»
+--     de Aprobación de contratos (guardar_firma_representante): dibujada o
+--     subida; si el representante usa la app, se enlaza a su usuario y firma
+--     con su "Mi firma".
 --   * La firma se pone en el contrato cuando Subgerencia aprueba la minuta:
 --     firma el representante cuya cédula está en la minuta (se busca entre los
 --     activos de la empresa del proyecto), así el texto y la firma siempre
@@ -46,10 +47,6 @@ alter table public.empresa_representantes enable row level security;
 revoke insert, update, delete on public.empresa_representantes from authenticated;
 -- Sin políticas: se lee y escribe con las funciones de abajo (la firma no se expone).
 
-insert into public.rol_permisos (rol_id, permiso)
-select distinct rol_id, 'tab.contratos.representantes' from public.rol_permisos
- where permiso = 'tab.contratos.aprobar_minutas'
-on conflict do nothing;
 
 alter table public.documento_firmas drop constraint if exists documento_firmas_entidad_check;
 alter table public.documento_firmas add constraint documento_firmas_entidad_check
@@ -97,7 +94,7 @@ $$;
 revoke all on function public._fila_representante(public.empresa_representantes, boolean) from public, anon, authenticated;
 
 -- Todas las empresas con sus representantes (activos e inactivos), con la
--- firma: Admin › Empresas y Contratos › Firmas de representantes.
+-- firma: Admin › Empresas y «Adjuntar firma de RL» (Aprobación de contratos).
 create or replace function public.listar_representantes_legales()
 returns jsonb
 language plpgsql
@@ -216,7 +213,7 @@ $$;
 revoke all on function public.guardar_representantes_empresa(uuid, jsonb, jsonb) from public, anon;
 grant execute on function public.guardar_representantes_empresa(uuid, jsonb, jsonb) to authenticated;
 
--- Contratos › Firmas de representantes (Subgerencia): la firma de un
+-- Admin › Empresas y «Adjuntar firma de RL» (Subgerencia): la firma de un
 -- representante activo y, si usa la app, su usuario. Cada clave solo cambia si
 -- viene: imagen_firma (null = quitarla) y perfil_id (null = no usa la app).
 create or replace function public.guardar_firma_representante(p_id uuid, p_datos jsonb)
@@ -226,7 +223,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if not public.tiene_accion(auth.uid(), 'aprobar_minutas') then
+  if not (public.tiene_accion(auth.uid(), 'aprobar_minutas') or public.es_admin(auth.uid())) then
     raise exception 'No tienes permiso para poner la firma de los representantes legales.';
   end if;
   if p_datos ? 'imagen_firma' and p_datos->>'imagen_firma' is not null
@@ -353,7 +350,7 @@ begin
     raise exception 'El representante legal de la minuta (%) no está registrado como representante de %. Regístralo en Admin › Empresas o devuelve la minuta a Jurídica para corregirlo.',
       coalesce(nullif(concat_ws(', C.C. ', v->>'minuta_nombre', v->>'minuta_documento'), ''), 'sin datos'), v->>'empresa';
   elsif v->>'estado' = 'sin_firma' then
-    raise exception 'Falta la firma de %, representante legal de %: ponla en Contratos › Firmas de representantes.',
+    raise exception 'Falta la firma de %, representante legal de %: adjúntala en Admin › Empresas (o «Adjuntar firma de RL» en Aprobación de contratos).',
       v->>'nombre', v->>'empresa';
   end if;
   insert into documento_firmas (entidad, entidad_id, papel, perfil_id, nombre, cargo, imagen, firmado_at)

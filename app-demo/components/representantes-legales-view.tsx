@@ -21,10 +21,11 @@ import {
 } from "@/app/(app)/contratos/representantes/actions"
 
 // ---------------------------------------------------------------------------
-// Firmas de representantes legales (Subgerencia). Los representantes (legal y
-// suplente de cada empresa) se registran en Admin › Empresas; aquí se pone su
-// firma: dibujada o subida, o, si usa la app, la de su "Mi firma". Se pone
-// sola en el contrato al aprobar la minuta (20261201000000_representantes_legales.sql).
+// «Adjuntar firma de RL» (Subgerencia, en Aprobación de contratos): los
+// representantes de cada empresa (registrados en Admin › Empresas) y su firma:
+// dibujada o subida, o, si usa la app, la de su "Mi firma". FirmaRepresentanteDialog
+// también lo usa Admin › Empresas. La firma se pone sola en el contrato al
+// aprobar la minuta (20261201000000_representantes_legales.sql).
 // ---------------------------------------------------------------------------
 
 const SIN_USUARIO = "ninguno"
@@ -54,10 +55,9 @@ export function RepresentantesLegalesView({ puedeEditar }: { puedeEditar: boolea
     )
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4">
+    <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        El representante legal y el suplente de cada empresa se registran en Admin › Empresas. Aquí se pone su firma; firma el
-        contrato el que esté en la minuta.
+        Los representantes se registran en Admin › Empresas. Firma el contrato el que esté en la minuta.
       </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {empresas.length === 0 && <p className="text-sm text-muted-foreground">No hay empresas registradas.</p>}
@@ -133,7 +133,7 @@ export function RepresentantesLegalesView({ puedeEditar }: { puedeEditar: boolea
   )
 }
 
-function FirmaRepresentanteDialog({
+export function FirmaRepresentanteDialog({
   empresa,
   rep,
   onCerrar,

@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------
 // Representantes legales de las empresas (20261201000000_representantes_legales.sql).
 // Cada empresa tiene un representante legal (principal) y un suplente: sus
-// datos se registran en Admin › Empresas; la firma la pone Subgerencia en
-// Contratos › Firmas de representantes (o, si usa la app, su "Mi firma"). Se
+// datos y su firma se registran en Admin › Empresas (Subgerencia también
+// adjunta la firma desde Aprobación de contratos; si usa la app, firma con su
+// "Mi firma"). Se
 // pone en el contrato al aprobar la minuta: firma el representante cuya cédula
 // está en la minuta.
 // ---------------------------------------------------------------------------
@@ -147,7 +148,7 @@ export function textoFirmaRepresentante(f: FirmaRepresentanteContrato): { texto:
     case "ok":
       return { texto: `Al aprobar se pone la firma de ${f.nombre} (representante legal${f.tipo === "suplente" ? " suplente" : ""} de ${f.empresa}).`, bloquea: false }
     case "sin_firma":
-      return { texto: `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: ponla en Contratos › Firmas de representantes antes de aprobar.`, bloquea: true }
+      return { texto: `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: adjúntala con «Adjuntar firma de RL» (arriba) antes de aprobar.`, bloquea: true }
     case "no_coincide":
       return {
         texto: `El representante de la minuta (${[f.minutaNombre, f.minutaDocumento && `C.C. ${f.minutaDocumento}`].filter(Boolean).join(", ") || "sin datos"}) no está registrado en ${f.empresa}: regístralo en Admin › Empresas o devuelve la minuta a Jurídica.`,

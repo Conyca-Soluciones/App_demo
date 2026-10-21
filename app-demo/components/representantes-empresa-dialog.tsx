@@ -60,8 +60,8 @@ export function RepresentantesEmpresaDialog({
         <DialogHeader>
           <DialogTitle>Representantes legales</DialogTitle>
           <DialogDescription>
-            {empresa.razonSocial}. Salen en las minutas de sus contratos; la firma la pone Subgerencia en Contratos › Firmas de
-            representantes.
+            {empresa.razonSocial}. Salen en las minutas de sus contratos. Después de guardar, adjunta la firma de cada uno
+            («Adjuntar firma» debajo de la empresa).
           </DialogDescription>
         </DialogHeader>
         <Bloque titulo="Representante legal" datos={p} onCambio={setP} />

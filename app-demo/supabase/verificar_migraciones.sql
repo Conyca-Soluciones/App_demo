@@ -370,6 +370,6 @@ select * from (
   select '20261201000000_representantes_legales',
          to_regclass('public.empresa_representantes') is not null
          and exists (select 1 from pg_trigger where tgname = 'trg_firmar_representante_contrato')
-         and exists (select 1 from public.rol_permisos where permiso = 'tab.contratos.representantes')
+         and exists (select 1 from pg_proc where proname = 'guardar_firma_representante')
 ) t
 order by 1;
