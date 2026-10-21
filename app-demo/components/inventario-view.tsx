@@ -20,6 +20,7 @@ import {
   obtenerInventarioProyecto,
   type InsumoInventario,
 } from "@/app/(app)/almacen/inventario/actions"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
@@ -41,6 +42,7 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [insumoAplicado, setInsumoAplicado] = useState<OpcionBuscador | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [viendo, setViendo] = useState<InsumoInventario | null>(null)
 
   useEffect(() => {
     if (!proyectoId) return
@@ -150,7 +152,12 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
             </TableHeader>
             <TableBody>
               {filtrado.map((i) => (
-                <TableRow key={i.insumoId}>
+                <TableRow
+                  key={i.insumoId}
+                  className={CLASE_FILA_DOBLE_CLIC}
+                  title={AYUDA_DOBLE_CLIC}
+                  onDoubleClick={alDobleClic(() => setViendo(i))}
+                >
                   <TableCell>{i.insumoCodigo}</TableCell>
                   <TableCell>{i.insumoDescripcion}</TableCell>
                   <TableCell>{i.insumoUm ?? "—"}</TableCell>
@@ -176,6 +183,31 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
         </div>
       )}
       </div>
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.insumoDescripcion}
+        subtitulo={viendo ? `Código ${viendo.insumoCodigo}` : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "UM", valor: viendo.insumoUm ?? "" },
+                { etiqueta: "Entradas", valor: formatoNumero.format(viendo.cantidadEntrada) },
+                { etiqueta: "Salidas", valor: formatoNumero.format(viendo.cantidadSalida) },
+                {
+                  etiqueta: "Disponible",
+                  valor: (
+                    <span className={viendo.cantidadDisponible < 0 ? "font-medium text-destructive" : "font-medium"}>
+                      {formatoNumero.format(viendo.cantidadDisponible)}
+                    </span>
+                  ),
+                },
+                { etiqueta: "Costo promedio", valor: formatoMoneda.format(viendo.costoPromedio) },
+                { etiqueta: "Valor en bodega", valor: formatoMoneda.format(viendo.valorInventario) },
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

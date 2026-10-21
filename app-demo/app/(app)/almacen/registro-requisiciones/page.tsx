@@ -15,6 +15,7 @@ import type { RequisicionResumen } from "@/lib/requisiciones-lineas"
 import { descargarExcelRequisiciones } from "@/lib/exportar-requisiciones"
 
 import { exportarRequisiciones, listarRequisiciones, type FiltrosRequisiciones } from "../actions"
+import { AYUDA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
 
 
 const headClasses =
@@ -132,7 +133,8 @@ export default function RegistroRequisiciones() {
                     {requisiciones.map((r) => (
                       <tr
                         key={r.id}
-                        onClick={() => setAbiertaId(r.id)}
+                        onDoubleClick={alDobleClic(() => setAbiertaId(r.id))}
+                        title={AYUDA_DOBLE_CLIC}
                         className={`cursor-pointer border-b hover:bg-accent/40 ${
                           r.urgente && r.estado === "pendiente" ? "bg-amber-50/60" : ""
                         }`}

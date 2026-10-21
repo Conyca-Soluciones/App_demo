@@ -1,6 +1,7 @@
 "use client"
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
+import { alDobleClic } from "@/components/ventana-detalle"
 
 // ---------------------------------------------------------------------------
 // Tabla "tipo Excel" compartida (mismo diseño que /almacen/proveedores):
@@ -145,7 +146,7 @@ export function TablaExcel<T>({
               <tr
                 key={claveFila(fila)}
                 className={`group ${onDobleClickFila ? "cursor-pointer" : ""}`}
-                onDoubleClick={onDobleClickFila ? () => onDobleClickFila(fila) : undefined}
+                onDoubleClick={onDobleClickFila ? alDobleClic(() => onDobleClickFila(fila)) : undefined}
                 title={tituloFila}
               >
                 {columnas.map((c) => {

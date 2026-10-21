@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { actualizarProveedor, crearProveedor, listarProveedores } from "@/app/(app)/almacen/proveedores/actions"
 import { ETIQUETA_CAMPO, OPCIONES, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 // ---------------------------------------------------------------------------
 // Proveedores: tabla tipo Excel con edición en línea (clic en la celda,
@@ -421,6 +422,10 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
   const [aviso, setAviso] = useState<Aviso>(null)
   const [nuevoAbierto, setNuevoAbierto] = useState(false)
   const [historialDe, setHistorialDe] = useState<Proveedor | null>(null)
+  // Ventana del proveedor (doble clic): datos fijos; con "Editar", los mismos
+  // campos se vuelven editables (se guarda cada uno al salir, como antes).
+  const [viendoId, setViendoId] = useState<string | null>(null)
+  const [editandoVentana, setEditandoVentana] = useState(false)
 
   useEffect(() => {
     listarProveedores()
@@ -473,6 +478,12 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
 
   const claveFiltros = `${busqueda}|${filtroEstado}|${filtroTipo}`
   const visiblesMovil = paginaMovil.clave === claveFiltros ? paginaMovil.n : TAMANO_PAGINA_MOVIL
+
+  function abrirProveedor(p: Proveedor) {
+    setEditandoVentana(false)
+    setViendoId(p.uniqueId)
+  }
+  const viendo = viendoId ? (proveedores ?? []).find((x) => x.uniqueId === viendoId) ?? null : null
 
   async function guardar(p: Proveedor, campo: CampoEditable, texto: string): Promise<string | null> {
     const validado = validarCampo(campo, texto)
@@ -683,7 +694,12 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                 </thead>
                 <tbody>
                   {filtrados.map((p) => (
-                    <tr key={p.uniqueId} className="group">
+                    <tr
+                      key={p.uniqueId}
+                      className={`group ${CLASE_FILA_DOBLE_CLIC}`}
+                      title={AYUDA_DOBLE_CLIC}
+                      onDoubleClick={alDobleClic(() => abrirProveedor(p))}
+                    >
                       {COLUMNAS.map((c) => {
                         const izquierda = IZQUIERDA_FIJA[c.campo]
                         return (
@@ -705,7 +721,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                               <CeldaEditable
                                 proveedor={p}
                                 campo={c.campo}
-                                puedeEditar={puedeEditar}
+                                puedeEditar={false}
                                 onGuardar={guardar}
                                 alinear={c.alinear}
                                 className={c.campo === "numeroDocumento" ? "tabular-nums" : ""}
@@ -723,13 +739,13 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
             {/* ---------- Tarjetas (poco espacio) ---------- */}
             <ul className="grid items-start gap-3 @xl:grid-cols-2 @3xl:hidden">
               {filtrados.slice(0, visiblesMovil).map((p) => (
-                <li key={p.uniqueId} className="overflow-hidden rounded-lg border">
+                <li key={p.uniqueId} className="overflow-hidden rounded-lg border" onDoubleClick={alDobleClic(() => abrirProveedor(p))}>
                   <div className="flex items-start gap-2 border-b bg-muted/40 px-1 py-1">
                     <div className="min-w-0 flex-1">
                       <CeldaEditable
                         proveedor={p}
                         campo="nombre"
-                        puedeEditar={puedeEditar}
+                        puedeEditar={false}
                         onGuardar={guardar}
                         multilinea
                         className="font-medium"
@@ -737,10 +753,13 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                       <div className="flex items-center gap-1 px-3 pb-1">
                         <p className="text-xs text-muted-foreground tabular-nums">ID {p.idProv}</p>
                         <BotonHistorial onClick={() => setHistorialDe(p)} />
+                        <button type="button" className="ml-auto text-xs text-primary hover:underline" onClick={() => abrirProveedor(p)}>
+                          Ver detalle
+                        </button>
                       </div>
                     </div>
                     <div className="w-28 shrink-0">
-                      <CeldaEditable proveedor={p} campo="estado" puedeEditar={puedeEditar} onGuardar={guardar} alinear="center" />
+                      <CeldaEditable proveedor={p} campo="estado" puedeEditar={false} onGuardar={guardar} alinear="center" />
                     </div>
                   </div>
                   <dl className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] text-sm">
@@ -748,7 +767,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                       <div key={campo} className="contents">
                         <dt className="truncate border-b px-3 py-2 text-xs text-muted-foreground">{ETIQUETA[campo]}</dt>
                         <dd className="min-w-0 border-b">
-                          <CeldaEditable proveedor={p} campo={campo} puedeEditar={puedeEditar} onGuardar={guardar} />
+                          <CeldaEditable proveedor={p} campo={campo} puedeEditar={false} onGuardar={guardar} />
                         </dd>
                       </div>
                     ))}
@@ -768,6 +787,48 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
           </>
         )}
       </main>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => {
+          setViendoId(null)
+          setEditandoVentana(false)
+        }}
+        titulo={viendo?.nombre}
+        subtitulo={
+          viendo
+            ? editandoVentana
+              ? "Haz clic en un dato para cambiarlo; se guarda al salir del campo."
+              : `ID ${viendo.idProv ?? "—"}`
+            : undefined
+        }
+        campos={
+          viendo
+            ? COLUMNAS.filter((c) => c.campo !== "idProv").map((c) => ({
+                etiqueta: c.titulo,
+                valor: (
+                  <div className={editandoVentana ? "-mx-3 rounded-md border" : "-mx-3 -my-2"}>
+                    <CeldaEditable
+                      proveedor={viendo}
+                      campo={c.campo as CampoEditable}
+                      puedeEditar={editandoVentana}
+                      onGuardar={guardar}
+                      multilinea
+                    />
+                  </div>
+                ),
+              }))
+            : []
+        }
+        onEditar={viendo && puedeEditar && !editandoVentana ? () => setEditandoVentana(true) : undefined}
+        acciones={
+          viendo && (
+            <Button variant="outline" onClick={() => setHistorialDe(viendo)}>
+              <History className="mr-1.5 h-4 w-4" /> Historial
+            </Button>
+          )
+        }
+      />
 
       <HistorialDialog
         abierto={historialDe !== null}

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { BannerPreciosInsumos } from "@/components/banner-precios-insumos"
 import { useSearchParams, useRouter } from "next/navigation"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 const TODOS_LOS_TIPOS = CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string[])
 
@@ -253,6 +254,7 @@ function FilaPendiente({
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   const [precio, setPrecio] = useState("")
+  const [viendo, setViendo] = useState(false)
   // Lo que trae la solicitud (del Excel: "INSUMO", "m³") se usa solo si
   // corresponde a la lista estándar; si no, queda vacío para elegirlo.
   const [tipo, setTipo] = useState(solicitud.tipo && TODOS_LOS_TIPOS.includes(solicitud.tipo) ? solicitud.tipo : "")
@@ -316,7 +318,11 @@ function FilaPendiente({
   }
 
   return (
-    <tr className="border-b align-top hover:bg-muted/30">
+    <tr
+      className={`border-b align-top hover:bg-muted/30 ${CLASE_FILA_DOBLE_CLIC}`}
+      title={AYUDA_DOBLE_CLIC}
+      onDoubleClick={alDobleClic(() => setViendo(true))}
+    >
       <td className={celda}>
         <p className="font-medium">{solicitud.descripcion}</p>
       </td>
@@ -488,6 +494,22 @@ function FilaPendiente({
           {error && <p className="text-[10px] text-destructive">{error}</p>}
         </div>
       </td>
+      {/* Solo datos de la solicitud: aprobar y rechazar se hacen en la fila,
+          donde están los campos que hay que llenar. */}
+      <VentanaDetalle
+        abierta={viendo}
+        onCerrar={() => setViendo(false)}
+        titulo={solicitud.descripcion}
+        subtitulo="Solicitud por aprobar: los datos para aprobarla se llenan en la fila."
+        campos={[
+          { etiqueta: "Solicitado por", valor: solicitud.solicitadoPorNombre ?? "" },
+          { etiqueta: "Fecha", valor: formatearFechaSinHora(solicitud.createdAt) },
+          { etiqueta: "Proyecto", valor: solicitud.proyectoNombre ?? "" },
+          { etiqueta: "Ítem", valor: solicitud.itemCodigo ?? "" },
+          { etiqueta: "Tipo pedido", valor: solicitud.tipo ?? "" },
+          { etiqueta: "Unidad pedida", valor: solicitud.uM ?? "" },
+        ]}
+      />
     </tr>
   )
 }

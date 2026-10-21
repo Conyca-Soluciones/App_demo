@@ -2850,6 +2850,25 @@ Resumen para quien (Claude o persona) retome el trabajo. Rama de trabajo: **`lcp
   al elegir una pestaña, y una flecha en la orilla lo abre en la ruta actual.
   Para una pestaña nueva de A&F: entrada en `PESTANAS` con `modulo: "ayf"`.
 - **Columnas de tablas en Aprobación**: sin columna de estado de compras.
+- **Doble clic abre el detalle en TODAS las listas** (decisión del usuario,
+  2026-10-21; reemplaza "botón Ver que abre el detalle, no al hacer clic en la
+  fila"): ventana común `VentanaDetalle` (`components/ventana-detalle.tsx`) con
+  la información FIJA, "Editar" arriba a la derecha solo donde se puede editar
+  y abajo los mismos botones de la fila (que también se quedan en la fila;
+  tocar uno cierra la ventana y sigue su paso). Ayudas: `camposDesdeColumnas` y
+  `accionesDeFila` (tablas `TablaExcel`), `alDobleClic` (no abre si el doble
+  clic es sobre un botón o campo de la fila), `AYUDA_DOBLE_CLIC`,
+  `CLASE_FILA_DOBLE_CLIC`. Donde ya había un detalle propio (OC, requisición,
+  acta, entradas, contratos) el doble clic abre ese. Proveedores ya no se edita
+  en la tabla: la ventana tiene "Editar", que vuelve editables sus campos. En
+  Aprobación de insumos y de mano de obra la ventana solo muestra la solicitud
+  (los datos para aprobar se llenan en la fila). Una lista nueva: usar
+  `VentanaDetalle` y `alDobleClic`.
+- **Contratistas** (`/contratos/contratistas`): panel de filtros estándar
+  (Nombre o documento, Ciudad, Tipo de persona; vacíos = todos), nada se trae
+  hasta Consultar, páginas de 50 ordenadas en la base
+  (`listarContratistasPagina`). `listarContratistas` (todos) sigue para los
+  formularios de solicitud.
 
 ## Reglas de negocio vigentes (resumen; el detalle está arriba en este archivo)
 - Requisiciones agrupadas con número; aprobar/rechazar/cancelar/modificar actúan

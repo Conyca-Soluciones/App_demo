@@ -19,7 +19,16 @@ export type CampoDetalle = { etiqueta: string; valor: React.ReactNode; ancho?: "
 export const AYUDA_DOBLE_CLIC = "Doble clic para ver el detalle"
 
 // Clases de una fila de <Table> que se abre con doble clic.
-export const CLASE_FILA_DOBLE_CLIC = "cursor-pointer select-none"
+export const CLASE_FILA_DOBLE_CLIC = "cursor-pointer"
+
+// onDoubleClick de una fila: abre el detalle, salvo que el doble clic sea
+// sobre un botón, enlace o campo de la misma fila (esos hacen lo suyo).
+export function alDobleClic(abrir: () => void) {
+  return (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, input, select, textarea, label, [role=combobox]")) return
+    abrir()
+  }
+}
 
 export function VentanaDetalle({
   abierta,

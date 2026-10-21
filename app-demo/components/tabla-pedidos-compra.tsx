@@ -29,6 +29,7 @@ import {
   type PedidoParaComprar,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { nombreUnidad, textoConversionCompra } from "@/lib/unidades"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 // Ya se compró algo, pero no todo: no se "rechaza", se cierra el saldo.
 const esParcial = (p: PedidoParaComprar) => p.pendienteUso < p.cantidadUso - 1e-9
@@ -57,6 +58,7 @@ export function TablaPedidosCompra({
   onPedidoRechazado,
 }: TablaPedidosCompraProps) {
   const [pedidoARechazar, setPedidoARechazar] = useState<PedidoParaComprar | null>(null)
+  const [viendo, setViendo] = useState<PedidoParaComprar | null>(null)
   const [motivo, setMotivo] = useState("")
   const [rechazando, setRechazando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,7 +118,12 @@ export function TablaPedidosCompra({
           <TableBody>
             {ordenados.map((pedido) => {
               return (
-                <TableRow key={pedido.id} className={pedido.urgente ? "bg-amber-50" : undefined}>
+                <TableRow
+                  key={pedido.id}
+                  className={`${CLASE_FILA_DOBLE_CLIC} ${pedido.urgente ? "bg-amber-50" : ""}`}
+                  title={AYUDA_DOBLE_CLIC}
+                  onDoubleClick={alDobleClic(() => setViendo(pedido))}
+                >
                   <TableCell className="font-medium">{pedido.requisicionNumero ?? "—"}</TableCell>
                   {/* whitespace-normal: TableCell trae nowrap por defecto y los
                       nombres largos se salían de la columna encima de las
@@ -189,6 +196,62 @@ export function TablaPedidosCompra({
           </TableBody>
         </Table>
       </div>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo ? `${viendo.insumoCodigo} · ${viendo.insumoDescripcion}` : ""}
+        subtitulo={viendo ? `Requisición # ${viendo.requisicionNumero ?? "—"}` : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "UM", valor: viendo.um ?? "" },
+                {
+                  etiqueta: "Cantidad pendiente",
+                  valor: `${viendo.cantidadPendiente.toLocaleString("es-CO")}${
+                    textoConversionCompra(viendo.cantidadUso, viendo.unidadUso, viendo.factor, viendo.um)
+                      ? ` (${textoConversionCompra(viendo.cantidadUso, viendo.unidadUso, viendo.factor, viendo.um)})`
+                      : ""
+                  }`,
+                },
+                {
+                  etiqueta: "Vr. unit. proyectado",
+                  valor: viendo.valorUnitarioProyectado != null ? formatoMoneda.format(viendo.valorUnitarioProyectado) : "",
+                },
+                { etiqueta: "Solicitante", valor: viendo.solicitadoPorNombre ?? "" },
+                { etiqueta: "Fecha de la requisición", valor: formatoFecha(viendo.fechaPedido) },
+                { etiqueta: "Fecha requerida", valor: formatearFechaSinHora(viendo.fechaRequerida) },
+                { etiqueta: "Urgente", valor: viendo.urgente ? "Sí" : "No" },
+                { etiqueta: "Observaciones", valor: viendo.observaciones ?? "", ancho: "completo" as const },
+              ]
+            : []
+        }
+        acciones={
+          viendo && (
+            <>
+              <Button
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                disabled={viendo.cantidadPendiente <= 0}
+                onClick={() => {
+                  setError(null)
+                  setPedidoARechazar(viendo)
+                }}
+              >
+                <X className="mr-1.5 h-4 w-4" />
+                {esParcial(viendo) ? "Cerrar saldo" : "Rechazar"}
+              </Button>
+              <Button
+                variant={seleccionados.has(viendo.id) ? "outline" : "default"}
+                disabled={viendo.cantidadPendiente <= 0}
+                onClick={() => onToggleSeleccion(viendo.id)}
+              >
+                {seleccionados.has(viendo.id) ? "Quitar de la compra" : "Marcar para comprar"}
+              </Button>
+            </>
+          )
+        }
+      />
 
       <Dialog
         open={pedidoARechazar !== null}

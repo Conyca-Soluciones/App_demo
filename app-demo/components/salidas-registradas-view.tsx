@@ -39,6 +39,7 @@ import {
   type SalidaRegistrada,
 } from "@/app/(app)/almacen/salidas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 const formatoHora = (iso: string) =>
@@ -73,6 +74,7 @@ export function SalidasRegistradasView() {
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
   const [historialDe, setHistorialDe] = useState<SalidaRegistrada | null>(null)
+  const [viendo, setViendo] = useState<SalidaRegistrada | null>(null)
 
   function cargar(filtros: FiltrosSalidas, nuevaPagina: number) {
     if (!proyectoId) return
@@ -231,7 +233,12 @@ export function SalidasRegistradasView() {
                 </TableHeader>
                 <TableBody>
                   {salidas.map((s) => (
-                    <TableRow key={s.id} className={s.anuladaAt ? "text-muted-foreground" : ""}>
+                    <TableRow
+                      key={s.id}
+                      className={`${CLASE_FILA_DOBLE_CLIC} ${s.anuladaAt ? "text-muted-foreground" : ""}`}
+                      title={AYUDA_DOBLE_CLIC}
+                      onDoubleClick={alDobleClic(() => setViendo(s))}
+                    >
                       <TableCell className="whitespace-nowrap">{formatearFechaSinHora(s.fecha)}</TableCell>
                       <TableCell className="min-w-56">
                         <span className={s.anuladaAt ? "line-through" : ""}>
@@ -322,6 +329,68 @@ export function SalidasRegistradasView() {
           </>
         )}
       </div>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo ? `${viendo.insumoCodigo} · ${viendo.insumoDescripcion}` : ""}
+        subtitulo={viendo ? `Salida del ${formatearFechaSinHora(viendo.fecha)}` : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "Fecha", valor: formatearFechaSinHora(viendo.fecha) },
+                { etiqueta: "UM", valor: viendo.insumoUm ?? "" },
+                {
+                  etiqueta: "Cantidad",
+                  valor: `${formatoNumero.format(viendo.cantidad)}${viendo.cantidadOriginal !== null ? ` (antes ${formatoNumero.format(viendo.cantidadOriginal)})` : ""}`,
+                },
+                { etiqueta: "Retira", valor: viendo.retira ?? "" },
+                { etiqueta: "Registró", valor: `${viendo.registradoPorNombre ?? "—"} · ${formatoHora(viendo.createdAt)}` },
+                {
+                  etiqueta: "Estado",
+                  valor: viendo.anuladaAt ? "Anulada" : viendo.editadaAt ? "Editada" : "Vigente",
+                },
+                ...(viendo.editadaAt
+                  ? [{ etiqueta: "Editada", valor: `${formatoHora(viendo.editadaAt)}${viendo.editadaPorNombre ? ` por ${viendo.editadaPorNombre}` : ""}` }]
+                  : []),
+                ...(viendo.anuladaAt
+                  ? [
+                      {
+                        etiqueta: "Anulada",
+                        valor: `${formatoHora(viendo.anuladaAt)}${viendo.anuladaPorNombre ? ` por ${viendo.anuladaPorNombre}` : ""}${viendo.motivoAnulacion ? `: ${viendo.motivoAnulacion}` : ""}`,
+                        ancho: "completo" as const,
+                      },
+                    ]
+                  : []),
+                { etiqueta: "Observaciones", valor: viendo.observaciones ?? "", ancho: "completo" as const },
+              ]
+            : []
+        }
+        onEditar={viendo && !viendo.anuladaAt ? () => abrirEdicion(viendo) : undefined}
+        acciones={
+          viendo && (
+            <>
+              <Button variant="outline" onClick={() => setHistorialDe(viendo)}>
+                <History className="mr-1.5 h-4 w-4" /> Historial
+              </Button>
+              {!viendo.anuladaAt && (
+                <Button
+                  variant="outline"
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => {
+                    setError(null)
+                    setAviso(null)
+                    setMotivo("")
+                    setAnulando(viendo)
+                  }}
+                >
+                  Anular
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
 
       <Dialog
         open={editando !== null}

@@ -71,9 +71,10 @@ const fechaCreacion = (iso: string) =>
 
 export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
   // Una página (50) a la vez, filtrada y ordenada en la base: la lista va a
-  // crecer mucho. Al abrir se consulta con los filtros por omisión (todos).
+  // crecer mucho. null = todavía no se consultó: no se trae nada hasta
+  // presionar Consultar (los filtros por omisión consultan todos).
   const [contratistas, setContratistas] = useState<Contratista[] | null>(null)
-  const [cargando, setCargando] = useState(true)
+  const [cargando, setCargando] = useState(false)
   const [pagina, setPagina] = useState(0)
   const [hayMas, setHayMas] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -87,15 +88,12 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
   const [vezFormulario, setVezFormulario] = useState(0)
   const [detalle, setDetalle] = useState<Contratista | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  // La consulta en curso; cada cambio (Consultar, página, orden) trae esa página.
-  const [consulta, setConsulta] = useState<{ filtros: FiltrosContratistas; pagina: number; orden: OrdenExcel; vez: number }>({
-    filtros: {},
-    pagina: 0,
-    orden: { clave: "nombre", dir: "asc" },
-    vez: 0,
-  })
+  // La consulta en curso; cada cambio (Consultar, página, orden) trae esa
+  // página. null = no se ha presionado Consultar.
+  const [consulta, setConsulta] = useState<{ filtros: FiltrosContratistas; pagina: number; orden: OrdenExcel; vez: number } | null>(null)
 
   useEffect(() => {
+    if (!consulta) return
     let activo = true
     listarContratistasPagina(consulta.filtros, consulta.pagina, consulta.orden)
       .then((r: { contratistas: Contratista[]; hayMas: boolean }) => {
@@ -114,7 +112,7 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
 
   function cargar(filtros: FiltrosContratistas, pag: number, o: OrdenExcel = orden) {
     setCargando(true)
-    setConsulta((c) => ({ filtros, pagina: pag, orden: o, vez: c.vez + 1 }))
+    setConsulta((c) => ({ filtros, pagina: pag, orden: o, vez: (c?.vez ?? 0) + 1 }))
   }
 
   function handleConsultar(): boolean {
@@ -139,7 +137,7 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
   function ordenar(clave: string) {
     const nuevo: OrdenExcel = orden.clave === clave ? { clave, dir: orden.dir === "asc" ? "desc" : "asc" } : { clave, dir: "asc" }
     setOrden(nuevo)
-    cargar(consulta.filtros, 0, nuevo)
+    if (consulta) cargar(consulta.filtros, 0, nuevo)
   }
 
   const columnas: ColumnaExcel<Contratista>[] = useMemo(
@@ -243,9 +241,13 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
             </div>
           )}
 
-          {contratistas === null ? (
+          {contratistas === null && !cargando ? (
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              Elige los filtros que quieras y presiona Consultar para ver los contratistas.
+            </div>
+          ) : contratistas === null ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
-              {cargando && <Loader2 className="mr-2 size-4 animate-spin" />} Cargando contratistas...
+              <Loader2 className="mr-2 size-4 animate-spin" /> Cargando contratistas...
             </div>
           ) : contratistas.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
@@ -281,7 +283,7 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
                 pagina={pagina}
                 hayMas={hayMas}
                 cargando={cargando}
-                onCambiar={(p) => cargar(consulta.filtros, p)}
+                onCambiar={(p) => consulta && cargar(consulta.filtros, p)}
               />
             </>
           )}
@@ -302,7 +304,7 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
           onGuardado={(c, nuevo) => {
             // Al editar se actualiza la fila; al crear se vuelve a consultar la
             // página (el nuevo puede caer en cualquier lugar del orden).
-            if (nuevo) cargar(consulta.filtros, pagina)
+            if (nuevo && consulta) cargar(consulta.filtros, pagina)
             else setContratistas((prev) => (prev ?? []).map((x) => (x.id === c.id ? c : x)))
             setAviso(nuevo ? `Contratista "${c.nombre}" creado.` : `Contratista "${c.nombre}" actualizado.`)
           }}

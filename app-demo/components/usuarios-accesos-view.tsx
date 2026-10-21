@@ -34,6 +34,7 @@ import {
   listarUsuariosAcceso,
   type UsuarioAcceso,
 } from "@/app/(app)/admin/accesos/actions"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 const SIN_ROL = "__sin_rol__"
 
@@ -62,6 +63,7 @@ export function UsuariosAccesosView() {
   const [passwordNueva, setPasswordNueva] = useState("")
   const [guardandoPassword, setGuardandoPassword] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [viendo, setViendo] = useState<UsuarioAcceso | null>(null)
 
   function cargar() {
     Promise.all([listarUsuariosAcceso(), listarRolesConPermisos(), listarProyectosAdmin()])
@@ -244,7 +246,12 @@ export function UsuariosAccesosView() {
             </TableHeader>
             <TableBody>
               {filtrados.map((u) => (
-                <TableRow key={u.id}>
+                <TableRow
+                  key={u.id}
+                  className={CLASE_FILA_DOBLE_CLIC}
+                  title={AYUDA_DOBLE_CLIC}
+                  onDoubleClick={alDobleClic(() => setViendo(u))}
+                >
                   <TableCell>
                     <div className="font-medium">{u.nombre}</div>
                     <div className="text-xs text-muted-foreground">{u.email ?? u.username ?? ""}</div>
@@ -356,6 +363,46 @@ export function UsuariosAccesosView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.nombre}
+        subtitulo={viendo ? (viendo.email ?? viendo.username ?? undefined) : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "Rol general", valor: roles.find((r) => r.id === viendo.rolId)?.nombre ?? "Sin rol" },
+                { etiqueta: "Proyectos", valor: resumenProyectos(viendo) },
+                ...(!viendo.rolId
+                  ? [
+                      {
+                        etiqueta: "Permisos anteriores",
+                        valor: viendo.banderasAnteriores.length > 0 ? viendo.banderasAnteriores.join(", ") : "Ninguno especial",
+                        ancho: "completo" as const,
+                      },
+                    ]
+                  : []),
+              ]
+            : []
+        }
+        onEditar={viendo ? () => abrirProyectos(viendo) : undefined}
+        acciones={
+          viendo && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setError(null)
+                setAviso(null)
+                setPasswordNueva("")
+                setCambiandoPassword(viendo)
+              }}
+            >
+              <KeyRound className="mr-1.5 h-4 w-4" /> Cambiar contraseña
+            </Button>
+          )
+        }
+      />
 
       <Dialog open={creandoUsuario} onOpenChange={(abierto) => !abierto && setCreandoUsuario(false)}>
         <DialogContent>

@@ -51,6 +51,7 @@ import {
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
 
 // Actas por grupos: se busca el contrato o el contratista (con un solo
 // contrato se escoge solo; con varios, se elige en la lista). Del contrato se
@@ -434,7 +435,12 @@ function ContratoActas({
                 </thead>
                 <tbody>
                   {actas.map((a) => (
-                    <tr key={a.id} className="border-t [&_td]:px-4 [&_td]:py-2">
+                    <tr
+                      key={a.id}
+                      className={`border-t hover:bg-muted/40 [&_td]:px-4 [&_td]:py-2 ${CLASE_FILA_DOBLE_CLIC}`}
+                      title={AYUDA_DOBLE_CLIC}
+                      onDoubleClick={alDobleClic(() => setVerActa(a.id))}
+                    >
                       <td>
                         <button
                           type="button"

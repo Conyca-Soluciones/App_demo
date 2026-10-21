@@ -53,6 +53,7 @@ import {
   type OrdenEntradaFila,
 } from "@/app/(app)/almacen/entradas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -316,11 +317,12 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
                     return (
                       <TableRow
                         key={o.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => {
+                        className={`${CLASE_FILA_DOBLE_CLIC} hover:bg-muted/50`}
+                        title={AYUDA_DOBLE_CLIC}
+                        onDoubleClick={alDobleClic(() => {
                           setAviso(null)
                           setOrdenId(o.id)
-                        }}
+                        })}
                       >
                         <TableCell>{o.numero}</TableCell>
                         <TableCell>{o.proveedorNombre}</TableCell>

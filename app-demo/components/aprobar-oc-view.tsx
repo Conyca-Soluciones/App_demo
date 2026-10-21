@@ -5,6 +5,7 @@
 // a la derecha, una fila por orden con Ver / Aprobar / Rechazar / Desaprobar.
 // No muestra nada hasta consultar; "Solo por aprobar" viene marcado.
 
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
 import { useEffect, useState } from "react"
 import { Loader2, ClipboardCheck, Eye, Check, X, Undo2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -345,7 +346,9 @@ export function AprobarOCView() {
                     return (
                       <TableRow
                         key={orden.id}
-                        className={orden.tieneSobrecostoPrecio ? "bg-destructive/10 hover:bg-destructive/15" : undefined}
+                        className={`${CLASE_FILA_DOBLE_CLIC} ${orden.tieneSobrecostoPrecio ? "bg-destructive/10 hover:bg-destructive/15" : ""}`}
+                        title={AYUDA_DOBLE_CLIC}
+                        onDoubleClick={alDobleClic(() => setOrdenAbiertaId(orden.id))}
                       >
                         <TableCell className="font-medium">{orden.numero}</TableCell>
                         <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>

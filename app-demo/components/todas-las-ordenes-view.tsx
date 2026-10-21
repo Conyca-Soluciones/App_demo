@@ -52,6 +52,7 @@ import {
 } from "@/lib/ordenes-compra-estado"
 import { descargarExcelOrdenes, type VistaOrdenes } from "@/lib/exportar-ordenes-compra"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -432,7 +433,7 @@ export function TodasLasOrdenesView() {
               {ordenes.map((orden) => {
                 const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
                 return (
-                  <TableRow key={orden.id}>
+                  <TableRow key={orden.id} className={CLASE_FILA_DOBLE_CLIC} title={AYUDA_DOBLE_CLIC} onDoubleClick={alDobleClic(() => setAbiertaId(orden.id))}>
                     <TableCell>{orden.numero}</TableCell>
                     <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
                     <TableCell>{orden.proveedorNombre}</TableCell>
@@ -495,14 +496,14 @@ export function TodasLasOrdenesView() {
                 return (
                   <Fragment key={orden.id}>
                     {orden.lineas.length === 0 ? (
-                      <TableRow className="border-b-0">
+                      <TableRow className={`border-b-0 ${CLASE_FILA_DOBLE_CLIC}`} title={AYUDA_DOBLE_CLIC} onDoubleClick={alDobleClic(() => setAbiertaId(orden.id))}>
                         {datosOrden}
                         <TableCell colSpan={7} className="text-muted-foreground">Sin insumos.</TableCell>
                         {celdasAcciones(orden, filas)}
                       </TableRow>
                     ) : (
                       orden.lineas.map((l, i) => (
-                        <TableRow key={l.id} className="border-b-0">
+                        <TableRow key={l.id} className={`border-b-0 ${CLASE_FILA_DOBLE_CLIC}`} title={AYUDA_DOBLE_CLIC} onDoubleClick={alDobleClic(() => setAbiertaId(orden.id))}>
                           {i === 0 && datosOrden}
                           <TableCell className="whitespace-normal">
                             {l.insumoCodigo != null ? `${l.insumoCodigo} - ` : ""}

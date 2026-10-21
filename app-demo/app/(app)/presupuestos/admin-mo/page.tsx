@@ -23,6 +23,7 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { useSearchParams, useRouter } from "next/navigation"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
 const celda = "border-r px-3 py-2 text-xs last:border-r-0"
@@ -360,6 +361,7 @@ function FilaPendiente({
 }) {
   const [valor, setValor] = useState(solicitud.valorPropuesto ? String(solicitud.valorPropuesto) : "")
   const [grupo, setGrupo] = useState(solicitud.grupoSugerido ?? "")
+  const [viendo, setViendo] = useState(false)
   const [unidad, setUnidad] = useState("")
   const [error, setError] = useState<string | null>(null)
 
@@ -399,7 +401,11 @@ function FilaPendiente({
   }
 
   return (
-    <tr className="border-b align-top hover:bg-muted/30">
+    <tr
+      className={`border-b align-top hover:bg-muted/30 ${CLASE_FILA_DOBLE_CLIC}`}
+      title={AYUDA_DOBLE_CLIC}
+      onDoubleClick={alDobleClic(() => setViendo(true))}
+    >
       <td className={celda}>
         <p className="font-medium">{solicitud.descripcion}</p>
       </td>
@@ -511,6 +517,22 @@ function FilaPendiente({
           {error && <p className="text-[10px] text-destructive">{error}</p>}
         </div>
       </td>
+      {/* Solo datos de la solicitud: aprobar y rechazar se hacen en la fila,
+          donde están los campos que hay que llenar. */}
+      <VentanaDetalle
+        abierta={viendo}
+        onCerrar={() => setViendo(false)}
+        titulo={solicitud.descripcion}
+        subtitulo="Solicitud por aprobar: los datos para aprobarla se llenan en la fila."
+        campos={[
+          { etiqueta: "Solicitado por", valor: solicitud.solicitadoPorNombre ?? "" },
+          { etiqueta: "Fecha", valor: formatearFechaSinHora(solicitud.createdAt) },
+          { etiqueta: "Proyecto", valor: solicitud.proyectoNombre ?? "" },
+          { etiqueta: "Ítem", valor: solicitud.itemCodigo ?? "" },
+          { etiqueta: "Grupo sugerido", valor: solicitud.grupoSugerido ?? "" },
+          { etiqueta: "Valor propuesto", valor: solicitud.valorPropuesto != null ? `$${Math.round(solicitud.valorPropuesto).toLocaleString("es-CO")}` : "" },
+        ]}
+      />
     </tr>
   )
 }

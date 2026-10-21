@@ -44,6 +44,7 @@ import {
   type RequisicionParaAprobar,
   type PermisosPedidos,
 } from "./actions"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, alDobleClic } from "@/components/ventana-detalle"
 
 type TipoAccion = "rechazar" | "desaprobar"
 const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; boton: string }> = {
@@ -200,7 +201,12 @@ export default function AdminTecnico() {
                     const puedeDesaprobar = permisos?.desaprobar && req.estado === "aprobada"
                     const procesando = idsEnProceso.has(req.id)
                     return (
-                      <TableRow key={req.id} className={req.urgente && req.estado === "pendiente" ? "bg-amber-50/60" : undefined}>
+                      <TableRow
+                        key={req.id}
+                        className={`${CLASE_FILA_DOBLE_CLIC} ${req.urgente && req.estado === "pendiente" ? "bg-amber-50/60" : ""}`}
+                        title={AYUDA_DOBLE_CLIC}
+                        onDoubleClick={alDobleClic(() => setAbiertaId(req.id))}
+                      >
                         <TableCell className="font-medium">{req.numero}</TableCell>
                         <TableCell>{req.proyectoCodigo ?? req.proyectoNombre ?? "—"}</TableCell>
                         <TableCell>{req.solicitanteNombre ?? "—"}</TableCell>
