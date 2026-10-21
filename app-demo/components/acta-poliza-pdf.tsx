@@ -1,4 +1,6 @@
-import { Document, Page, View, Text } from "@react-pdf/renderer"
+import { Document, Image, Page, View, Text } from "@react-pdf/renderer"
+import { formatearFechaHora } from "@/lib/fechas"
+import { formatearCodigo, type FirmaDocumento } from "@/lib/firmas"
 import { blanco, partesFecha } from "@/lib/minuta-mano-obra"
 import { CONTROL_ACTA_POLIZA, ENCABEZADO_ACTA_POLIZA, type ActaPoliza } from "@/lib/acta-poliza"
 import { Encabezado, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
@@ -7,10 +9,23 @@ import { Encabezado, P, s, campoResaltable, renglonConFoco } from "@/components/
 // PDF del acta de aprobación de pólizas (plantilla GJ-F-013 versión 03). Los
 // espacios que la plantilla deja para pegar (amparos y soporte de pago) son
 // una tabla de amparos y un texto. Se genera en el servidor
-// (app/(app)/contratos/poliza-acta/[id]/route.tsx).
+// (app/(app)/contratos/poliza-acta/[id]/route.tsx). Aprobada, lleva la firma
+// de quien la aprobó en Jurídica (20261129000000_firmas.sql).
 // ---------------------------------------------------------------------------
 
-export function ActaPolizaPDF({ acta: a, logo, foco, borrador }: { acta: ActaPoliza; logo: string | Buffer; foco?: string; borrador?: boolean }) {
+export function ActaPolizaPDF({
+  acta: a,
+  logo,
+  foco,
+  borrador,
+  firma,
+}: {
+  acta: ActaPoliza
+  logo: string | Buffer
+  foco?: string
+  borrador?: boolean
+  firma?: FirmaDocumento | null
+}) {
   const res = campoResaltable(foco)
   const renglon = renglonConFoco(foco, "amparos")
   const fecha = partesFecha(a.fechaAprobacion)
@@ -83,10 +98,18 @@ export function ActaPolizaPDF({ acta: a, logo, foco, borrador }: { acta: ActaPol
           {res("fechaAprobacion", textoFecha)}.
         </P>
 
-        <View style={{ marginTop: 40 }} wrap={false}>
+        <View style={{ marginTop: firma?.imagen ? 8 : 40 }} wrap={false}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de react-pdf, no de HTML */}
+          {firma?.imagen && <Image src={firma.imagen} style={{ maxHeight: 48, maxWidth: 170, objectFit: "contain", marginBottom: 2 }} />}
           <View style={[s.firmaLinea, { width: "50%" }]} />
           <Text style={s.b}>{res("asesorNombre", blanco(a.asesorNombre).toUpperCase())}</Text>
           <Text>{res("asesorCargo", blanco(a.asesorCargo))}</Text>
+          {firma && (
+            <Text style={{ fontSize: 7, color: "#555", marginTop: 3 }}>
+              Firmado electrónicamente por {firma.nombre} el {formatearFechaHora(firma.firmadoAt)} · Código {formatearCodigo(firma.codigo)} ·
+              verifícalo en la plataforma (tu nombre › Verificar documento)
+            </Text>
+          )}
         </View>
 
         <View style={s.control} wrap={false}>

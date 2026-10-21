@@ -20,6 +20,7 @@ import {
   CLASE_ESTADO_ACTA,
   ETIQUETA_ESTADO_ACTA,
   ETIQUETA_SOPORTE,
+  TIPOS_SOPORTE_ELABORAR,
   ETIQUETA_TIPO_ACTA,
   MIME_SOPORTES,
   actaEditable,
@@ -478,6 +479,7 @@ function ContratoActas({
       <DetalleActa
         id={verActa}
         onCerrar={cerrarActa}
+        puedeSubirFirmada={puedeElaborar}
         acciones={(a) =>
           puedeElaborar && actaEditable(a) ? (
             <Button onClick={() => editar(a)}>
@@ -884,7 +886,7 @@ function FormularioActa({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(ETIQUETA_SOPORTE) as TipoSoporte[]).map((t) => (
+                  {TIPOS_SOPORTE_ELABORAR.map((t) => (
                     <SelectItem key={t} value={t}>
                       {ETIQUETA_SOPORTE[t]}
                     </SelectItem>

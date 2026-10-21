@@ -2599,6 +2599,52 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
   de control de cambios fija; "BORRADOR" sin aprobar). El ingeniero ve el acta
   de las aprobadas en Pólizas ("Acta").
 
+## Firmas electrónicas, fase 1 (2026-10-21, `20261129000000_firmas.sql`)
+
+Decisiones: cada usuario registra su firma (dibujada o foto con el fondo
+limpio); al aprobar se estampa firma + nombre + cargo + fecha y hora; el PDF
+aprobado se congela con SHA-256; el contratista firma en papel (copia
+escaneada). Empieza con el acta de póliza y las actas de obra; luego minutas y
+otrosí.
+
+- **Mi firma** (menú del nombre en la barra de arriba, `components/mi-firma-dialog.tsx`):
+  Dibujar (canvas con puntero/dedo/lápiz, curvas por puntos medios, presión
+  del lápiz) o Subir foto (Otsu sobre la luminancia + punto medio del rango
+  vacío, tinta azul oscuro y fondo transparente, control "menos/más tinta").
+  Se recorta al trazo y se escala a 600×240 máx. (`lib/firmas.ts`, funciones
+  puras con tests). PNG en data URL en `firmas_usuario` (≤ 300.000 caracteres,
+  una por usuario; solo la lee su dueño; `guardar_mi_firma` / `borrar_mi_firma`).
+- **Al aprobar** la base copia la firma en `documento_firmas` (nombre, cargo =
+  nombre del rol, imagen, fecha y hora, código de 12 caracteres): cambiar la
+  firma después no cambia documentos firmados. Disparadores:
+  `trg_firmar_acta_aprobada` (acta → "elaboró" = quien la creó, "aprobó" =
+  quien aprobó el pago en A&F; NO exige firma: sin ella sale solo el nombre,
+  para no trabar pagos) y `trg_firmar_poliza_aprobada` ("jurídica"; SÍ exige
+  firma: sin ella `resolver_poliza` falla con el mensaje de dónde registrarla).
+- **PDF congelado** (`lib/documentos-firmados.tsx`, solo servidor): un
+  documento aprobado CON firmas se congela la primera vez que se genera: se
+  sube a `documentos_firmados/<entidad>/<id>.pdf` (bucket privado, solo
+  service role) y se registra en `documentos_firmados` (sha256). Después sale
+  siempre ese archivo (se revisa la huella al leerlo). El contenido lo arma la
+  base con la sesión del usuario; la service role solo guarda/lee. La póliza
+  se congela justo al aprobarse (`after()` en `resolverPoliza`); el acta, la
+  primera vez que alguien con acceso abre su PDF (A&F aprueba el pago pero
+  puede no ver actas). Actas aprobadas antes de esta fase no tienen firmas y
+  no se congelan. Sin `SUPABASE_SERVICE_ROLE_KEY` sale el PDF sin congelar.
+  Las rutas mandan `X-Documento-Sha256`.
+- **Verificar documento** (menú del nombre): subir el PDF (SHA-256 en el
+  navegador contra `documentos_firmados`) o escribir el código impreso bajo la
+  firma (`verificar_documento`; dice qué documento es y quién firmó, no su
+  contenido).
+- **Contratista**: acta aprobada → "Copia firmada por el contratista" en el
+  detalle del acta (quien elabora actas): soporte tipo `firmada_contratista`
+  (`subir_acta_firmada_contratista`; una por acta, reemplaza la anterior;
+  evento `firmada_contratista` en el historial). No se ofrece al elaborar.
+- PDF: `components/firma-pdf.tsx` (bloque de firma con leyenda "Firmado
+  electrónicamente el … · Código …"); `acta-pdf.tsx` y `acta-poliza-pdf.tsx`
+  la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
+  firma, verificar por código y huella, copia del contratista, correr dos veces).
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
@@ -2927,7 +2973,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261124000000` tope de mano de obra y actividades por otrosí ·
 `20261125000000` control de proyecto con el valor vigente de los contratos ·
 `20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas ·
-`20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr).
+`20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr) ·
+`20261129000000` firmas electrónicas (fase 1).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

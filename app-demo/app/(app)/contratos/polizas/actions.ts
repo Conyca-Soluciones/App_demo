@@ -1,6 +1,8 @@
 "use server"
 
+import { after } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { pdfActaPoliza } from "@/lib/documentos-firmados"
 import { requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
 import { PESTANAS_VER_OTROSI } from "@/lib/otrosi"
@@ -153,6 +155,17 @@ export async function resolverPoliza(id: string, accion: "aprobar" | "devolver",
     p_acta: accion === "aprobar" && acta ? limpiarActaPoliza(acta) : null,
   })
   if (error) throw new Error(error.message)
+  // Aprobada (con la firma de quien aprobó): congela el PDF del acta después
+  // de responder. Si falla, se congela la primera vez que alguien lo abra.
+  if (accion === "aprobar") {
+    after(async () => {
+      try {
+        await pdfActaPoliza(await createClient(), id)
+      } catch (e) {
+        console.error("No se pudo congelar el acta de la póliza:", e)
+      }
+    })
+  }
 }
 
 // ---------------------------------------------------------------- acta de aprobación

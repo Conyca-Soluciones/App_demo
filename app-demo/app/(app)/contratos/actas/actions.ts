@@ -287,3 +287,18 @@ export async function enlaceSoporteActa(ruta: string): Promise<string> {
   if (error || !data) throw new Error(error?.message ?? "No se pudo abrir el soporte.")
   return data.signedUrl
 }
+
+// Acta aprobada: la copia impresa que firmó el contratista, escaneada (el
+// archivo ya se subió a <acta>/). Reemplaza la anterior; devuelve su ruta para
+// borrar el archivo (20261129000000_firmas.sql).
+export async function subirActaFirmadaContratista(actaId: string, archivo: Omit<SoporteSubido, "tipo">): Promise<{ rutaAnterior: string | null }> {
+  await requerirAccion("elaborar_actas")
+  if (!archivo.ruta.startsWith(`${actaId}/`)) throw new Error("La ruta del archivo no corresponde al acta.")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("subir_acta_firmada_contratista", {
+    p_acta_id: actaId,
+    p_soporte: { ruta: archivo.ruta, nombre_archivo: archivo.nombreArchivo, tamano: archivo.tamano, mime: archivo.mime },
+  })
+  if (error) throw new Error(error.message)
+  return { rutaAnterior: (data?.ruta_anterior as string | null) ?? null }
+}

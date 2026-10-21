@@ -32,13 +32,18 @@ export const CLASE_ESTADO_ACTA: Record<EstadoActa, string> = {
   rechazada: "bg-red-100 text-red-800 hover:bg-red-100",
 }
 
-export type TipoSoporte = "factura" | "memoria" | "foto" | "otro"
+export type TipoSoporte = "factura" | "memoria" | "foto" | "otro" | "firmada_contratista"
 export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
   factura: "Factura del contratista",
   memoria: "Memoria de cantidades",
   foto: "Registro fotográfico",
   otro: "Otro",
+  firmada_contratista: "Copia firmada por el contratista",
 }
+// Los que se adjuntan al elaborar el acta. La copia firmada por el contratista
+// se sube aparte, con el acta ya aprobada (20261129000000_firmas.sql).
+export const TIPOS_SOPORTE_ELABORAR: TipoSoporte[] = ["factura", "memoria", "foto", "otro"]
+export const MIME_COPIA_FIRMADA = ["application/pdf", "image/jpeg", "image/png"]
 export const MIME_SOPORTES = [
   "application/pdf",
   "image/jpeg",

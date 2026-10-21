@@ -57,6 +57,7 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   reenviada: { etiqueta: "Acta corregida y enviada otra vez", tono: "neutro" },
   aprobada: { etiqueta: "Acta aprobada", tono: "ok" },
   rechazada: { etiqueta: "Acta rechazada", tono: "malo" },
+  firmada_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
 }
 
 const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {

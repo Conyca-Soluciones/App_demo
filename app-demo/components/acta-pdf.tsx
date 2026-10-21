@@ -3,11 +3,15 @@ import { Encabezado, s } from "@/components/minuta-mano-obra-pdf"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { numero, pesos, pesosEnLetras } from "@/lib/contratos"
 import { ETIQUETA_TIPO_ACTA, saldoContrato, type ActaDetalle } from "@/lib/actas"
+import { firmaDe, type FirmaDocumento } from "@/lib/firmas"
+import { FirmaPDF } from "@/components/firma-pdf"
 
 // PDF del acta (no hay plantilla de Jurídica: formato propio con el mismo
 // encabezado de las minutas). Datos del contrato, lo ejecutado, el resumen con
 // descuentos y neto a pagar, observaciones y los bloques de firma (quien la
-// elaboró, el contratista y quien la aprobó; las firmas digitales irán ahí).
+// elaboró, el contratista y quien la aprobó). Aprobada desde la fase de firmas
+// (20261129000000), lleva las firmas de quien la elaboró y quien la aprobó; el
+// contratista firma la copia impresa.
 // El código del formato es provisional hasta que Jurídica asigne uno.
 const ENCABEZADO = { codigo: "Código: por definir", version: "01", fecha: "14/10/2026" }
 
@@ -23,8 +27,6 @@ const t = StyleSheet.create({
   resumen: { marginLeft: "auto", width: 300, borderWidth: 1, borderColor: "#9AA4AE", marginTop: 8 },
   resumenFila: { flexDirection: "row", paddingVertical: 3, paddingHorizontal: 6 },
   resumenTotal: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 6, borderTopWidth: 1, borderColor: "#9AA4AE", backgroundColor: "#EEF2F7" },
-  firmaNombre: { fontFamily: "Helvetica-Bold", fontSize: 9 },
-  firmaRol: { fontSize: 8.5, color: "#444" },
 })
 
 // Columnas de la tabla de actividades (anchos en puntos; la actividad se estira).
@@ -65,8 +67,9 @@ function Renglon({ titulo, valor, total }: { titulo: string; valor: number; tota
   )
 }
 
-export function ActaPDF({ acta: a, logo }: { acta: ActaDetalle; logo: string | Buffer }) {
+export function ActaPDF({ acta: a, logo, firmas = [] }: { acta: ActaDetalle; logo: string | Buffer; firmas?: FirmaDocumento[] }) {
   const titulo = `${ETIQUETA_TIPO_ACTA[a.tipo].toUpperCase()} N° ${a.numero}`
+  const firmado = firmas.length > 0
   const periodo =
     a.periodoDesde || a.periodoHasta
       ? `${a.periodoDesde ? formatearFechaSinHora(a.periodoDesde) : "—"} a ${a.periodoHasta ? formatearFechaSinHora(a.periodoHasta) : "—"}`
@@ -182,27 +185,16 @@ export function ActaPDF({ acta: a, logo }: { acta: ActaDetalle; logo: string | B
           </View>
         )}
 
-        <View style={s.firmas} wrap={false}>
-          <View style={s.firma}>
-            <View style={s.firmaLinea} />
-            <Text style={t.firmaNombre}>{a.creadoPorNombre ?? " "}</Text>
-            <Text style={t.firmaRol}>Elaboró</Text>
-          </View>
-          <View style={s.firma}>
-            <View style={s.firmaLinea} />
-            <Text style={t.firmaNombre}>{a.contratistaRepresentante && a.contratistaTipoPersona === "juridica" ? a.contratistaRepresentante : a.contratistaNombre}</Text>
-            <Text style={t.firmaRol}>
-              Contratista{a.contratistaTipoPersona === "juridica" ? ` · ${a.contratistaNombre}` : ""}
-            </Text>
-          </View>
-          <View style={s.firma}>
-            <View style={s.firmaLinea} />
-            <Text style={t.firmaNombre}>{a.estado === "aprobada" ? (a.resueltoPorNombre ?? " ") : " "}</Text>
-            <Text style={t.firmaRol}>Aprobó</Text>
-          </View>
+        <View style={[s.firmas, { marginTop: 14 }]} wrap={false}>
+          <FirmaPDF firma={firmaDe(firmas, "elaboro")} nombre={a.creadoPorNombre ?? " "} rol="Elaboró" />
+          <FirmaPDF
+            nombre={a.contratistaRepresentante && a.contratistaTipoPersona === "juridica" ? a.contratistaRepresentante : a.contratistaNombre}
+            rol={`Contratista${a.contratistaTipoPersona === "juridica" ? ` · ${a.contratistaNombre}` : ""}`}
+          />
+          <FirmaPDF firma={firmaDe(firmas, "aprobo")} nombre={a.estado === "aprobada" ? (a.resueltoPorNombre ?? " ") : " "} rol="Aprobó" />
         </View>
 
-        <Text style={s.footer} render={({ pageNumber, totalPages }) => `${titulo} · ${a.numeroContrato} · Página ${pageNumber} de ${totalPages}`} fixed />
+        <Text style={s.footer} render={({ pageNumber, totalPages }) => `${titulo} · ${a.numeroContrato} · Página ${pageNumber} de ${totalPages}${firmado ? " · Firmado electrónicamente: verifícalo en la plataforma (tu nombre › Verificar documento)" : ""}`} fixed />
       </Page>
     </Document>
   )

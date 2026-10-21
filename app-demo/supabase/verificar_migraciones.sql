@@ -346,5 +346,12 @@ select * from (
   select '20261128000000_contrato_para_acta_poliza_y_avance',
          position('poliza_estado' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
          and position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
+  union all
+  select '20261129000000_firmas',
+         to_regclass('public.firmas_usuario') is not null
+         and to_regclass('public.documentos_firmados') is not null
+         and exists (select 1 from pg_trigger where tgname = 'trg_firmar_poliza_aprobada')
+         and exists (select 1 from pg_proc where proname = 'subir_acta_firmada_contratista')
+         and exists (select 1 from storage.buckets where id = 'documentos_firmados')
 ) t
 order by 1;
