@@ -117,6 +117,13 @@ export const PESTANAS: Pestana[] = [
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 
+// Pestañas de TODOS los usuarios con sesión (no están en la matriz de roles y
+// su ruta es libre): las requisiciones administrativas las hace cualquiera
+// (20261202000000_requisiciones_administrativas.sql).
+export const PESTANAS_PARA_TODOS: { titulo: string; modulo: ModuloClave; seccion: string; url: string }[] = [
+  { titulo: "Realizar requisiciones administrativas", modulo: "ayf", seccion: "Requisiciones", url: "/ayf/requisiciones-administrativas" },
+]
+
 // Pestañas que SOLO ve el Administrador (no aparecen en la matriz): el módulo
 // Admin del menú, con sus secciones.
 export const PESTANAS_SOLO_ADMIN: { titulo: string; seccion: string; url: string }[] = [
@@ -250,6 +257,13 @@ export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpr
       grupos.set(p.seccion, g)
     }
     return [...grupos.values()]
+  }
+
+  for (const p of PESTANAS_PARA_TODOS) {
+    if (p.modulo !== modulo) continue
+    const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
+    g.items.push({ titulo: p.titulo, url: p.url })
+    grupos.set(p.seccion, g)
   }
 
   for (const p of PESTANAS) {

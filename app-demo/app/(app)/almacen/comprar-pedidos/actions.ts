@@ -1066,7 +1066,17 @@ export type NotificacionTipo =
   | "poliza_por_revisar"
   | "poliza_aprobada"
   | "poliza_devuelta"
-export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta" | "presupuesto" | "otrosi"
+  | "requisicion_admin_aprobada"
+  | "requisicion_admin_rechazada"
+export type NotificacionEntidadTipo =
+  | "pedido_insumo"
+  | "orden_compra"
+  | "requisicion"
+  | "contrato"
+  | "acta"
+  | "presupuesto"
+  | "otrosi"
+  | "requisicion_admin"
 
 export type Notificacion = {
   id: string

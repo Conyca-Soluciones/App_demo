@@ -2709,6 +2709,59 @@ otrosí.
   la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
   firma, verificar por código y huella, copia del contratista, correr dos veces).
 
+## Requisiciones administrativas `/ayf/requisiciones-administrativas` (2026-10-21)
+
+`20261202000000_requisiciones_administrativas.sql`, formato GF-F-018 "Relación
+de pagos" (el Excel de A&F). Flujo DISTINTO de las requisiciones de obra
+(decisiones del usuario):
+- **Las hace cualquiera**: no hay pestaña ni acción en la matriz. El menú las
+  muestra a todos desde `PESTANAS_PARA_TODOS` (`lib/pestanas.ts`: A&F ›
+  Requisiciones › Realizar requisiciones administrativas) y la ruta es libre.
+  Las funciones solo exigen sesión.
+- **No pasan por Subgerencia ni por el área técnica**: van directo a A&F,
+  Aprobación de pagos, pestaña "Requisiciones administrativas"
+  (`components/aprobacion-req-admin-view.tsx`; `?vista=requisiciones`). Se
+  aprueban o rechazan COMPLETAS (`resolver_requisicion_admin`, acción
+  `aprobar_pagos`). Rechazada: quien la hizo la corrige y la envía otra vez
+  con el mismo número (`modificar_requisicion_admin`, que también modifica una
+  por aprobar); puede cancelarla con motivo.
+- **Métodos**: transferencia = el tercero que factura y el titular de la cuenta
+  (por omisión el mismo) inscritos en Terceros, con una cuenta no inactiva del
+  titular (B-J, L-N y observaciones; los nombres y documentos los toma la base
+  de Terceros). PSE = se escriben empresa que factura, NIT, titular, tipo (CC,
+  NIT, PPT, CE) y documento, sin banco/tipo/número (H-J); "Subir Excel" con la
+  plantilla (`lib/excel-req-admin-pse.ts`, listas desplegables) para muchos
+  pagos. Máximo 50 ítems. Código de proyecto = proyectos de la app; grupo
+  empresarial = `empresas` (se propone la del proyecto).
+- **Tablas** `requisiciones_admin` (número consecutivo que se da al final de
+  crear: un intento fallido no gasta número) y `requisicion_admin_items`. Se
+  escribe solo por funciones; leer = quien la hizo o las pestañas de pagos
+  (`_ve_requisiciones_admin`). Para pantallas: `opciones_requisicion_admin`,
+  `buscar_terceros_requisicion_admin`, `cuentas_tercero_requisicion_admin`
+  (número enmascarado), `listar_requisiciones_admin`, `detalle_requisicion_admin`
+  (número de cuenta completo solo para A&F), `historial_requisicion_admin`.
+- **Al aprobar**: un pago APROBADO por ítem (`pagos.fuente = 'requisicion_admin'`,
+  `requisicion_admin_id` / `requisicion_admin_item_id`), con su ITEM del
+  consolidado. La empresa y el consolidado salen del GRUPO EMPRESARIAL del ítem:
+  `_pago_sincronizar_empresa` no toca estos pagos y `_pago_asignar_item` toma el
+  consolidado de su empresa. PSE: sin tercero ni cuenta en la app; `_pago_novedad`
+  no lo marca como novedad y no sale en "Pagos aprobados sin tercero". En las
+  listas de pagos el origen es "Req. admin. N° X" (+ "· PSE") y el tercero de
+  PSE es el titular escrito (`mapPago`). **El embed de pagos (`CAMPOS_PAGO`)
+  pide estas tablas: la migración tiene que estar antes que el código.**
+- **Avisos y pendientes**: campanita a quien la hizo (`requisicion_admin_aprobada`
+  / `_rechazada`); Mis pendientes `req_admin_por_aprobar` (A&F) y
+  `mi_req_admin_rechazada` (`_pendientes_de` recreada desde la de
+  20261130100000, solo con esos bloques más). Historial con entidad
+  `requisicion_admin`.
+- Pantallas: `components/requisiciones-admin-pagina.tsx` (Realizar / Mis
+  requisiciones, `?ver=<id>`), `requisicion-admin-form.tsx`,
+  `item-requisicion-admin-dialog.tsx`, `detalle-requisicion-admin.tsx`.
+  Lógica pura en `lib/requisiciones-admin.ts` (pruebas en
+  `tests/requisiciones-admin.test.ts`). Probada en un Postgres local con las
+  columnas de producción (crear, permisos, rechazar, corregir, aprobar con
+  ITEM, PSE, cancelar, correr dos veces).
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
@@ -3041,7 +3094,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261129000000` firmas electrónicas (fase 1) ·
 `20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`) ·
 `20261130100000` firmas en órdenes de compra ·
-`20261201000000` representantes legales y su firma en el contrato.
+`20261201000000` representantes legales y su firma en el contrato ·
+`20261202000000` requisiciones administrativas (A&F).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

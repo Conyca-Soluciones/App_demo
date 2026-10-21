@@ -29,6 +29,7 @@ export type TipoHistorial =
   | "rol"
   | "usuario"
   | "otrosi"
+  | "requisicion_admin"
 
 export type EventoHistorial = {
   id: string
@@ -43,14 +44,17 @@ export type EventoHistorial = {
 export async function obtenerHistorial(tipo: TipoHistorial, id: string): Promise<EventoHistorial[]> {
   const supabase = await createClient()
   // El otrosí tiene su propia función (20261119000000_otrosis.sql): el
-  // ingeniero que lo pide puede no tener permiso para ver el contrato.
+  // ingeniero que lo pide puede no tener permiso para ver el contrato. La
+  // requisición administrativa también (20261202000000: la ve quien la hizo).
   // El contrato suma los eventos de sus otrosí (otrosi_creado,
   // otrosi_aprobado..., 20261122000000), ordenados por fecha con los suyos. Si
   // esa parte falla (migración sin correr, sin permiso) sale el del contrato solo.
   const [principal, deOtrosis] = await Promise.all([
     tipo === "otrosi"
       ? supabase.rpc("historial_otrosi", { p_id: id })
-      : supabase.rpc("historial_entidad", { p_tipo: tipo, p_id: id }),
+      : tipo === "requisicion_admin"
+        ? supabase.rpc("historial_requisicion_admin", { p_id: id })
+        : supabase.rpc("historial_entidad", { p_tipo: tipo, p_id: id }),
     tipo === "contrato" ? supabase.rpc("historial_otrosis_de_contrato", { p_contrato_id: id }) : null,
   ])
   if (principal.error) throw new Error(principal.error.message)

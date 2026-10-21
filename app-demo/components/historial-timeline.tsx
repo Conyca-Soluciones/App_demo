@@ -60,6 +60,15 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   firmada_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
 }
 
+const EVENTOS_REQUISICION_ADMIN: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creada: { etiqueta: "Requisición enviada a A&F", tono: "neutro" },
+  modificada: { etiqueta: "Requisición modificada", tono: "aviso" },
+  reenviada: { etiqueta: "Requisición corregida y enviada otra vez", tono: "neutro" },
+  aprobada: { etiqueta: "Aprobada por A&F", tono: "ok" },
+  rechazada: { etiqueta: "Rechazada por A&F", tono: "malo" },
+  cancelada: { etiqueta: "Requisición cancelada", tono: "malo" },
+}
+
 const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
   creada: { etiqueta: "Solicitud enviada a pre-aprobación", tono: "neutro" },
   reenviada: { etiqueta: "Solicitud corregida y reenviada", tono: "neutro" },
@@ -191,6 +200,7 @@ const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>
   contrato: EVENTOS_CONTRATO,
   acta: EVENTOS_ACTA,
   otrosi: EVENTOS_OTROSI,
+  requisicion_admin: EVENTOS_REQUISICION_ADMIN,
   pago: EVENTOS_PAGO,
   tercero: EVENTOS_TERCERO,
   proveedor: EVENTOS_PROVEEDOR,
@@ -213,6 +223,7 @@ export const NOMBRE_TIPO_HISTORIAL: Record<TipoHistorial, string> = {
   contrato: "Contrato",
   acta: "Acta",
   otrosi: "Otrosí",
+  requisicion_admin: "Requisición administrativa",
   pago: "Pago",
   tercero: "Tercero",
   proveedor: "Proveedor",
@@ -407,6 +418,12 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     const lineas = [d.otrosi_numero ? `Otrosí N° ${d.otrosi_numero}` : "Otrosí en trámite"]
     if (d.clausulas) lineas.push(`Cláusulas: ${d.clausulas}`)
     return lineas
+  }
+  if (tipo === "requisicion_admin") {
+    if (d.items != null && d.valor != null)
+      return [`${d.items} ${d.items === 1 ? "ítem" : "ítems"} · ${pesosTexto(d.valor)}${d.metodo === "pse" ? " · PSE" : ""}`]
+    if (e.evento === "aprobada" && d.pagos != null) return [`${d.pagos} ${d.pagos === 1 ? "pago" : "pagos"} al consolidado`]
+    return []
   }
   if (tipo === "requisicion") {
     if (e.evento === "creada" && d.insumos) return [`${d.insumos} ${d.insumos === 1 ? "insumo" : "insumos"}`]

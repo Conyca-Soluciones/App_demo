@@ -371,5 +371,12 @@ select * from (
          to_regclass('public.empresa_representantes') is not null
          and exists (select 1 from pg_trigger where tgname = 'trg_firmar_representante_contrato')
          and exists (select 1 from pg_proc where proname = 'guardar_firma_representante')
+  union all
+  select '20261202000000_requisiciones_administrativas',
+         to_regclass('public.requisiciones_admin') is not null
+         and exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'pagos' and column_name = 'requisicion_admin_item_id')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%req_admin_por_aprobar%')
 ) t
 order by 1;
