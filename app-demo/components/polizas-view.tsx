@@ -348,7 +348,7 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
       </div>
 
       <Dialog open={viendo !== null} onOpenChange={(abierto) => !abierto && setViendo(null)}>
-        <DialogContent className="max-w-4xl sm:max-w-4xl">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-[min(1400px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>Póliza · contrato {c.numeroContrato}</DialogTitle>
           </DialogHeader>
@@ -365,7 +365,7 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
       </Dialog>
       <VerContratoOtrosi contrato={verContrato ? { id: c.id, numeroContrato: c.numeroContrato } : null} onCerrar={() => setVerContrato(false)} />
       <Dialog open={verActa !== null} onOpenChange={(abierto) => !abierto && setVerActa(null)}>
-        <DialogContent className="flex h-[96svh] max-h-[96svh] w-[calc(100vw-1rem)] max-w-4xl flex-col gap-3 overflow-hidden sm:max-w-4xl">
+        <DialogContent className="flex h-[98svh] max-h-[98svh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-hidden sm:max-w-[min(1400px,calc(100vw-2rem))]">
           <DialogHeader>
             <DialogTitle>Acta de aprobación de la póliza · contrato {c.numeroContrato}</DialogTitle>
           </DialogHeader>

@@ -319,7 +319,7 @@ function DetallePoliza({
   return (
     <>
       <Dialog open={id !== null} onOpenChange={(abierto) => !abierto && onCerrar()}>
-        <DialogContent className="flex h-[96svh] max-h-[96svh] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-3 overflow-hidden sm:max-w-6xl">
+        <DialogContent className="flex h-[98svh] max-h-[98svh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-hidden sm:max-w-[calc(100vw-2rem)]">
           <DialogHeader>
             <DialogTitle>{p ? `Póliza · contrato ${p.contrato.numeroContrato} · ${p.contrato.contratista.nombre}` : "Póliza"}</DialogTitle>
           </DialogHeader>
@@ -355,7 +355,7 @@ function DetallePoliza({
               <div className="min-h-0 flex-1 overflow-auto">
                 {pestana === "poliza" ? (
                   // Lado a lado: la póliza y el acta de aprobación (editable y exportable).
-                  <div className="grid h-full min-h-[70svh] gap-4 lg:grid-cols-2">
+                  <div className="grid h-full min-h-[78svh] gap-4 lg:grid-cols-2">
                     <ArchivoPoliza poliza={p} />
                     {!acta ? (
                       <div className="flex items-center justify-center text-muted-foreground">
@@ -478,7 +478,7 @@ function ArchivoPoliza({ poliza }: { poliza: Poliza }) {
   const actual = carga?.id === poliza.id ? carga : null
 
   return (
-    <div className="flex h-full min-h-[60svh] flex-col gap-2">
+    <div className="flex h-full min-h-[75svh] flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="min-w-0 flex-1 truncate" title={poliza.nombreArchivo}>
           {poliza.nombreArchivo}
@@ -504,7 +504,7 @@ function ArchivoPoliza({ poliza }: { poliza: Poliza }) {
           <img src={actual.url} alt="Póliza" className="max-h-full max-w-full object-contain" />
         </div>
       ) : (
-        <iframe src={actual.url} title="Póliza" className="min-h-[60svh] w-full flex-1 rounded-md border bg-muted/30" />
+        <iframe src={actual.url} title="Póliza" className="min-h-[72svh] w-full flex-1 rounded-md border bg-muted/30" />
       )}
     </div>
   )
