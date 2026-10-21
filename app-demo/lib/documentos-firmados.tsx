@@ -177,6 +177,10 @@ export type ContratoParaPdf = {
   minutaDatos: unknown
 }
 
+// Versión del dibujo del contrato firmado: subirla vuelve a congelar los ya
+// congelados (r2: la primera versión no dibujaba la imagen de la firma).
+const VERSION_PDF_CONTRATO = "r2"
+
 export async function pdfContratoFirmado(supabase: Supabase, id: string, c: ContratoParaPdf): Promise<PdfDocumento | null> {
   if (c.clase === "general" || c.minutaEstado !== "aprobada" || !c.minutaDatos) return null
   const f = await leerFirmas(supabase, "contrato", id)
@@ -188,5 +192,5 @@ export async function pdfContratoFirmado(supabase: Supabase, id: string, c: Cont
     return new Uint8Array(r.buffer)
   }
   const nombre = sinTildes(`contrato-${c.numeroContrato ?? c.numero}.pdf`)
-  return { nombre, ...(await pdfCongelado("contrato", id, principal.codigo, f.congelado, generar)) }
+  return { nombre, ...(await pdfCongelado("contrato", id, `${principal.codigo}-${VERSION_PDF_CONTRATO}`, f.congelado, generar)) }
 }
