@@ -19,6 +19,7 @@ import {
 import { ActaPDF } from "@/components/acta-pdf"
 import { ActaPolizaPDF } from "@/components/acta-poliza-pdf"
 import { OrdenCompraPDF } from "@/components/orden-compra-pdf"
+import { pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
 import { obtenerActa } from "@/app/(app)/contratos/actas/actions"
 import { obtenerOrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
@@ -159,4 +160,33 @@ export async function pdfActaPoliza(supabase: Supabase, id: string, minuta?: unk
       )
     )
   return { nombre, ...(await firmadoOVivo("poliza", id, firmada, f, generar)) }
+}
+
+// ---------------------------------------------------------------- contrato (minuta aprobada)
+// Con la minuta aprobada y la firma del representante legal
+// (20261201000000_representantes_legales.sql): el PDF congelado. null = no
+// aplica (contrato general, sin aprobar o aprobado sin representantes
+// registrados): la ruta lo arma como siempre. Los datos del contrato los pasa
+// cada ruta (quien entra por otrosí no lee la tabla contratos).
+export type ContratoParaPdf = {
+  numero: number
+  numeroContrato: string | null
+  tipo: string
+  clase: string
+  minutaEstado: string | null
+  minutaDatos: unknown
+}
+
+export async function pdfContratoFirmado(supabase: Supabase, id: string, c: ContratoParaPdf): Promise<PdfDocumento | null> {
+  if (c.clase === "general" || c.minutaEstado !== "aprobada" || !c.minutaDatos) return null
+  const f = await leerFirmas(supabase, "contrato", id)
+  const principal = firmaPrincipal("contrato", f.firmas)
+  if (!principal) return null
+  const generar = async () => {
+    const r = await pdfMinutaContrato(c.tipo, c.numero, c.minutaDatos, undefined, principal)
+    if (!r) throw new Error("Este tipo de contrato no tiene plantilla de minuta.")
+    return new Uint8Array(r.buffer)
+  }
+  const nombre = sinTildes(`contrato-${c.numeroContrato ?? c.numero}.pdf`)
+  return { nombre, ...(await pdfCongelado("contrato", id, principal.codigo, f.congelado, generar)) }
 }

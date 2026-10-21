@@ -83,6 +83,7 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   // Póliza (20261126000000_polizas.sql).
   poliza_subida: { etiqueta: "Póliza subida", tono: "neutro" },
   poliza_aprobada: { etiqueta: "Póliza aprobada por Jurídica", tono: "ok" },
+  firma_representante: { etiqueta: "Firma del representante legal puesta en el contrato", tono: "ok" },
   poliza_devuelta: { etiqueta: "Póliza devuelta por Jurídica", tono: "aviso" },
 }
 
@@ -329,6 +330,8 @@ export function quienHizo(e: Pick<EventoHistorial, "usuarioNombre" | "usuarioRol
 // Detalle extra de algunos eventos (qué cambió en una modificación, etc.).
 export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
   const d = e.datos ?? {}
+  if (e.evento === "firma_representante" && d.representante)
+    return [`${d.representante}${d.tipo === "suplente" ? " (suplente)" : ""}`]
   if (tipo === "pago") {
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]

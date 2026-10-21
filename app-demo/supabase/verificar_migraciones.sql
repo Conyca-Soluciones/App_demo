@@ -366,5 +366,10 @@ select * from (
   select '20261130100000_firmas_ordenes_compra',
          exists (select 1 from pg_trigger where tgname = 'trg_firmar_oc_aprobada')
          and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%or public.tiene_accion(p_uid, ''aprobar_oc'')%')
+  union all
+  select '20261201000000_representantes_legales',
+         to_regclass('public.empresa_representantes') is not null
+         and exists (select 1 from pg_trigger where tgname = 'trg_firmar_representante_contrato')
+         and exists (select 1 from public.rol_permisos where permiso = 'tab.contratos.representantes')
 ) t
 order by 1;

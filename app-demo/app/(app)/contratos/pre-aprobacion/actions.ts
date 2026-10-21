@@ -6,6 +6,7 @@ import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/pe
 import { SELECT_FILA_CONTRATO, cargarDetalleContrato, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 import { hoyColombia } from "@/lib/fechas"
 import { limpiarMinuta, mezclarMinuta, minutaPorDefecto, type DatosExtraMinuta, type MinutaManoObra } from "@/lib/minuta-mano-obra"
+import { mapRepresentante, principalActivo } from "@/lib/representantes"
 import {
   limpiarMinutaArrendamiento,
   mezclarMinutaArrendamiento,
@@ -155,13 +156,19 @@ export type MinutaContratoObra = {
   guardadaPorNombre: string | null
 }
 
+// El principal activo de la empresa, para prellenar la minuta.
+function representanteParaMinuta(crudo: unknown): DatosExtraMinuta["empresaRepresentante"] {
+  const p = principalActivo((Array.isArray(crudo) ? crudo : []).map(mapRepresentante))
+  return p ? { nombre: p.nombre, documento: p.numeroDocumento, expedidaEn: p.expedidaEn } : null
+}
+
 // Lo que necesita cualquier minuta: la solicitud, los datos del contratista y
 // el proyecto que no vienen en el detalle, y lo que Jurídica ya guardó.
 // También la lee Subgerencia (Aprobación de minutas, solo lectura).
 async function cargarBaseMinuta(id: string) {
   await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   const supabase = await createClient()
-  const [detalle, extra, guardada] = await Promise.all([
+  const [detalle, extra, guardada, representantes] = await Promise.all([
     cargarDetalleContrato(supabase, id),
     supabase
       .from("contratos")
@@ -179,6 +186,9 @@ async function cargarBaseMinuta(id: string) {
       .select("minuta_datos, minuta_actualizada_at, editor:perfiles!contratos_minuta_actualizada_por_fkey(nombre)")
       .eq("id", id)
       .maybeSingle(),
+    // Representantes legales de la empresa (20261201000000; sin la migración
+    // la minuta sale como antes).
+    supabase.rpc("representantes_de_contrato", { p_contrato_id: id }),
   ])
   if (extra.error) throw new Error(extra.error.message)
   if (guardada.error) throw new Error(guardada.error.message)
@@ -197,6 +207,7 @@ async function cargarBaseMinuta(id: string) {
     contratistaRepresentanteTipoDocumento: c?.representante_tipo_documento ?? null,
     contratistaCedulaExpedida: c?.cedula_expedida_en ?? null,
     contratistaCiudad: c?.ciudad ?? null,
+    empresaRepresentante: representanteParaMinuta(representantes.data),
   }
   const g = guardada.data as any
   return {

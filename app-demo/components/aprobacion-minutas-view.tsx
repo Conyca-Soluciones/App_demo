@@ -23,6 +23,8 @@ import {
   type SolicitudContratoFila,
 } from "@/lib/contratos"
 import { listarMinutasSubgerencia, resolverMinutaContrato, type AccionMinuta } from "@/app/(app)/contratos/aprobacion-minutas/actions"
+import { firmaRepresentanteContrato } from "@/app/(app)/contratos/representantes/actions"
+import { textoFirmaRepresentante, type FirmaRepresentanteContrato } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
 // Aprobación de contratos (ruta /contratos/aprobacion-minutas): Subgerencia
@@ -157,6 +159,21 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
     setDetalleId(null)
     if (verInicial) router.replace("/contratos/aprobacion-minutas")
   }
+
+  // Antes de aprobar: quién firma como representante legal (o qué falta).
+  const [firmaRL, setFirmaRL] = useState<{ id: string; firma: FirmaRepresentanteContrato } | null>(null)
+  const idAprobar = accion?.tipo === "aprobar" && accion.detalle.clase !== "general" ? accion.detalle.id : null
+  useEffect(() => {
+    if (!idAprobar) return
+    let vigente = true
+    firmaRepresentanteContrato(idAprobar)
+      .then((firma: FirmaRepresentanteContrato) => vigente && setFirmaRL({ id: idAprobar, firma }))
+      .catch(() => vigente && setFirmaRL(null))
+    return () => {
+      vigente = false
+    }
+  }, [idAprobar])
+  const avisoFirma = idAprobar && firmaRL?.id === idAprobar ? textoFirmaRepresentante(firmaRL.firma) : null
 
   async function confirmar() {
     if (!accion) return
@@ -308,12 +325,17 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
                   />
                 </div>
               )}
+              {avisoFirma && (
+                <p className={`rounded-md border px-3 py-2 text-sm ${avisoFirma.bloquea ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                  {avisoFirma.texto}
+                </p>
+              )}
               {errorAccion && <p className="text-sm text-destructive">{errorAccion}</p>}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAccion(null)} disabled={procesando}>
                   Cancelar
                 </Button>
-                <Button onClick={confirmar} disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim())}>
+                <Button onClick={confirmar} disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim()) || Boolean(avisoFirma?.bloquea)}>
                   {procesando && <Loader2 className="size-4 animate-spin" />}
                   {TEXTO_ACCION[accion.tipo].boton}
                 </Button>

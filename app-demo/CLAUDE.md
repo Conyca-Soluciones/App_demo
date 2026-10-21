@@ -2673,6 +2673,30 @@ otrosí.
   recuenta el número del menú). También `mi_poliza_por_subir` (director, póliza
   pendiente o devuelta) y `poliza_por_revisar` (Jurídica con la pestaña).
   OJO: quien vuelva a recrear `_pendientes_de` debe conservar estos bloques.
+- **Representantes legales** (`20261201000000_representantes_legales.sql`,
+  decisiones del usuario 2026-10-21): `empresa_representantes` (principal, uno
+  activo por empresa, y suplentes; documento, expedición, `perfil_id` si usa la
+  app, `imagen_firma` si no). Los registra Subgerencia (acción
+  `aprobar_minutas`) en Contratos › Representantes legales
+  (`contratos.representantes`, `components/representantes-legales-view.tsx`;
+  la firma se dibuja o se sube con el mismo editor de Mi firma). Un principal
+  nuevo deja inactivo al anterior. Sin políticas: todo por funciones
+  (`listar_representantes_legales`, `guardar_representante_legal`,
+  `desactivar_representante_legal`, `representantes_de_contrato` sin la
+  imagen). La minuta trae al principal (`DatosExtraMinuta.empresaRepresentante`
+  en `cargarBaseMinuta`) y Jurídica lo cambia por un suplente con
+  `SelectorRepresentante` (en los 6 editores). Al aprobar la minuta,
+  `trg_firmar_representante_contrato` copia la firma del representante CUYA
+  CÉDULA ESTÁ EN LA MINUTA (`_representante_que_firma`; arrendamiento usa
+  `arrendatarioCedula`): primero su Mi firma, si no la subida. Empresa sin
+  representantes = se aprueba sin firma; con representantes y otra cédula, o
+  sin firma = no deja aprobar (Aprobación de contratos lo avisa antes con
+  `representante_que_firma`). Los 6 PDF de minuta la dibujan sobre la línea del
+  contratante (`components/linea-firma-pdf.tsx`, posición absoluta: no mueve el
+  texto) y el contrato aprobado se congela (`pdfContratoFirmado`, en la ruta de
+  Pre-aprobación y la de ver contrato desde otrosí). `_puede_ver_contrato_rl` =
+  la regla de `contratos_select` (en producción no existe `puede_ver_contrato`).
+  Pendiente: otrosí y acta de liquidación (el usuario: "quizás en el futuro").
 - PDF: `components/firma-pdf.tsx` (bloque de firma con leyenda "Firmado
   electrónicamente el … · Código …"); `acta-pdf.tsx` y `acta-poliza-pdf.tsx`
   la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
@@ -3009,7 +3033,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr) ·
 `20261129000000` firmas electrónicas (fase 1) ·
 `20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`) ·
-`20261130100000` firmas en órdenes de compra.
+`20261130100000` firmas en órdenes de compra ·
+`20261201000000` representantes legales y su firma en el contrato.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

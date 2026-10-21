@@ -15,6 +15,8 @@ import {
   totalItemsMinuta,
   type MinutaManoObra,
 } from "@/lib/minuta-mano-obra"
+import { LineaFirma } from "@/components/linea-firma-pdf"
+import type { FirmaDocumento } from "@/lib/firmas"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de mano de obra: el texto de la plantilla
@@ -185,7 +187,7 @@ export function Clausula({ titulo, children }: { titulo: string; children: React
 
 const ENCABEZADO = { formato: "FORMATO CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "01", fecha: "19/01/2023" }
 
-export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaManoObra; numero: number; logo: string | Buffer; foco?: string }) {
+export function MinutaManoObraPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaManoObra; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
@@ -384,7 +386,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco }: { minuta: M
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
-            <View style={s.firmaLinea} />
+            <LineaFirma firma={firmaContratante} />
             <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
             <Text>{res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
             <Text>C.C.: {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))}</Text>

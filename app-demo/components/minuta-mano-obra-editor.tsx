@@ -36,6 +36,7 @@ import {
 } from "@/lib/minuta-mano-obra"
 import type { SolicitudContratoDetalle } from "@/lib/contratos"
 import { guardarMinutaContrato, obtenerMinutaContrato, type MinutaContrato } from "@/app/(app)/contratos/pre-aprobacion/actions"
+import { SelectorRepresentante } from "@/components/selector-representante"
 
 // ---------------------------------------------------------------------------
 // Editor de la minuta de mano de obra (plantilla GJ-F-003) dentro del detalle
@@ -238,6 +239,7 @@ export function MinutaManoObraEditor({ detalle, puedeEditar }: { detalle: Solici
         </Seccion>
 
         <Seccion titulo="Contratante">
+          <SelectorRepresentante contratoId={detalle.id} documentoActual={m.contratanteRepresentanteCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ contratanteRepresentante: r.nombre, contratanteRepresentanteCedula: r.numeroDocumento, contratanteRepresentanteExpedida: r.expedidaEn ?? "" })} />
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("contratanteNombre", "Razón social")}
             {campo("contratanteNit", "NIT")}

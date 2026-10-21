@@ -9,8 +9,8 @@ import { formatearFechaHora } from "@/lib/fechas"
 // para poder probarlas).
 // ---------------------------------------------------------------------------
 
-export type EntidadFirmada = "acta" | "poliza" | "orden_compra"
-export type PapelFirma = "elaboro" | "aprobo" | "juridica"
+export type EntidadFirmada = "acta" | "poliza" | "orden_compra" | "contrato"
+export type PapelFirma = "elaboro" | "aprobo" | "juridica" | "representante_legal"
 
 export type FirmaDocumento = {
   papel: PapelFirma
@@ -29,6 +29,7 @@ export const ETIQUETA_PAPEL: Record<PapelFirma, string> = {
   elaboro: "Elaboró",
   aprobo: "Aprobó",
   juridica: "Aprobó (Jurídica)",
+  representante_legal: "Representante legal",
 }
 
 // El pendiente "Registra tu firma" (mi_firma, 20261130000000) no es una
@@ -44,7 +45,7 @@ export const MAXIMO_CARACTERES_FIRMA = 300_000
 export const ANCHO_MAXIMO_FIRMA = 600
 export const ALTO_MAXIMO_FIRMA = 240
 
-const PAPELES: PapelFirma[] = ["elaboro", "aprobo", "juridica"]
+const PAPELES: PapelFirma[] = ["elaboro", "aprobo", "juridica", "representante_legal"]
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function mapFirmasDeDocumento(raw: any): FirmasDeDocumento {
@@ -84,7 +85,7 @@ export function textoFirmado(f: FirmaDocumento): string {
 // es la versión del PDF congelado (una OC desaprobada y vuelta a aprobar
 // renueva el código y se congela otra vez).
 export function firmaPrincipal(entidad: EntidadFirmada, firmas: FirmaDocumento[]): FirmaDocumento | null {
-  return firmaDe(firmas, entidad === "poliza" ? "juridica" : "aprobo")
+  return firmaDe(firmas, entidad === "poliza" ? "juridica" : entidad === "contrato" ? "representante_legal" : "aprobo")
 }
 
 // ¿El documento se aprobó con firmas (desde esta fase)? Solo esos se congelan:

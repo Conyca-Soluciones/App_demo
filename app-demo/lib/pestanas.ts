@@ -99,6 +99,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.aprobar_minutas", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas", "/contratos/otrosi-pdf"] },
   { clave: "contratos.polizas", titulo: "Pólizas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/polizas", rutas: ["/contratos/polizas", "/contratos/otrosi-pdf", "/contratos/poliza-acta"] },
   { clave: "contratos.aprobar_polizas", titulo: "Aprobación de pólizas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-polizas", rutas: ["/contratos/aprobacion-polizas", "/contratos/otrosi-pdf", "/contratos/poliza-acta"] },
+  { clave: "contratos.representantes", titulo: "Representantes legales", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/representantes", rutas: ["/contratos/representantes"] },
   // Otrosí (20261119000000_otrosis.sql): el PDF va en una ruta de las dos
   // pestañas; las que ven contratos también la tienen, para abrir el otrosí y
   // el contrato desde el detalle del contrato (PESTANAS_VER_OTROSI).

@@ -23,7 +23,7 @@ import { borrarMiFirma, guardarMiFirma, obtenerMiFirma, type MiFirma } from "@/a
 const ANCHO_LIENZO = 600
 const ALTO_LIENZO = 220
 const ANCHO_MAXIMO_FOTO = 1600
-const FONDO_CUADRICULA = "bg-[repeating-conic-gradient(#f1f5f9_0_25%,#fff_0_50%)] bg-[length:16px_16px]"
+export const FONDO_CUADRICULA = "bg-[repeating-conic-gradient(#f1f5f9_0_25%,#fff_0_50%)] bg-[length:16px_16px]"
 
 type Modo = "dibujar" | "foto"
 
@@ -187,7 +187,7 @@ export function MiFirmaDialog({ abierto, onCerrar }: { abierto: boolean; onCerra
 }
 
 // ---------------------------------------------------------------- dibujar
-function LienzoFirma({ onCambio, onError }: { onCambio: (png: string | null) => void; onError: (e: string | null) => void }) {
+export function LienzoFirma({ onCambio, onError }: { onCambio: (png: string | null) => void; onError: (e: string | null) => void }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const trazo = useRef<{ x: number; y: number }[]>([])
   const [vacio, setVacio] = useState(true)
@@ -298,7 +298,7 @@ function LienzoFirma({ onCambio, onError }: { onCambio: (png: string | null) => 
 }
 
 // ---------------------------------------------------------------- foto
-function FotoFirma({ onCambio, onError }: { onCambio: (png: string | null) => void; onError: (e: string | null) => void }) {
+export function FotoFirma({ onCambio, onError }: { onCambio: (png: string | null) => void; onError: (e: string | null) => void }) {
   const original = useRef<ImageData | null>(null)
   const [ajuste, setAjuste] = useState(0)
   const [vista, setVista] = useState<string | null>(null)

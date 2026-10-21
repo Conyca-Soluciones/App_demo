@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana } from "@/lib/permisos"
 import { LOGO_CONYCA_PATH, pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
 import { PESTANAS_VER_OTROSI } from "@/lib/otrosi"
+import { pdfContratoFirmado } from "@/lib/documentos-firmados"
 import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
 import { armarHojaContratoGeneral, nombreArchivoContratoGeneral, type FilaHojaContratoGeneral } from "@/lib/contrato-general-hoja"
 
@@ -28,7 +29,22 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (error || !data) {
     return NextResponse.json({ error: error?.message ?? "El contrato no existe o no tienes acceso." }, { status: 404 })
   }
-  const fila = data as FilaHojaContratoGeneral & { clase: string; minuta_datos: unknown }
+  const fila = data as FilaHojaContratoGeneral & { clase: string; minuta_datos: unknown; minuta_estado?: string | null }
+
+  // Aprobado con la firma del representante legal: el PDF congelado.
+  try {
+    const firmado = await pdfContratoFirmado(supabase, id, {
+      numero: Number(fila.numero),
+      numeroContrato: fila.numero_contrato ?? null,
+      tipo: fila.tipo,
+      clase: fila.clase,
+      minutaEstado: fila.minuta_estado ?? null,
+      minutaDatos: fila.minuta_datos,
+    })
+    if (firmado) return respuestaPdf(firmado.pdf, firmado.nombre, firmado.sha256)
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo armar el contrato firmado." }, { status: 500 })
+  }
 
   let buffer: Buffer
   let archivo: string
@@ -46,11 +62,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     ;({ buffer, archivo } = pdf)
   }
 
-  return new NextResponse(new Uint8Array(buffer), {
+  return respuestaPdf(new Uint8Array(buffer), archivo, null)
+}
+
+function respuestaPdf(pdf: Uint8Array, archivo: string, sha256: string | null) {
+  return new NextResponse(pdf as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${archivo}"`,
       "Cache-Control": "no-store",
+      ...(sha256 ? { "X-Documento-Sha256": sha256 } : {}),
     },
   })
 }

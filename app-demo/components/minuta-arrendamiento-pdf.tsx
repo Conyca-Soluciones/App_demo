@@ -8,6 +8,8 @@ import {
   type MinutaArrendamiento,
 } from "@/lib/minuta-arrendamiento"
 import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { LineaFirma } from "@/components/linea-firma-pdf"
+import type { FirmaDocumento } from "@/lib/firmas"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de arrendamiento: el texto de la plantilla
@@ -19,7 +21,7 @@ const ENCABEZADO = { formato: "CONTRATO DE ARRENDAMIENTO", codigo: "GJ-F-014", v
 
 const letra = (i: number) => `${String.fromCharCode(97 + i)})`
 
-export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaArrendamiento; numero: number; logo: string | Buffer; foco?: string }) {
+export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaArrendamiento; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
@@ -239,7 +241,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco }: { minu
           </View>
           <View style={s.firma}>
             <Text style={{ marginBottom: 36 }}>El Arrendatario</Text>
-            <View style={s.firmaLinea} />
+            <LineaFirma firma={firmaContratante} />
             <Text style={s.b}>{res("arrendatarioNombre", blanco(m.arrendatarioNombre))}</Text>
             <Text>NIT. {res("arrendatarioNit", blanco(m.arrendatarioNit))}</Text>
             <Text>RL. {res("arrendatarioRepresentante", blanco(m.arrendatarioRepresentante))}</Text>
