@@ -125,3 +125,19 @@ describe("PDF con firmas", () => {
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF")
   })
 })
+
+describe("pendiente de registrar la firma", () => {
+  it("sale como grupo propio y su url abre el diálogo (no es una página)", async () => {
+    const { mapGrupos, defGrupo } = await import("@/lib/pendientes")
+    const { URL_MI_FIRMA } = await import("@/lib/firmas")
+    const g = mapGrupos([
+      { tipo: "req_por_aprobar", categoria: "hacer", total: 1, monto_total: null, vencidos: 0, mas_antiguo: null, items: [] },
+      { tipo: "mi_firma", categoria: "hacer", total: 1, monto_total: null, vencidos: 0, mas_antiguo: null,
+        items: [{ id: "u1", proyecto_id: null, proyecto: null, titulo: "Registra tu firma", detalle: null, monto: null, desde: null, de_quien: null, vence: null, vencido: false, url: "#mi-firma" }] },
+    ])
+    expect(g[0].tipo).toBe("mi_firma")
+    expect(g[0].items[0].url).toBe(URL_MI_FIRMA)
+    expect(defGrupo("mi_firma").accion).toBe("Registrar")
+    expect(defGrupo("poliza_por_revisar").titulo).toBe("Pólizas por revisar")
+  })
+})

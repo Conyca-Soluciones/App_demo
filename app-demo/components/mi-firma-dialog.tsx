@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
+  EVENTO_FIRMA_GUARDADA,
   MAXIMO_CARACTERES_FIRMA,
   escalaFirma,
   firmaMuyPequena,
@@ -76,6 +77,7 @@ export function MiFirmaDialog({ abierto, onCerrar }: { abierto: boolean; onCerra
     try {
       const at = await guardarMiFirma(nueva)
       setActual({ imagen: nueva, actualizadaAt: at })
+      window.dispatchEvent(new Event(EVENTO_FIRMA_GUARDADA))
       setNueva(null)
       setAviso("Firma guardada. Saldrá en los documentos que apruebes desde ahora.")
     } catch (e) {
@@ -92,6 +94,7 @@ export function MiFirmaDialog({ abierto, onCerrar }: { abierto: boolean; onCerra
     try {
       await borrarMiFirma()
       setActual(null)
+      window.dispatchEvent(new Event(EVENTO_FIRMA_GUARDADA))
       setAviso("Firma borrada.")
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo borrar la firma.")

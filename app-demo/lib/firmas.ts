@@ -31,6 +31,13 @@ export const ETIQUETA_PAPEL: Record<PapelFirma, string> = {
   juridica: "Aprobó (Jurídica)",
 }
 
+// El pendiente "Registra tu firma" (mi_firma, 20261130000000) no es una
+// página: su url abre el diálogo de Mi firma de la barra de arriba. Al guardar
+// la firma se avisa para que la bandeja y el número del menú se actualicen.
+export const URL_MI_FIRMA = "#mi-firma"
+export const EVENTO_ABRIR_MI_FIRMA = "conyca:abrir-mi-firma"
+export const EVENTO_FIRMA_GUARDADA = "conyca:firma-guardada"
+
 // Firma PNG en data URL: tope de la base (300.000 caracteres).
 export const MAXIMO_CARACTERES_FIRMA = 300_000
 // Tamaño final de la firma guardada (se recorta al trazo y se escala).

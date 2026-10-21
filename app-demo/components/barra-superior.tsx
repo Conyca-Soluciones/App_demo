@@ -2,12 +2,13 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { LogOut, PenLine, ShieldCheck } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { MiFirmaDialog } from "@/components/mi-firma-dialog"
 import { VerificarDocumentoDialog } from "@/components/verificar-documento-dialog"
+import { EVENTO_ABRIR_MI_FIRMA } from "@/lib/firmas"
 import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
 import { SelectorProyecto } from "@/components/selector-proyecto"
 import { handleLogout } from "@/components/logout-button"
@@ -35,6 +36,12 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
   const nombre = nombreUsuario ?? "Usuario"
   const rolVisible = permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : ROL_POR_DEFECTO)
   const [dialogo, setDialogo] = useState<"firma" | "verificar" | null>(null)
+  // El pendiente "Registra tu firma" (Mis pendientes) abre este mismo diálogo.
+  useEffect(() => {
+    const abrir = () => setDialogo("firma")
+    window.addEventListener(EVENTO_ABRIR_MI_FIRMA, abrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_MI_FIRMA, abrir)
+  }, [])
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-[var(--alto-barra)] items-center gap-2 border-b bg-background px-3 sm:gap-4 sm:px-4">

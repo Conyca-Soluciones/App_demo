@@ -290,6 +290,11 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'guardar_banco')
          and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
   union all
+  select '20261127000000_mis_pendientes',
+         exists (select 1 from pg_proc where proname = 'mis_pendientes')
+         and exists (select 1 from pg_proc where proname = 'contar_mis_pendientes')
+         and not has_function_privilege('authenticated', 'public._pendientes_de(uuid)', 'execute')
+  union all
   select '20261126000000_avance_anterior_actas_sin_porcentaje',
          position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
          and position('coalesce(o.porcentaje_avance' in pg_get_functiondef('public.detalle_acta(uuid)'::regprocedure)) > 0
@@ -353,5 +358,9 @@ select * from (
          and exists (select 1 from pg_trigger where tgname = 'trg_firmar_poliza_aprobada')
          and exists (select 1 from pg_proc where proname = 'subir_acta_firmada_contratista')
          and exists (select 1 from storage.buckets where id = 'documentos_firmados')
+  union all
+  select '20261130000000_pendientes_firma_y_polizas',
+         exists (select 1 from pg_proc where proname = '_pendientes_de'
+                  and pg_get_functiondef(oid) like '%mi_firma%' and pg_get_functiondef(oid) like '%poliza_por_revisar%')
 ) t
 order by 1;

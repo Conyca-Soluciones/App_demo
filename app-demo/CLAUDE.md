@@ -1313,6 +1313,22 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   en `listarConsolidado`; las semanas valen en cada año elegido. Selector
   `SelectorNumeros` (`components/selector-numeros.tsx`); por omisión la semana
   actual. La tabla tiene columna Semana junto al ITEM.
+- **Mis pendientes** (T1, `/pendientes`, `20261127000000_mis_pendientes.sql`;
+  decisiones del usuario 2026-10-21): bandeja POR PERSONA, no por rol; le sale a
+  todos los que pueden resolverlo y el primero que lo resuelve lo quita de la
+  de todos; solo en la app (sin correo por ahora). No se guarda: `_pendientes_de(uid)`
+  (interna, sin grant) lo calcula del estado de cada cosa con tres reglas
+  visibles: acción de la matriz (`tiene_accion`), proyectos (`proyectos_visibles`;
+  A&F, maestra de insumos y cuentas de terceros son globales como su RLS) y lo
+  suyo (contrato/otrosí devuelto, acta rechazada, contrato vencido, requisiciones
+  atrasadas = "seguimiento"). `mis_pendientes(p_por_grupo)` agrupa por tipo con
+  total, suma, vencidos, el más viejo y como mucho 20 filas; `contar_mis_pendientes()`
+  da el número del menú (solo "hacer"). Ambas usan `auth.uid()`. Títulos y
+  acción de cada tipo en `lib/pendientes.ts` (`GRUPOS_PENDIENTES`). Es la
+  pantalla de entrada después de elegir proyecto y la primera opción del menú;
+  abrir un pendiente de otro proyecto cambia antes el proyecto actual. **Si se
+  agrega un paso con aprobación, sumarlo en `_pendientes_de` y en
+  `GRUPOS_PENDIENTES`.** Pólizas (rama de spr) falta sumarlas al unirlas.
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
@@ -2640,6 +2656,15 @@ otrosí.
   detalle del acta (quien elabora actas): soporte tipo `firmada_contratista`
   (`subir_acta_firmada_contratista`; una por acta, reemplaza la anterior;
   evento `firmada_contratista` en el historial). No se ofrece al elaborar.
+- **Mis pendientes** (`20261130000000_pendientes_firma_y_polizas.sql`, recrea
+  `_pendientes_de` de main): `mi_firma` le sale a quien elabora o aprueba
+  documentos (elaborar_actas, aprobar_pagos, aprobar_contratos,
+  aprobar_minutas, solicitar_contratos) y no tiene firma; su url `#mi-firma`
+  abre el diálogo de la barra (eventos `EVENTO_ABRIR_MI_FIRMA` /
+  `EVENTO_FIRMA_GUARDADA` en `lib/firmas.ts`: guardar quita el pendiente y
+  recuenta el número del menú). También `mi_poliza_por_subir` (director, póliza
+  pendiente o devuelta) y `poliza_por_revisar` (Jurídica con la pestaña).
+  OJO: quien vuelva a recrear `_pendientes_de` debe conservar estos bloques.
 - PDF: `components/firma-pdf.tsx` (bloque de firma con leyenda "Firmado
   electrónicamente el … · Código …"); `acta-pdf.tsx` y `acta-poliza-pdf.tsx`
   la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
@@ -2974,7 +2999,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261125000000` control de proyecto con el valor vigente de los contratos ·
 `20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas ·
 `20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr) ·
-`20261129000000` firmas electrónicas (fase 1).
+`20261129000000` firmas electrónicas (fase 1) ·
+`20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

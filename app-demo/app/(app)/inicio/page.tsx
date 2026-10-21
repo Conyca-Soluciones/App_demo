@@ -1,17 +1,17 @@
 import Image from "next/image"
 import { LandingProyectos } from "@/components/landing-proyectos"
 import { MarcoPagina } from "@/components/encabezado-pagina"
-import { obtenerPermisosRol } from "@/lib/permisos"
-import { rutaPrimeraPestana } from "@/lib/pestanas"
 
 export default async function InicioPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
-  const [permisos, { error }] = await Promise.all([obtenerPermisosRol(), searchParams])
-  // A dónde ir después de elegir el proyecto: la primera pestaña del rol.
-  const destino = permisos ? rutaPrimeraPestana(permisos) : "/presupuestos"
+  const { error } = await searchParams
+  // Después de elegir el proyecto se llega a Mis pendientes (T1): lo que le
+  // toca a la persona en todos sus proyectos. Es una ruta libre (cada quien ve
+  // solo lo suyo, la base lo filtra).
+  const destino = "/pendientes"
 
   return (
     <MarcoPagina
