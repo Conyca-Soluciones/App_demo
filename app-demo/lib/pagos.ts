@@ -63,6 +63,9 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  // Documento de donde sale el pago (para abrir su detalle).
+  ordenCompraId: string | null
+  actaId: string | null
   origen: string
   actaBruto: number | null
   proyectoCodigo: string | null

@@ -82,11 +82,16 @@ export function VentanaDetalle({
         {acciones && (
           <DialogFooter className="flex-wrap gap-2">
             {/* Un botón de acción abre su propio paso (confirmar, motivo...):
-                esta ventana se cierra para no quedar una encima de otra. */}
+                esta ventana se cierra para no quedar una encima de otra.
+                Va después del onClick del botón y frena el clic: si llega al
+                documento, el diálogo recién abierto lo toma como un clic
+                afuera y se cierra solo. */}
             <div
               className="flex flex-wrap items-center justify-end gap-2"
-              onClickCapture={(e) => {
-                if ((e.target as HTMLElement).closest("button, a")) onCerrar()
+              onClick={(e) => {
+                if (!(e.target as HTMLElement).closest("button, a")) return
+                e.stopPropagation()
+                onCerrar()
               }}
             >
               {acciones}
