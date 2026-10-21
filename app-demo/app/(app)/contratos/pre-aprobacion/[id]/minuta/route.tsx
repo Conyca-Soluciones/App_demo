@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana } from "@/lib/permisos"
 import { pdfMinutaContrato, LOGO_CONYCA_PATH } from "@/lib/pdf-minuta-contrato"
 import { buscarMarcaEnPdf } from "@/lib/minuta-pdf-foco"
-import { pdfContratoFirmado } from "@/lib/documentos-firmados"
 import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
 import {
   SELECT_HOJA_CONTRATO_GENERAL,
@@ -35,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const supabase = await createClient()
   const { data: contrato, error } = await supabase
     .from("contratos")
-    .select("numero, numero_contrato, tipo, clase, minuta_estado, minuta_datos")
+    .select("numero, numero_contrato, tipo, clase, minuta_estado")
     .eq("id", id)
     .maybeSingle()
   if (error || !contrato) {
@@ -43,15 +42,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Minuta aprobada con la firma del representante legal: el PDF congelado
-  // (lo de pantalla no cuenta: la minuta ya no se edita).
-  try {
+  // (lo de pantalla no cuenta: la minuta ya no se edita). Solo entonces se
+  // carga el módulo y se lee la minuta guardada (la vista previa de una minuta
+  // en revisión no paga nada de esto).
+  if (contrato.minuta_estado === "aprobada" && contrato.clase !== "general") try {
+    const [{ pdfContratoFirmado }, guardada] = await Promise.all([
+      import("@/lib/documentos-firmados"),
+      supabase.from("contratos").select("minuta_datos").eq("id", id).maybeSingle(),
+    ])
     const firmado = await pdfContratoFirmado(supabase, id, {
       numero: Number(contrato.numero),
       numeroContrato: contrato.numero_contrato ?? null,
       tipo: contrato.tipo,
       clase: contrato.clase,
       minutaEstado: contrato.minuta_estado ?? null,
-      minutaDatos: contrato.minuta_datos,
+      minutaDatos: guardada.data?.minuta_datos,
     })
     if (firmado) {
       return new NextResponse(firmado.pdf as BodyInit, {

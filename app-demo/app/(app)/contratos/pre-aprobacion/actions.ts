@@ -6,7 +6,7 @@ import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/pe
 import { SELECT_FILA_CONTRATO, cargarDetalleContrato, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 import { hoyColombia } from "@/lib/fechas"
 import { limpiarMinuta, mezclarMinuta, minutaPorDefecto, type DatosExtraMinuta, type MinutaManoObra } from "@/lib/minuta-mano-obra"
-import { mapRepresentante, principalActivo } from "@/lib/representantes"
+import { mapRepresentante, principalActivo, type RepresentanteLegal } from "@/lib/representantes"
 import {
   limpiarMinutaArrendamiento,
   mezclarMinutaArrendamiento,
@@ -119,6 +119,7 @@ export type MinutaContrato = {
   porDefecto: MinutaManoObra // solo con los datos de la solicitud (para "Restablecer")
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector de la minuta)
 }
 
 export type MinutaContratoArrendamiento = {
@@ -126,6 +127,7 @@ export type MinutaContratoArrendamiento = {
   porDefecto: MinutaArrendamiento
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector de la minuta)
 }
 
 export type MinutaContratoSuministro = {
@@ -133,6 +135,7 @@ export type MinutaContratoSuministro = {
   porDefecto: MinutaSuministro
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector de la minuta)
 }
 
 export type MinutaContratoVehiculo = {
@@ -140,6 +143,7 @@ export type MinutaContratoVehiculo = {
   porDefecto: MinutaVehiculo
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector de la minuta)
 }
 
 export type MinutaContratoServicios = {
@@ -147,6 +151,7 @@ export type MinutaContratoServicios = {
   porDefecto: MinutaServicios
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector de la minuta)
 }
 
 export type MinutaContratoObra = {
@@ -154,11 +159,12 @@ export type MinutaContratoObra = {
   porDefecto: MinutaObra
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector de la minuta)
 }
 
 // El principal activo de la empresa, para prellenar la minuta.
-function representanteParaMinuta(crudo: unknown): DatosExtraMinuta["empresaRepresentante"] {
-  const p = principalActivo((Array.isArray(crudo) ? crudo : []).map(mapRepresentante))
+function principalParaMinuta(reps: RepresentanteLegal[]): DatosExtraMinuta["empresaRepresentante"] {
+  const p = principalActivo(reps)
   return p ? { nombre: p.nombre, documento: p.numeroDocumento, expedidaEn: p.expedidaEn } : null
 }
 
@@ -191,6 +197,7 @@ async function cargarBaseMinuta(id: string) {
     supabase.rpc("representantes_de_contrato", { p_contrato_id: id }),
   ])
   if (extra.error) throw new Error(extra.error.message)
+  const reps: RepresentanteLegal[] = (Array.isArray(representantes.data) ? representantes.data : []).map(mapRepresentante)
   if (guardada.error) throw new Error(guardada.error.message)
 
   const x = extra.data as any
@@ -207,7 +214,7 @@ async function cargarBaseMinuta(id: string) {
     contratistaRepresentanteTipoDocumento: c?.representante_tipo_documento ?? null,
     contratistaCedulaExpedida: c?.cedula_expedida_en ?? null,
     contratistaCiudad: c?.ciudad ?? null,
-    empresaRepresentante: representanteParaMinuta(representantes.data),
+    empresaRepresentante: principalParaMinuta(reps),
   }
   const g = guardada.data as any
   return {
@@ -216,6 +223,7 @@ async function cargarBaseMinuta(id: string) {
     guardadaDatos: g?.minuta_datos as unknown,
     guardadaAt: (g?.minuta_actualizada_at ?? null) as string | null,
     guardadaPorNombre: (g?.editor?.nombre ?? null) as string | null,
+    representantes: reps,
   }
 }
 
@@ -227,6 +235,7 @@ export async function obtenerMinutaContrato(id: string): Promise<MinutaContrato>
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
+    representantes: base.representantes,
   }
 }
 
@@ -250,6 +259,7 @@ export async function obtenerMinutaArrendamiento(id: string): Promise<MinutaCont
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
+    representantes: base.representantes,
   }
 }
 
@@ -273,6 +283,7 @@ export async function obtenerMinutaSuministro(id: string): Promise<MinutaContrat
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
+    representantes: base.representantes,
   }
 }
 
@@ -296,6 +307,7 @@ export async function obtenerMinutaVehiculo(id: string): Promise<MinutaContratoV
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
+    representantes: base.representantes,
   }
 }
 
@@ -319,6 +331,7 @@ export async function obtenerMinutaServicios(id: string): Promise<MinutaContrato
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
+    representantes: base.representantes,
   }
 }
 
@@ -346,6 +359,7 @@ export async function obtenerMinutaObra(id: string): Promise<MinutaContratoObra>
     porDefecto: defecto,
     guardadaAt: base.guardadaAt,
     guardadaPorNombre: base.guardadaPorNombre,
+    representantes: base.representantes,
   }
 }
 

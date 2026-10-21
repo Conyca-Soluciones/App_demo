@@ -231,7 +231,7 @@ export function MinutaVehiculoEditor({ detalle, puedeEditar }: { detalle: Solici
         <LeyendaOrigen />
 
         <Seccion titulo="Contratante" ayuda="La empresa del proyecto.">
-          <SelectorRepresentante contratoId={detalle.id} documentoActual={m.contratanteRepresentanteCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ contratanteRepresentante: r.nombre, contratanteRepresentanteCedula: r.numeroDocumento })} />
+          <SelectorRepresentante representantes={datos?.representantes ?? []} documentoActual={m.contratanteRepresentanteCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ contratanteRepresentante: r.nombre, contratanteRepresentanteCedula: r.numeroDocumento })} />
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("contratanteNombre", "Razón social")}
             {campo("contratanteNit", "NIT")}

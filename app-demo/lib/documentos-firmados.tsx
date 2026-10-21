@@ -20,8 +20,7 @@ import { ActaPDF } from "@/components/acta-pdf"
 import { ActaPolizaPDF } from "@/components/acta-poliza-pdf"
 import { OrdenCompraPDF } from "@/components/orden-compra-pdf"
 import { pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
-import { obtenerActa } from "@/app/(app)/contratos/actas/actions"
-import { obtenerOrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
+
 
 // ---------------------------------------------------------------------------
 // PDF de documentos firmados (SOLO servidor: usa la service role). Un
@@ -118,6 +117,7 @@ const sinTildes = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "")
 
 // ---------------------------------------------------------------- acta de obra
 export async function pdfActa(supabase: Supabase, id: string): Promise<PdfDocumento> {
+  const { obtenerActa } = await import("@/app/(app)/contratos/actas/actions")
   const [acta, f] = await Promise.all([obtenerActa(id), leerFirmas(supabase, "acta", id)])
   const nombre = sinTildes(`${ETIQUETA_TIPO_ACTA[acta.tipo].toLowerCase().replace(/\s+/g, "-")}-${acta.numero}-${acta.numeroContrato}.pdf`)
   const generar = async () => new Uint8Array(await renderToBuffer(<ActaPDF acta={acta} logo={LOGO_CONYCA_PATH} firmas={f.firmas} />))
@@ -126,6 +126,7 @@ export async function pdfActa(supabase: Supabase, id: string): Promise<PdfDocume
 
 // ---------------------------------------------------------------- orden de compra (solo aprobada)
 export async function pdfOrdenCompra(supabase: Supabase, id: string): Promise<PdfDocumento> {
+  const { obtenerOrdenCompraDetalle } = await import("@/app/(app)/almacen/comprar-pedidos/actions")
   const [orden, f] = await Promise.all([obtenerOrdenCompraDetalle(id), leerFirmas(supabase, "orden_compra", id)])
   if (orden.estado !== "aprobada") throw new Error("Solo se puede descargar el PDF de una orden ya aprobada.")
   const generar = async () => new Uint8Array(await renderToBuffer(<OrdenCompraPDF orden={orden} firmas={f.firmas} />))

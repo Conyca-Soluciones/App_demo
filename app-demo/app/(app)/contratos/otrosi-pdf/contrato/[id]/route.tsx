@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAlgunaPestana } from "@/lib/permisos"
 import { LOGO_CONYCA_PATH, pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
 import { PESTANAS_VER_OTROSI } from "@/lib/otrosi"
-import { pdfContratoFirmado } from "@/lib/documentos-firmados"
 import { ContratoGeneralPDF } from "@/components/contrato-general-pdf"
 import { armarHojaContratoGeneral, nombreArchivoContratoGeneral, type FilaHojaContratoGeneral } from "@/lib/contrato-general-hoja"
 
@@ -32,7 +31,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const fila = data as FilaHojaContratoGeneral & { clase: string; minuta_datos: unknown; minuta_estado?: string | null }
 
   // Aprobado con la firma del representante legal: el PDF congelado.
-  try {
+  if (fila.minuta_estado === "aprobada" && fila.clase !== "general") try {
+    const { pdfContratoFirmado } = await import("@/lib/documentos-firmados")
     const firmado = await pdfContratoFirmado(supabase, id, {
       numero: Number(fila.numero),
       numeroContrato: fila.numero_contrato ?? null,

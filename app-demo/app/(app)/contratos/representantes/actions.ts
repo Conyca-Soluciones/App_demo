@@ -6,10 +6,8 @@ import { MAXIMO_CARACTERES_FIRMA } from "@/lib/firmas"
 import {
   mapEmpresasRepresentantes,
   mapFirmaRepresentante,
-  mapRepresentante,
   type EmpresaConRepresentantes,
-  type FirmaRepresentanteContrato,
-  type RepresentanteLegal,
+  type FirmaRepresentanteContrato
 } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
@@ -58,15 +56,6 @@ export async function listarUsuariosParaRepresentante(): Promise<{ id: string; n
   const { data, error } = await supabase.from("perfiles").select("id, nombre").order("nombre").limit(1000)
   if (error) throw new Error(error.message)
   return (data ?? []).map((p) => ({ id: p.id as string, nombre: (p.nombre as string) ?? "(sin nombre)" }))
-}
-
-// Representantes activos de la empresa del contrato (minuta: Jurídica y Subgerencia).
-export async function representantesDeContrato(contratoId: string): Promise<RepresentanteLegal[]> {
-  await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc("representantes_de_contrato", { p_contrato_id: contratoId })
-  if (error) throw new Error(error.message)
-  return (Array.isArray(data) ? data : []).map(mapRepresentante)
 }
 
 // Quién firmaría como representante legal si se aprueba la minuta ahora.

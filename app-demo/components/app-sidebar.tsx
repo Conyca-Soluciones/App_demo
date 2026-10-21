@@ -68,11 +68,15 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   }, [])
   useEffect(() => {
     let activo = true
-    contarMisPendientes()
-      .then((n: number) => activo && setPendientes(n))
-      .catch(() => activo && setPendientes(null))
+    // Las server actions van en fila: contar después deja que la página cargue primero.
+    const espera = setTimeout(() => {
+      contarMisPendientes()
+        .then((n: number) => activo && setPendientes(n))
+        .catch(() => activo && setPendientes(null))
+    }, 1200)
     return () => {
       activo = false
+      clearTimeout(espera)
     }
   }, [pathname, recontar])
 
