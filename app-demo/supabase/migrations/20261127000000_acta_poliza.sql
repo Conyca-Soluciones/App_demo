@@ -37,6 +37,7 @@ begin
   end if;
 end;
 $$;
+revoke all on function public._validar_acta_poliza(jsonb) from public, anon, authenticated;
 
 -- Todo lo que el acta necesita para llenarse sola.
 create or replace function public.datos_acta_poliza(p_id uuid)
