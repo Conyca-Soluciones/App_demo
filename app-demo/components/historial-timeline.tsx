@@ -77,6 +77,10 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   otrosi_reenviado_subgerencia: { etiqueta: "Otrosí corregido y enviado otra vez a Subgerencia", tono: "neutro" },
   otrosi_devuelto_subgerencia: { etiqueta: "Otrosí devuelto a Jurídica por Subgerencia", tono: "aviso" },
   otrosi_aprobado: { etiqueta: "Otrosí aprobado por Subgerencia", tono: "ok" },
+  // Póliza (20261126000000_polizas.sql).
+  poliza_subida: { etiqueta: "Póliza subida", tono: "neutro" },
+  poliza_aprobada: { etiqueta: "Póliza aprobada por Jurídica", tono: "ok" },
+  poliza_devuelta: { etiqueta: "Póliza devuelta por Jurídica", tono: "aviso" },
 }
 
 // Eventos de un OTROSÍ (Jurídica y Subgerencia).

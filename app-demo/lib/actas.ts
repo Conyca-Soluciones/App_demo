@@ -9,6 +9,7 @@
 // - valor global: un % de avance (acumulado <= 100 %).
 // Descuentos: amortización del anticipo, retención en garantía y otros.
 
+import { motivoSinActasPorPoliza } from "@/lib/polizas"
 import { aCentavos, leerNumero, numero, type TipoContrato } from "@/lib/contratos"
 
 export type TipoActa = "parcial" | "final" | "liquidacion"
@@ -121,6 +122,8 @@ export type InfoContratoActa = {
   vencido: boolean
   liquidado: boolean
   listoParaActas: boolean
+  // Póliza del contrato (20261126000000): sin aprobar no hay actas.
+  polizaEstado: "pendiente" | "recibida" | "aprobada" | null
   tieneFinal: boolean
   tieneLiquidacion: boolean
   actasPorAprobar: number
@@ -136,6 +139,8 @@ export type InfoContratoActa = {
 export function tiposPermitidos(info: InfoContratoActa): { tipos: TipoActa[]; motivo: string | null } {
   if (!info.listoParaActas) return { tipos: [], motivo: "La minuta del contrato todavía no está aprobada por Subgerencia." }
   if (info.liquidado) return { tipos: [], motivo: "El contrato ya está liquidado." }
+  const sinPoliza = motivoSinActasPorPoliza(info.polizaEstado)
+  if (sinPoliza) return { tipos: [], motivo: sinPoliza }
   const tipos: TipoActa[] = []
   let motivo: string | null = null
   if (info.vencido) motivo = "El contrato está vencido: solo se puede hacer el acta de liquidación (para ampliar el plazo hará falta un otrosí)."

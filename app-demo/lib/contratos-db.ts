@@ -14,7 +14,7 @@ export const SELECT_FILA_CONTRATO = `
   id, numero, proyecto_id, tipo, estado, objeto, valor, plazo_tipo, fecha_inicio, fecha_fin, duracion_cantidad,
   duracion_unidad, created_at, enviado_at, motivo_resolucion, resuelto_at,
   minuta_estado, minuta_enviada_at, minuta_resuelta_at, minuta_motivo, numero_contrato,
-  clase, tipo_detalle, referencia, retencion_garantia_pct, retencion_anticipo_pct, retencion_fic_pct, otrosis_aprobados,
+  clase, tipo_detalle, referencia, retencion_garantia_pct, retencion_anticipo_pct, retencion_fic_pct, otrosis_aprobados, poliza_estado,
   minuta_enviador:perfiles!contratos_minuta_enviada_por_fkey(nombre),
   minuta_resolutor:perfiles!contratos_minuta_resuelta_por_fkey(nombre),
   proyecto:proyectos!contratos_proyecto_id_fkey(codigo, nombre),
@@ -66,6 +66,7 @@ export function mapFilaContrato(f: any): SolicitudContratoFila {
     retencionAnticipoPct: Number(f.retencion_anticipo_pct ?? 0),
     retencionFicPct: Number(f.retencion_fic_pct ?? 0),
     otrosisAprobados: Number(f.otrosis_aprobados ?? 0),
+    polizaEstado: f.poliza_estado === "pendiente" || f.poliza_estado === "recibida" || f.poliza_estado === "aprobada" ? f.poliza_estado : null,
   }
 }
 

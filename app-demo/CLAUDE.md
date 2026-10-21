@@ -2426,6 +2426,48 @@ código dice solo "GJ-F"). Decisiones del usuario:
   esa parte falla, sale el historial del contrato solo). `historial_entidad`
   no se tocó.
 
+## Pólizas `/contratos/polizas` y `/contratos/aprobacion-polizas` (2026-10-21)
+
+`20261126000000_polizas.sql`. Decisiones del usuario: todos los contratos
+aprobados piden póliza; solo el archivo (sin número ni vigencia); sin póliza
+aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
+- **Estado aparte** `contratos.poliza_estado` (null | `pendiente` | `recibida`
+  | `aprobada`); `estado` y `minuta_estado` no cambian. El disparador
+  `trg_poliza_al_aprobar_minuta` (BEFORE UPDATE OF minuta_estado) lo pone en
+  `pendiente` cuando Subgerencia aprueba la minuta (no liquidados);
+  `trg_avisar_poliza_pendiente` (AFTER UPDATE, de null a pendiente) avisa al
+  director que pidió el contrato (`poliza_pendiente` -> Pólizas).
+- **Tabla** `contrato_polizas` (una fila por subida: ruta, archivo, estado
+  `por_revisar` | `aprobada` | `devuelta`, motivo, quién/cuándo; una sola por
+  revisar por contrato). Bucket privado `polizas` (PDF/JPG/PNG, 10 MB), ruta
+  `<contrato_id>/<marca>.<ext>`: el navegador sube y luego `subir_poliza`
+  registra (revisa archivo, ruta y estado; contrato -> `recibida`; avisa a
+  Jurídica `poliza_por_revisar`); si falla se borra el archivo (la política
+  solo deja borrar archivos que no son póliza: `_ruta_poliza_registrada`).
+  Ver = enlace firmado (`enlacePoliza`) con la RLS de la tabla.
+- **Jurídica** (`resolver_poliza`, pestaña `contratos.aprobar_polizas` +
+  acción `aprobar_contratos`): aprobar (contrato -> `aprobada`) o devolver con
+  motivo (-> `pendiente`, se sube otra). Avisa a quien la subió y al director.
+  Historial del contrato: `poliza_subida`, `poliza_aprobada`, `poliza_devuelta`.
+- **Pantallas**: Pólizas (`components/polizas-view.tsx`: buscar contratista o
+  contrato como en Actas, incluidos los generales; estado, subir, pólizas
+  subidas y "Ver contrato") y Aprobación de pólizas
+  (`components/aprobacion-polizas-view.tsx`: tabla por estado y diálogo con
+  pestañas Póliza, Contrato (PDF, ruta de otrosí) y Contrato y contratista).
+  Funciones: `buscar_contratistas_para_poliza`, `buscar_contratos_para_poliza`,
+  `polizas_de_contrato`, `listar_polizas_aprobacion`, `detalle_poliza`.
+- **Actas**: `contrato_para_acta` devuelve `poliza_estado` y `_guardar_acta`
+  se niega sin póliza aprobada; en TS `tiposPermitidos` /
+  `motivoSinActasPorPoliza` (`lib/polizas.ts`).
+- Las listas y el detalle de contratos muestran el estado de la póliza
+  (`components/badge-poliza.tsx`, `poliza_estado` en `SELECT_FILA_CONTRATO`).
+- **Permisos**: la migración da `tab.contratos.polizas` a los roles con
+  Contratos por grupos o Actas por grupos, y `tab.contratos.aprobar_polizas` a
+  los que tienen Pre aprobación. Las dos pestañas entran en
+  `_puede_ver_otrosis` / `PESTANAS_VER_OTROSI` (ver el PDF del contrato).
+- Probada en el Postgres local (flujo completo, devolución, bloqueo de actas,
+  backfill dos veces).
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
@@ -2433,7 +2475,9 @@ por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
 (`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
 de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
 **Otrosí** (Solicitud de otrosí = `contratos.solicitar_otrosi`, Aprobación de
-otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo
+otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo **Pólizas**
+(Pólizas = `contratos.polizas`, Aprobación de pólizas =
+`contratos.aprobar_polizas`, 2026-10-21); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
@@ -2746,7 +2790,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261122000000` historial del contrato con sus otrosí ·
 `20261123000000` prórroga y nuevo valor del otrosí ·
 `20261124000000` tope de mano de obra y actividades por otrosí ·
-`20261125000000` control de proyecto con el valor vigente de los contratos.
+`20261125000000` control de proyecto con el valor vigente de los contratos ·
+`20261126000000` pólizas.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

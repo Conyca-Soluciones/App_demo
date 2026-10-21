@@ -258,6 +258,8 @@ export type SolicitudContratoFila = {
   retencionFicPct: number
   // Otrosí aprobados (columna calculada otrosis_aprobados, 20261121000000).
   otrosisAprobados?: number
+  // Póliza (20261126000000_polizas.sql): null hasta que Subgerencia aprueba.
+  polizaEstado?: "pendiente" | "recibida" | "aprobada" | null
 }
 
 export type ClaseContrato = "grupo" | "general"

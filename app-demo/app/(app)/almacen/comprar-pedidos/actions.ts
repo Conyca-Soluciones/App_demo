@@ -1062,6 +1062,10 @@ export type NotificacionTipo =
   | "otrosi_rechazado"
   | "otrosi_aprobado"
   | "otrosi_devuelto_subgerencia"
+  | "poliza_pendiente"
+  | "poliza_por_revisar"
+  | "poliza_aprobada"
+  | "poliza_devuelta"
 export type NotificacionEntidadTipo = "pedido_insumo" | "orden_compra" | "requisicion" | "contrato" | "acta" | "presupuesto" | "otrosi"
 
 export type Notificacion = {

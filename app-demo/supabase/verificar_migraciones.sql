@@ -278,5 +278,11 @@ select * from (
   select '20261125000000_control_proyecto_valor_vigente',
          exists (select 1 from pg_proc where proname = 'control_proyecto'
                   and pg_get_functiondef(oid) like '%_valor_contrato(c.id)%')
+  union all
+  select '20261126000000_polizas',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'poliza_estado')
+         and exists (select 1 from pg_proc where proname = 'resolver_poliza')
+         and exists (select 1 from pg_trigger where tgname = 'trg_poliza_al_aprobar_minuta')
 ) t
 order by 1;

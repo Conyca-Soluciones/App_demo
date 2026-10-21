@@ -63,7 +63,7 @@ const TEXTO_ACCION: Record<Accion, { titulo: string; explicacion: string; boton:
   },
   aprobar: {
     titulo: "Aprobar otrosí",
-    explicacion: "Es definitivo: el otrosí recibe su número. Jurídica y quien lo pidió reciben una notificación. El contrato no cambia en el sistema (plazo y valor siguen los iniciales).",
+    explicacion: "Es definitivo: el otrosí recibe su número. Jurídica y quien lo pidió reciben una notificación. Si trae prórroga, nuevo valor o actividades, desde ya cuentan para el contrato (actas, vencimiento); el documento del contrato no cambia.",
     boton: "Aprobar",
     pideMotivo: false,
   },
