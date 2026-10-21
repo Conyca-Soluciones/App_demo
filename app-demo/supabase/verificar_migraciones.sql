@@ -341,5 +341,15 @@ select * from (
   select '20261125000000_control_proyecto_valor_vigente',
          exists (select 1 from pg_proc where proname = 'control_proyecto'
                   and pg_get_functiondef(oid) like '%_valor_contrato(c.id)%')
+  union all
+  select '20261203000000_liquidacion_pagos',
+         exists (select 1 from pg_proc where proname = 'liquidar_pago')
+         and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'pagos' and column_name = 'valor_neto')
+         and exists (select 1 from public.rol_permisos where permiso = 'accion.liquidar_pagos')
+  union all
+  select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
+         exists (select 1 from pg_stat_user_tables
+                  where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)
 ) t
 order by 1;

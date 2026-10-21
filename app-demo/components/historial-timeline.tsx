@@ -102,6 +102,8 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   rechazado: { etiqueta: "Pago rechazado", tono: "malo" },
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   liquidado: { etiqueta: "Pago liquidado", tono: "neutro" },
+  reliquidado: { etiqueta: "Pago liquidado otra vez", tono: "aviso" },
+  liquidacion_anulada: { etiqueta: "Liquidación deshecha", tono: "aviso" },
   en_dispersion: { etiqueta: "Pago en dispersión", tono: "neutro" },
   dispersado: { etiqueta: "Pago dispersado", tono: "ok" },
   tercero_cambiado: { etiqueta: "Tercero o cuenta cambiados", tono: "aviso" },
@@ -327,6 +329,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   if (tipo === "pago") {
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
+    if (e.evento === "reliquidado" && d.neto != null) return [`Versión ${d.version}: neto ${pesosTexto(d.neto)}`]
     if (e.evento === "tercero_cambiado") {
       const lineas: string[] = []
       if (d.tercero_de !== d.tercero_a) lineas.push(`Tercero: ${formatoValor(d.tercero_de)} → ${formatoValor(d.tercero_a)}`)

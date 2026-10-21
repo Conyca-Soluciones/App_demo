@@ -1,7 +1,7 @@
 // Consulta y mapeo de un pago (compartido por las actions de Aprobación de
 // pagos y del Consolidado). Archivo plano: no es una Server Action.
 
-import { documentoFormateado } from "@/lib/terceros"
+import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
 import type { Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
@@ -9,23 +9,32 @@ import type { Pago } from "@/lib/pagos"
 export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
-  orden_compra_id, acta_id,
+  orden_compra_id, acta_id, numero_factura, valor_documento, base_gravable, iva,
+  descuento_anticipos, retencion_garantia, otros_descuentos,
   orden:ordenes_compra(numero),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros(razon_social, tipo_documento, numero_documento, dv),
-  cuenta:terceros_cuentas(numero_cuenta, estado, banco:bancos(nombre)),
+  cuenta:terceros_cuentas(numero_cuenta, tipo_cuenta, estado, banco:bancos(nombre)),
   aprobador:perfiles!pagos_aprobado_por_fkey(nombre),
-  rechazador:perfiles!pagos_rechazado_por_fkey(nombre)
+  rechazador:perfiles!pagos_rechazado_por_fkey(nombre),
+  solicitante:perfiles!pagos_solicitado_por_fkey(nombre),
+  liquidacion:pago_liquidaciones!pagos_liquidacion_id_fkey(
+    version, estado, retefuente, reteica, reteiva, asumidas, descuentos, neto, liquidado_en,
+    liquidador:perfiles!pago_liquidaciones_liquidado_por_fkey(nombre)
+  )
 `
 
 // Igual, pero con el join !inner al tercero (para filtrar por su nombre en la
 // misma consulta, sin traer ids para mandarlos en un IN).
 export const CAMPOS_PAGO_TERCERO_INNER = CAMPOS_PAGO.replace("tercero:terceros(", "tercero:terceros!inner(")
 
+const num = (v: unknown): number | null => (v == null ? null : Number(v))
+
 export function mapPago(f: any): Pago {
   const t = f.tercero
+  const l = f.liquidacion?.estado === "vigente" ? f.liquidacion : null
   return {
     id: f.id,
     tipo: f.tipo,
@@ -71,7 +80,30 @@ export function mapPago(f: any): Pago {
         })}`
       : null,
     cuentaId: f.cuenta_tercero_id,
-    cuentaTexto: f.cuenta ? `${f.cuenta.banco?.nombre ?? ""} · ${f.cuenta.numero_cuenta}` : null,
+    cuentaTexto: f.cuenta
+      ? `${f.cuenta.banco?.nombre ?? ""} · ${ETIQUETA_TIPO_CUENTA[f.cuenta.tipo_cuenta as keyof typeof ETIQUETA_TIPO_CUENTA] ?? f.cuenta.tipo_cuenta} · ${f.cuenta.numero_cuenta}`
+      : null,
     cuentaVerificada: f.cuenta?.estado === "ACTIVO",
+    numeroFactura: f.numero_factura ?? null,
+    solicitadoPorNombre: f.solicitante?.nombre ?? null,
+    valorDocumento: num(f.valor_documento),
+    baseGravable: num(f.base_gravable),
+    iva: num(f.iva),
+    descuentoAnticipos: Number(f.descuento_anticipos ?? 0),
+    retencionGarantia: Number(f.retencion_garantia ?? 0),
+    otrosDescuentos: Number(f.otros_descuentos ?? 0),
+    liquidacion: l
+      ? {
+          version: l.version,
+          retefuente: Number(l.retefuente),
+          reteica: Number(l.reteica),
+          reteiva: Number(l.reteiva),
+          asumidas: Number(l.asumidas),
+          descuentos: Number(l.descuentos),
+          neto: Number(l.neto),
+          liquidadoPorNombre: l.liquidador?.nombre ?? null,
+          liquidadoEn: l.liquidado_en,
+        }
+      : null,
   }
 }

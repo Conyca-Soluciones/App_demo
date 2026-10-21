@@ -78,6 +78,47 @@ export type Pago = {
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
+  numeroFactura: string | null
+  solicitadoPorNombre: string | null
+  // Desglose de origen (como el cuadro de pagos), guardado al crear el pago:
+  // valor = valorDocumento − descuentoAnticipos − retencionGarantia − otrosDescuentos.
+  valorDocumento: number | null
+  baseGravable: number | null
+  iva: number | null
+  descuentoAnticipos: number
+  retencionGarantia: number
+  otrosDescuentos: number
+  // Liquidación vigente (null = sin liquidar o anulada).
+  liquidacion: LiquidacionPago | null
+}
+
+export type LiquidacionPago = {
+  version: number
+  retefuente: number
+  reteica: number
+  reteiva: number
+  // Retenciones que la empresa asume: están en las tres de arriba pero no
+  // bajan el neto.
+  asumidas: number
+  // Descuentos que agrega Contabilidad (préstamos, cruces...).
+  descuentos: number
+  neto: number
+  liquidadoPorNombre: string | null
+  liquidadoEn: string
+}
+
+// Lo que se le va a girar al tercero: el neto si está liquidado; si no, el
+// valor aprobado (todavía sin retenciones).
+export function totalAPagar(p: Pick<Pago, "valor" | "liquidacion">): number {
+  return p.liquidacion ? p.liquidacion.neto : p.valor
+}
+
+// Columna "Anticipos y/o descuentos" del cuadro: anticipos ya girados (o
+// amortización del acta), otros descuentos del acta y los de Contabilidad.
+export function anticiposYDescuentos(
+  p: Pick<Pago, "descuentoAnticipos" | "otrosDescuentos" | "liquidacion">
+): number {
+  return p.descuentoAnticipos + p.otrosDescuentos + (p.liquidacion?.descuentos ?? 0)
 }
 
 export type FiltrosAprobacionPagos = {

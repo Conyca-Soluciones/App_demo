@@ -32,12 +32,14 @@ import {
   CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
   ETIQUETA_TIPO_PAGO,
+  anticiposYDescuentos,
   formatoMoneda,
   fechasSemanaIso,
   semanaIso,
   semanasDelAnio,
   type EstadoPago,
   type FiltrosConsolidado,
+  totalAPagar,
   type Pago,
 } from "@/lib/pagos"
 
@@ -46,6 +48,28 @@ const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "liquidado", "en_dispersion", 
 async function buscarTercerosAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const r = await buscarTercerosParaPago(termino)
   return r.map((t) => ({ id: t.id, etiqueta: t.nombre, subetiqueta: t.documento }))
+}
+
+// Columna de pesos del desglose (como el cuadro de pagos): vacía si no aplica
+// (sin liquidar) y en gris si es cero.
+function columnaPesos(clave: string, titulo: string, valor: (p: Pago) => number | null): ColumnaExcel<Pago> {
+  return {
+    clave,
+    titulo,
+    ancho: 140,
+    alinear: "right",
+    texto: (p) => {
+      const v = valor(p)
+      return v == null ? "" : formatoMoneda(v)
+    },
+    valorOrden: (p) => valor(p) ?? -1,
+    celda: (p) => {
+      const v = valor(p)
+      if (v == null) return <span className="text-muted-foreground/60">—</span>
+      return <span className={v === 0 ? "text-muted-foreground" : undefined}>{formatoMoneda(v)}</span>
+    },
+    claseCelda: "tabular-nums",
+  }
 }
 
 // Un pago ya en dispersión, pagado o anulado no se puede cambiar.
@@ -146,7 +170,8 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
 
   // Los anulados y rechazados no se pagan: se listan pero no suman al total.
   const pagosQueSuman = pagos ? pagos.filter((p) => p.estado !== "anulado" && p.estado !== "rechazado") : []
-  const totalPagina = pagosQueSuman.reduce((acc, p) => acc + p.valor, 0)
+  const totalPagina = pagosQueSuman.reduce((acc, p) => acc + totalAPagar(p), 0)
+  const sinLiquidar = pagosQueSuman.filter((p) => !p.liquidacion).length
   const pagosExcluidos = (pagos?.length ?? 0) - pagosQueSuman.length
 
   async function handleReintentar() {
@@ -225,30 +250,43 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
         </span>
       ),
     },
+    { clave: "factura", titulo: "Factura o cuenta de cobro", ancho: 150, texto: (p) => p.numeroFactura ?? "" },
     {
       clave: "concepto",
       titulo: "Concepto",
       ancho: 300,
       texto: (p) => p.concepto,
     },
+    { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen },
     { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" },
+    { clave: "solicita", titulo: "Solicita", ancho: 170, texto: (p) => p.solicitadoPorNombre ?? "" },
     {
       clave: "tipo",
       titulo: "Pago",
       ancho: 100,
       texto: (p) => ETIQUETA_TIPO_PAGO[p.tipo],
     },
+    columnaPesos("documento", "Valor documento", (p) => p.valorDocumento),
+    columnaPesos("base", "Base", (p) => p.baseGravable),
+    columnaPesos("iva", "IVA", (p) => p.iva),
+    columnaPesos("retefuente", "Retefuente", (p) => p.liquidacion?.retefuente ?? null),
+    columnaPesos("reteica", "ReteICA", (p) => p.liquidacion?.reteica ?? null),
+    columnaPesos("reteiva", "ReteIVA", (p) => p.liquidacion?.reteiva ?? null),
+    columnaPesos("asumidas", "Asumidas", (p) => p.liquidacion?.asumidas ?? null),
+    columnaPesos("garantia", "Retención en garantía", (p) => p.retencionGarantia),
+    columnaPesos("anticipos", "Anticipos y/o descuentos", (p) => anticiposYDescuentos(p)),
     {
       clave: "valor",
-      titulo: "Valor a pagar",
-      ancho: 150,
+      titulo: "Total a pagar",
+      ancho: 160,
       alinear: "right",
-      texto: (p) => formatoMoneda(p.valor),
+      texto: (p) => formatoMoneda(totalAPagar(p)),
+      valorOrden: (p) => totalAPagar(p),
       celda: (p) => (
         <div className="leading-tight">
-          <div>{formatoMoneda(p.valor)}</div>
-          {p.actaBruto != null && p.actaBruto !== p.valor && (
-            <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
+          <div className="font-medium">{formatoMoneda(totalAPagar(p))}</div>
+          {!p.liquidacion && p.estado !== "anulado" && p.estado !== "rechazado" && (
+            <div className="text-xs text-amber-700">Sin liquidar</div>
           )}
         </div>
       ),
@@ -469,12 +507,15 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                       {ETIQUETA_ESTADO_PAGO[p.estado]}
                     </Badge>
                   ),
-                  campos: ["cuenta", "concepto", "proyecto", "valor", "novedad", "acciones"],
+                  campos: ["cuenta", "concepto", "proyecto", "documento", "retefuente", "reteica", "reteiva", "valor", "novedad", "acciones"],
                 }}
               />
               <div className="text-right text-sm text-muted-foreground">
-                {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total de la página{" "}
+                {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total a pagar de la página{" "}
                 <span className="font-medium text-foreground tabular-nums">{formatoMoneda(totalPagina)}</span>
+                {sinLiquidar > 0 && (
+                  <> ({sinLiquidar} sin liquidar: cuentan por su valor aprobado, todavía sin retenciones)</>
+                )}
                 {pagosExcluidos > 0 && (
                   <> (sin {pagosExcluidos} {pagosExcluidos === 1 ? "anulado o rechazado" : "anulados o rechazados"})</>
                 )}
@@ -597,7 +638,7 @@ function ContenidoResolver({
         <DialogTitle>Tercero y cuenta del pago {pago.item != null ? `· ITEM ${pago.item}` : ""}</DialogTitle>
       </DialogHeader>
       <p className="text-sm text-muted-foreground">
-        {pago.concepto} · {formatoMoneda(pago.valor)}
+        {pago.concepto} · {formatoMoneda(totalAPagar(pago))}
       </p>
       {pago.novedad && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{pago.novedad}</p>
@@ -640,6 +681,13 @@ function ContenidoResolver({
           </p>
         )}
       </div>
+
+      {pago.liquidacion && tercero && tercero.id !== pago.terceroId && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          El pago ya está liquidado: al cambiar el tercero la liquidación se anula y Contabilidad tiene que
+          liquidarlo otra vez.
+        </p>
+      )}
 
       <DialogFooter>
         <Button variant="outline" disabled={guardando} onClick={onCerrar}>
