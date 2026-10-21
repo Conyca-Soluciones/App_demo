@@ -29,9 +29,12 @@ import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
+import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
   obtenerOrdenCompraDetalle,
   obtenerPermisosOrdenCompra,
+  enlaceSoporteOrden,
+  listarSoportesOrden,
   aprobarOrdenCompra,
   rechazarOrdenCompra,
   desaprobarOrdenCompra,
@@ -66,11 +69,14 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [rechazando, setRechazando] = useState(false)
   const [motivoRechazo, setMotivoRechazo] = useState("")
 
+  const [soportes, setSoportes] = useState<SoporteGuardado[]>([])
+
   function cargar() {
-    Promise.all([obtenerOrdenCompraDetalle(ordenId), obtenerPermisosOrdenCompra()])
-      .then(([o, p]) => {
+    Promise.all([obtenerOrdenCompraDetalle(ordenId), obtenerPermisosOrdenCompra(), listarSoportesOrden(ordenId)])
+      .then(([o, p, s]) => {
         setOrden(o)
         setPermisos(p)
+        setSoportes(s)
         setError(null)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
@@ -351,6 +357,39 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               <p className="text-xs text-muted-foreground">IVA: {formatoMoneda.format(totales.iva)}</p>
             )}
             <p className="text-lg font-semibold">{formatoMoneda.format(totalOrden)}</p>
+          </div>
+          <div className="space-y-1 border-t pt-3">
+            <p className="text-muted-foreground">Soporte</p>
+            {soportes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sin soporte (orden de antes de que fuera obligatorio).</p>
+            ) : (
+              soportes.map((s) => (
+                <div key={s.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate" title={s.nombreArchivo}>
+                    {ETIQUETA_SOPORTE_ORDEN[s.tipo as TipoSoporteOrden] ?? s.tipo} · {s.nombreArchivo}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 shrink-0"
+                    onClick={async () => {
+                      // La pestaña se abre antes de pedir el enlace (si no, el navegador la bloquea).
+                      const ventana = window.open("", "_blank")
+                      try {
+                        const url = await enlaceSoporteOrden(s.id)
+                        if (ventana) ventana.location.href = url
+                        else window.location.href = url
+                      } catch (e) {
+                        ventana?.close()
+                        setError(e instanceof Error ? e.message : "No se pudo abrir el soporte.")
+                      }
+                    }}
+                  >
+                    Ver
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
           {orden.anticipoPorcentaje != null && (
             <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">

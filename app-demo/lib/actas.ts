@@ -31,13 +31,19 @@ export const CLASE_ESTADO_ACTA: Record<EstadoActa, string> = {
   rechazada: "bg-red-100 text-red-800 hover:bg-red-100",
 }
 
-export type TipoSoporte = "factura" | "memoria" | "foto" | "otro"
+export type TipoSoporte = "factura" | "cuenta_cobro" | "memoria" | "foto" | "otro"
 export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
   factura: "Factura del contratista",
+  cuenta_cobro: "Cuenta de cobro del contratista",
   memoria: "Memoria de cantidades",
   foto: "Registro fotográfico",
   otro: "Otro",
 }
+// Dos grupos en el formulario (decisión del usuario, T4): el soporte de pago
+// (obligatorio si el acta tiene pago; lo exige también _pago_de_acta) y los demás.
+export const TIPOS_SOPORTE_PAGO: TipoSoporte[] = ["factura", "cuenta_cobro"]
+export const TIPOS_SOPORTE_OTROS: TipoSoporte[] = ["memoria", "foto", "otro"]
+export const esSoportePago = (tipo: string) => tipo === "factura" || tipo === "cuenta_cobro"
 export const MIME_SOPORTES = [
   "application/pdf",
   "image/jpeg",

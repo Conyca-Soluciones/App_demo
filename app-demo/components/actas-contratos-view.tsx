@@ -20,6 +20,9 @@ import {
   CLASE_ESTADO_ACTA,
   ETIQUETA_ESTADO_ACTA,
   ETIQUETA_SOPORTE,
+  TIPOS_SOPORTE_OTROS,
+  TIPOS_SOPORTE_PAGO,
+  esSoportePago,
   ETIQUETA_TIPO_ACTA,
   MIME_SOPORTES,
   actaEditable,
@@ -537,7 +540,9 @@ function FormularioActa({
   const [quitarSoportes, setQuitarSoportes] = useState<Set<string>>(new Set())
   const [nuevos, setNuevos] = useState<SoporteNuevo[]>([])
   const claveNuevo = useRef(0)
-  const [tipoNuevo, setTipoNuevo] = useState<TipoSoporte>("factura")
+  // Tipo que se elige en cada grupo antes de adjuntar.
+  const [tipoNuevoPago, setTipoNuevoPago] = useState<TipoSoporte>("factura")
+  const [tipoNuevoOtro, setTipoNuevoOtro] = useState<TipoSoporte>("memoria")
   const [guardando, setGuardando] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -548,7 +553,7 @@ function FormularioActa({
   const sinPago = r != null && Math.round(r.neto) <= 0
   const despues = sinPago ? "Quedó aprobada (neto $ 0: no hay pago)." : "Su pago quedó por aprobar en A&F."
 
-  function agregarArchivos(archivos: FileList | null) {
+  function agregarArchivos(archivos: FileList | null, tipoNuevo: TipoSoporte) {
     if (!archivos) return
     const lista: SoporteNuevo[] = []
     for (const archivo of Array.from(archivos)) {
@@ -563,6 +568,15 @@ function FormularioActa({
     setNuevos((n) => [...n, ...lista])
   }
 
+  function alternarQuitar(id: string) {
+    setQuitarSoportes((q) => {
+      const n = new Set(q)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }
+
   async function guardar() {
     if (!info) return
     const v = validarActa(info, form)
@@ -570,13 +584,13 @@ function FormularioActa({
       setError(v.error)
       return
     }
-    // Un acta con pago (neto > 0) exige al menos la factura del contratista
-    // (decisión del usuario; la base lo revisa otra vez en _pago_de_acta).
-    const hayFactura =
-      nuevos.some((n) => n.tipo === "factura") ||
-      (edicion?.soportes ?? []).some((s) => s.tipo === "factura" && !quitarSoportes.has(s.id))
-    if (!sinPago && !hayFactura) {
-      setError("Adjunta la factura del contratista: el acta con pago la exige.")
+    // Un acta con pago (neto > 0) exige el soporte de pago: factura o cuenta
+    // de cobro (decisión del usuario; la base lo revisa otra vez en _pago_de_acta).
+    const haySoportePago =
+      nuevos.some((n) => esSoportePago(n.tipo)) ||
+      (edicion?.soportes ?? []).some((s) => esSoportePago(s.tipo) && !quitarSoportes.has(s.id))
+    if (!sinPago && !haySoportePago) {
+      setError("Adjunta el soporte de pago (factura o cuenta de cobro del contratista): el acta con pago lo exige.")
       return
     }
     const actaId = edicion?.id ?? crypto.randomUUID()
@@ -842,81 +856,33 @@ function FormularioActa({
             />
           </div>
 
-          {/* Soportes */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Soportes</h3>
-            {(edicion?.soportes ?? []).map((s) => {
-              const quitado = quitarSoportes.has(s.id)
-              return (
-                <div key={s.id} className={`flex items-center gap-2 text-sm ${quitado ? "text-muted-foreground line-through" : ""}`}>
-                  <Paperclip className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{s.nombreArchivo}</span>
-                  <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[s.tipo]})</span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto"
-                    onClick={() =>
-                      setQuitarSoportes((q) => {
-                        const n = new Set(q)
-                        if (n.has(s.id)) n.delete(s.id)
-                        else n.add(s.id)
-                        return n
-                      })
-                    }
-                  >
-                    {quitado ? "Conservar" : "Quitar"}
-                  </Button>
-                </div>
-              )
-            })}
-            {nuevos.map((n) => (
-              <div key={n.clave} className="flex items-center gap-2 text-sm">
-                <Paperclip className="h-4 w-4 shrink-0 text-primary" />
-                <span className="truncate">{n.archivo.name}</span>
-                <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[n.tipo]}, nuevo)</span>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="ml-auto"
-                  onClick={() => setNuevos((x) => x.filter((y) => y.clave !== n.clave))}
-                  aria-label={`Quitar ${n.archivo.name}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={tipoNuevo} onValueChange={(v) => setTipoNuevo((v as TipoSoporte) ?? "factura")}>
-                <SelectTrigger className="h-9 w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(ETIQUETA_SOPORTE) as TipoSoporte[]).map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {ETIQUETA_SOPORTE[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-accent">
-                <Upload className="h-4 w-4" /> Adjuntar archivo
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  accept={MIME_SOPORTES.join(",")}
-                  onChange={(e) => {
-                    agregarArchivos(e.target.files)
-                    e.target.value = ""
-                  }}
-                />
-              </label>
-              <span className="text-xs text-muted-foreground">PDF, JPG, PNG o Excel de hasta 10 MB.</span>
-            </div>
-          </div>
+          {/* Soportes: el de pago (obligatorio si hay pago) y los demás. */}
+          <GrupoSoportesActa
+            titulo={sinPago ? "Soporte de pago (factura o cuenta de cobro)" : "Soporte de pago (factura o cuenta de cobro) *"}
+            ayuda={sinPago ? "Esta acta no tiene pago: el soporte de pago no es obligatorio." : "Obligatorio: el acta con pago lo exige."}
+            tipos={TIPOS_SOPORTE_PAGO}
+            tipoNuevo={tipoNuevoPago}
+            onTipoNuevo={setTipoNuevoPago}
+            existentes={(edicion?.soportes ?? []).filter((s) => esSoportePago(s.tipo))}
+            nuevos={nuevos.filter((n) => esSoportePago(n.tipo))}
+            quitar={quitarSoportes}
+            onAlternarQuitar={alternarQuitar}
+            onQuitarNuevo={(clave) => setNuevos((x) => x.filter((y) => y.clave !== clave))}
+            onAgregar={(archivos) => agregarArchivos(archivos, tipoNuevoPago)}
+          />
+          <GrupoSoportesActa
+            titulo="Otros soportes (memoria de cantidades, registro fotográfico, otros)"
+            ayuda="Opcionales."
+            tipos={TIPOS_SOPORTE_OTROS}
+            tipoNuevo={tipoNuevoOtro}
+            onTipoNuevo={setTipoNuevoOtro}
+            existentes={(edicion?.soportes ?? []).filter((s) => !esSoportePago(s.tipo) && s.tipo in ETIQUETA_SOPORTE)}
+            nuevos={nuevos.filter((n) => !esSoportePago(n.tipo))}
+            quitar={quitarSoportes}
+            onAlternarQuitar={alternarQuitar}
+            onQuitarNuevo={(clave) => setNuevos((x) => x.filter((y) => y.clave !== clave))}
+            onAgregar={(archivos) => agregarArchivos(archivos, tipoNuevoOtro)}
+          />
         </div>
       )}
 
@@ -948,6 +914,101 @@ function Cifra({ titulo, texto, fuerte, rojo }: { titulo: string; texto: string;
     <div>
       <p className="text-xs text-muted-foreground">{titulo}</p>
       <p className={`pt-1.5 tabular-nums ${fuerte ? "font-semibold" : ""} ${rojo ? "text-destructive" : ""}`}>{texto}</p>
+    </div>
+  )
+}
+
+// Un grupo de soportes del acta: los ya guardados (se pueden quitar), los
+// nuevos y el selector de tipo + adjuntar.
+function GrupoSoportesActa({
+  titulo,
+  ayuda,
+  tipos,
+  tipoNuevo,
+  onTipoNuevo,
+  existentes,
+  nuevos,
+  quitar,
+  onAlternarQuitar,
+  onQuitarNuevo,
+  onAgregar,
+}: {
+  titulo: string
+  ayuda: string
+  tipos: TipoSoporte[]
+  tipoNuevo: TipoSoporte
+  onTipoNuevo: (t: TipoSoporte) => void
+  existentes: { id: string; tipo: TipoSoporte; nombreArchivo: string }[]
+  nuevos: SoporteNuevo[]
+  quitar: Set<string>
+  onAlternarQuitar: (id: string) => void
+  onQuitarNuevo: (clave: number) => void
+  onAgregar: (archivos: FileList | null) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <h3 className="text-sm font-medium">{titulo}</h3>
+        <p className="text-xs text-muted-foreground">{ayuda}</p>
+      </div>
+      {existentes.map((s) => {
+        const quitado = quitar.has(s.id)
+        return (
+          <div key={s.id} className={`flex items-center gap-2 text-sm ${quitado ? "text-muted-foreground line-through" : ""}`}>
+            <Paperclip className="h-4 w-4 shrink-0" />
+            <span className="truncate">{s.nombreArchivo}</span>
+            <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[s.tipo]})</span>
+            <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={() => onAlternarQuitar(s.id)}>
+              {quitado ? "Conservar" : "Quitar"}
+            </Button>
+          </div>
+        )
+      })}
+      {nuevos.map((n) => (
+        <div key={n.clave} className="flex items-center gap-2 text-sm">
+          <Paperclip className="h-4 w-4 shrink-0 text-primary" />
+          <span className="truncate">{n.archivo.name}</span>
+          <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[n.tipo]}, nuevo)</span>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => onQuitarNuevo(n.clave)}
+            aria-label={`Quitar ${n.archivo.name}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={tipoNuevo} onValueChange={(v) => v && onTipoNuevo(v as TipoSoporte)}>
+          <SelectTrigger className="h-9 w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {tipos.map((t) => (
+              <SelectItem key={t} value={t}>
+                {ETIQUETA_SOPORTE[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-accent">
+          <Upload className="h-4 w-4" /> Adjuntar archivo
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            accept={MIME_SOPORTES.join(",")}
+            onChange={(e) => {
+              onAgregar(e.target.files)
+              e.target.value = ""
+            }}
+          />
+        </label>
+        <span className="text-xs text-muted-foreground">PDF, JPG, PNG o Excel de hasta 10 MB.</span>
+      </div>
     </div>
   )
 }

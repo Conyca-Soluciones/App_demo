@@ -1327,6 +1327,23 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   abrir un pendiente de otro proyecto cambia antes el proyecto actual. **Si se
   agrega un paso con aprobación, sumarlo en `_pendientes_de` y en
   `GRUPOS_PENDIENTES`.** Pólizas (rama de spr) falta sumarlas al unirlas.
+- **Soportes** (T4, `20261202000000_soportes_oc_actas_entradas.sql`, decisiones
+  del usuario 2026-10-21; numerada después de las de spr hasta 20261201000000):
+  - **Generar OC**: soporte OBLIGATORIO (cotización, cuenta de cobro o factura;
+    `orden_compra_soportes`, bucket privado `ordenes_compra`). Se sube primero y
+    `crear_orden_compra_con_soporte` crea la orden y lo registra en una
+    transacción; `crear_orden_compra` ya NO se puede llamar desde la app (sin
+    EXECUTE para usuarios). Se ve en el detalle de la OC (`listarSoportesOrden`,
+    `enlaceSoporteOrden`).
+  - **Actas**: dos grupos en el formulario, soporte de pago (factura o cuenta de
+    cobro, `TIPOS_SOPORTE_PAGO`) y otros (memoria, fotos, otro). Con pago es
+    obligatorio el de pago (`_pago_de_acta` acepta factura o `cuenta_cobro`); la
+    liquidación con neto $ 0 no tiene pago. El CHECK de `acta_soportes`
+    conserva `firmada_contratista` (firmas de spr).
+  - **Entradas**: soporte de la remisión, opcional (`entrada_soportes`, bucket
+    `entradas`, `guardar_remision_entrada` pone o cambia el archivo). Al
+    registrar y al editar; botón "Remisión" en la entrada.
+  - Componente `CampoSoporte` y ayudas en `lib/soportes.ts`.
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.

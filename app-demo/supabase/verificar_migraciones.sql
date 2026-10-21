@@ -290,6 +290,13 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'guardar_banco')
          and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
   union all
+  select '20261202000000_soportes_oc_actas_entradas',
+         to_regclass('public.orden_compra_soportes') is not null
+         and to_regclass('public.entrada_soportes') is not null
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte')
+         and not has_function_privilege('authenticated', 'public.crear_orden_compra(uuid,uuid,text,date,text,text,text,text,text,text,jsonb,numeric,text,date)', 'execute')
+         and position('cuenta_cobro' in pg_get_functiondef('public._pago_de_acta(uuid)'::regprocedure)) > 0
+  union all
   select '20261127000000_mis_pendientes',
          exists (select 1 from pg_proc where proname = 'mis_pendientes')
          and exists (select 1 from pg_proc where proname = 'contar_mis_pendientes')
