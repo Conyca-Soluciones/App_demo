@@ -97,13 +97,13 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/generales", rutas: ["/contratos/generales", "/contratos/otrosi-pdf"] },
   { clave: "contratos.preaprobacion", titulo: "Pre aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_minutas", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.polizas", titulo: "Pólizas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/polizas", rutas: ["/contratos/polizas", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.aprobar_polizas", titulo: "Aprobación de pólizas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-polizas", rutas: ["/contratos/aprobacion-polizas", "/contratos/otrosi-pdf"] },
   // Otrosí (20261119000000_otrosis.sql): el PDF va en una ruta de las dos
   // pestañas; las que ven contratos también la tienen, para abrir el otrosí y
   // el contrato desde el detalle del contrato (PESTANAS_VER_OTROSI).
   { clave: "contratos.solicitar_otrosi", titulo: "Solicitud de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/otrosi", rutas: ["/contratos/otrosi", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_otrosi", titulo: "Aprobación de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/aprobacion-otrosi", rutas: ["/contratos/aprobacion-otrosi", "/contratos/otrosi-pdf"] },
-  { clave: "contratos.polizas", titulo: "Pólizas", seccion: "Contratos", subseccion: "Pólizas", url: "/contratos/polizas", rutas: ["/contratos/polizas", "/contratos/otrosi-pdf"] },
-  { clave: "contratos.aprobar_polizas", titulo: "Aprobación de pólizas", seccion: "Contratos", subseccion: "Pólizas", url: "/contratos/aprobacion-polizas", rutas: ["/contratos/aprobacion-polizas", "/contratos/otrosi-pdf"] },
   { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/", rutas: [], nota: "Todavía sin página." },
   { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },

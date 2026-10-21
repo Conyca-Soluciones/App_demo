@@ -2473,11 +2473,11 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
 (`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
-de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
+de contratos = `contratos.aprobar_minutas` (Subgerencia), Pólizas =
+`contratos.polizas` y Aprobación de pólizas = `contratos.aprobar_polizas`
+(2026-10-21)); subgrupo
 **Otrosí** (Solicitud de otrosí = `contratos.solicitar_otrosi`, Aprobación de
-otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo **Pólizas**
-(Pólizas = `contratos.polizas`, Aprobación de pólizas =
-`contratos.aprobar_polizas`, 2026-10-21); subgrupo
+otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
 `contratos.actas_generales` sin página, Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
