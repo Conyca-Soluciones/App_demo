@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
+import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { obtenerPermisosRol, requerirAccion } from "@/lib/permisos"
 import {
   DOCUMENTOS_POR_PERSONA,
@@ -10,6 +12,7 @@ import {
   validarContratista,
   type Contratista,
   type DatosContratista,
+  type FiltrosContratistas,
   type TipoDocumentoContratista,
 } from "@/lib/contratistas"
 
@@ -101,7 +104,7 @@ export async function listarBancosContratista(): Promise<string[]> {
   return (data ?? []).map((b: { nombre: string }) => b.nombre)
 }
 
-export async function listarContratistas(): Promise<Contratista[]> {
+async function requerirVerContratistas() {
   const permisos = await obtenerPermisosRol()
   if (
     !permisos ||
@@ -113,6 +116,59 @@ export async function listarContratistas(): Promise<Contratista[]> {
   ) {
     throw new Error("No tienes permiso para ver los contratistas.")
   }
+}
+
+// Texto de búsqueda: sin comodines propios (el usuario escribe texto, no patrones).
+const limpiarBusqueda = (t: string) => t.replace(/[%*\\]/g, " ").trim()
+
+// Columnas por las que se puede ordenar la lista (clave de la tabla -> columna).
+const ORDEN_CONTRATISTAS: Record<string, string> = {
+  nombre: "nombre",
+  tipoPersona: "tipo_persona",
+  documento: "numero_documento",
+  correo: "correo",
+  ciudad: "ciudad",
+  createdAt: "created_at",
+}
+
+// Pantalla Contratistas: una página (50) a la vez, filtrada y ordenada en la
+// base (la tabla va a crecer mucho). Sin filtros = todos los contratistas.
+export async function listarContratistasPagina(
+  filtros: FiltrosContratistas = {},
+  pagina = 0,
+  orden: { clave: string; dir: "asc" | "desc" } = { clave: "nombre", dir: "asc" }
+): Promise<{ contratistas: Contratista[]; hayMas: boolean }> {
+  await requerirVerContratistas()
+  const supabase = await createClient()
+  const columna = ORDEN_CONTRATISTAS[orden.clave] ?? "nombre"
+
+  let query = supabase
+    .from("contratistas")
+    .select(SELECT_CONTRATISTA)
+    .order(columna, { ascending: orden.dir === "asc" })
+    .order("id", { ascending: true })
+
+  const nombre = limpiarBusqueda(filtros.nombre ?? "")
+  const ciudad = limpiarBusqueda(filtros.ciudad ?? "")
+  if (nombre && nombre !== COMODIN_LISTAR) {
+    // Por nombre o por documento (quien escribe números busca la cédula o el NIT).
+    const digitos = nombre.replace(/\D/g, "")
+    query = /^\d[\d.\s-]*$/.test(nombre) && digitos
+      ? query.like("numero_documento", `${digitos}%`)
+      : query.ilike("nombre", `%${nombre}%`)
+  }
+  if (ciudad && ciudad !== COMODIN_LISTAR) query = query.ilike("ciudad", `%${ciudad}%`)
+  if (filtros.tipoPersona) query = query.eq("tipo_persona", filtros.tipoPersona)
+
+  const { data, error } = await query.range(...rangoPagina(pagina))
+  if (error) throw new Error(error.message)
+  const { filas, hayMas } = cortarPagina(data ?? [])
+  return { contratistas: await conDatosBancarios(supabase, filas.map(mapContratista)), hayMas }
+}
+
+// Todos (para elegir el contratista en las solicitudes de contrato).
+export async function listarContratistas(): Promise<Contratista[]> {
+  await requerirVerContratistas()
   const supabase = await createClient()
   const filas = await traerTodo<any>((desde, hasta) =>
     supabase

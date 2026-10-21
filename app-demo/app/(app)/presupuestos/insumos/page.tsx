@@ -9,6 +9,7 @@ import { descargarExcelMaestroInsumos } from "@/lib/exportar-maestro-insumos"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -82,6 +83,7 @@ export default function MaestroInsumos() {
 
   const [puedeEditar, setPuedeEditar] = useState(false)
   const [editando, setEditando] = useState<Insumo | null>(null)
+  const [viendo, setViendo] = useState<Insumo | null>(null)
   const [dialogoSugerencias, setDialogoSugerencias] = useState(false)
 
   useEffect(() => {
@@ -470,6 +472,8 @@ export default function MaestroInsumos() {
             filas={filasPagina}
             columnas={columnasTabla}
             claveFila={(i) => i.id}
+            onDobleClickFila={setViendo}
+            tituloFila={AYUDA_DOBLE_CLIC}
             orden={{ clave: columnaOrden, dir: direccionOrden }}
             onOrdenar={(clave) => alternarOrden(clave as ColumnaOrdenable)}
             tarjeta={{
@@ -482,6 +486,22 @@ export default function MaestroInsumos() {
 
         {!loading && <PaginacionExcel pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} />}
       </main>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.descripcion}
+        subtitulo={viendo ? <span className="font-mono">{viendo.codigo}</span> : undefined}
+        campos={viendo ? camposDesdeColumnas(columnasTabla, viendo) : []}
+        onEditar={
+          viendo && puedeEditar
+            ? () => {
+                setEditando(viendo)
+                setViendo(null)
+              }
+            : undefined
+        }
+      />
 
       {editando && (
         <DialogoPresentacion

@@ -15,6 +15,7 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { SelectorNumeros } from "@/components/selector-numeros"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
 import {
   asignarTerceroPago,
   buscarTercerosParaPago,
@@ -71,6 +72,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
 
   const [resolviendo, setResolviendo] = useState<Pago | null>(null)
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
+  const [viendo, setViendo] = useState<Pago | null>(null)
   const [alertas, setAlertas] = useState<AlertasConsolidado | null>(null)
   const [reintentando, setReintentando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -457,6 +459,8 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                 filas={pagos}
                 columnas={columnas}
                 claveFila={(p) => p.id}
+                onDobleClickFila={setViendo}
+                tituloFila={AYUDA_DOBLE_CLIC}
                 tarjeta={{
                   titulo: (p) => p.terceroNombre ?? "Sin tercero",
                   subtitulo: (p) => `ITEM ${p.item ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
@@ -491,6 +495,15 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
           setResolviendo(null)
           setPagos((actuales) => (actuales ? actuales.map((x) => (x.id === p.id ? p : x)) : actuales))
         }}
+      />
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo ? viendo.concepto : ""}
+        subtitulo={viendo ? `${viendo.origen || "—"} · ${ETIQUETA_TIPO_PAGO[viendo.tipo]}` : undefined}
+        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        acciones={accionesDeFila(columnas, viendo)}
       />
 
       <HistorialDialog

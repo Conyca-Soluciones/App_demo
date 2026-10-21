@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Eye, FileUp, History, Loader2, Pencil, Plus, Search, X } from "lucide-react"
+import { CheckCircle2, Eye, FileUp, History, Loader2, Pencil, Plus, X } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,12 @@ import {
 } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { VisorDocumento } from "@/components/visor-documento"
-import { TablaExcel, PaginacionExcel, type ColumnaExcel, type OrdenExcel } from "@/components/tabla-excel"
+import { TablaExcel, type ColumnaExcel, type OrdenExcel } from "@/components/tabla-excel"
+import { PanelFiltros } from "@/components/panel-filtros"
+import { PaginacionSimple } from "@/components/paginacion-simple"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { ZONA_HORARIA } from "@/lib/fechas"
 import {
@@ -27,6 +32,7 @@ import {
   type Contratista,
   type DatosContratista,
   type DocumentoContratista,
+  type FiltrosContratistas,
   type TipoDocumentoContratista,
   type TipoPersona,
 } from "@/lib/contratistas"
@@ -35,11 +41,10 @@ import {
   editarContratista,
   enlaceDocumentoContratista,
   listarBancosContratista,
-  listarContratistas,
+  listarContratistasPagina,
   type DocumentoSubido,
 } from "@/app/(app)/contratos/contratistas/actions"
 
-const FILAS_POR_PAGINA = 50
 
 const ETIQUETA_PERSONA: Record<TipoPersona, string> = { natural: "Natural", juridica: "Jurídica" }
 
@@ -58,8 +63,6 @@ function resumenDocumentos(c: Contratista) {
 const fechaCreacion = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
 
-// Texto normalizado para buscar sin tildes ni mayúsculas.
-const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
 
 
 // ---------------------------------------------------------------------------
@@ -67,33 +70,86 @@ const normalizar = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 // ---------------------------------------------------------------------------
 
 export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
+  // Una página (50) a la vez, filtrada y ordenada en la base: la lista va a
+  // crecer mucho. Al abrir se consulta con los filtros por omisión (todos).
   const [contratistas, setContratistas] = useState<Contratista[] | null>(null)
+  const [cargando, setCargando] = useState(true)
+  const [pagina, setPagina] = useState(0)
+  const [hayMas, setHayMas] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [busqueda, setBusqueda] = useState("")
+  const [nombre, setNombre] = useState("")
+  const [ciudad, setCiudad] = useState("")
   const [filtroPersona, setFiltroPersona] = useState<TipoPersona | "todos">("todos")
-  const [orden, setOrden] = useState<OrdenExcel | null>({ clave: "nombre", dir: "asc" })
-  const [pagina, setPagina] = useState(1)
+  const [orden, setOrden] = useState<OrdenExcel>({ clave: "nombre", dir: "asc" })
   const [nuevoAbierto, setNuevoAbierto] = useState(false)
   const [editando, setEditando] = useState<Contratista | null>(null)
   // Cambia al cerrar el formulario: la próxima vez se monta de cero.
   const [vezFormulario, setVezFormulario] = useState(0)
   const [detalle, setDetalle] = useState<Contratista | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  // La consulta en curso; cada cambio (Consultar, página, orden) trae esa página.
+  const [consulta, setConsulta] = useState<{ filtros: FiltrosContratistas; pagina: number; orden: OrdenExcel; vez: number }>({
+    filtros: {},
+    pagina: 0,
+    orden: { clave: "nombre", dir: "asc" },
+    vez: 0,
+  })
 
   useEffect(() => {
-    listarContratistas()
-      .then((lista: Contratista[]) => setContratistas(lista))
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los contratistas."))
-  }, [])
+    let activo = true
+    listarContratistasPagina(consulta.filtros, consulta.pagina, consulta.orden)
+      .then((r: { contratistas: Contratista[]; hayMas: boolean }) => {
+        if (!activo) return
+        setContratistas(r.contratistas)
+        setHayMas(r.hayMas)
+        setPagina(consulta.pagina)
+        setError(null)
+      })
+      .catch((e) => activo && setError(e instanceof Error ? e.message : "No se pudieron cargar los contratistas."))
+      .finally(() => activo && setCargando(false))
+    return () => {
+      activo = false
+    }
+  }, [consulta])
+
+  function cargar(filtros: FiltrosContratistas, pag: number, o: OrdenExcel = orden) {
+    setCargando(true)
+    setConsulta((c) => ({ filtros, pagina: pag, orden: o, vez: c.vez + 1 }))
+  }
+
+  function handleConsultar(): boolean {
+    setAviso(null)
+    cargar(
+      {
+        nombre: nombre.trim() || undefined,
+        ciudad: ciudad.trim() || undefined,
+        tipoPersona: filtroPersona === "todos" ? undefined : filtroPersona,
+      },
+      0
+    )
+    return true
+  }
+
+  function limpiar() {
+    setNombre("")
+    setCiudad("")
+    setFiltroPersona("todos")
+  }
+
+  function ordenar(clave: string) {
+    const nuevo: OrdenExcel = orden.clave === clave ? { clave, dir: orden.dir === "asc" ? "desc" : "asc" } : { clave, dir: "asc" }
+    setOrden(nuevo)
+    cargar(consulta.filtros, 0, nuevo)
+  }
 
   const columnas: ColumnaExcel<Contratista>[] = useMemo(
     () => [
       { clave: "nombre", titulo: "Nombre o razón social", ancho: 240, fija: true, flexible: true, texto: (c) => c.nombre },
       { clave: "tipoPersona", titulo: "Persona", ancho: 100, texto: (c) => ETIQUETA_PERSONA[c.tipoPersona] },
       { clave: "documento", titulo: "Documento", ancho: 160, texto: (c) => documentoFormateado(c), claseCelda: "tabular-nums" },
-      { clave: "representante", titulo: "Representante legal", ancho: 200, texto: (c) => c.representanteNombre ?? "" },
+      { clave: "representante", titulo: "Representante legal", ancho: 200, ordenable: false, texto: (c) => c.representanteNombre ?? "" },
       { clave: "correo", titulo: "Correo de notificación", ancho: 220, texto: (c) => c.correo },
-      { clave: "telefono", titulo: "Teléfono", ancho: 130, texto: (c) => c.telefono, claseCelda: "tabular-nums" },
+      { clave: "telefono", titulo: "Teléfono", ancho: 130, ordenable: false, texto: (c) => c.telefono, claseCelda: "tabular-nums" },
       { clave: "ciudad", titulo: "Ciudad", ancho: 130, texto: (c) => c.ciudad },
       {
         clave: "documentos",
@@ -120,44 +176,6 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
     []
   )
 
-  const filtrados = useMemo(() => {
-    if (!contratistas) return []
-    const q = normalizar(busqueda.trim())
-    let lista = contratistas
-    if (filtroPersona !== "todos") lista = lista.filter((c) => c.tipoPersona === filtroPersona)
-    if (q) {
-      lista = lista.filter((c) =>
-        normalizar(
-          [c.nombre, c.numeroDocumento, c.representanteNombre ?? "", c.correo, c.ciudad, c.telefono].join(" ")
-        ).includes(q)
-      )
-    }
-    if (orden) {
-      const col = columnas.find((c) => c.clave === orden.clave)
-      if (col) {
-        const factor = orden.dir === "asc" ? 1 : -1
-        // La clave de cada fila se calcula UNA vez (no en cada comparación).
-        const clave = new Map(
-          lista.map((c) => [c.id, orden.clave === "createdAt" ? c.createdAt : normalizar(col.texto(c))])
-        )
-        lista = [...lista].sort((a, b) => {
-          const x = clave.get(a.id)!
-          const y = clave.get(b.id)!
-          return (x < y ? -1 : x > y ? 1 : 0) * factor
-        })
-      }
-    }
-    return lista
-  }, [contratistas, busqueda, filtroPersona, orden, columnas])
-
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / FILAS_POR_PAGINA))
-  const paginaActual = Math.min(pagina, totalPaginas)
-  const filasPagina = filtrados.slice((paginaActual - 1) * FILAS_POR_PAGINA, paginaActual * FILAS_POR_PAGINA)
-
-  function ordenar(clave: string) {
-    setOrden((o) => (o?.clave === clave ? { clave, dir: o.dir === "asc" ? "desc" : "asc" } : { clave, dir: "asc" }))
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
@@ -171,105 +189,103 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
         )}
       </EncabezadoPagina>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:max-w-sm">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              id="buscar-contratista"
-              value={busqueda}
-              onChange={(e) => {
-                setBusqueda(e.target.value)
-                setPagina(1)
-              }}
-              placeholder="Buscar por nombre, documento, correo o ciudad"
-              className="h-9 w-full rounded-md border bg-background pr-8 pl-9 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      <main className="flex min-h-0 flex-1 gap-4 overflow-auto p-4 sm:p-6">
+        <PanelFiltros
+          cargando={cargando}
+          onConsultar={handleConsultar}
+          onLimpiar={limpiar}
+          ayuda="Ningún filtro es obligatorio: sin filtros se consultan todos los contratistas."
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="nombre-contratista">Nombre o documento</Label>
+            <Input
+              id="nombre-contratista"
+              placeholder="Vacío = todos"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
             />
-            {busqueda && (
-              <button
-                type="button"
-                onClick={() => setBusqueda("")}
-                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                aria-label="Limpiar búsqueda"
-              >
-                <X className="size-4" />
-              </button>
-            )}
           </div>
-          <div className="flex gap-1" role="group" aria-label="Tipo de persona">
-            {(["todos", "natural", "juridica"] as const).map((v) => (
-              <Button
-                key={v}
-                size="sm"
-                variant={filtroPersona === v ? "default" : "outline"}
-                onClick={() => {
-                  setFiltroPersona(v)
-                  setPagina(1)
+          <div className="space-y-1.5">
+            <Label htmlFor="ciudad-contratista">Ciudad</Label>
+            <Input
+              id="ciudad-contratista"
+              placeholder="Vacío = todas"
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Tipo de persona</Label>
+            <Select value={filtroPersona} onValueChange={(v) => setFiltroPersona((v ?? "todos") as TipoPersona | "todos")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="natural">{ETIQUETA_PERSONA.natural}</SelectItem>
+                <SelectItem value="juridica">{ETIQUETA_PERSONA.juridica}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </PanelFiltros>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+          {aviso && (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+              <CheckCircle2 className="size-4" /> {aviso}
+            </div>
+          )}
+          {error && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {contratistas === null ? (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              {cargando && <Loader2 className="mr-2 size-4 animate-spin" />} Cargando contratistas...
+            </div>
+          ) : contratistas.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+              <p>Ningún contratista coincide con los filtros.</p>
+              {puedeCrear && (
+                <Button variant="outline" onClick={() => setNuevoAbierto(true)}>
+                  <Plus className="size-4" /> Nuevo contratista
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <TablaExcel
+                filas={contratistas}
+                columnas={columnas}
+                claveFila={(c) => c.id}
+                orden={orden}
+                onOrdenar={ordenar}
+                onDobleClickFila={setDetalle}
+                tituloFila="Doble clic para ver el detalle y los documentos"
+                tarjeta={{
+                  titulo: (c) => (
+                    <button type="button" className="text-left hover:underline" onClick={() => setDetalle(c)}>
+                      {c.nombre}
+                    </button>
+                  ),
+                  subtitulo: (c) => `${ETIQUETA_PERSONA[c.tipoPersona]} · ${documentoFormateado(c)}`,
+                  esquina: (c) => columnas.find((x) => x.clave === "documentos")!.celda!(c),
+                  campos: ["representante", "correo", "telefono", "ciudad"],
                 }}
-              >
-                {v === "todos" ? "Todos" : ETIQUETA_PERSONA[v]}
-              </Button>
-            ))}
-          </div>
-          {contratistas && (
-            <span className="ml-auto text-sm text-muted-foreground tabular-nums">
-              {filtrados.length} de {contratistas.length}
-            </span>
+              />
+              <PaginacionSimple
+                pagina={pagina}
+                hayMas={hayMas}
+                cargando={cargando}
+                onCambiar={(p) => cargar(consulta.filtros, p)}
+              />
+            </>
           )}
         </div>
-
-        {aviso && (
-          <div className="flex items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
-            <CheckCircle2 className="size-4" /> {aviso}
-          </div>
-        )}
-        {error && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        )}
-
-        {contratistas === null && !error ? (
-          <div className="flex flex-1 items-center justify-center text-muted-foreground">
-            <Loader2 className="mr-2 size-4 animate-spin" /> Cargando contratistas...
-          </div>
-        ) : contratistas && contratistas.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            <p>Todavía no hay contratistas registrados.</p>
-            {puedeCrear && (
-              <Button variant="outline" onClick={() => setNuevoAbierto(true)}>
-                <Plus className="size-4" /> Crear el primero
-              </Button>
-            )}
-          </div>
-        ) : filtrados.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            Ningún contratista coincide con la búsqueda.
-          </div>
-        ) : (
-          <>
-            <TablaExcel
-              filas={filasPagina}
-              columnas={columnas}
-              claveFila={(c) => c.id}
-              orden={orden}
-              onOrdenar={ordenar}
-              onDobleClickFila={setDetalle}
-              tituloFila="Doble clic para ver el detalle y los documentos"
-              tarjeta={{
-                titulo: (c) => (
-                  <button type="button" className="text-left hover:underline" onClick={() => setDetalle(c)}>
-                    {c.nombre}
-                  </button>
-                ),
-                subtitulo: (c) => `${ETIQUETA_PERSONA[c.tipoPersona]} · ${documentoFormateado(c)}`,
-                esquina: (c) => columnas.find((x) => x.clave === "documentos")!.celda!(c),
-                campos: ["representante", "correo", "telefono", "ciudad"],
-              }}
-            />
-            <PaginacionExcel pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} />
-          </>
-        )}
       </main>
 
       {puedeCrear && (
@@ -284,7 +300,10 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
             setVezFormulario((n) => n + 1)
           }}
           onGuardado={(c, nuevo) => {
-            setContratistas((prev) => (nuevo ? [...(prev ?? []), c] : (prev ?? []).map((x) => (x.id === c.id ? c : x))))
+            // Al editar se actualiza la fila; al crear se vuelve a consultar la
+            // página (el nuevo puede caer en cualquier lugar del orden).
+            if (nuevo) cargar(consulta.filtros, pagina)
+            else setContratistas((prev) => (prev ?? []).map((x) => (x.id === c.id ? c : x)))
             setAviso(nuevo ? `Contratista "${c.nombre}" creado.` : `Contratista "${c.nombre}" actualizado.`)
           }}
         />

@@ -14,6 +14,7 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { aprobarPago, listarPagosAprobacion, rechazarPago, resolicitarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
   CLASE_ESTADO_PAGO,
@@ -66,6 +67,7 @@ export function AprobacionPagosView({
   // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
   const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
+  const [viendo, setViendo] = useState<Pago | null>(null)
   const [motivo, setMotivo] = useState("")
   // Rechazados que ya se volvieron a solicitar en esta pantalla (se oculta el botón).
   const [resolicitados, setResolicitados] = useState<Set<string>>(() => new Set())
@@ -360,6 +362,8 @@ export function AprobacionPagosView({
               filas={pagos}
               columnas={columnas}
               claveFila={(p) => p.id}
+              onDobleClickFila={setViendo}
+              tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
                 titulo: (p) => p.terceroNombre ?? "Sin tercero",
                 subtitulo: (p) => `${p.origen || "—"} · ${ETIQUETA_TIPO_PAGO[p.tipo]}`,
@@ -423,6 +427,15 @@ export function AprobacionPagosView({
         procesando={porAprobar !== null && procesandoId === porAprobar.id}
         onConfirmar={() => porAprobar && handleAprobar(porAprobar)}
         onCerrar={() => setPorAprobar(null)}
+      />
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo ? viendo.concepto : ""}
+        subtitulo={viendo ? `${viendo.origen || "—"} · ${ETIQUETA_TIPO_PAGO[viendo.tipo]}` : undefined}
+        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        acciones={accionesDeFila(columnas, viendo)}
       />
 
       <HistorialDialog
