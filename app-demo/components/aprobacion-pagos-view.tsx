@@ -192,10 +192,18 @@ export function AprobacionPagosView({
     { clave: "empresa", titulo: "Empresa", ancho: 220, texto: (p) => p.empresaNombre ?? "" },
     {
       clave: "valor",
-      titulo: "Valor",
-      ancho: 130,
+      titulo: "Valor a pagar",
+      ancho: 150,
       alinear: "right",
       texto: (p) => formatoMoneda(p.valor),
+      celda: (p) => (
+        <div className="leading-tight">
+          <div>{formatoMoneda(p.valor)}</div>
+          {p.actaBruto != null && p.actaBruto !== p.valor && (
+            <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
+          )}
+        </div>
+      ),
       claseCelda: "tabular-nums",
     },
     {

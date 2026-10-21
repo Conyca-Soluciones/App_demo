@@ -64,6 +64,7 @@ export type Pago = {
   motivoRechazo: string | null
   ordenNumero: number | null
   origen: string
+  actaBruto: number | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
   empresaNombre: string | null

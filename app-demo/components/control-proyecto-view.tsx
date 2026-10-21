@@ -202,7 +202,7 @@ function Resumen({ datos }: { datos: ControlProyecto }) {
           valor={pct(t.pctActas)}
           detalle={
             datos.contratado > 0
-              ? `${pesosCortos(datos.actasContratadas)} de ${pesosCortos(datos.contratado)} contratado`
+              ? `${pesosCortos(datos.actasContratadas)} en actas (bruto) de ${pesosCortos(datos.contratado)} contratado`
               : "Sin contratos aprobados"
           }
         />
@@ -216,12 +216,12 @@ function Resumen({ datos }: { datos: ControlProyecto }) {
         </div>
         <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
           <Leyenda color={COLOR.compras} texto={`Compras ${pesosCortos(datos.compras)}`} />
-          <Leyenda color={COLOR.actas} texto={`Actas ${pesosCortos(datos.actas)}`} />
+          <Leyenda color={COLOR.actas} texto={`Actas (bruto) ${pesosCortos(datos.actas)}`} />
           <Leyenda color="bg-muted-foreground/20" texto={`Disponible ${pesosCortos(t.disponible)}`} />
         </div>
         <p className="text-xs text-muted-foreground">
           Compras = órdenes de compra aprobadas (con IVA){datos.excedentes > 0 && `; de eso, ${pesosCortos(datos.excedentes)} son excedentes de compras`}.
-          Disponible = presupuesto − compras − actas aprobadas (las requisiciones sin orden de compra no se descuentan).
+          Actas = valor bruto de las actas aprobadas, antes de descuentos (anticipo, retención en garantía, retenciones); en A&F el pago es el neto. Disponible = presupuesto − compras − actas aprobadas (las requisiciones sin orden de compra no se descuentan).
           {datos.presupuestoManoObra > 0 && ` Contratado: ${pct(t.pctContratadoMo)} del presupuesto de mano de obra.`}
           {barra.sobrepasa && " Lo gastado ya supera el presupuesto."}
         </p>
@@ -450,7 +450,7 @@ function Contratos({ datos }: { datos: ControlProyecto }) {
                 <div className={`h-full ${COLOR.actas}`} style={{ width: `${Math.min(p, 100)}%` }} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Actas aprobadas {pesosCortos(c.actasAprobadas)} ({pct(p)}) · saldo {pesosCortos(Math.max(c.valor - c.actasAprobadas, 0))}
+                Actas aprobadas (bruto) {pesosCortos(c.actasAprobadas)} ({pct(p)}) · saldo {pesosCortos(Math.max(c.valor - c.actasAprobadas, 0))}
                 {c.actasPorAprobar > 0 && ` · ${pesosCortos(c.actasPorAprobar)} por aprobar`}
               </p>
             </li>

@@ -1302,6 +1302,10 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   sobre el contrato, como el Acta 1 de CJ-14) cuenta lo cobrado como % del
   valor. El tope por saldo ya estaba en `_guardar_acta`; el formulario muestra
   el saldo y el % máximo que queda.
+- **Bruto y neto de actas** (E7, decisión del usuario 2026-10-21): Control del
+  proyecto suma el BRUTO (lo que cuesta la obra) y lo dice "(bruto)"; A&F paga
+  el NETO ("Valor a pagar") y debajo muestra "Bruto del acta" (`actaBruto`, del
+  embed `acta:actas(valor_bruto)`; sale solo si quien consulta lee el acta).
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
