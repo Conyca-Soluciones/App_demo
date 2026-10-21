@@ -1995,7 +1995,15 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   formulario y otra vez en `crear_solicitud_contrato` (con bloqueo de los
   ítems para que dos solicitudes simultáneas no pasen juntas): cantidad <=
   presupuestada menos lo ya contratado, y valor unitario <= el del
-  presupuesto. Lo contratado se suma por presupuesto + código (como las
+  presupuesto. **Mano de obra** (`20261124000000`, decisión del usuario):
+  el tope es la mano de obra del APU + herramienta menor
+  (`_valor_mano_obra_item`, `_tope_valor_unitario_item`; en TS
+  `topeValorUnitario`), porque el ítem completo incluye materiales y
+  equipos; si el APU no tiene mano de obra (2026-10-20: solo 11 de 184 ítems
+  del presupuesto vigente la tienen), el tope es el ítem completo y la
+  actividad queda marcada `contrato_anexo_items.sin_mano_obra` (aviso en el
+  detalle para Jurídica). Los demás tipos (obra todo costo...) siguen con el
+  ítem completo. Lo contratado se suma por presupuesto + código (como las
   requisiciones), así sigue contando en versiones nuevas. Hoy cuentan TODOS
   los contratos; cuando existan estados rechazado/anulado, excluirlos en
   `_contratado_item` e `items_presupuesto_para_contrato`. Un ítem del
@@ -2293,11 +2301,52 @@ hoja PDF (no minuta larga); actas generales después.
 
 `20261119000000_otrosis.sql`, plantilla "OTROSÍ" versión 04 (9/05/2025; su
 código dice solo "GJ-F"). Decisiones del usuario:
-- **Solo documento**: el otrosí NO cambia el plazo, el valor ni el anexo del
-  contrato en el sistema (actas y aviso de vencido siguen con lo inicial); lo
-  que cambie (cantidades, valor, plazo) se escribe en la redacción de la
-  cláusula nueva.
-- **No hay otrosí si el plazo inicial ya pasó** (`_fecha_fin_contrato` < hoy
+- **Documento + prórroga y nuevo valor opcionales**
+  (`20261123000000_otrosi_prorroga_y_valor.sql`): el otrosí NO cambia el
+  anexo ni el texto del contrato; lo que cambie se escribe en la redacción de
+  la cláusula nueva. Lo que sí aplica en el sistema, solo cuando el otrosí
+  queda APROBADO (cuenta el último por número):
+  - **Prórroga**: check "¿Se va a extender la fecha?" con la nueva fecha
+    (`otrosis.nueva_fecha_fin`). `_fecha_fin_contrato` devuelve la del último
+    otrosí aprobado con prórroga (o la inicial, `_fecha_fin_inicial_contrato`):
+    actas (vencido), aviso de vencido, contratos abiertos para otrosí y el
+    detalle usan la fecha extendida. `_validar_prorroga_otrosi`: posterior al
+    fin vigente y a hoy.
+  - **Nuevo valor**: check "¿Cambia el valor total?" con el valor
+    (`otrosis.nuevo_valor`). `_valor_contrato(contrato, hasta)` = el del
+    último otrosí aprobado que lo cambió (o `contratos.valor`, que no se
+    toca). Es el tope de las actas (`contrato_para_acta` devuelve `valor`
+    vigente y `valor_inicial`; `_guardar_acta`) y lo que muestran
+    `detalle_acta` (el vigente cuando se hizo o editó el acta: las actas
+    viejas no cambian), `listar_actas_aprobacion`,
+    `buscar_contratos_para_acta` y `contratos_para_otrosi`. El anticipo sigue
+    sobre el valor INICIAL (`InfoContratoActa.valorInicial`). Valor global con
+    valor cambiado: el % de avance es sobre el vigente y lo cobrado cuenta
+    como bruto / valor vigente. Valores unitarios: cada actividad sigue
+    limitada a su cantidad del anexo; para cobrar más van actividades
+    (abajo).
+    `_validar_valor_otrosi`: distinto del vigente y no menor que lo cobrado
+    en actas no rechazadas. Control de proyecto ("contratado" y lista de
+    contratos) usa el valor vigente desde `20261125000000_control_proyecto_valor_vigente.sql`.
+  Las dos se revisan al crear, reenviar, enviar a Subgerencia y aprobar.
+  - **Actividades** (`20261124000000_tope_mano_obra_y_actividades_otrosi.sql`,
+    solo contratos por valores unitarios): `otrosis.actividades` = adiciones
+    de cantidad a actividades del contrato (a su valor pactado) y actividades
+    nuevas del presupuesto vigente que el contrato no tenga (precio con el
+    mismo tope del tipo de contrato). Cantidad hasta lo disponible en el
+    presupuesto. Con actividades el valor sube solo: `nuevo_valor` = vigente
+    + lo que suman (lo pone la base; al enviar y aprobar se exige que siga
+    cuadrando: si otro otrosí cambió el valor, hay que devolverlo y
+    reenviarlo). Al aprobar se agregan como filas nuevas de
+    `contrato_anexo_items` con `otrosi_id` y actividad "... (Otrosí N° n)" /
+    "... (adición Otrosí N° n)": el anexo del contrato firmado no cambia (el
+    detalle del contrato filtra `otrosi_id`), las actas las cobran con su
+    propio tope y `_contratado_item` las cuenta. `detalle_acta` muestra las de
+    un otrosí solo en actas hechas o editadas después de aprobarlo. Funciones:
+    `actividades_para_otrosi` (formulario), `_normalizar_actividades_otrosi`,
+    `_valor_con_actividades_otrosi`, `_revisar_valor_y_actividades_otrosi`.
+    En TS: `leerActividadesOtrosi` (`lib/otrosi.ts`).
+- **No hay otrosí si el plazo vigente ya pasó** (`_fecha_fin_contrato` < hoy
   Colombia; sin fecha fin, p. ej. duración sin inicio, no vence). Se revisa al
   crear, reenviar, enviar a Subgerencia y aprobar
   (`_exigir_contrato_para_otrosi`, que además exige contrato aprobado con
@@ -2528,8 +2577,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   saldo a favor de la empresa, sin pago; exige que no haya actas por aprobar).
   Aprobar la liquidación pone `contratos.liquidado_at`: no recibe más actas.
 - **Vencido** (`_fecha_fin_contrato`: fecha fin, o inicio + duración; sin
-  inicio no vence): no recibe actas de avance, solo la de liquidación (para
-  ampliar el plazo hará falta el otrosí, pendiente). pg_cron diario
+  inicio no vence; con otrosí aprobado con prórroga, su nueva fecha): no
+  recibe actas de avance, solo la de liquidación. pg_cron diario
   `avisar-contratos-vencidos` (6:10 a. m. Colombia, `_avisar_contratos_vencidos`):
   una sola vez por contrato (`contratos.aviso_vencido_at`) a quien lo pidió
   (`contrato_vencido` -> Contratos por grupos) y a Legal / Líder Legal que vean
@@ -2598,8 +2647,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: (otrosí hecho el 2026-10-20 como solo documento: no amplía el
-  plazo ni el valor en el sistema),
+- **Pendiente**: (otrosí: no baja cantidades ni cambia precios de
+  actividades del contrato),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -2694,7 +2743,10 @@ la requisición · `20261108100000` estado de requisiciones guardado ·
 insumos borrados · `20261118000000` solicitud de mano de obra
 (plantilla 04) · `20261119000000` otrosí · `20261120000000` ver contrato
 desde otrosí · `20261121000000` otrosí en el contrato ·
-`20261122000000` historial del contrato con sus otrosí.
+`20261122000000` historial del contrato con sus otrosí ·
+`20261123000000` prórroga y nuevo valor del otrosí ·
+`20261124000000` tope de mano de obra y actividades por otrosí ·
+`20261125000000` control de proyecto con el valor vigente de los contratos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

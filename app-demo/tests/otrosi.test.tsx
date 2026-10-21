@@ -11,6 +11,7 @@ import {
   minutaOtrosiVacia,
   nombreArchivoOtrosi,
   origenCampoOtrosi,
+  leerActividadesOtrosi,
   validarSolicitudOtrosi,
 } from "@/lib/otrosi"
 import { OtrosiPDF } from "@/components/otrosi-pdf"
@@ -69,6 +70,24 @@ describe("solicitud de otrosí", () => {
     expect(validarSolicitudOtrosi({ ...base, modificaciones: [{ clausula: "x", redaccion: "" }] })).toMatch(/cómo queda/)
     expect(validarSolicitudOtrosi({ ...base, justificacion: "  " })).toBe("Escribe por qué se necesita el otrosí.")
     expect(validarSolicitudOtrosi({ ...base, modificaciones: Array.from({ length: 21 }, () => base.modificaciones[0]) })).toMatch(/Máximo 20/)
+  })
+  it("prórroga: después del fin vigente y de hoy", () => {
+    const pr = (nuevaFechaFin: string | null, finVigente: string | null) => ({ ...base, prorroga: { nuevaFechaFin, finVigente, hoy: "2026-10-20" } })
+    expect(validarSolicitudOtrosi(pr(null, "2026-12-31"))).toBeNull()
+    expect(validarSolicitudOtrosi(pr("2027-01-31", "2026-12-31"))).toBeNull()
+    expect(validarSolicitudOtrosi(pr("2026-12-31", "2026-12-31"))).toMatch(/posterior a la vigente/)
+    expect(validarSolicitudOtrosi(pr("2026-10-20", null))).toMatch(/posterior a hoy/)
+    expect(validarSolicitudOtrosi(pr("2026-11-01", null))).toBeNull()
+    expect(validarSolicitudOtrosi(pr("31/12/2026", null))).toMatch(/no es válida/)
+  })
+  it("nuevo valor: positivo, con centavos a lo sumo y distinto del vigente", () => {
+    const cv = (nuevoValor: number | null) => ({ ...base, cambioValor: { nuevoValor, valorVigente: 1_000_000 } })
+    expect(validarSolicitudOtrosi(cv(null))).toBeNull()
+    expect(validarSolicitudOtrosi(cv(1_500_000))).toBeNull()
+    expect(validarSolicitudOtrosi(cv(800_000.5))).toBeNull()
+    expect(validarSolicitudOtrosi(cv(1_000_000))).toMatch(/igual al vigente/)
+    expect(validarSolicitudOtrosi(cv(0))).toMatch(/no es válido/)
+    expect(validarSolicitudOtrosi(cv(10.123))).toMatch(/dos decimales/)
   })
   it("vencido: fin antes de hoy; sin fecha no vence", () => {
     expect(contratoVencido("2026-10-19", "2026-10-20")).toBe(true)
@@ -140,4 +159,47 @@ describe("documento del otrosí", () => {
     const pdf = await renderToBuffer(<OtrosiPDF minuta={m} numero={2} logo={logo} foco="modificaciones:0" />)
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-")
   }, 60000)
+})
+
+describe("actividades del otrosí", () => {
+  const anexo = [
+    { id: "a1", codigo: "1.1", actividad: "Excavación", unidad: "m3", cantidad: 40, valorUnitario: 30_000, enPresupuesto: true, disponible: 60 },
+    { id: "a2", codigo: "9.9", actividad: "Vieja", unidad: "m2", cantidad: 5, valorUnitario: 1_000, enPresupuesto: false, disponible: 0 },
+  ]
+  const catalogo = [
+    { id: "p2", codigo: "1.2", descripcion: "Concreto", unidad: "m3", cantidad: 50, valorUnitario: 200_000, valorManoObra: 0, contratado: 0, disponible: 50 },
+    { id: "p3", codigo: "1.3", descripcion: "Pañete", unidad: "m2", cantidad: 10, valorUnitario: 50_000, valorManoObra: 31_500, contratado: 0, disponible: 10 },
+  ]
+  const datos = { anexo, catalogo, topeDe: (i: { valorUnitario: number; valorManoObra: number }) => (i.valorManoObra > 0 ? i.valorManoObra : i.valorUnitario) }
+
+  it("suma adiciones (al valor pactado) y nuevas; arma lo que se envía", () => {
+    const r = leerActividadesOtrosi(
+      { adiciones: { a1: "20" }, nuevas: [{ presupuestoItemId: "p3", cantidad: "2,5", valorUnitario: "31.500" }] },
+      datos
+    )
+    expect(r).toEqual({
+      ok: true,
+      envio: [
+        { anexo_item_id: "a1", cantidad: 20 },
+        { presupuesto_item_id: "p3", cantidad: 2.5, valor_unitario: 31_500 },
+      ],
+      total: 600_000 + 78_750,
+    })
+  })
+  it("sin nada: lista vacía", () => {
+    expect(leerActividadesOtrosi({ adiciones: { a1: " " }, nuevas: [] }, datos)).toEqual({ ok: true, envio: [], total: 0 })
+  })
+  it("topes: disponible, precio máximo, fuera del presupuesto, repetidos", () => {
+    const err = (f: Parameters<typeof leerActividadesOtrosi>[0]) => {
+      const r = leerActividadesOtrosi(f, datos)
+      return r.ok ? null : r.error
+    }
+    expect(err({ adiciones: { a1: "61" }, nuevas: [] })).toMatch(/disponible/)
+    expect(err({ adiciones: { a2: "1" }, nuevas: [] })).toMatch(/presupuesto vigente/)
+    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "p3", cantidad: "1", valorUnitario: "31.501" }] })).toMatch(/máximo/)
+    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "p2", cantidad: "1", valorUnitario: "200.000" }] })).toBeNull()
+    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "", cantidad: "1", valorUnitario: "" }] })).toMatch(/Escoge/)
+    const dos = { presupuestoItemId: "p2", cantidad: "1", valorUnitario: "1" }
+    expect(err({ adiciones: {}, nuevas: [dos, dos] })).toMatch(/repetido/)
+  })
 })

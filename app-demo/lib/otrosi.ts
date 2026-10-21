@@ -1,13 +1,14 @@
 import { CONTRATANTE_POR_DEFECTO, type OrigenDato } from "@/lib/minuta-mano-obra"
 import { TIPOS_DOCUMENTO_ARRENDADOR, type TipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
-import { nombreTipoContrato, type ClaseContrato } from "@/lib/contratos"
+import { leerNumero, nombreTipoContrato, pesos, type ClaseContrato, type ItemPresupuestoContrato } from "@/lib/contratos"
 
 // ---------------------------------------------------------------------------
 // Otrosí de contratos (plantilla "OTROSÍ" versión 04, 9/05/2025). El ingeniero
 // pide qué cláusulas cambian y cómo quedan (Solicitud de otrosí); Jurídica
 // arma el documento y lo envía a Subgerencia, que lo aprueba (Aprobación de
-// otrosí). Es solo documento: no cambia el plazo ni el valor del contrato en
-// el sistema. Base: supabase/migrations/20261119000000_otrosis.sql.
+// otrosí). Es documento; aprobado, su prórroga y su nuevo valor (opcionales)
+// pasan a ser el fin vigente y el tope de las actas. Base:
+// supabase/migrations/20261119000000_otrosis.sql y 20261123000000_otrosi_prorroga_y_valor.sql.
 // ---------------------------------------------------------------------------
 
 // Pestañas desde las que se ven los otrosí (y su PDF): las de otrosí y las que
@@ -33,6 +34,47 @@ export type OtrosiDeContrato = {
   solicitadoPorNombre: string | null
   createdAt: string
   aprobadoAt: string | null
+  // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
+  nuevaFechaFin: string | null
+  // Nuevo valor total (al aprobarse es el tope de las actas).
+  nuevoValor: number | null
+  nActividades: number
+}
+
+// Actividad del otrosí (contratos por valores unitarios): adición de cantidad a
+// una del contrato (a su valor pactado) o actividad nueva del presupuesto.
+// Aprobado el otrosí, cada una es una fila nueva del anexo que cobran las actas.
+export type ActividadOtrosi = {
+  tipo: "adicion" | "nueva"
+  anexoItemId: string | null
+  presupuestoItemId: string
+  codigo: string
+  actividad: string
+  unidad: string
+  cantidad: number
+  valorUnitario: number
+  total: number
+  sinManoObra: boolean
+}
+
+// Para el formulario (actividades_para_otrosi): las actividades del contrato y
+// los ítems del presupuesto vigente que no tiene.
+export type ActividadContratoOtrosi = {
+  id: string
+  codigo: string | null
+  actividad: string
+  unidad: string
+  cantidad: number
+  valorUnitario: number
+  enPresupuesto: boolean
+  disponible: number
+}
+export type ActividadesParaOtrosi = {
+  anexoTipo: string | null
+  tipo: string
+  tienePresupuesto: boolean
+  anexo: ActividadContratoOtrosi[]
+  catalogo: ItemPresupuestoContrato[]
 }
 
 export type EstadoOtrosi = "por_revisar" | "devuelta" | "rechazada" | "en_revision" | "devuelta_subgerencia" | "aprobada"
@@ -66,7 +108,9 @@ export type ContratoParaOtrosi = {
   clase: ClaseContrato
   tipoDetalle: string | null
   objeto: string
-  valor: number
+  valor: number // vigente (el del último otrosí aprobado que lo cambió)
+  // Valores unitarios: las cantidades del anexo siguen siendo topes por actividad.
+  anexoTipo: "valor_global" | "valores_unitarios" | null
   fechaFin: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -100,6 +144,12 @@ export type OtrosiFila = {
   enviadaSubgerenciaAt: string | null
   enviadaSubgerenciaPorNombre: string | null
   aprobadoAt: string | null
+  // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
+  nuevaFechaFin: string | null
+  // Nuevo valor total (al aprobarse es el tope de las actas).
+  nuevoValor: number | null
+  anexoTipo: string | null
+  actividades: ActividadOtrosi[]
 }
 
 export type ContratistaOtrosi = {
@@ -149,6 +199,7 @@ export function mapContratoParaOtrosi(x: Fila): ContratoParaOtrosi {
     tipoDetalle: textoONulo(x.tipo_detalle),
     objeto: texto(x.objeto),
     valor: Number(x.valor ?? 0),
+    anexoTipo: x.anexo_tipo === "valores_unitarios" || x.anexo_tipo === "valor_global" ? x.anexo_tipo : null,
     fechaFin: textoONulo(x.fecha_fin),
     proyectoCodigo: textoONulo(x.proyecto_codigo),
     proyectoNombre: textoONulo(x.proyecto_nombre),
@@ -184,7 +235,102 @@ export function mapOtrosiFila(x: Fila): OtrosiFila {
     enviadaSubgerenciaAt: textoONulo(x.enviada_subgerencia_at),
     enviadaSubgerenciaPorNombre: textoONulo(x.enviada_subgerencia_por_nombre),
     aprobadoAt: textoONulo(x.aprobado_at),
+    nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
+    nuevoValor: x.nuevo_valor == null ? null : Number(x.nuevo_valor),
+    anexoTipo: textoONulo(x.anexo_tipo),
+    actividades: mapActividadesOtrosi(x.actividades),
   }
+}
+
+export function mapActividadesOtrosi(v: unknown): ActividadOtrosi[] {
+  return (Array.isArray(v) ? (v as Fila[]) : []).map((a) => ({
+    tipo: a.tipo === "adicion" ? "adicion" : "nueva",
+    anexoItemId: textoONulo(a.anexo_item_id),
+    presupuestoItemId: texto(a.presupuesto_item_id),
+    codigo: texto(a.codigo),
+    actividad: texto(a.actividad),
+    unidad: texto(a.unidad),
+    cantidad: Number(a.cantidad ?? 0),
+    valorUnitario: Number(a.valor_unitario ?? 0),
+    total: Number(a.total ?? 0),
+    sinManoObra: a.sin_mano_obra === true,
+  }))
+}
+
+export function mapActividadesParaOtrosi(x: Fila): ActividadesParaOtrosi {
+  return {
+    anexoTipo: textoONulo(x.anexo_tipo),
+    tipo: texto(x.tipo),
+    tienePresupuesto: x.tiene_presupuesto === true,
+    anexo: (Array.isArray(x.anexo) ? (x.anexo as Fila[]) : []).map((a) => ({
+      id: texto(a.id),
+      codigo: textoONulo(a.codigo),
+      actividad: texto(a.actividad),
+      unidad: texto(a.unidad),
+      cantidad: Number(a.cantidad ?? 0),
+      valorUnitario: Number(a.valor_unitario ?? 0),
+      enPresupuesto: a.en_presupuesto === true,
+      disponible: Number(a.disponible ?? 0),
+    })),
+    catalogo: (Array.isArray(x.catalogo) ? (x.catalogo as Fila[]) : []).map((c) => ({
+      id: texto(c.presupuesto_item_id),
+      codigo: texto(c.codigo),
+      descripcion: texto(c.descripcion),
+      unidad: textoONulo(c.unidad),
+      cantidad: Number(c.cantidad ?? 0),
+      valorUnitario: Number(c.valor_unitario ?? 0),
+      valorManoObra: Number(c.valor_mano_obra ?? 0),
+      contratado: Number(c.contratado ?? 0),
+      disponible: Number(c.disponible ?? 0),
+    })),
+  }
+}
+
+// Actividades del formulario: cantidad adicional por actividad del contrato y
+// actividades nuevas del presupuesto (texto en formato colombiano).
+export type ActividadesOtrosiForm = {
+  adiciones: Record<string, string>
+  nuevas: { presupuestoItemId: string; cantidad: string; valorUnitario: string }[]
+}
+export type ActividadOtrosiEnvio = { anexo_item_id: string; cantidad: number } | { presupuesto_item_id: string; cantidad: number; valor_unitario: number }
+
+// Revisa lo mismo que _normalizar_actividades_otrosi con lo que se ve en
+// pantalla (disponible y tope); devuelve lo que se envía y el total, o el error.
+export function leerActividadesOtrosi(
+  f: ActividadesOtrosiForm,
+  datos: { anexo: ActividadContratoOtrosi[]; catalogo: ItemPresupuestoContrato[]; topeDe: (item: ItemPresupuestoContrato) => number }
+): { ok: true; envio: ActividadOtrosiEnvio[]; total: number } | { ok: false; error: string } {
+  const envio: ActividadOtrosiEnvio[] = []
+  let total = 0
+  for (const a of datos.anexo) {
+    const t = (f.adiciones[a.id] ?? "").trim()
+    if (!t) continue
+    const cantidad = leerNumero(t)
+    if (cantidad === null || cantidad <= 0) return { ok: false, error: `"${a.actividad}": la cantidad adicional no es válida.` }
+    if (!a.enPresupuesto) return { ok: false, error: `"${a.actividad}" ya no está en el presupuesto vigente: no se puede aumentar.` }
+    if (cantidad > a.disponible + 1e-9) return { ok: false, error: `"${a.actividad}": la cantidad adicional supera lo disponible en el presupuesto.` }
+    envio.push({ anexo_item_id: a.id, cantidad })
+    total += Math.round(cantidad * a.valorUnitario * 100) / 100
+  }
+  const vistos = new Set<string>()
+  for (const [i, n] of f.nuevas.entries()) {
+    if (!n.presupuestoItemId && !n.cantidad.trim() && !n.valorUnitario.trim()) continue
+    const item = datos.catalogo.find((c) => c.id === n.presupuestoItemId)
+    if (!item) return { ok: false, error: `Escoge el ítem del presupuesto de la actividad nueva ${i + 1}.` }
+    if (vistos.has(item.id)) return { ok: false, error: `El ítem ${item.codigo} está repetido.` }
+    vistos.add(item.id)
+    const cantidad = leerNumero(n.cantidad)
+    const valorUnitario = leerNumero(n.valorUnitario)
+    if (!cantidad || !valorUnitario) return { ok: false, error: `Ítem ${item.codigo}: cantidad y valor unitario mayores que cero.` }
+    if (cantidad > item.disponible + 1e-9) return { ok: false, error: `Ítem ${item.codigo}: la cantidad supera lo disponible en el presupuesto.` }
+    const tope = datos.topeDe(item)
+    if (valorUnitario > tope) return { ok: false, error: `Ítem ${item.codigo}: el valor unitario supera el máximo (${pesos(tope)}).` }
+    const vu = Math.round(valorUnitario * 100) / 100
+    envio.push({ presupuesto_item_id: item.id, cantidad, valor_unitario: vu })
+    total += Math.round(cantidad * vu * 100) / 100
+  }
+  if (envio.length > 50) return { ok: false, error: "Máximo 50 actividades por otrosí." }
+  return { ok: true, envio, total: Math.round(total * 100) / 100 }
 }
 
 export function mapOtrosiDetalle(x: Fila): OtrosiDetalle {
@@ -225,7 +371,17 @@ export function mapOtrosiDetalle(x: Fila): OtrosiDetalle {
 export const MAXIMO_MODIFICACIONES_OTROSI = 20
 
 // Lo mismo que revisa la base (_normalizar_modificaciones_otrosi y crear_otrosi).
-export function validarSolicitudOtrosi(s: { contratoId: string | null; modificaciones: ModificacionOtrosi[]; justificacion: string }): string | null {
+// `prorroga` (opcional): la nueva fecha de terminación, que tiene que quedar
+// después del fin vigente del contrato y de hoy (_validar_prorroga_otrosi).
+// `cambioValor` (opcional): el nuevo valor total, distinto del vigente
+// (_validar_valor_otrosi; lo ya cobrado en actas lo revisa la base).
+export function validarSolicitudOtrosi(s: {
+  contratoId: string | null
+  modificaciones: ModificacionOtrosi[]
+  justificacion: string
+  prorroga?: { nuevaFechaFin: string | null; finVigente: string | null; hoy: string }
+  cambioValor?: { nuevoValor: number | null; valorVigente: number }
+}): string | null {
   if (!s.contratoId) return "Escoge el contrato."
   const mods = s.modificaciones
   if (mods.length === 0) return "Agrega al menos una cláusula a modificar."
@@ -238,10 +394,22 @@ export function validarSolicitudOtrosi(s: { contratoId: string | null; modificac
   }
   if (!s.justificacion.trim()) return "Escribe por qué se necesita el otrosí."
   if (s.justificacion.trim().length > 5000) return "La justificación es muy larga (máximo 5.000 caracteres)."
+  const p = s.prorroga
+  if (p?.nuevaFechaFin) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.nuevaFechaFin)) return "La nueva fecha de terminación no es válida."
+    if (p.finVigente && p.nuevaFechaFin <= p.finVigente) return "La nueva fecha de terminación tiene que ser posterior a la vigente."
+    if (p.nuevaFechaFin <= p.hoy) return "La nueva fecha de terminación tiene que ser posterior a hoy."
+  }
+  const v = s.cambioValor
+  if (v && v.nuevoValor !== null) {
+    if (!(v.nuevoValor > 0) || v.nuevoValor >= 1e16) return "El nuevo valor del contrato no es válido."
+    if (Math.abs(Math.round(v.nuevoValor * 100) - v.nuevoValor * 100) > 1e-6) return "El nuevo valor del contrato tiene más de dos decimales."
+    if (v.nuevoValor === v.valorVigente) return "El nuevo valor es igual al vigente."
+  }
   return null
 }
 
-// El plazo inicial ya terminó (la base tampoco deja hacer otrosí).
+// El plazo vigente ya terminó (la base tampoco deja hacer otrosí).
 export const contratoVencido = (fechaFin: string | null, hoy: string) => Boolean(fechaFin && fechaFin < hoy)
 
 // ---------------------------------------------------------------- documento (minuta del otrosí)
@@ -385,4 +553,7 @@ export const mapOtrosiDeContrato = (x: Fila): OtrosiDeContrato => ({
   solicitadoPorNombre: textoONulo(x.solicitado_por_nombre),
   createdAt: texto(x.created_at),
   aprobadoAt: textoONulo(x.aprobado_at),
+  nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
+  nuevoValor: x.nuevo_valor == null ? null : Number(x.nuevo_valor),
+  nActividades: Number(x.n_actividades ?? 0),
 })

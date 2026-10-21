@@ -9,7 +9,7 @@ import { HistorialTimeline } from "@/components/historial-timeline"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { formatearFechaSinHora } from "@/lib/fechas"
-import { nombreTipoContrato, pesos } from "@/lib/contratos"
+import { nombreTipoContrato, numero, pesos } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, type OtrosiDetalle } from "@/lib/otrosi"
 import { obtenerOtrosi } from "@/app/(app)/contratos/otrosi/actions"
 
@@ -126,8 +126,8 @@ export function DetalleOtrosi({
                           ["Proyecto", [detalle.proyectoCodigo, detalle.proyectoNombre].filter(Boolean).join(" — ")],
                           ["Contratista", detalle.contratistaNombre],
                           ["Objeto", detalle.objeto],
-                          ["Valor", pesos(detalle.valor)],
-                          ["Fin del plazo", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
+                          ["Valor vigente", pesos(detalle.valor)],
+                          ["Fin del plazo vigente", detalle.fechaFin ? formatearFechaSinHora(detalle.fechaFin) : "Sin fecha (sin inicio definido)"],
                         ]}
                       />
                       <Button size="sm" variant="outline" onClick={() => setVerContrato(true)}>
@@ -138,11 +138,70 @@ export function DetalleOtrosi({
                         filas={[
                           ["Solicitado por", `${detalle.solicitadoPorNombre ?? "—"} · enviado el ${fechaContrato(detalle.enviadoAt)}`],
                           ["Justificación", <span key="j" className="whitespace-pre-line">{detalle.justificacion}</span>],
+                          [
+                            "Extiende la fecha",
+                            detalle.nuevaFechaFin
+                              ? `Sí, hasta el ${formatearFechaSinHora(detalle.nuevaFechaFin)}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
+                              : "No",
+                          ],
+                          [
+                            "Cambia el valor",
+                            detalle.nuevoValor !== null
+                              ? `Sí, a ${pesos(detalle.nuevoValor)}${detalle.actividades.length > 0 ? " (vigente + actividades)" : ""}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
+                              : "No",
+                          ],
                           ...(detalle.numero !== null && detalle.aprobadoAt
                             ? ([["Aprobado", `${detalle.aprobadoPorNombre ?? "—"} · ${fechaContrato(detalle.aprobadoAt)}`]] as [string, React.ReactNode][])
                             : []),
                         ]}
                       />
+                      {detalle.actividades.length > 0 && (
+                        <div className="space-y-2">
+                          <h3 className="text-xs font-semibold text-muted-foreground uppercase">Actividades que se agregan</h3>
+                          <div className="overflow-x-auto rounded-md border">
+                            <table className="w-full text-sm">
+                              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                                <tr>
+                                  <th className="px-2 py-1.5 text-left font-medium">Actividad</th>
+                                  <th className="px-2 py-1.5 text-right font-medium">Cantidad</th>
+                                  <th className="px-2 py-1.5 text-right font-medium">Valor unitario</th>
+                                  <th className="px-2 py-1.5 text-right font-medium">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {detalle.actividades.map((a, i) => (
+                                  <tr key={i} className="border-t align-top">
+                                    <td className="px-2 py-1.5">
+                                      <span className="font-medium tabular-nums">{a.codigo}</span> {a.actividad}
+                                      <span className="block text-xs text-muted-foreground">
+                                        {a.tipo === "adicion" ? "Más cantidad de una actividad del contrato" : "Actividad nueva"}
+                                      </span>
+                                      {a.sinManoObra && (
+                                        <span className="block text-xs text-amber-700 dark:text-amber-400">
+                                          Sin mano de obra en el APU: el tope fue el ítem completo (revisar el valor).
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">
+                                      {numero(a.cantidad)} {a.unidad}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{pesos(a.valorUnitario)}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums">{pesos(a.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot>
+                                <tr className="border-t font-medium">
+                                  <td colSpan={3} className="px-2 py-1.5 text-right">Total</td>
+                                  <td className="px-2 py-1.5 text-right tabular-nums">
+                                    {pesos(detalle.actividades.reduce((suma, a) => suma + a.total, 0))}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-muted-foreground uppercase">Cláusulas que se modifican</h3>
                         <ol className="space-y-2">

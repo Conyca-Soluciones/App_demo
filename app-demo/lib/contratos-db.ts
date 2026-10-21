@@ -84,7 +84,7 @@ export async function cargarDetalleContrato(
       ),
       obligaciones:contrato_obligaciones(orden, texto),
       entregables:contrato_entregables(orden, texto),
-      items:contrato_anexo_items(orden, presupuesto_item_id, actividad, unidad, cantidad, valor_unitario, presupuesto_item:presupuesto_items(codigo)),
+      items:contrato_anexo_items(orden, presupuesto_item_id, actividad, unidad, cantidad, valor_unitario, sin_mano_obra, otrosi_id, presupuesto_item:presupuesto_items(codigo)),
       documentos:contrato_documentos(id, tipo, nombre_archivo, mime, ruta, tamano)
     `)
     .eq("id", id)
@@ -116,13 +116,15 @@ export async function cargarDetalleContrato(
     datosTipo: datosTipoDesdeBase(x.datos_tipo),
     obligaciones: [...(x.obligaciones ?? [])].sort(porOrden).map((o: any) => o.texto),
     entregables: [...(x.entregables ?? [])].sort(porOrden).map((e: any) => e.texto),
-    items: [...(x.items ?? [])].sort(porOrden).map((i: any) => ({
+    // Solo el anexo del contrato firmado: las actividades de otrosí van aparte.
+    items: [...(x.items ?? [])].filter((i: any) => !i.otrosi_id).sort(porOrden).map((i: any) => ({
       presupuestoItemId: i.presupuesto_item_id,
       codigo: i.presupuesto_item?.codigo ?? null,
       actividad: i.actividad,
       unidad: i.unidad,
       cantidad: Number(i.cantidad),
       valorUnitario: Number(i.valor_unitario),
+      sinManoObra: Boolean(i.sin_mano_obra),
     })),
     documentos: (x.documentos ?? []).map((d: any) => ({
       id: d.id,

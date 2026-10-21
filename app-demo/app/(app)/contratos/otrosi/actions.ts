@@ -6,6 +6,7 @@ import { hoyColombia } from "@/lib/fechas"
 import {
   PESTANAS_VER_OTROSI,
   limpiarMinutaOtrosi,
+  mapActividadesParaOtrosi,
   mapContratoParaOtrosi,
   mapOtrosiDeContrato,
   mapOtrosiDetalle,
@@ -13,6 +14,8 @@ import {
   mezclarMinutaOtrosi,
   minutaOtrosiPorDefecto,
   validarSolicitudOtrosi,
+  type ActividadOtrosiEnvio,
+  type ActividadesParaOtrosi,
   type ContratoParaOtrosi,
   type EstadoOtrosi,
   type MinutaOtrosi,
@@ -40,7 +43,21 @@ export async function contratosParaOtrosi(): Promise<ContratoParaOtrosi[]> {
   return ((data ?? []) as Record<string, unknown>[]).map(mapContratoParaOtrosi)
 }
 
-export async function crearOtrosi(contratoId: string, modificaciones: ModificacionOtrosi[], justificacion: string): Promise<string> {
+// Actividades del contrato y del presupuesto para agregar en el otrosí
+// (20261124000000_tope_mano_obra_y_actividades_otrosi.sql).
+export async function actividadesParaOtrosi(contratoId: string): Promise<ActividadesParaOtrosi> {
+  await requerirPestana("contratos.solicitar_otrosi")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("actividades_para_otrosi", { p_contrato_id: contratoId })
+  if (error) throw new Error(error.message)
+  return mapActividadesParaOtrosi((data ?? {}) as Record<string, unknown>)
+}
+
+// nuevaFechaFin: prórroga opcional (la base revisa que amplíe el plazo vigente).
+// nuevoValor: nuevo valor total opcional (la base revisa que no baje de lo cobrado).
+// actividades: adiciones y actividades nuevas (con ellas el valor lo pone la
+// base: vigente + lo que suman).
+export async function crearOtrosi(contratoId: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null, nuevoValor: number | null = null, actividades: ActividadOtrosiEnvio[] = []): Promise<string> {
   await requerirAccion("solicitar_contratos")
   const problema = validarSolicitudOtrosi({ contratoId, modificaciones, justificacion })
   if (problema) throw new Error(problema)
@@ -49,17 +66,27 @@ export async function crearOtrosi(contratoId: string, modificaciones: Modificaci
     p_contrato_id: contratoId,
     p_modificaciones: modificaciones,
     p_justificacion: justificacion,
+    p_nueva_fecha_fin: nuevaFechaFin || null,
+    p_nuevo_valor: nuevoValor,
+    p_actividades: actividades,
   })
   if (error) throw new Error(error.message)
   return data as string
 }
 
-export async function reenviarOtrosi(id: string, modificaciones: ModificacionOtrosi[], justificacion: string): Promise<void> {
+export async function reenviarOtrosi(id: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null, nuevoValor: number | null = null, actividades: ActividadOtrosiEnvio[] = []): Promise<void> {
   await requerirAccion("solicitar_contratos")
   const problema = validarSolicitudOtrosi({ contratoId: id, modificaciones, justificacion })
   if (problema) throw new Error(problema)
   const supabase = await createClient()
-  const { error } = await supabase.rpc("reenviar_otrosi", { p_id: id, p_modificaciones: modificaciones, p_justificacion: justificacion })
+  const { error } = await supabase.rpc("reenviar_otrosi", {
+    p_id: id,
+    p_modificaciones: modificaciones,
+    p_justificacion: justificacion,
+    p_nueva_fecha_fin: nuevaFechaFin || null,
+    p_nuevo_valor: nuevoValor,
+    p_actividades: actividades,
+  })
   if (error) throw new Error(error.message)
 }
 

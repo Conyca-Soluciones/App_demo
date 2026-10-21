@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
+import { pesos } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, type OtrosiDeContrato } from "@/lib/otrosi"
 import { otrosisDeContrato } from "@/app/(app)/contratos/otrosi/actions"
 
@@ -14,7 +15,8 @@ import { otrosisDeContrato } from "@/app/(app)/contratos/otrosi/actions"
 // Rastro de los otrosí en el contrato: la lista de los otrosí de un contrato
 // (aprobados con su número y los que están en trámite) con "Ver" para abrir
 // su PDF. Va en el detalle del contrato (components/detalle-solicitud-contrato.tsx)
-// y en Actas por grupos. El otrosí es solo documento: el contrato no cambia.
+// y en Actas por grupos. El otrosí es documento; solo la prórroga y el nuevo
+// valor aprobados cambian el fin vigente y el tope de las actas.
 // ---------------------------------------------------------------------------
 
 // Sin importar de detalle-solicitud-contrato (que importa este archivo).
@@ -59,6 +61,11 @@ export function OtrosisDelContrato({ contratoId }: { contratoId: string }) {
             <span className="min-w-0 flex-1 truncate text-muted-foreground" title={o.clausulas}>
               {o.clausulas}
             </span>
+            {o.nuevaFechaFin && (
+              <span className="text-xs tabular-nums">prórroga hasta {formatearFechaSinHora(o.nuevaFechaFin)}</span>
+            )}
+            {o.nuevoValor !== null && <span className="text-xs tabular-nums">nuevo valor {pesos(o.nuevoValor)}</span>}
+            {o.nActividades > 0 && <span className="text-xs tabular-nums">{o.nActividades === 1 ? "1 actividad" : `${o.nActividades} actividades`}</span>}
             <span className="text-xs text-muted-foreground tabular-nums">
               {o.aprobadoAt ? `aprobado el ${fecha(o.aprobadoAt)}` : `pedido el ${fecha(o.createdAt)}`}
             </span>

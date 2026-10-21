@@ -169,6 +169,7 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
     unidad: f.unidad,
     cantidad: Number(f.cantidad),
     valorUnitario: Number(f.valor_unitario),
+    valorManoObra: Number(f.valor_mano_obra ?? 0),
     contratado: Number(f.contratado),
     disponible: Number(f.disponible),
   }))

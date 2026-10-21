@@ -254,6 +254,11 @@ export function DetalleSolicitudContrato({
                             <td className="px-2 py-1.5">
                               {it.codigo && <span className="font-medium tabular-nums">{it.codigo} </span>}
                               {it.actividad}
+                              {it.sinManoObra && (
+                                <span className="block text-xs text-amber-700 dark:text-amber-400">
+                                  Sin mano de obra en el APU: el tope fue el ítem completo (revisar el valor).
+                                </span>
+                              )}
                             </td>
                             <td className="px-2 py-1.5">{it.unidad}</td>
                             <td className="px-2 py-1.5 text-right tabular-nums">{numero(it.cantidad)}</td>
