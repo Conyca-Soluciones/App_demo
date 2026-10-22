@@ -1301,6 +1301,18 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (`_<nombre>_sin_proyecto` + `_exigir_proyecto`). Siguen globales: catálogos
   (proveedores, maestra, histórico de precios) y A&F. Si se agrega una función
   de escritura sobre OC o requisiciones, debe revisar el proyecto.
+- **Cambio de cuenta con pagos en curso** (`20261206000000_cuenta_cambiada_en_pagos.sql`,
+  decisión del usuario 2026-10-22: Financiera la puede cambiar sin otra
+  aprobación, pero a la vista). Un pago apunta a la cuenta, no copia el número.
+  Si la cuenta cambia de banco, tipo o número, `trg_cuenta_tercero_sigue_pagos`
+  anota `cuenta_modificada` (de → a, quién) en el historial de cada pago
+  programado / solicitado / aprobado / liquidado que la usa y lo marca
+  (`pagos.cuenta_modificada`): novedad "La cuenta bancaria cambió…: confírmala
+  antes de pagar" hasta que A&F confirme la cuenta del pago en el Consolidado (botón Tercero,
+  `asignar_tercero_pago` limpia la marca). Si la cuenta pasa a PENDIENTE o
+  INACTIVO, la novedad de sus pagos se recalcula (inactiva tiene su propio texto).
+  Quien puede verificar y cambia el número la deja ACTIVA (verificada por él);
+  quien no, la devuelve a PENDIENTE.
 - **Contratistas -> Terceros** (`20261118700000_contratistas_a_terceros.sql`,
   E5; decisiones del usuario 2026-10-21): el banco del contratista es una lista
   (tabla `bancos`, la misma de Terceros; `trg_contratista_validar_banco` lo
@@ -3323,7 +3335,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261202000000` requisiciones administrativas (A&F) ·
 `20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos ·
 `20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro ·
-`20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura).
+`20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura) ·
+`20261206000000` cambio de cuenta de un tercero con pagos en curso: novedad y evento en cada pago.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

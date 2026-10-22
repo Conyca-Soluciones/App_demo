@@ -122,6 +122,7 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   en_dispersion: { etiqueta: "Pago en dispersión", tono: "neutro" },
   dispersado: { etiqueta: "Pago dispersado", tono: "ok" },
   tercero_cambiado: { etiqueta: "Tercero o cuenta cambiados", tono: "aviso" },
+  cuenta_modificada: { etiqueta: "La cuenta del tercero cambió", tono: "aviso" },
   valor_cambiado: { etiqueta: "Valor cambiado", tono: "aviso" },
 }
 
@@ -348,6 +349,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   if (tipo === "pago") {
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
+    if (e.evento === "cuenta_modificada") return [`${formatoValor(d.cuenta_de)} → ${formatoValor(d.cuenta_a)}`]
     if (e.evento === "reliquidado" && d.neto != null) return [`Versión ${d.version}: neto ${pesosTexto(d.neto)}`]
     if (e.evento === "tercero_cambiado") {
       const lineas: string[] = []

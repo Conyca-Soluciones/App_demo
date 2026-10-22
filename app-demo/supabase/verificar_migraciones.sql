@@ -410,6 +410,11 @@ select * from (
   select '20261205000000_remisiones_entradas_visibles',
          exists (select 1 from pg_policy where polname = 'entradas_almacen_select')
   union all
+  select '20261206000000_cuenta_cambiada_en_pagos',
+         exists (select 1 from pg_trigger where tgname = 'trg_cuenta_tercero_sigue_pagos')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'pagos' and column_name = 'cuenta_modificada')
+  union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
                   where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)
