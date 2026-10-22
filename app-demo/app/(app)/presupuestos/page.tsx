@@ -910,8 +910,14 @@ function PresupuestoDeProyecto() {
     modo: "append" | "replace",
     versionNueva?: VersionNuevaImport
   ) {
+    // Se puede llamar más de una vez (el import la vuelve a llamar si falla):
+    // en "append" no agrega dos veces el mismo ítem.
     const aplicarItemsAlPresupuesto = () => {
-      if (modo === "append") setPresupuesto((prev) => [...prev, ...items])
+      if (modo === "append")
+        setPresupuesto((prev) => {
+          const yaEstan = new Set(prev.map((i) => i.id))
+          return [...prev, ...items.filter((i) => !yaEstan.has(i.id))]
+        })
       else setPresupuesto(items)
     }
 
@@ -983,6 +989,10 @@ function PresupuestoDeProyecto() {
       // sigue procesando en el fondo -- ya no hay que esperar los 715
       // ítems de una sola vez.
       aplicarItemsAlPresupuesto()
+      // Ya están en la base: marcarlos como guardados en la tabla. Si no,
+      // "Reintentar" los volvía a insertar (llave duplicada) y no seguía.
+      const idsGuardados = new Set(items.map((i) => i.id))
+      setPresupuesto((prev) => prev.map((i) => (idsGuardados.has(i.id) && !i.guardado ? { ...i, guardado: true } : i)))
 
       const idPorCodigo = Object.fromEntries(items.map((i) => [i.codigo, i.id]))
       const loteImportId = crypto.randomUUID()
