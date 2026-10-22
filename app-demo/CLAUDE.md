@@ -2908,6 +2908,13 @@ obra (decisiones del usuario):
   pagos no salen sueltos en "Pagos por aprobar"); quien la hizo,
   `mi_req_admin_rechazada`. Historial con
   entidad `requisicion_admin`.
+- **Con la rama lcpr** (merge 2026-10-22): lcpr tiene `20261202000000_soportes_oc_actas_entradas`
+  y `20261203000000_liquidacion_pagos` con los MISMOS números que las de aquí
+  (nombres distintos; todas aplicadas). Ninguna recrea las funciones de pagos
+  de la otra. **Pendiente**: `liquidar_pago` exige tercero, así que los pagos
+  PSE de requisiciones administrativas (sin tercero en la app) no se pueden
+  liquidar, y `_pago_desglose_origen` no llena valor documento ni
+  "solicitado por" para la fuente `requisicion_admin`.
 - `_guardar_requisicion_admin` de 20261202000000 fallaba en la primera
   requisición PSE de una conexión (leía `v_fac.id` sin asignar); la corrige
   20261203000000.
