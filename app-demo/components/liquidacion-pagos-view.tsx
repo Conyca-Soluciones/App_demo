@@ -165,7 +165,7 @@ export function LiquidacionPagosView({ puedeLiquidar }: { puedeLiquidar: boolean
     setError(null)
     try {
       const res: ResultadoLote[] = await liquidarVarios(
-        elegidas.map((f) => ({ pagoId: f.pago.id, datos: datosLiquidacion(f.sugerencia!.lineas, f.sugerencia, "", "") }))
+        elegidas.map((f) => ({ pagoId: f.pago.id, datos: datosLiquidacion(f.sugerencia!.lineas, f.sugerencia, "", "", f.sugerencia!.desglose?.estimado ? f.sugerencia!.desglose : null) }))
       )
       const malos = res.filter((r) => !r.ok)
       setAviso(
@@ -234,8 +234,10 @@ export function LiquidacionPagosView({ puedeLiquidar }: { puedeLiquidar: boolean
     { clave: "concepto", titulo: "Concepto", ancho: 260, texto: (f) => f.pago.concepto },
     { clave: "origen", titulo: "Origen", ancho: 150, texto: (f) => f.pago.origen },
     col("documento", "Valor documento", (f) => f.pago.valorDocumento),
-    col("base", "Base", (f) => f.pago.baseGravable),
-    col("iva", "IVA", (f) => f.pago.iva),
+    // Sin liquidar, la base y el IVA con que se calculó la sugerencia (pueden
+    // ser estimados: el pago no traía el desglose de la factura).
+    col("base", "Base", (f) => (f.pago.liquidacion ? f.pago.baseGravable : (f.sugerencia?.desglose?.base ?? f.pago.baseGravable))),
+    col("iva", "IVA", (f) => (f.pago.liquidacion ? f.pago.iva : (f.sugerencia?.desglose?.iva ?? f.pago.iva))),
     col("retefuente", "Retefuente", (f) => f.totales?.retefuente),
     col("reteica", "ReteICA", (f) => f.totales?.reteica),
     col("reteiva", "ReteIVA", (f) => f.totales?.reteiva),
