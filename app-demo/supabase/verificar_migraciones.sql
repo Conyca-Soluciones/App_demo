@@ -432,6 +432,9 @@ select * from (
          not exists (select 1 from public.contratos
                       where numero_contrato in ('CJ-10-2026', 'CJ-1-2026') and poliza_estado in ('pendiente', 'recibida'))
   union all
+  select '20261204000000_liquidacion_base_iva_factura',
+         exists (select 1 from pg_proc where proname = '_liquidar_pago_lineas')
+  union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
                   where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)

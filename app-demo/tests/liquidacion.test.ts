@@ -200,3 +200,50 @@ describe("concepto escrito (requisiciones administrativas)", () => {
     expect(conceptoDesdeTexto(null)).toBe("compras")
   })
 })
+
+describe("base e IVA cuando el pago no trae el desglose", () => {
+  const sinDesglose = (p: Partial<ContextoPago> = {}) =>
+    ctx({
+      valor: 1190000,
+      valorDocumento: 1190000,
+      baseGravable: 1190000,
+      iva: 0,
+      ivaConocido: false,
+      origen: { fuente: "texto", concepto: "compras" },
+      ...p,
+    })
+
+  it("responsable de IVA y concepto gravado: estima el 19 % incluido y retiene sobre la base", () => {
+    const s = sugerirLiquidacion(sinDesglose(), cat)
+    expect(s.desglose).toEqual({ base: 1000000, iva: 190000, estimado: true })
+    expect(s.lineas.find((l) => l.tipo === "retefuente")?.base).toBe(1000000)
+    expect(s.lineas.find((l) => l.tipo === "reteica")?.base).toBe(1000000)
+    expect(s.avisos.some((a) => a.nivel === "revisar" && a.texto.includes("19 %"))).toBe(true)
+  })
+
+  it("régimen simple responsable de IVA: con el IVA estimado sale el ReteIVA", () => {
+    const perfil = { ...ctx().perfil!, regimenSimple: true }
+    const s = sugerirLiquidacion(sinDesglose({ perfil }), cat)
+    expect(s.lineas.find((l) => l.tipo === "reteiva")).toMatchObject({ base: 190000, tarifa: 0.15, valor: 28500 })
+  })
+
+  it("no responsable de IVA: se liquida sobre el valor del documento", () => {
+    const perfil = { ...ctx().perfil!, responsableIva: false }
+    const s = sugerirLiquidacion(sinDesglose({ perfil }), cat)
+    expect(s.desglose).toEqual({ base: 1190000, iva: 0, estimado: false })
+  })
+
+  it("concepto sin IVA (transporte de carga) o sin retención (nómina): no estima", () => {
+    expect(sugerirLiquidacion(sinDesglose({ origen: { fuente: "texto", concepto: "transporte_carga" } }), cat).desglose?.estimado).toBe(false)
+    expect(sugerirLiquidacion(sinDesglose({ origen: { fuente: "texto", concepto: null } }), cat).desglose?.estimado).toBe(false)
+  })
+
+  it("con el desglose conocido (OC, o ya corregido) no toca la base ni el IVA", () => {
+    expect(sugerirLiquidacion(ctx(), cat).desglose).toEqual({ base: 1090000, iva: 190000, estimado: false })
+  })
+
+  it("datosLiquidacion manda base e IVA solo si se le pasan", () => {
+    expect(datosLiquidacion([], null, "", "")).not.toHaveProperty("base_gravable")
+    expect(datosLiquidacion([], null, "", "", { base: 1000000, iva: 190000 })).toMatchObject({ base_gravable: 1000000, iva: 190000 })
+  })
+})

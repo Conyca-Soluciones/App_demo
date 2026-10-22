@@ -92,6 +92,10 @@ export type ContextoPago = {
   valorDocumento: number | null
   baseGravable: number | null
   iva: number | null
+  // false = el pago no trae el desglose de la factura (requisición
+  // administrativa sin liquidar): la base y el IVA guardados no son de fiar.
+  // Sin el campo, se toman como conocidos.
+  ivaConocido?: boolean
   tercero: { documento: string; tipoDocumento: string; razonSocial: string } | null
   perfil: PerfilTributario | null
   empresa: { agenteRetefuente: boolean; agenteReteiva: boolean; confirmado: boolean } | null
@@ -118,9 +122,29 @@ export type LineaLiquidacion = {
 
 export type AvisoLiquidacion = { nivel: "revisar" | "info"; texto: string }
 
-export type SugerenciaLiquidacion = { lineas: LineaLiquidacion[]; avisos: AvisoLiquidacion[] }
+// Base e IVA con que se liquidó (los de la factura, o los estimados).
+export type DesgloseFactura = { base: number; iva: number; estimado: boolean }
+
+export type SugerenciaLiquidacion = {
+  lineas: LineaLiquidacion[]
+  avisos: AvisoLiquidacion[]
+  desglose?: DesgloseFactura
+}
 
 export const TARIFA_RETEIVA = 0.15
+export const TARIFA_IVA_GENERAL = 0.19
+
+// Conceptos que normalmente llevan IVA del 19 % (para estimarlo cuando el pago
+// no trae el desglose). Fuera quedan los excluidos o con IVA especial:
+// transporte de carga, construcción (AIU), arriendo de inmuebles (vivienda
+// excluida), hoteles y restaurantes (impoconsumo), combustibles.
+const CONCEPTOS_CON_IVA = new Set(["compras", "servicios", "honorarios", "consultoria_obra", "arrendamiento_muebles"])
+
+// El valor del documento con el IVA del 19 % incluido -> base e IVA.
+export function desgloseConIva(valorDocumento: number, tarifa = TARIFA_IVA_GENERAL): { base: number; iva: number } {
+  const base = Math.round(valorDocumento / (1 + tarifa))
+  return { base, iva: Math.round(valorDocumento - base) }
+}
 
 export const ETIQUETA_TIPO_LINEA: Record<TipoLinea, string> = {
   retefuente: "Retefuente",
@@ -320,7 +344,6 @@ export function sugerirLiquidacion(ctx: ContextoPago, cat: CatalogoLiquidacion):
 
   const uvt = uvtDelAnio(cat, ctx.anio)
   if (!uvt) avisos.push({ nivel: "revisar", texto: `No hay UVT para ${ctx.anio}: no se revisan las bases mínimas.` })
-  const base = ctx.baseGravable ?? ctx.valorDocumento ?? ctx.valor
 
   // Concepto: el que Contabilidad le confirmó al tercero, si no el del origen.
   const prefRf = pref("retefuente")
@@ -328,6 +351,37 @@ export function sugerirLiquidacion(ctx: ContextoPago, cat: CatalogoLiquidacion):
   const conceptoClave = prefRf?.concepto ?? porOrigen.concepto
   const concepto = conceptoClave ? (conceptos.get(conceptoClave) ?? null) : null
   if (conceptoClave && !concepto) avisos.push({ nivel: "revisar", texto: `El concepto "${conceptoClave}" no está en el catálogo.` })
+
+  // Base e IVA: los de la factura. Si el pago no los trae (y no tiene IVA), se
+  // estima el 19 % incluido cuando el tercero es responsable de IVA (o ya se le
+  // practicó ReteIVA) y el concepto lo lleva; si no, se liquida sobre el valor
+  // del documento y se avisa.
+  const documento = ctx.valorDocumento ?? ctx.valor
+  let base = ctx.baseGravable ?? documento
+  let iva = ctx.iva ?? 0
+  let estimado = false
+  if (ctx.ivaConocido === false && iva === 0 && conceptoClave) {
+    const prefIvaSi = ctx.preferencias.some((p) => p.tipo === "reteiva" && p.tarifa > 0)
+    const responsable = perfil ? perfil.responsableIva || prefIvaSi : prefIvaSi
+    if (CONCEPTOS_CON_IVA.has(conceptoClave) && responsable) {
+      const d = desgloseConIva(documento)
+      base = d.base
+      iva = d.iva
+      estimado = true
+      avisos.push({
+        nivel: "revisar",
+        texto: `El pago no trae base ni IVA: se estimó el IVA del 19 % incluido (base ${pesos(base)}, IVA ${pesos(iva)}). Confírmalos con la factura.`,
+      })
+    } else {
+      avisos.push({
+        nivel: perfil && !perfil.responsableIva ? "info" : "revisar",
+        texto:
+          perfil && !perfil.responsableIva
+            ? "El tercero no es responsable de IVA (RUT): se liquida sobre el valor del documento."
+            : "El pago no trae base ni IVA: se liquida sobre el valor del documento. Si la factura tiene IVA, corrige la base y el IVA.",
+      })
+    }
+  }
 
   // ---- Retefuente
   if (ctx.empresa && !ctx.empresa.agenteRetefuente) {
@@ -371,7 +425,6 @@ export function sugerirLiquidacion(ctx: ContextoPago, cat: CatalogoLiquidacion):
   }
 
   // ---- ReteIVA: régimen simple responsable de IVA, 15 % del IVA.
-  const iva = ctx.iva ?? 0
   if (iva > 0 && perfil?.regimenSimple && perfil.responsableIva) {
     const prefIva = pref("reteiva")
     if (ctx.empresa && !ctx.empresa.agenteReteiva) {
@@ -445,7 +498,7 @@ export function sugerirLiquidacion(ctx: ContextoPago, cat: CatalogoLiquidacion):
     }
   }
 
-  return { lineas, avisos }
+  return { lineas, avisos, desglose: { base, iva, estimado } }
 }
 
 // ------------------------------------------------------------- guardar
@@ -472,7 +525,10 @@ export function datosLiquidacion(
   lineas: LineaLiquidacion[],
   sugerencia: SugerenciaLiquidacion | null,
   numeroFactura: string,
-  observaciones: string
+  observaciones: string,
+  // Base e IVA de la factura: se mandan solo si son distintos de los que trae
+  // el pago (liquidar_pago los guarda en el pago antes de liquidar).
+  desglose?: { base: number; iva: number } | null
 ) {
   const fila = (l: LineaLiquidacion) => ({
     tipo: l.tipo,
@@ -493,6 +549,7 @@ export function datosLiquidacion(
     observaciones: observaciones.trim() || null,
     sugerencia: sugerencia ? { lineas: sugerencia.lineas.map(fila), avisos: sugerencia.avisos } : null,
     sin_cambios: sugerencia ? sinCambios(sugerencia.lineas, lineas) : null,
+    ...(desglose ? { base_gravable: desglose.base, iva: desglose.iva } : {}),
   }
 }
 
@@ -527,6 +584,9 @@ export function contextoDesdeJson(p: any): ContextoPago {
     valor: Number(p.valor),
     valorDocumento: num(p.valor_documento),
     baseGravable: num(p.base_gravable),
+    // Las requisiciones administrativas solo traen el valor total: hasta que
+    // Contabilidad las liquide (y ponga base e IVA), el desglose no se conoce.
+    ivaConocido: !(p.fuente === "requisicion_admin" && p.estado !== "liquidado"),
     iva: num(p.iva),
     tercero: p.tercero
       ? { documento: p.tercero.documento, tipoDocumento: p.tercero.tipo_documento, razonSocial: p.tercero.razon_social }

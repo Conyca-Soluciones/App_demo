@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Info, Loader2, Plus, Trash2 } from "lucide-react"
+import { AlertTriangle, Info, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -16,6 +16,7 @@ import {
   ETIQUETA_TIPO_LINEA,
   TARIFA_RETEIVA,
   datosLiquidacion,
+  sugerirLiquidacion,
   tarifaRetefuente,
   totalesLiquidacion,
   valorLinea,
@@ -110,6 +111,15 @@ function Contenido({
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [motivoDeshacer, setMotivoDeshacer] = useState<string | null>(null)
+  // Base e IVA de la factura: los del pago, o los que estimó el motor si el
+  // pago no los traía. Contabilidad los corrige y recalcula la sugerencia.
+  const desgloseInicial = liquidado
+    ? { base: pago.baseGravable ?? pago.valorDocumento ?? pago.valor, iva: pago.iva ?? 0, estimado: false }
+    : (sugerencia?.desglose ?? { base: pago.baseGravable ?? pago.valorDocumento ?? pago.valor, iva: pago.iva ?? 0, estimado: false })
+  const [baseFacturaTexto, setBaseFacturaTexto] = useState(numeroTexto(desgloseInicial.base))
+  const [ivaFacturaTexto, setIvaFacturaTexto] = useState(numeroTexto(desgloseInicial.iva))
+  const [avisosActuales, setAvisosActuales] = useState(sugerencia?.avisos ?? [])
+  const [recalculada, setRecalculada] = useState(false)
 
   useEffect(() => {
     if (!liquidado) return
@@ -132,7 +142,24 @@ function Contenido({
   const persona = perfil?.tipoPersona ?? (contexto?.tercero?.tipoDocumento === "NIT" ? "juridica" : "natural")
   const declarante = perfil?.declarante ?? persona === "juridica"
   const mun = contexto?.municipio ?? null
-  const base = pago.baseGravable ?? pago.valorDocumento ?? pago.valor
+  const documento = pago.valorDocumento ?? pago.valor
+  const baseFactura = leerNumero(baseFacturaTexto)
+  const ivaFactura = leerNumero(ivaFacturaTexto) ?? 0
+  const desgloseValido = baseFactura != null && baseFactura > 0 && ivaFactura >= 0 && baseFactura + ivaFactura <= documento + 1
+  const base = baseFactura ?? documento
+  // ¿Cambió frente a lo que tiene guardado el pago? (entonces se manda).
+  const desgloseCambiado =
+    desgloseValido && (baseFactura !== (pago.baseGravable ?? null) || ivaFactura !== (pago.iva ?? 0) || desgloseInicial.estimado)
+
+  // Vuelve a sugerir con la base y el IVA escritos (los descuentos escritos a
+  // mano se conservan).
+  function recalcular() {
+    if (!contexto || !catalogo || !desgloseValido) return
+    const s = sugerirLiquidacion({ ...contexto, baseGravable: baseFactura, iva: ivaFactura, ivaConocido: true }, catalogo)
+    setLineas((ls) => [...s.lineas.map(editable), ...(ls ?? []).filter((l) => l.tipo === "descuento")])
+    setAvisosActuales(s.avisos)
+    setRecalculada(true)
+  }
 
   const totales = totalesLiquidacion(pago.valor, lineas ?? [])
 
@@ -154,7 +181,7 @@ function Contenido({
       municipioId: tipo === "reteica" ? (mun?.id ?? null) : null,
       actividad: null,
       descripcion: null,
-      base: tipo === "descuento" ? null : tipo === "reteiva" ? (pago.iva ?? 0) : base,
+      base: tipo === "descuento" ? null : tipo === "reteiva" ? ivaFactura : base,
       tarifa: tipo === "descuento" ? null : tipo === "reteiva" ? TARIFA_RETEIVA : 0,
       valor: 0,
       asumida: false,
@@ -165,9 +192,10 @@ function Contenido({
     setLineas((ls) => [...(ls ?? []), editable(nueva)])
   }
 
-  const avisos = sugerencia?.avisos ?? []
+  const avisos = avisosActuales
   const datosValidos =
     lineas !== null &&
+    desgloseValido &&
     lineas.every((l) =>
       l.tipo === "descuento"
         ? l.valor > 0 && (l.descripcion ?? "").trim() !== ""
@@ -179,7 +207,13 @@ function Contenido({
     setGuardando(true)
     setError(null)
     try {
-      onGuardado(await liquidarPago(pago.id, datosLiquidacion(lineas, sugerencia, numeroFactura, observaciones)))
+      onGuardado(await liquidarPago(pago.id, datosLiquidacion(
+            lineas,
+            sugerencia,
+            numeroFactura,
+            observaciones,
+            desgloseCambiado ? { base: baseFactura!, iva: ivaFactura } : null
+          )))
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo liquidar.")
     } finally {
@@ -234,11 +268,50 @@ function Contenido({
         {dato("Origen", `${pago.origen || "—"} · ${ETIQUETA_TIPO_PAGO[pago.tipo]}`)}
         {dato("Solicita", pago.solicitadoPorNombre)}
         {dato("Valor documento", pesos(pago.valorDocumento))}
-        {dato("Base", pesos(pago.baseGravable))}
-        {dato("IVA", pesos(pago.iva))}
         {dato("Anticipos y/o descuentos", pesos(pago.descuentoAnticipos + pago.otrosDescuentos))}
         {dato("Retención en garantía", pesos(pago.retencionGarantia))}
         {dato("Valor aprobado", <span className="font-medium">{formatoMoneda(pago.valor)}</span>)}
+      </div>
+
+      {/* Base e IVA de la factura: sobre la base van retefuente y ReteICA; el
+          ReteIVA, sobre el IVA. */}
+      <div
+        className={`flex flex-wrap items-end gap-3 rounded-md border p-3 ${
+          desgloseInicial.estimado && !recalculada ? "border-amber-300 bg-amber-50/60" : ""
+        }`}
+      >
+        <div className="space-y-1">
+          <Label htmlFor="base-factura">Base de la factura (sin IVA)</Label>
+          <Input
+            id="base-factura"
+            className="h-9 w-44 text-right tabular-nums"
+            value={baseFacturaTexto}
+            onChange={(e) => setBaseFacturaTexto(e.target.value)}
+            disabled={!puedeLiquidar}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="iva-factura">IVA de la factura</Label>
+          <Input
+            id="iva-factura"
+            className="h-9 w-40 text-right tabular-nums"
+            value={ivaFacturaTexto}
+            onChange={(e) => setIvaFacturaTexto(e.target.value)}
+            disabled={!puedeLiquidar}
+          />
+        </div>
+        {puedeLiquidar && (
+          <Button size="sm" variant="outline" className="h-9" disabled={!desgloseValido || !contexto || !catalogo} onClick={recalcular}>
+            <RefreshCw className="mr-1.5 h-4 w-4" /> Recalcular la sugerencia
+          </Button>
+        )}
+        <div className="min-w-48 flex-1 text-xs text-muted-foreground">
+          {!desgloseValido
+            ? <span className="text-destructive">La base debe ser mayor que cero y la base más el IVA no pueden pasar de {formatoMoneda(documento)}.</span>
+            : desgloseInicial.estimado && !recalculada
+              ? <span className="text-amber-800">IVA estimado al 19 % incluido: confírmalo con la factura.</span>
+              : `Valor del documento ${formatoMoneda(documento)}. Si cambias la base o el IVA, pulsa Recalcular.`}
+        </div>
       </div>
 
       {/* Tercero, empresa y municipio */}
