@@ -1417,13 +1417,58 @@ empresas del grupo no retienen; el ICA va por municipio del proyecto × activida
   la página suma lo que se gira (`totalAPagar`). `CAMPOS_PAGO` lee columnas
   nuevas: **la migración tiene que estar antes que el código** (si no,
   Consolidado y Aprobación de pagos fallan).
-- **Pendiente (pasos 3 y 4)**: pantalla de Liquidación con el motor de
-  sugerencias en TS (orden: preferencia del tercero → origen del pago → perfil
-  RUT + catálogo + base en UVT; anticipos sin retención; empresas no agentes),
-  ficha tributaria y RUT en Terceros, catálogos en pantalla, municipio ICA en
-  Control administrativo, "Pagos por liquidar" en `_pendientes_de`, reglas
-  sugeridas y medición semanal del acierto; fecha de pago y cuenta a debitar
-  (dispersión).
+- **Paso 3: pantalla de Liquidación** (`/ayf/liquidacion`, pestaña
+  `ayf.liquidacion`, 2026-10-22):
+  - `20261203100000_liquidacion_contexto.sql`: `contexto_liquidacion(ids)`
+    (hasta 200; pestaña o `liquidar_pagos`) devuelve en un jsonb lo que el
+    motor necesita: pago y desglose, tercero y perfil (con `municipio_rut`),
+    memoria del documento (que no se lee por la API), retenciones de la
+    empresa, municipio ICA con bases y tarifas, letras de categoría de los
+    insumos de la OC con su subtotal, tipo de contrato del acta y retefuente ya
+    practicada en los anticipos de la misma OC; más UVT, conceptos y
+    actividades.
+  - Motor `lib/liquidacion.ts` (`sugerirLiquidacion`, puro, cada línea con su
+    `regla` y la lista de `avisos` revisar / info). Orden: anticipo sin nada →
+    empresa no agente → autorretenedor / simple / gran contribuyente → memoria
+    del documento → origen (OC: T transporte, Q servicios, S construcción, H
+    honorarios, F consultoría, B arriendo de muebles, lo demás compras; acta:
+    obra / mano de obra / suministro = construcción, prestación de servicios =
+    honorarios si es persona natural, alquiler = muebles, arrendamiento =
+    inmuebles) → catálogo + RUT (declarante, jurídica, ZOMAC a la mitad, base
+    en UVT, tabla del 383). ReteIVA: simple responsable de IVA, 15 % del IVA.
+    ReteICA: solo si la empresa la practica en ese municipio y el tercero es
+    de ese municipio según su RUT (en Arauca nunca se le practicó a uno de
+    fuera, 0 de 18), salvo que la memoria diga lo contrario; base mínima del
+    municipio. `valorLinea` / `totalesLiquidacion` = mismo cálculo que
+    `liquidar_pago`. `datosLiquidacion` arma `p_datos` con la sugerencia y
+    `sin_cambios`.
+  - Pruebas: `tests/liquidacion.test.ts` (reglas, con el catálogo leído de la
+    migración por `tests/liquidacion-catalogo.ts`) y
+    `tests/liquidacion-historial.test.ts`, que corre si existe
+    `referencias/prueba_liquidacion.json` (`scripts/generar_prueba_liquidacion.py
+    RUT.xlsx PAGOS.xlsx`): recorre 2.195 pagos del cuadro en orden de fecha y
+    aprende como la app. Resultado (las 3 retenciones exactas a la vez, ±$1.000
+    o 1 %): solo reglas 62 %; aprendiendo 70 % (retefuente 78 %, ReteICA
+    84 %, ReteIVA 99 %), 75-81 % en las semanas 37-42. Es más difícil que en
+    la app: el cuadro no tiene el origen estructurado y 519 pagos no traen
+    concepto.
+  - Pantalla (`components/liquidacion-pagos-view.tsx`): filtros Por liquidar /
+    Liquidados, consolidado, años, semanas, tercero; la sugerencia de cada pago
+    se calcula en el navegador con el contexto de la página (en cursiva) y las
+    filas con algo por revisar salen en ámbar; "Elegir los que no tienen nada
+    por revisar" + "Liquidar con la sugerencia" (`liquidarVarios`, hasta 50,
+    uno por uno, informa los que fallan). Diálogo (`liquidar-pago-dialogo.tsx`):
+    desglose del pago, perfil del tercero, avisos, líneas editables (concepto,
+    actividad ICA del municipio, base, tarifa %, asumida, quitar / agregar
+    retefuente, ReteICA, ReteIVA o descuento con descripción), neto en vivo,
+    factura y observaciones; en un liquidado, sus líneas guardadas, "Volver a
+    liquidar" y "Deshacer liquidación" con motivo.
+- **Pendiente**: ficha tributaria y RUT en Terceros (ver, corregir y
+  verificar el perfil; subir el RUT), catálogos y retenciones de las empresas
+  en pantalla (hoy en la base / SQL), municipio ICA en Control administrativo,
+  "Pagos por liquidar" en `_pendientes_de` (hay que leer la versión viva),
+  reglas sugeridas y medición semanal del acierto (`sin_cambios`), fecha de
+  pago y cuenta a debitar (dispersión).
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 

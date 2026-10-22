@@ -112,7 +112,7 @@ export const PESTANAS: Pestana[] = [
   // A&F (Administrativo y Financiero)
   { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos"] },
   { clave: "ayf.consolidado", titulo: "Consolidado de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado", rutas: ["/ayf/consolidado"] },
-  { clave: "ayf.liquidacion", titulo: "Liquidación de pagos", modulo: "ayf", seccion: "Pagos", url: "/", rutas: [], nota: "Todavía sin página: la base ya liquida (20261203000000_liquidacion_pagos.sql)." },
+  { clave: "ayf.liquidacion", titulo: "Liquidación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/liquidacion", rutas: ["/ayf/liquidacion"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 
