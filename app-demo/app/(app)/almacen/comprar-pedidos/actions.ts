@@ -586,15 +586,13 @@ export async function enlaceSoporteOrden(soporteId: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Aprobación de OC + pantalla de detalle
+// Detalle de la orden de compra
 // ---------------------------------------------------------------------------
 
 // Qué puede hacer el usuario con las órdenes de compra (lo decide su rol; ver
-// Roles y permisos). Los nombres esAdmin / rolCompras se conservan porque las
-// pantallas ya los usan: esAdmin = puede aprobar/rechazar, rolCompras = puede
-// comprar (crear la orden).
+// Roles y permisos). rolCompras = puede comprar (crear la orden). La OC no se
+// aprueba aquí: se aprueba con su pago en A&F › Aprobación de pagos.
 export type PermisosOrdenCompra = {
-  esAdmin: boolean
   rolCompras: boolean
   puedeDesaprobar: boolean
   puedeCancelar: boolean
@@ -605,63 +603,16 @@ export type PermisosOrdenCompra = {
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
   const permisos = await obtenerPermisosRol()
   if (!permisos) {
-    return { esAdmin: false, rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, usuarioId: null }
+    return { rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, usuarioId: null }
   }
 
   const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
   return {
-    esAdmin: puede("aprobar_oc"),
     rolCompras: puede("comprar"),
     puedeDesaprobar: puede("desaprobar_oc"),
     puedeCancelar: puede("cancelar_oc"),
     usuarioId: await obtenerUsuarioId(),
   }
-}
-
-export type OrdenCompraResumen = {
-  id: string
-  numero: number
-  proyectoCodigo: string | null
-  proyectoNombre: string | null
-  proveedorNombre: string
-  creadaPorNombre: string | null
-  creadaPorId: string | null
-  createdAt: string
-  totalLineas: number
-}
-
-export async function listarOrdenesCompraPendientes(): Promise<OrdenCompraResumen[]> {
-  await requerirAccion("aprobar_oc")
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("ordenes_compra")
-    .select(
-      `
-      id, numero, created_at,
-      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
-      proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
-      created_by,
-      creado_por:perfiles!ordenes_compra_created_by_fkey(nombre),
-      lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(id)
-    `
-    )
-    .eq("estado", "pendiente_aprobacion")
-    .order("created_at", { ascending: true })
-
-  if (error) throw new Error(error.message)
-
-  return (data ?? []).map((o: any) => ({
-    id: o.id,
-    numero: o.numero,
-    proyectoCodigo: o.proyecto?.codigo ?? null,
-    proyectoNombre: o.proyecto?.nombre ?? null,
-    proveedorNombre: o.proveedor?.nombre ?? "(proveedor eliminado)",
-    creadaPorNombre: o.creado_por?.nombre ?? null,
-    creadaPorId: o.created_by ?? null,
-    createdAt: o.created_at,
-    totalLineas: (o.lineas ?? []).length,
-  }))
 }
 
 export type OrdenCompraEstado = "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
@@ -824,25 +775,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
   }
 }
 
-export async function aprobarOrdenCompra(ordenId: string): Promise<void> {
-  await requerirAccion("aprobar_oc")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("aprobar_orden_compra", { p_orden_id: ordenId })
-  if (error) throw new Error(error.message)
-}
-
-export async function rechazarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
-  await requerirAccion("aprobar_oc")
-  if (!motivo.trim()) throw new Error("El motivo de rechazo es obligatorio.")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("rechazar_orden_compra", {
-    p_orden_id: ordenId,
-    p_motivo: motivo.trim(),
-  })
-  if (error) throw new Error(error.message)
-}
-
-// Devuelve una orden aprobada a "pendiente de aprobación". Solo si no tiene
+// Devuelve una orden aprobada a "pendiente de aprobación": sus pagos se anulan
+// y vuelve a Aprobación de pagos (A&F) con un pago nuevo. Solo si no tiene
 // material recibido (sin entradas de almacén; lo valida la base).
 export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
   await requerirAccion("desaprobar_oc")

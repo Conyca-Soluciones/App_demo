@@ -28,15 +28,12 @@ import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calcul
 import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
-import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
   obtenerOrdenCompraDetalle,
   obtenerPermisosOrdenCompra,
   enlaceSoporteOrden,
   listarSoportesOrden,
-  aprobarOrdenCompra,
-  rechazarOrdenCompra,
   desaprobarOrdenCompra,
   cancelarOrdenCompra,
   type OrdenCompraDetalle,
@@ -66,8 +63,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   // "desaprobar" | "cancelar": abre el diálogo de motivo de esa acción.
   const [accionAbierta, setAccionAbierta] = useState<"desaprobar" | "cancelar" | null>(null)
   const [motivoAccion, setMotivoAccion] = useState("")
-  const [rechazando, setRechazando] = useState(false)
-  const [motivoRechazo, setMotivoRechazo] = useState("")
 
   const [soportes, setSoportes] = useState<SoporteGuardado[]>([])
 
@@ -86,39 +81,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     cargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordenId])
-
-  // Aprobar pide confirmación (ver ConfirmarAprobacion).
-  const [confirmandoAprobacion, setConfirmandoAprobacion] = useState(false)
-
-  async function handleAprobar() {
-    setProcesando(true)
-    setError(null)
-    try {
-      await aprobarOrdenCompra(ordenId)
-      cargar()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo aprobar la orden.")
-    } finally {
-      setProcesando(false)
-      setConfirmandoAprobacion(false)
-    }
-  }
-
-  async function confirmarRechazo() {
-    if (!motivoRechazo.trim()) return
-    setProcesando(true)
-    setError(null)
-    try {
-      await rechazarOrdenCompra(ordenId, motivoRechazo.trim())
-      setRechazando(false)
-      setMotivoRechazo("")
-      cargar()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo rechazar la orden.")
-    } finally {
-      setProcesando(false)
-    }
-  }
 
   async function confirmarAccion() {
     if (!accionAbierta || !motivoAccion.trim()) return
@@ -155,7 +117,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   }
 
   const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
-  const puedeAprobarORechazar = permisos.esAdmin && orden.estado === "pendiente_aprobacion"
   const puedeDesaprobar = permisos.puedeDesaprobar && sePuedeDesaprobar(orden)
   // Aprobada: con cancelar_oc. Pendiente: también quien la creó ("Retirar").
   const puedeCancelar = muestraCancelar(orden, permisos)
@@ -422,7 +383,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   ? `el ${formatearFechaSinHora(orden.saldoFecha)}.`
                   : "al ser entregada la orden por completo."}
                 {orden.estado === "pendiente_aprobacion" &&
-                  " Al aprobar la orden, el anticipo pasa a Aprobación de pagos (A&F); el saldo llega después."}
+                  " La orden se aprueba en A&F › Aprobación de pagos al aprobar el anticipo; el saldo llega después."}
               </p>
             </div>
           )}
@@ -454,61 +415,8 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             />
           </div>
 
-          {puedeAprobarORechazar && (
-            <div className="space-y-2 border-t pt-3">
-              <Button className="w-full" disabled={procesando} onClick={() => setConfirmandoAprobacion(true)}>
-                Aprobar orden
-              </Button>
-              <Button
-                className="w-full"
-                variant="destructive"
-                disabled={procesando}
-                onClick={() => setRechazando(true)}
-              >
-                Rechazar orden
-              </Button>
-            </div>
-          )}
         </div>
       </div>
-
-      <Dialog
-        open={rechazando}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRechazando(false)
-            setMotivoRechazo("")
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rechazar orden de compra</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Las líneas de esta orden se mantienen para revisión manual — los pedidos no vuelven
-            automáticamente a la cola de &quot;Requisiciones por comprar&quot;.
-          </p>
-          <Textarea
-            placeholder="Motivo del rechazo (obligatorio)"
-            value={motivoRechazo}
-            onChange={(e) => setMotivoRechazo(e.target.value)}
-            rows={3}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRechazando(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={!motivoRechazo.trim() || procesando}
-              onClick={confirmarRechazo}
-            >
-              {procesando ? "Rechazando..." : "Rechazar orden"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={accionAbierta !== null}
@@ -527,7 +435,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {accionAbierta === "desaprobar"
-              ? "La orden vuelve a “Pendiente” y se podrá aprobar o rechazar de nuevo."
+              ? "La orden vuelve a “Pendiente” y su pago vuelve a Aprobación de pagos (A&F) para aprobarlo o rechazarlo de nuevo."
               : "La orden queda cancelada y sus requisiciones vuelven a “Requisiciones por comprar” para poder comprarse de nuevo."}
           </p>
           {accionAbierta === "cancelar" && (
@@ -556,14 +464,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         </DialogContent>
       </Dialog>
 
-      <ConfirmarAprobacion
-        abierta={confirmandoAprobacion}
-        titulo={`¿Aprobar la orden de compra #${orden.numero}?`}
-        detalle={`Proveedor: ${orden.proveedorNombre}. Al aprobarla sus pagos pasan a Aprobación de pagos (A&F) y queda lista para recibir en almacén.`}
-        procesando={procesando}
-        onConfirmar={handleAprobar}
-        onCerrar={() => setConfirmandoAprobacion(false)}
-      />
     </div>
   )
 }

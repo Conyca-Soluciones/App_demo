@@ -1061,6 +1061,28 @@ no podía distinguir 50 m de 50 rollos.
   (`claude/tender-maxwell-iresrp`) aplica migraciones a Supabase. Antes de
   `create or replace` de una función, leer su `prosrc` vivo (MCP de solo lectura).
 
+## Las OC se aprueban en Aprobación de pagos (2026-10-22)
+
+`20261204000000_oc_se_aprueba_en_pagos.sql` (decisión del usuario). Ya no existe
+"Aprobación de órdenes de compra" en AdPro (pestaña `compras.aprobar_oc` y acción
+`aprobar_oc` borradas, también de `rol_permisos`).
+- Compras genera la OC (pendiente) y `crear_orden_compra_con_soporte` crea en
+  el mismo paso su pago único o su anticipo en `solicitado` (el saldo,
+  `programado`). Una OC en $ 0 no se deja crear (no tendría pago con que aprobarse).
+- A&F aprueba ese pago en Aprobación de pagos (`aprobar_pago`, ITEM y
+  consolidado de siempre) y el disparador `trg_oc_sigue_pago` deja la OC
+  `aprobada` (aprobada_por = quien aprobó el pago: firma, aviso y historial de la
+  OC salen a su nombre) y lista para recibir en almacén. Rechazar ese pago deja
+  la OC `rechazada` con el mismo motivo (sus líneas vuelven a la cola de Compras).
+- `aprobar_orden_compra` / `rechazar_orden_compra` solo devuelven un error
+  (no hay otra forma de aprobar una OC). Desaprobar (devolver) una OC aprobada
+  anula sus pagos y le crea otra vez el pago por aprobar; retirarla o cancelarla
+  anula sus pagos (`_oc_estado_pagos`).
+- Mis pendientes ya no tiene "OC por aprobar" (sale como pago por aprobar); los
+  avisos de precio alto y de insumo sobre presupuesto van a quien aprueba pagos.
+- A&F (pestañas Aprobación de pagos o Consolidado) lee las líneas, requisiciones
+  y proveedor de las OC que tienen pago, para ver la orden desde el pago.
+
 ## Volumen: listas que se cortaban en 1000 filas (2026-10-06)
 
 `20261101000000_volumen_inventario_y_solicitudes.sql` (falta aplicarla, ANTES
@@ -1095,10 +1117,8 @@ con anticipo pasa de programado a **solicitado 3 días antes** de la fecha
 `_liberar_pagos_programados`, sin EXECUTE para usuarios). Antes era el mismo
 día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
 `liberar_pagos_programados` (misma regla). Sin anticipo y anticipo: nacen
-**por aprobar** (`solicitado`) y A&F los aprueba en Aprobación de pagos
-(`20261204000000_pagos_oc_por_aprobar.sql`, decisión del usuario 2026-10-22:
-Subgerencia aprueba la OC y luego el pago se aprueba en pagos; antes nacían
-aprobados a nombre de quien aprobó la OC). Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
+**por aprobar** (`solicitado`) al CREAR la orden: ver "Las OC se aprueban en
+Aprobación de pagos" abajo. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
 orden entregada completa (no con entrega parcial).
 Un saldo que NACE con fecha a 3 días o menos (OC aprobada hoy, saldo para
 pasado mañana) entra directo como solicitado: disparador BEFORE INSERT
@@ -1893,7 +1913,7 @@ Migración `20261002000000_desaprobar_cancelar_oc.sql`. Acciones del rol
 permiso y las reglas, la pantalla solo decide si muestra el botón
 (`sePuedeDesaprobar` / `sePuedeCancelar` en `lib/ordenes-compra-estado.ts`).
 
-- **Desaprobar** (botón en Aprobación de órdenes de compra y en el detalle):
+- **Desaprobar** (botón en el detalle; desde 2026-10-22 la OC vuelve a Aprobación de pagos):
   aprobada -> pendiente_aprobacion. Solo si `enviada = false` y
   `estado_entrega = 'sin_entregar'`. Motivo obligatorio
   (`motivo_desaprobacion`); se limpian `aprobada_por/aprobada_at`.
@@ -3300,7 +3320,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261201000000` representantes legales y su firma en el contrato ·
 `20261202000000` requisiciones administrativas (A&F) ·
 `20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos ·
-`20261204000000` pagos de OC nacen por aprobar (A&F) y Subgerencia aprueba OC.
+`20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

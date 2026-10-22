@@ -397,7 +397,7 @@ export function AprobacionPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y las requisiciones administrativas (una fila por requisición, que se aprueba completa; el origen la abre)."
+          ayuda="Aquí se aprueban las órdenes de compra: aprobar su pago único o su anticipo aprueba la orden y rechazarlo la rechaza (el origen la abre). También los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y las requisiciones administrativas (una fila por requisición, que se aprueba completa; el origen la abre)."
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>

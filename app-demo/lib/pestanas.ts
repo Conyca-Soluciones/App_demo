@@ -79,7 +79,6 @@ export const PESTANAS: Pestana[] = [
   { clave: "compras.comprar_pedidos", titulo: "Requisiciones por comprar", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
   { clave: "compras.saldos_pendientes", titulo: "Saldos pendientes", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/saldos-pendientes", rutas: ["/almacen/saldos-pendientes"], nota: "Requisiciones compradas a medias, para cerrar su saldo." },
   { clave: "compras.ordenes", titulo: "Registro de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
-  { clave: "compras.aprobar_oc", titulo: "Aprobación de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/aprobar-oc", rutas: ["/almacen/aprobar-oc"] },
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
 
   // Almacén en el orden en que se trabaja.
@@ -151,8 +150,7 @@ export const ACCIONES: Accion[] = [
   { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
-  { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
-  { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
+  { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente: su pago vuelve a Aprobación de pagos.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato y de otrosí de los proyectos a los que tiene acceso.", seccion: "Contratos" },
@@ -323,7 +321,7 @@ export function permisosDesdeBanderas(b: BanderasPerfil | null | undefined): Per
     acciones.push("aprobar_pedidos", "desaprobar_pedidos", "cancelar_pedidos")
   }
   if (admin || b?.admin_mano_obra) acciones.push("aprobar_mano_obra")
-  if (admin) acciones.push("aprobar_oc", "desaprobar_oc", "cancelar_oc", "editar_presupuestos")
+  if (admin) acciones.push("desaprobar_oc", "cancelar_oc", "editar_presupuestos")
 
   return {
     sinRol: true,

@@ -43,7 +43,6 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   insumo_por_aprobar: { titulo: "Insumos nuevos por aprobar", accion: "Revisar", orden: 11 },
   mo_por_aprobar: { titulo: "Mano de obra y equipos por aprobar", accion: "Revisar", orden: 12 },
   req_por_comprar: { titulo: "Requisiciones por comprar", accion: "Comprar", orden: 20 },
-  oc_por_aprobar: { titulo: "Órdenes de compra por aprobar", accion: "Aprobar", orden: 21 },
   oc_por_recibir: { titulo: "Órdenes de compra por recibir", accion: "Recibir", orden: 22 },
   contrato_por_preaprobar: { titulo: "Contratos por pre-aprobar", accion: "Revisar", orden: 30 },
   minuta_por_elaborar: { titulo: "Minutas por hacer o corregir", accion: "Hacer minuta", orden: 31 },

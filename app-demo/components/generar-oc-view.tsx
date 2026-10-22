@@ -397,8 +397,8 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         <ClipboardList className="h-10 w-10 text-primary" />
         <p className="text-lg font-medium">Orden de compra generada</p>
         <p className="text-sm text-muted-foreground">
-          Se creó correctamente para el proveedor {detalleProveedor?.nombre}. Queda pendiente de
-          aprobación.
+          Se creó correctamente para el proveedor {detalleProveedor?.nombre}. Su pago quedó por
+          aprobar en A&amp;F (Aprobación de pagos); al aprobarlo, la orden queda aprobada.
         </p>
         <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Requisiciones por comprar</Button>
       </div>
@@ -778,12 +778,12 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Al aprobar la orden, el anticipo pasa a Aprobación de pagos (A&amp;F). El saldo llega a aprobación de pagos
+                  El anticipo va a Aprobación de pagos (A&amp;F) apenas se crea la orden; aprobarlo aprueba la orden. El saldo llega a Aprobación de pagos
                   {saldoModo === "entrega"
                     ? " cuando la orden quede entregada por completo."
                     : saldoFecha
                       ? ` 3 días antes de la fecha indicada (${
-                          sumarDiasFecha(saldoFecha, -3) <= hoy ? "apenas se apruebe la orden" : `el ${formatearFechaSinHora(sumarDiasFecha(saldoFecha, -3))}`
+                          sumarDiasFecha(saldoFecha, -3) <= hoy ? "apenas se apruebe el anticipo" : `el ${formatearFechaSinHora(sumarDiasFecha(saldoFecha, -3))}`
                         }).`
                       : " 3 días antes de la fecha indicada."}
                 </p>

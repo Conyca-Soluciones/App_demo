@@ -402,12 +402,10 @@ select * from (
          exists (select 1 from pg_proc where proname = 'contexto_liquidacion'
                   and pg_get_functiondef(oid) like '%municipio_rut%')
   union all
-  select '20261204000000_pagos_oc_por_aprobar',
-         position('''unico'', v_oc.proyecto_id, v_oc.empresa_id, v_oc.consolidado_id,
-      v_tercero, v_cuenta, v_concepto, v_total, ''solicitado''' in
-                  replace(pg_get_functiondef('public._crear_pagos_orden(uuid)'::regprocedure), E'\r', '')) > 0
-         and exists (select 1 from public.rol_permisos rp join public.roles r on r.id = rp.rol_id
-                      where r.clave = 'subgerencia' and rp.permiso = 'accion.aprobar_oc')
+  select '20261204000000_oc_se_aprueba_en_pagos',
+         exists (select 1 from pg_trigger where tgname = 'trg_oc_sigue_pago')
+         and position('A&F' in pg_get_functiondef('public.aprobar_orden_compra(uuid)'::regprocedure)) > 0
+         and not exists (select 1 from public.rol_permisos where permiso in ('accion.aprobar_oc', 'tab.compras.aprobar_oc'))
   union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
