@@ -23,6 +23,8 @@ export const PESTANAS_VER_OTROSI = [
   "contratos.cortes",
   "contratos.aprobar_actas",
   "admin.visualizacion",
+  "contratos.polizas",
+  "contratos.aprobar_polizas",
 ]
 
 // Un otrosí visto desde su contrato (otrosis_de_contrato).

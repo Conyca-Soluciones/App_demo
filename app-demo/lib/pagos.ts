@@ -63,6 +63,12 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  // Requisición administrativa de la que sale el pago (para ver su detalle).
+  requisicionAdminId: string | null
+  // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
+  // aprueba o rechaza la requisición completa, con el total y los ítems de su
+  // lote. null = no es la fila de una requisición.
+  requisicionAdminLote: { items: number; total: number } | null
   // Documento de donde sale el pago (para abrir su detalle).
   ordenCompraId: string | null
   actaId: string | null
@@ -78,6 +84,22 @@ export type Pago = {
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
+  numeroFactura: string | null
+  solicitadoPorNombre: string | null
+  // Desglose de origen (como el cuadro de pagos), guardado al crear el pago:
+  // valor = valorDocumento − descuentoAnticipos − retencionGarantia − otrosDescuentos.
+  valorDocumento: number | null
+  baseGravable: number | null
+  iva: number | null
+  descuentoAnticipos: number
+  retencionGarantia: number
+  otrosDescuentos: number
+}
+
+// Columna "Anticipos y/o descuentos" del cuadro: anticipos ya girados (o
+// amortización del acta) y otros descuentos del acta.
+export function anticiposYDescuentos(p: Pick<Pago, "descuentoAnticipos" | "otrosDescuentos">): number {
+  return p.descuentoAnticipos + p.otrosDescuentos
 }
 
 export type FiltrosAprobacionPagos = {

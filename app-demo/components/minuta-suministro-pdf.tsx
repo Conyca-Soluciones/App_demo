@@ -4,6 +4,8 @@ import { blanco, cantidadEnLetras, ordinalClausula, partesFecha, pesosSinSimbolo
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_SUMINISTRO, type MinutaSuministro } from "@/lib/minuta-suministro"
 import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { LineaFirma } from "@/components/linea-firma-pdf"
+import type { FirmaDocumento } from "@/lib/firmas"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de suministro: el texto de la plantilla
@@ -16,7 +18,7 @@ const ENCABEZADO = { formato: "CONTRATO DE SUMINISTRO", codigo: "GJ-F-012", vers
 const letra = (i: number) => `${String.fromCharCode(97 + i)})`
 const pct = (t: string) => `${blanco(t.replace(/%/g, ""))}%`
 
-export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaSuministro; numero: number; logo: string | Buffer; foco?: string }) {
+export function MinutaSuministroPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaSuministro; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
@@ -226,7 +228,7 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco }: { minuta:
 
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
-            <View style={s.firmaLinea} />
+            <LineaFirma firma={firmaContratante} />
             <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
             <Text>{res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
             <Text>C.C.: {res("contratanteRepresentanteCedula", blanco(m.contratanteRepresentanteCedula))}</Text>

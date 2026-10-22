@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
+import { BadgePolizaContrato } from "@/components/badge-poliza"
 import { ZONA_HORARIA, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import {
   CLASE_ETAPA_CONTRATO,
@@ -229,6 +230,7 @@ export function DetalleSolicitudContrato({
                       ] as FilaDatos[])
                     : ([["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"]] as FilaDatos[])),
                   ["Forma de pago", detalle.formaPago],
+                  ["Póliza", detalle.requierePoliza === false ? "No requiere póliza" : "Requiere póliza"],
                   [
                     "Plazo",
                     plazoTexto(detalle, formatearFechaSinHora) +
@@ -352,6 +354,12 @@ export function DetalleSolicitudContrato({
               {/* Rastro de los otrosí (solo los contratos aprobados pueden tenerlos). */}
               {detalle.estado === "aprobada" && detalle.minutaEstado === "aprobada" && (
                 <div className="space-y-2">
+                  {detalle.polizaEstado && (
+                    <p className="flex items-center gap-2 text-sm">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase">Póliza</span>
+                      <BadgePolizaContrato estado={detalle.polizaEstado} />
+                    </p>
+                  )}
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase">Otrosí</h3>
                   <OtrosisDelContrato contratoId={detalle.id} />
                 </div>

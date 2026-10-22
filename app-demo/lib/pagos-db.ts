@@ -1,7 +1,7 @@
 // Consulta y mapeo de un pago (compartido por las actions de Aprobación de
 // pagos y del Consolidado). Archivo plano: no es una Server Action.
 
-import { documentoFormateado } from "@/lib/terceros"
+import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
 import type { Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
@@ -9,20 +9,27 @@ import type { Pago } from "@/lib/pagos"
 export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
-  orden_compra_id, acta_id,
+  orden_compra_id, acta_id, numero_factura, valor_documento, base_gravable, iva,
+  descuento_anticipos, retencion_garantia, otros_descuentos,
+  requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
   orden:ordenes_compra(numero),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
+  req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
+  req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros(razon_social, tipo_documento, numero_documento, dv),
-  cuenta:terceros_cuentas(numero_cuenta, estado, banco:bancos(nombre)),
+  cuenta:terceros_cuentas(numero_cuenta, tipo_cuenta, estado, banco:bancos(nombre)),
   aprobador:perfiles!pagos_aprobado_por_fkey(nombre),
-  rechazador:perfiles!pagos_rechazado_por_fkey(nombre)
+  rechazador:perfiles!pagos_rechazado_por_fkey(nombre),
+  solicitante:perfiles!pagos_solicitado_por_fkey(nombre)
 `
 
 // Igual, pero con el join !inner al tercero (para filtrar por su nombre en la
 // misma consulta, sin traer ids para mandarlos en un IN).
 export const CAMPOS_PAGO_TERCERO_INNER = CAMPOS_PAGO.replace("tercero:terceros(", "tercero:terceros!inner(")
+
+const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
 export function mapPago(f: any): Pago {
   const t = f.tercero
@@ -45,6 +52,11 @@ export function mapPago(f: any): Pago {
     ordenNumero: f.orden?.numero ?? null,
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
+    requisicionAdminId: f.requisicion_admin_id ?? null,
+    requisicionAdminLote:
+      f.requisicion_admin_principal && f.lote
+        ? { items: Number(f.lote.items ?? 0), total: Number(f.lote.total ?? 0) }
+        : null,
     // De dónde sale el pago: una orden de compra o un acta de contrato. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null
@@ -53,7 +65,9 @@ export function mapPago(f: any): Pago {
         ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}`
         : f.fuente === "acta"
           ? "Acta"
-          : "",
+          : f.fuente === "requisicion_admin"
+            ? `Req. admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${f.req?.metodo === "pse" ? " · PSE" : ""}`
+            : "",
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
     // no es de acta o quien consulta no lee el acta (RLS).
     actaBruto: f.acta?.valor_bruto != null ? Number(f.acta.valor_bruto) : null,
@@ -62,16 +76,29 @@ export function mapPago(f: any): Pago {
     empresaNombre: f.empresa?.razon_social ?? null,
     consolidadoId: f.consolidado_id,
     terceroId: f.tercero_id,
-    terceroNombre: t?.razon_social ?? null,
+    // PSE (requisición administrativa): el titular escrito, sin tercero en la app.
+    terceroNombre: t?.razon_social ?? f.req_item?.titular_nombre ?? null,
     terceroDocumento: t
       ? `${t.tipo_documento} ${documentoFormateado({
           tipoDocumento: t.tipo_documento,
           numeroDocumento: t.numero_documento,
           dv: t.dv,
         })}`
-      : null,
+      : f.req_item
+        ? `${f.req_item.titular_tipo_documento} ${f.req_item.titular_documento}`
+        : null,
     cuentaId: f.cuenta_tercero_id,
-    cuentaTexto: f.cuenta ? `${f.cuenta.banco?.nombre ?? ""} · ${f.cuenta.numero_cuenta}` : null,
+    cuentaTexto: f.cuenta
+      ? `${f.cuenta.banco?.nombre ?? ""} · ${ETIQUETA_TIPO_CUENTA[f.cuenta.tipo_cuenta as keyof typeof ETIQUETA_TIPO_CUENTA] ?? f.cuenta.tipo_cuenta} · ${f.cuenta.numero_cuenta}`
+      : null,
     cuentaVerificada: f.cuenta?.estado === "ACTIVO",
+    numeroFactura: f.numero_factura ?? null,
+    solicitadoPorNombre: f.solicitante?.nombre ?? null,
+    valorDocumento: num(f.valor_documento),
+    baseGravable: num(f.base_gravable),
+    iva: num(f.iva),
+    descuentoAnticipos: Number(f.descuento_anticipos ?? 0),
+    retencionGarantia: Number(f.retencion_garantia ?? 0),
+    otrosDescuentos: Number(f.otros_descuentos ?? 0),
   }
 }

@@ -1,41 +1,50 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FileDown, Loader2, Paperclip } from "lucide-react"
+import { FileDown, FileSignature, Loader2, Paperclip } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { createClient } from "@/lib/supabase/client"
 import { numero, pesos } from "@/lib/contratos"
 import {
   CLASE_ESTADO_ACTA,
   ETIQUETA_ESTADO_ACTA,
   ETIQUETA_SOPORTE,
   ETIQUETA_TIPO_ACTA,
+  MIME_COPIA_FIRMADA,
+  TAMANO_MAXIMO_SOPORTE,
   saldoContrato,
   type ActaDetalle,
   type SoporteActa,
 } from "@/lib/actas"
-import { enlaceSoporteActa, obtenerActa } from "@/app/(app)/contratos/actas/actions"
+import { enlaceSoporteActa, obtenerActa, subirActaFirmadaContratista } from "@/app/(app)/contratos/actas/actions"
 
 // Detalle de un acta en un diálogo (Actas por grupos y Aprobación de actas):
 // el contrato con su cupo, lo ejecutado (actividades o % de avance), los
 // descuentos y el neto, los soportes, el pago en A&F, el historial y el PDF.
-// Cada pantalla pone sus botones.
+// Cada pantalla pone sus botones. Aprobada, quien elabora actas sube la copia
+// firmada por el contratista (puedeSubirFirmada).
 export function DetalleActa({
   id,
   onCerrar,
   acciones,
+  puedeSubirFirmada,
 }: {
   id: string | null
   onCerrar: () => void
   acciones?: (acta: ActaDetalle) => React.ReactNode
+  puedeSubirFirmada?: boolean
 }) {
   const [acta, setActa] = useState<ActaDetalle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viendo, setViendo] = useState<SoporteActa | null>(null)
+  const [recarga, setRecarga] = useState(0)
+  const [subiendo, setSubiendo] = useState(false)
+  const [errorCopia, setErrorCopia] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -46,12 +55,39 @@ export function DetalleActa({
     return () => {
       vigente = false
     }
-  }, [id])
+  }, [id, recarga])
+
+  async function subirCopiaFirmada(actaId: string, archivo: File | undefined) {
+    if (!archivo) return
+    if (!MIME_COPIA_FIRMADA.includes(archivo.type)) return setErrorCopia("Sube la copia en PDF, JPG o PNG.")
+    if (archivo.size > TAMANO_MAXIMO_SOPORTE) return setErrorCopia("El archivo pesa más de 10 MB.")
+    const supabase = createClient()
+    const ext = archivo.name.includes(".") ? archivo.name.split(".").pop()!.toLowerCase() : "pdf"
+    const ruta = `${actaId}/firmada_contratista-${Date.now()}.${ext}`
+    setSubiendo(true)
+    setErrorCopia(null)
+    let subido = false
+    try {
+      const { error: e } = await supabase.storage.from("actas").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
+      if (e) throw new Error(`No se pudo subir el archivo: ${e.message}`)
+      subido = true
+      const { rutaAnterior } = await subirActaFirmadaContratista(actaId, { ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type })
+      subido = false
+      if (rutaAnterior) await supabase.storage.from("actas").remove([rutaAnterior])
+      setRecarga((n) => n + 1)
+    } catch (e) {
+      if (subido) await supabase.storage.from("actas").remove([ruta])
+      setErrorCopia(e instanceof Error ? e.message : "No se pudo guardar la copia firmada.")
+    } finally {
+      setSubiendo(false)
+    }
+  }
 
   function cerrar() {
     setActa(null)
     setError(null)
     setViendo(null)
+    setErrorCopia(null)
     onCerrar()
   }
 
@@ -272,9 +308,38 @@ export function DetalleActa({
               </div>
             )}
 
+            {v.estado === "aprobada" && puedeSubirFirmada && (
+              <div className="space-y-1.5 rounded-lg border border-dashed p-3 text-sm">
+                <p className="flex items-center gap-2 font-medium">
+                  <FileSignature className="size-4" /> Copia firmada por el contratista
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {v.soportes.some((s) => s.tipo === "firmada_contratista")
+                    ? "Ya está en los soportes. Subir otra la reemplaza."
+                    : "Imprime el PDF del acta, que la firme el contratista y sube aquí la copia escaneada (PDF, JPG o PNG)."}
+                </p>
+                <input
+                  type="file"
+                  accept={MIME_COPIA_FIRMADA.join(",")}
+                  disabled={subiendo}
+                  onChange={(e) => {
+                    subirCopiaFirmada(v.id, e.target.files?.[0])
+                    e.target.value = ""
+                  }}
+                  className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
+                />
+                {subiendo && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" /> Subiendo…
+                  </p>
+                )}
+                {errorCopia && <p className="text-xs text-destructive">{errorCopia}</p>}
+              </div>
+            )}
+
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Historial</p>
-              <HistorialTimeline tipo="acta" id={v.id} />
+              <HistorialTimeline key={recarga} tipo="acta" id={v.id} />
             </div>
 
             {acciones && <DialogFooter>{acciones(v)}</DialogFooter>}

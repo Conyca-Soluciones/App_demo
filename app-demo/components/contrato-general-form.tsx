@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Loader2, Search, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { documentoFormateado, type Contratista } from "@/lib/contratistas"
 import {
   CONTRATO_GENERAL_VACIO,
@@ -211,6 +212,19 @@ export function ContratoGeneralFormulario({
           )}
         </div>
         <MensajeError texto={errores.tipo ?? errores.tipoDetalle} />
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            checked={f.requierePoliza}
+            onCheckedChange={(v) => cambiar("requierePoliza", v === true)}
+            disabled={enviando}
+          />
+          Requiere póliza
+        </label>
+        <p className="text-xs text-muted-foreground">
+          {f.requierePoliza
+            ? "Al aprobarse el contrato hay que subir la póliza y Jurídica la aprueba antes de las actas."
+            : "Sin póliza: al aprobarse el contrato se pueden hacer actas de una vez."}
+        </p>
       </Seccion>
 
       <Seccion titulo="Contratista" ayuda="Sus datos salen del directorio de Contratistas.">

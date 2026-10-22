@@ -4,6 +4,8 @@ import { blanco, cantidadEnLetras, fechaLarga, ordinalClausula, partesFecha, pes
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_OBRA, type MinutaObra } from "@/lib/minuta-obra"
 import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { LineaFirma } from "@/components/linea-firma-pdf"
+import type { FirmaDocumento } from "@/lib/firmas"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de obra a todo costo y del contrato de mano de
@@ -21,7 +23,7 @@ const ENCABEZADO = {
 
 const numero = (i: number) => `${i + 1}.`
 
-export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }: { minuta: MinutaObra; numero: number; logo: string | Buffer; foco?: string }) {
+export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, firmaContratante }: { minuta: MinutaObra; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
@@ -334,7 +336,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
             <>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATANTE</Text>
-            <View style={s.firmaLinea} />
+            <LineaFirma firma={firmaContratante} />
             <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
             <Text>NIT. {res("contratanteNit", blanco(m.contratanteNit))}</Text>
             <Text>RL. {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>
@@ -365,7 +367,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco }:
           </View>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATANTE</Text>
-            <View style={s.firmaLinea} />
+            <LineaFirma firma={firmaContratante} />
             <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
             <Text>NIT. {res("contratanteNit", blanco(m.contratanteNit))}</Text>
             <Text>RL. {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>

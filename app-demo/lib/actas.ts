@@ -9,6 +9,7 @@
 // - valor global: un % de avance (acumulado <= 100 %).
 // Descuentos: amortización del anticipo, retención en garantía y otros.
 
+import { motivoSinActasPorPoliza, type EstadoPolizaContrato } from "@/lib/polizas"
 import { aCentavos, leerNumero, numero, type TipoContrato } from "@/lib/contratos"
 
 export type TipoActa = "parcial" | "final" | "liquidacion"
@@ -31,19 +32,23 @@ export const CLASE_ESTADO_ACTA: Record<EstadoActa, string> = {
   rechazada: "bg-red-100 text-red-800 hover:bg-red-100",
 }
 
-export type TipoSoporte = "factura" | "cuenta_cobro" | "memoria" | "foto" | "otro"
+export type TipoSoporte = "factura" | "cuenta_cobro" | "memoria" | "foto" | "otro" | "firmada_contratista"
 export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
   factura: "Factura del contratista",
   cuenta_cobro: "Cuenta de cobro del contratista",
   memoria: "Memoria de cantidades",
   foto: "Registro fotográfico",
   otro: "Otro",
+  firmada_contratista: "Copia firmada por el contratista",
 }
 // Dos grupos en el formulario (decisión del usuario, T4): el soporte de pago
 // (obligatorio si el acta tiene pago; lo exige también _pago_de_acta) y los demás.
 export const TIPOS_SOPORTE_PAGO: TipoSoporte[] = ["factura", "cuenta_cobro"]
 export const TIPOS_SOPORTE_OTROS: TipoSoporte[] = ["memoria", "foto", "otro"]
 export const esSoportePago = (tipo: string) => tipo === "factura" || tipo === "cuenta_cobro"
+// La copia firmada por el contratista se sube aparte, con el acta ya aprobada
+// (20261129000000_firmas.sql).
+export const MIME_COPIA_FIRMADA = ["application/pdf", "image/jpeg", "image/png"]
 export const MIME_SOPORTES = [
   "application/pdf",
   "image/jpeg",
@@ -127,6 +132,8 @@ export type InfoContratoActa = {
   vencido: boolean
   liquidado: boolean
   listoParaActas: boolean
+  // Póliza del contrato (20261126000000): sin aprobar no hay actas.
+  polizaEstado: EstadoPolizaContrato | null
   tieneFinal: boolean
   tieneLiquidacion: boolean
   actasPorAprobar: number
@@ -142,6 +149,8 @@ export type InfoContratoActa = {
 export function tiposPermitidos(info: InfoContratoActa): { tipos: TipoActa[]; motivo: string | null } {
   if (!info.listoParaActas) return { tipos: [], motivo: "La minuta del contrato todavía no está aprobada por Subgerencia." }
   if (info.liquidado) return { tipos: [], motivo: "El contrato ya está liquidado." }
+  const sinPoliza = motivoSinActasPorPoliza(info.polizaEstado)
+  if (sinPoliza) return { tipos: [], motivo: sinPoliza }
   const tipos: TipoActa[] = []
   let motivo: string | null = null
   if (info.vencido) motivo = "El contrato está vencido: solo se puede hacer el acta de liquidación (para ampliar el plazo hará falta un otrosí)."

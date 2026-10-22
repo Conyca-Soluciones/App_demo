@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { CheckCircle2, Loader2, Send, Undo2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { BadgePolizaContrato } from "@/components/badge-poliza"
+import { ETIQUETA_POLIZA_CONTRATO } from "@/lib/polizas"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
@@ -164,6 +166,14 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
               {s.otrosisAprobados}
             </Badge>
           ) : null,
+      },
+      {
+        clave: "poliza",
+        titulo: "Póliza",
+        ancho: 150,
+        alinear: "center",
+        texto: (s) => (s.polizaEstado ? ETIQUETA_POLIZA_CONTRATO[s.polizaEstado] : ""),
+        celda: (s) => <BadgePolizaContrato estado={s.polizaEstado} />,
       },
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
       { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },

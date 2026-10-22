@@ -241,7 +241,10 @@ export async function agregarCuenta(terceroId: string, cruda: DatosCuenta): Prom
 }
 
 // Si la cuenta estaba verificada y cambia el banco, el tipo o el número, la
-// base la devuelve a PENDIENTE (trigger): hay que verificarla otra vez.
+// base la devuelve a PENDIENTE, salvo que la cambie quien puede verificar (se
+// queda ACTIVA, verificada por él). En los dos casos, los pagos en curso con esa
+// cuenta quedan marcados con una novedad y el cambio en su historial
+// (20261206000000; se limpia al confirmar la cuenta del pago).
 export async function actualizarCuenta(
   terceroId: string,
   cuentaId: string,

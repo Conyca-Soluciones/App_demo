@@ -32,9 +32,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const supabase = await createClient()
-  const { data: contrato, error } = await supabase.from("contratos").select("numero, tipo, clase").eq("id", id).maybeSingle()
+  const { data: contrato, error } = await supabase
+    .from("contratos")
+    .select("numero, numero_contrato, tipo, clase, minuta_estado")
+    .eq("id", id)
+    .maybeSingle()
   if (error || !contrato) {
     return NextResponse.json({ error: "La solicitud no existe o no tienes acceso." }, { status: 404 })
+  }
+
+  // Minuta aprobada con la firma del representante legal: el PDF congelado
+  // (lo de pantalla no cuenta: la minuta ya no se edita). Solo entonces se
+  // carga el módulo y se lee la minuta guardada (la vista previa de una minuta
+  // en revisión no paga nada de esto).
+  if (contrato.minuta_estado === "aprobada" && contrato.clase !== "general") try {
+    const [{ pdfContratoFirmado }, guardada] = await Promise.all([
+      import("@/lib/documentos-firmados"),
+      supabase.from("contratos").select("minuta_datos").eq("id", id).maybeSingle(),
+    ])
+    const firmado = await pdfContratoFirmado(supabase, id, {
+      numero: Number(contrato.numero),
+      numeroContrato: contrato.numero_contrato ?? null,
+      tipo: contrato.tipo,
+      clase: contrato.clase,
+      minutaEstado: contrato.minuta_estado ?? null,
+      minutaDatos: guardada.data?.minuta_datos,
+    })
+    if (firmado) {
+      return new NextResponse(firmado.pdf as BodyInit, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="${firmado.nombre}"`,
+          "Cache-Control": "no-store",
+          ...(firmado.sha256 ? { "X-Documento-Sha256": firmado.sha256 } : {}),
+        },
+      })
+    }
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "No se pudo armar el contrato firmado." }, { status: 500 })
   }
 
   // Contrato general: no hay minuta editable; la hoja sale de la base (el

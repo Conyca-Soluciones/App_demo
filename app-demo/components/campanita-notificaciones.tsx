@@ -23,6 +23,10 @@ function rutaDestino(n: Notificacion): string {
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.
   if (n.entidadTipo === "contrato") {
     if (n.tipo === "minuta_por_revisar") return `/contratos/aprobacion-minutas?ver=${n.entidadId}`
+    // Pólizas: a Jurídica, a Aprobación de pólizas; al ingeniero y al director, a Pólizas.
+    if (n.tipo === "poliza_por_revisar") return `/contratos/aprobacion-polizas?ver=${n.entidadId}`
+    if (n.tipo === "poliza_pendiente" || n.tipo === "poliza_aprobada" || n.tipo === "poliza_devuelta")
+      return `/contratos/polizas?ver=${n.entidadId}`
     // Contrato vencido sin liquidar: a Jurídica, a Pre-aprobación; a quien lo pidió, a su lista.
     return n.tipo === "contrato_por_revisar" ||
       n.tipo === "minuta_aprobada" ||
@@ -42,6 +46,8 @@ function rutaDestino(n: Notificacion): string {
       n.tipo === "otrosi_por_revisar" || n.tipo === "otrosi_por_aprobar" || n.tipo === "otrosi_devuelto_subgerencia"
     return aJuridicaOSubgerencia ? `/contratos/aprobacion-otrosi?ver=${n.entidadId}` : `/contratos/otrosi?ver=${n.entidadId}`
   }
+  // Requisición administrativa aprobada o rechazada: a quien la hizo.
+  if (n.entidadTipo === "requisicion_admin") return `/ayf/requisiciones-administrativas?ver=${n.entidadId}`
   // Insumo nuevo rechazado: al presupuesto (del proyecto actual).
   if (n.entidadTipo === "presupuesto") return "/presupuestos"
   return "/almacen/registro-requisiciones"

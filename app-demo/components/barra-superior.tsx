@@ -2,8 +2,13 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { LogOut } from "lucide-react"
+import { useEffect, useState } from "react"
+import { LogOut, PenLine, ShieldCheck } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MiFirmaDialog } from "@/components/mi-firma-dialog"
+import { VerificarDocumentoDialog } from "@/components/verificar-documento-dialog"
+import { EVENTO_ABRIR_MI_FIRMA } from "@/lib/firmas"
 import { CampanitaNotificaciones } from "@/components/campanita-notificaciones"
 import { SelectorProyecto } from "@/components/selector-proyecto"
 import { handleLogout } from "@/components/logout-button"
@@ -11,7 +16,7 @@ import type { PermisosRol } from "@/lib/pestanas"
 
 // Barra fija de arriba, a todo el ancho de la página: logo, proyecto actual
 // (el ÚNICO lugar donde se cambia de proyecto, además de /inicio), campanita
-// y usuario. Su alto es --alto-barra (app-shell): el menú lateral empieza
+// y usuario (su menú: Mi firma y Verificar documento). Su alto es --alto-barra (app-shell): el menú lateral empieza
 // debajo y el contenido se corre ese mismo alto.
 
 const ROL_POR_DEFECTO = "Usuario"
@@ -30,6 +35,13 @@ function iniciales(nombre: string) {
 export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosRol | null; nombreUsuario: string | null }) {
   const nombre = nombreUsuario ?? "Usuario"
   const rolVisible = permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : ROL_POR_DEFECTO)
+  const [dialogo, setDialogo] = useState<"firma" | "verificar" | null>(null)
+  // El pendiente "Registra tu firma" (Mis pendientes) abre este mismo diálogo.
+  useEffect(() => {
+    const abrir = () => setDialogo("firma")
+    window.addEventListener(EVENTO_ABRIR_MI_FIRMA, abrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_MI_FIRMA, abrir)
+  }, [])
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-[var(--alto-barra)] items-center gap-2 border-b bg-background px-3 sm:gap-4 sm:px-4">
@@ -49,16 +61,28 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
         <CampanitaNotificaciones />
 
         <div className="flex items-center gap-2 border-l pl-2 sm:pl-3">
-          <div
-            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground"
-            title={`${nombre} · ${rolVisible}`}
-          >
-            {iniciales(nombre)}
-          </div>
-          <div className="hidden min-w-0 flex-col text-left md:flex">
-            <span className="max-w-44 truncate text-sm font-medium leading-tight">{nombre}</span>
-            <span className="max-w-44 truncate text-xs text-muted-foreground">{rolVisible}</span>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="flex min-w-0 items-center gap-2 rounded-md p-0.5 text-left transition-colors hover:bg-accent"
+              title={`${nombre} · ${rolVisible}`}
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+                {iniciales(nombre)}
+              </span>
+              <span className="hidden min-w-0 flex-col md:flex">
+                <span className="max-w-44 truncate text-sm font-medium leading-tight">{nombre}</span>
+                <span className="max-w-44 truncate text-xs text-muted-foreground">{rolVisible}</span>
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setDialogo("firma")}>
+                <PenLine /> Mi firma
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setDialogo("verificar")}>
+                <ShieldCheck /> Verificar documento
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -76,6 +100,8 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
           </Tooltip>
         </div>
       </div>
+      <MiFirmaDialog abierto={dialogo === "firma"} onCerrar={() => setDialogo(null)} />
+      <VerificarDocumentoDialog abierto={dialogo === "verificar"} onCerrar={() => setDialogo(null)} />
     </header>
   )
 }

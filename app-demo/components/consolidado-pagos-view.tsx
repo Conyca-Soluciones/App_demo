@@ -32,6 +32,7 @@ import {
   CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
   ETIQUETA_TIPO_PAGO,
+  anticiposYDescuentos,
   formatoMoneda,
   fechasSemanaIso,
   semanaIso,
@@ -46,6 +47,28 @@ const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "liquidado", "en_dispersion", 
 async function buscarTercerosAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const r = await buscarTercerosParaPago(termino)
   return r.map((t) => ({ id: t.id, etiqueta: t.nombre, subetiqueta: t.documento }))
+}
+
+// Columna de pesos del desglose (como el cuadro de pagos): vacía si no aplica
+// y en gris si es cero.
+function columnaPesos(clave: string, titulo: string, valor: (p: Pago) => number | null): ColumnaExcel<Pago> {
+  return {
+    clave,
+    titulo,
+    ancho: 140,
+    alinear: "right",
+    texto: (p) => {
+      const v = valor(p)
+      return v == null ? "" : formatoMoneda(v)
+    },
+    valorOrden: (p) => valor(p) ?? -1,
+    celda: (p) => {
+      const v = valor(p)
+      if (v == null) return <span className="text-muted-foreground/60">—</span>
+      return <span className={v === 0 ? "text-muted-foreground" : undefined}>{formatoMoneda(v)}</span>
+    },
+    claseCelda: "tabular-nums",
+  }
 }
 
 // Un pago ya en dispersión, pagado o anulado no se puede cambiar.
@@ -225,33 +248,35 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
         </span>
       ),
     },
+    { clave: "factura", titulo: "Factura o cuenta de cobro", ancho: 150, texto: (p) => p.numeroFactura ?? "" },
     {
       clave: "concepto",
       titulo: "Concepto",
       ancho: 300,
       texto: (p) => p.concepto,
     },
+    { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen },
     { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" },
+    { clave: "solicita", titulo: "Solicita", ancho: 170, texto: (p) => p.solicitadoPorNombre ?? "" },
     {
       clave: "tipo",
       titulo: "Pago",
       ancho: 100,
       texto: (p) => ETIQUETA_TIPO_PAGO[p.tipo],
     },
+    columnaPesos("documento", "Valor documento", (p) => p.valorDocumento),
+    columnaPesos("base", "Base", (p) => p.baseGravable),
+    columnaPesos("iva", "IVA", (p) => p.iva),
+    columnaPesos("garantia", "Retención en garantía", (p) => p.retencionGarantia),
+    columnaPesos("anticipos", "Anticipos y/o descuentos", (p) => anticiposYDescuentos(p)),
     {
       clave: "valor",
       titulo: "Valor a pagar",
-      ancho: 150,
+      ancho: 160,
       alinear: "right",
       texto: (p) => formatoMoneda(p.valor),
-      celda: (p) => (
-        <div className="leading-tight">
-          <div>{formatoMoneda(p.valor)}</div>
-          {p.actaBruto != null && p.actaBruto !== p.valor && (
-            <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
-          )}
-        </div>
-      ),
+      valorOrden: (p) => p.valor,
+      celda: (p) => <div className="font-medium">{formatoMoneda(p.valor)}</div>,
       claseCelda: "tabular-nums",
     },
     {
@@ -469,7 +494,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                       {ETIQUETA_ESTADO_PAGO[p.estado]}
                     </Badge>
                   ),
-                  campos: ["cuenta", "concepto", "proyecto", "valor", "novedad", "acciones"],
+                  campos: ["cuenta", "concepto", "proyecto", "documento", "base", "iva", "valor", "novedad", "acciones"],
                 }}
               />
               <div className="text-right text-sm text-muted-foreground">

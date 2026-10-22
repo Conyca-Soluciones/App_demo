@@ -1061,6 +1061,28 @@ no podía distinguir 50 m de 50 rollos.
   (`claude/tender-maxwell-iresrp`) aplica migraciones a Supabase. Antes de
   `create or replace` de una función, leer su `prosrc` vivo (MCP de solo lectura).
 
+## Las OC se aprueban en Aprobación de pagos (2026-10-22)
+
+`20261204000000_oc_se_aprueba_en_pagos.sql` (decisión del usuario). Ya no existe
+"Aprobación de órdenes de compra" en AdPro (pestaña `compras.aprobar_oc` y acción
+`aprobar_oc` borradas, también de `rol_permisos`).
+- Compras genera la OC (pendiente) y `crear_orden_compra_con_soporte` crea en
+  el mismo paso su pago único o su anticipo en `solicitado` (el saldo,
+  `programado`). Una OC en $ 0 no se deja crear (no tendría pago con que aprobarse).
+- A&F aprueba ese pago en Aprobación de pagos (`aprobar_pago`, ITEM y
+  consolidado de siempre) y el disparador `trg_oc_sigue_pago` deja la OC
+  `aprobada` (aprobada_por = quien aprobó el pago: firma, aviso y historial de la
+  OC salen a su nombre) y lista para recibir en almacén. Rechazar ese pago deja
+  la OC `rechazada` con el mismo motivo (sus líneas vuelven a la cola de Compras).
+- `aprobar_orden_compra` / `rechazar_orden_compra` solo devuelven un error
+  (no hay otra forma de aprobar una OC). Desaprobar (devolver) una OC aprobada
+  anula sus pagos y le crea otra vez el pago por aprobar; retirarla o cancelarla
+  anula sus pagos (`_oc_estado_pagos`).
+- Mis pendientes ya no tiene "OC por aprobar" (sale como pago por aprobar); los
+  avisos de precio alto y de insumo sobre presupuesto van a quien aprueba pagos.
+- A&F (pestañas Aprobación de pagos o Consolidado) lee las líneas, requisiciones
+  y proveedor de las OC que tienen pago, para ver la orden desde el pago.
+
 ## Volumen: listas que se cortaban en 1000 filas (2026-10-06)
 
 `20261101000000_volumen_inventario_y_solicitudes.sql` (falta aplicarla, ANTES
@@ -1095,8 +1117,13 @@ con anticipo pasa de programado a **solicitado 3 días antes** de la fecha
 `_liberar_pagos_programados`, sin EXECUTE para usuarios). Antes era el mismo
 día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
 `liberar_pagos_programados` (misma regla). Sin anticipo y anticipo: nacen
-aprobados. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
+**por aprobar** (`solicitado`) al CREAR la orden: ver "Las OC se aprueban en
+Aprobación de pagos" abajo. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
 orden entregada completa (no con entrega parcial).
+**Decisión del usuario (2026-10-22): se deja así** que, si después de aprobado
+el saldo se anula o se reduce una entrada, el saldo siga aprobado (solo vuelve a
+programado si todavía estaba solicitado). En la práctica pedir un reembolso al
+proveedor es más complicado que pagar y ajustar después.
 Un saldo que NACE con fecha a 3 días o menos (OC aprobada hoy, saldo para
 pasado mañana) entra directo como solicitado: disparador BEFORE INSERT
 `trg_pago_programado_vencido` (`20261105000000_saldo_programado_inmediato.sql`).
@@ -1179,7 +1206,12 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   `eliminar_apu_huerfano`). `recalcular_valor_apu(s)` no escriben en estas tablas.
 - Una server action nueva que escriba en estas tablas desde otro rol necesita
   que ese rol tenga `editar_presupuestos`, o pasar por una función SECURITY DEFINER.
-- **Pendiente (opción B)**: restringir por proyecto.
+- **Opción B hecha (2026-10-22, `20261207000000_apu_por_proyecto.sql`)**: además
+  de la acción, escribir exige que el APU / ítem / proyecto sea de un proyecto que
+  el usuario ve (`_apus_de_proyectos_ajenos`, `_items_de_proyectos_ajenos`,
+  conjuntos evaluados una vez por consulta). Un APU recién creado sin ítem no es
+  de ningún proyecto y se puede llenar. Antes un Director sin proyectos cambió el
+  APU de Malecón y duplicó el cupo de requisición de un ítem.
 
 ## Seguridad de documentos de contratos y datos bancarios (2026-10-15)
 
@@ -1278,6 +1310,18 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (`_<nombre>_sin_proyecto` + `_exigir_proyecto`). Siguen globales: catálogos
   (proveedores, maestra, histórico de precios) y A&F. Si se agrega una función
   de escritura sobre OC o requisiciones, debe revisar el proyecto.
+- **Cambio de cuenta con pagos en curso** (`20261206000000_cuenta_cambiada_en_pagos.sql`,
+  decisión del usuario 2026-10-22: Financiera la puede cambiar sin otra
+  aprobación, pero a la vista). Un pago apunta a la cuenta, no copia el número.
+  Si la cuenta cambia de banco, tipo o número, `trg_cuenta_tercero_sigue_pagos`
+  anota `cuenta_modificada` (de → a, quién) en el historial de cada pago
+  programado / solicitado / aprobado / liquidado que la usa y lo marca
+  (`pagos.cuenta_modificada`): novedad "La cuenta bancaria cambió…: confírmala
+  antes de pagar" hasta que A&F confirme la cuenta del pago en el Consolidado (botón Tercero,
+  `asignar_tercero_pago` limpia la marca). Si la cuenta pasa a PENDIENTE o
+  INACTIVO, la novedad de sus pagos se recalcula (inactiva tiene su propio texto).
+  Quien puede verificar y cambia el número la deja ACTIVA (verificada por él);
+  quien no, la devuelve a PENDIENTE.
 - **Contratistas -> Terceros** (`20261118700000_contratistas_a_terceros.sql`,
   E5; decisiones del usuario 2026-10-21): el banco del contratista es una lista
   (tabla `bancos`, la misma de Terceros; `trg_contratista_validar_banco` lo
@@ -1302,6 +1346,8 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   sobre el contrato, como el Acta 1 de CJ-14) cuenta lo cobrado como % del
   valor. El tope por saldo ya estaba en `_guardar_acta`; el formulario muestra
   el saldo y el % máximo que queda.
+  Comparte número con `20261126000000_polizas.sql`: `20261128000000` junta las
+  dos versiones de `contrato_para_acta` (sin `poliza_estado` se bloquean todas las actas).
 - **Bruto y neto de actas** (E7, decisión del usuario 2026-10-21): Control del
   proyecto suma el BRUTO (lo que cuesta la obra) y lo dice "(bruto)"; A&F paga
   el NETO ("Valor a pagar") y debajo muestra "Bruto del acta" (`actaBruto`, del
@@ -1343,10 +1389,36 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   - **Entradas**: soporte de la remisión, opcional (`entrada_soportes`, bucket
     `entradas`, `guardar_remision_entrada` pone o cambia el archivo). Al
     registrar y al editar; botón "Remisión" en la entrada.
+    Se leen por `entradas_almacen_select` (`20261205000000`): pestaña Entradas en
+    sus proyectos o quien ve la OC. Antes la tabla no tenía política y nadie las veía.
   - Componente `CampoSoporte` y ayudas en `lib/soportes.ts`.
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
+
+## Liquidación de pagos: se quitó (2026-10-22)
+
+Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,
+así que la app NO liquida (no calcula retefuente, ReteICA ni ReteIVA). Se hizo y
+se probó contra la semana 43 (un motor de sugerencias por RUT, memoria por
+tercero y catálogos de Contabilidad) y se quitó completo en
+`20261205000000_quitar_liquidacion_pagos.sql`: pantalla `/ayf/liquidacion`,
+pestaña `ayf.liquidacion`, acciones `liquidar_pagos` / `gestionar_retenciones`,
+tablas (catálogos de retención, UVT, municipios y tarifas ICA, perfiles
+tributarios, extracción de RUT, memoria, liquidaciones), `proyectos.municipio_ica_id`
+y `pagos.valor_neto` / `liquidacion_id`. Copia de todo en
+`respaldo_liquidacion_20261022` (jsonb por tabla, sin acceso por la API).
+- **Se conservó**: el desglose de cada pago (`valor_documento`, `base_gravable`,
+  `iva`, `descuento_anticipos`, `retencion_garantia`, `otros_descuentos`,
+  `solicitado_por`, disparador `trg_pago_desglose_origen`), que el Consolidado
+  muestra para liquidar en Excel; el rol Contabilidad (Consolidado y Terceros);
+  el estado `liquidado` de pagos (ya era del diseño original de A&F) y los
+  eventos de historial ya escritos.
+- Si se retoma: el código está en la historia de git (commits 23c8fa7, 02b9537,
+  98a49e1, bd09d11). Lo aprendido en la prueba: las retenciones van con quien
+  FACTURA (no el titular de la cuenta), sin concepto de retención no hay ICA,
+  los anticipos no se retienen, y el IVA hay que tomarlo de la factura (en obra
+  con AIU va solo sobre la utilidad).
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 
@@ -1469,8 +1541,11 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   (p50 medido en edge_logs) aunque sea trivial. Si la app está en Vercel,
   poner las funciones en `pdx1`. Es la mejora más grande y no es código.
 - **Import de APU** (~3,5 min el Malecón, 18 tandas de ~6,5 s): mano de obra
-  hace un RPC por ítem (catálogo de 264: traerlo una vez y comparar en
-  memoria); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
+  ya trae el catálogo una vez por tanda y compara en memoria
+  (`matchearManoDeObraApuImport`, 2026-10-22; antes un RPC por ítem, ~400);
+  `buscarSimilares` calcula el Levenshtein solo de los candidatos que por su
+  cota pueden entrar al top (mismo resultado, 411 ítems × 264 categorías:
+  15,7 s -> 1,9 s); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
   presentaciones e inserts de insumo/equipo/herramienta van en serie;
   `page.tsx` espera `refrescarEstadosApu` antes de la tanda siguiente.
 - **Decisiones del usuario**: quién pone el precio al aprobar un insumo;
@@ -1484,8 +1559,8 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   (separar la de editar en insert/update/delete).
 - Import y "Crear versión nueva" no son todo-o-nada (ver más abajo).
 
-- **Seguridad APU**: opción A hecha (2026-10-08, ver "Seguridad de APU").
-  Falta la B: restringir lectura y escritura por proyecto.
+- **Seguridad APU**: opciones A y B hechas (ver "Seguridad de APU"); la lectura
+  sigue abierta a propósito (APU recomendados e import).
 - **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
   mitad, deja una versión vacía y APUs huérfanos).
 - **Resuelto en `20261024000000_requisiciones_y_almacen_por_proyecto.sql`
@@ -1766,7 +1841,7 @@ Migración `20261002000000_desaprobar_cancelar_oc.sql`. Acciones del rol
 permiso y las reglas, la pantalla solo decide si muestra el botón
 (`sePuedeDesaprobar` / `sePuedeCancelar` en `lib/ordenes-compra-estado.ts`).
 
-- **Desaprobar** (botón en Aprobación de órdenes de compra y en el detalle):
+- **Desaprobar** (botón en el detalle; desde 2026-10-22 la OC vuelve a Aprobación de pagos):
   aprobada -> pendiente_aprobacion. Solo si `enviada = false` y
   `estado_entrega = 'sin_entregar'`. Motivo obligatorio
   (`motivo_desaprobacion`); se limpian `aprobada_por/aprobada_at`.
@@ -2572,12 +2647,257 @@ código dice solo "GJ-F"). Decisiones del usuario:
   esa parte falla, sale el historial del contrato solo). `historial_entidad`
   no se tocó.
 
+## Pólizas `/contratos/polizas` y `/contratos/aprobacion-polizas` (2026-10-21)
+
+`20261126000000_polizas.sql`. Decisiones del usuario: todos los contratos
+aprobados piden póliza; solo el archivo (sin número ni vigencia); sin póliza
+aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
+- **Estado aparte** `contratos.poliza_estado` (null | `pendiente` | `recibida`
+  | `aprobada`); `estado` y `minuta_estado` no cambian. El disparador
+  `trg_poliza_al_aprobar_minuta` (BEFORE UPDATE OF minuta_estado) lo pone en
+  `pendiente` cuando Subgerencia aprueba la minuta (no liquidados);
+  `trg_avisar_poliza_pendiente` (AFTER UPDATE, de null a pendiente) avisa al
+  director que pidió el contrato (`poliza_pendiente` -> Pólizas).
+- **Tabla** `contrato_polizas` (una fila por subida: ruta, archivo, estado
+  `por_revisar` | `aprobada` | `devuelta`, motivo, quién/cuándo; una sola por
+  revisar por contrato). Bucket privado `polizas` (PDF/JPG/PNG, 10 MB), ruta
+  `<contrato_id>/<marca>.<ext>`: el navegador sube y luego `subir_poliza`
+  registra (revisa archivo, ruta y estado; contrato -> `recibida`; avisa a
+  Jurídica `poliza_por_revisar`); si falla se borra el archivo (la política
+  solo deja borrar archivos que no son póliza: `_ruta_poliza_registrada`).
+  Ver = enlace firmado (`enlacePoliza`) con la RLS de la tabla.
+- **Jurídica** (`resolver_poliza`, pestaña `contratos.aprobar_polizas` +
+  acción `aprobar_contratos`): aprobar (contrato -> `aprobada`) o devolver con
+  motivo (-> `pendiente`, se sube otra). Avisa a quien la subió y al director.
+  Historial del contrato: `poliza_subida`, `poliza_aprobada`, `poliza_devuelta`.
+- **Pantallas**: Pólizas (`components/polizas-view.tsx`: buscar contratista o
+  contrato como en Actas, incluidos los generales; estado, subir, pólizas
+  subidas y "Ver contrato") y Aprobación de pólizas
+  (`components/aprobacion-polizas-view.tsx`: tabla por estado y diálogo con
+  pestañas Póliza, Contrato (PDF, ruta de otrosí) y Contrato y contratista).
+  Funciones: `buscar_contratistas_para_poliza`, `buscar_contratos_para_poliza`,
+  `polizas_de_contrato`, `listar_polizas_aprobacion`, `detalle_poliza`.
+- **Actas**: `contrato_para_acta` devuelve `poliza_estado` y `_guardar_acta`
+  se niega sin póliza aprobada; en TS `tiposPermitidos` /
+  `motivoSinActasPorPoliza` (`lib/polizas.ts`).
+- Las listas y el detalle de contratos muestran el estado de la póliza
+  (`components/badge-poliza.tsx`, `poliza_estado` en `SELECT_FILA_CONTRATO`).
+- **Permisos**: la migración da `tab.contratos.polizas` a los roles con
+  Contratos por grupos o Actas por grupos, y `tab.contratos.aprobar_polizas` a
+  los que tienen Pre aprobación. Las dos pestañas entran en
+  `_puede_ver_otrosis` / `PESTANAS_VER_OTROSI` (ver el PDF del contrato).
+- Probada en el Postgres local (flujo completo, devolución, bloqueo de actas,
+  backfill dos veces).
+- **Póliza según la solicitud** (`20261208000000_poliza_segun_solicitud.sql`,
+  decisión del usuario 2026-10-22; cambia "todos piden póliza"): Obra y Mano de
+  obra SIEMPRE piden póliza (el "¿exige garantías?" de mano de obra solo cambia
+  la minuta). Los demás tipos y los contratos generales tienen la casilla
+  "Requiere póliza" en la solicitud (`contratos.requiere_poliza`, por omisión
+  true; la fijan crear/reenviar con `_fijar_requiere_poliza`; en TS
+  `polizaObligatoria`). Sin póliza, al aprobar la minuta queda
+  `poliza_estado = 'no_aplica'`: `_guardar_acta` deja hacer actas, no sale en
+  Pólizas y `subir_poliza` lo rechaza. El detalle muestra "Requiere póliza".
+  **La migración va antes que el código** (el detalle lee `requiere_poliza`).
+  CJ-10-2026 (alquiler) y CJ-1-2026 (arrendamiento), ya aprobados, pasaron a "no
+  aplica" (`20261209100000`, decisión del usuario; la póliza subida del CJ-1 quedó
+  devuelta con el motivo, evento `poliza_no_aplica`).
+- **Acta de aprobación** (`20261127000000_acta_poliza.sql`, plantilla GJ-F-013
+  versión 03 de Jurídica): en Aprobación de pólizas la pestaña "Póliza y acta"
+  muestra lado a lado la póliza y el acta (`components/acta-poliza-editor.tsx`:
+  Llenar / Vista previa, Guardar, PDF). Se llena sola (`actaPolizaPorDefecto`,
+  `lib/acta-poliza.ts`, con `datos_acta_poliza`): número y objeto del contrato,
+  empresa, contratista, supervisor = director que pidió el contrato y su correo
+  (de `auth.users`), amparos de la minuta del contrato (valor = % × valor
+  vigente), fecha de hoy y quien aprueba; aseguradora y certificado de pago se
+  escriben. Cada dato marca su origen y se edita. Guardar =
+  `guardar_acta_poliza` (`contrato_polizas.acta_datos`, solo por revisar);
+  aprobar manda el acta de pantalla (`resolver_poliza(..., p_acta)`, que exige
+  aseguradora y un amparo con `_validar_acta_poliza`) y queda fija. PDF:
+  `POST /contratos/poliza-acta/[id]` (`components/acta-poliza-pdf.tsx`; los
+  huecos de "pegar amparos / soporte de pago" son una tabla y un texto; página
+  de control de cambios fija; "BORRADOR" sin aprobar). El ingeniero ve el acta
+  de las aprobadas en Pólizas ("Acta").
+
+## Firmas electrónicas, fase 1 (2026-10-21, `20261129000000_firmas.sql`)
+
+Decisiones: cada usuario registra su firma (dibujada o foto con el fondo
+limpio); al aprobar se estampa firma + nombre + cargo + fecha y hora; el PDF
+aprobado se congela con SHA-256; el contratista firma en papel (copia
+escaneada). Empieza con el acta de póliza y las actas de obra; luego minutas y
+otrosí.
+
+- **Mi firma** (menú del nombre en la barra de arriba, `components/mi-firma-dialog.tsx`):
+  Dibujar (canvas con puntero/dedo/lápiz, curvas por puntos medios, presión
+  del lápiz) o Subir foto (Otsu sobre la luminancia + punto medio del rango
+  vacío, tinta azul oscuro y fondo transparente, control "menos/más tinta").
+  Se recorta al trazo y se escala a 600×240 máx. (`lib/firmas.ts`, funciones
+  puras con tests). PNG en data URL en `firmas_usuario` (≤ 300.000 caracteres,
+  una por usuario; solo la lee su dueño; `guardar_mi_firma` / `borrar_mi_firma`).
+- **Al aprobar** la base copia la firma en `documento_firmas` (nombre, cargo =
+  nombre del rol, imagen, fecha y hora, código de 12 caracteres): cambiar la
+  firma después no cambia documentos firmados. Disparadores:
+  `trg_firmar_acta_aprobada` (acta → "elaboró" = quien la creó, "aprobó" =
+  quien aprobó el pago en A&F; NO exige firma: sin ella sale solo el nombre,
+  para no trabar pagos) y `trg_firmar_poliza_aprobada` ("jurídica"; SÍ exige
+  firma: sin ella `resolver_poliza` falla con el mensaje de dónde registrarla).
+- **PDF congelado** (`lib/documentos-firmados.tsx`, solo servidor): un
+  documento aprobado CON firmas se congela la primera vez que se genera: se
+  sube a `documentos_firmados/<entidad>/<id>.pdf` (bucket privado, solo
+  service role) y se registra en `documentos_firmados` (sha256). Después sale
+  siempre ese archivo (se revisa la huella al leerlo). El contenido lo arma la
+  base con la sesión del usuario; la service role solo guarda/lee. La póliza
+  se congela justo al aprobarse (`after()` en `resolverPoliza`); el acta, la
+  primera vez que alguien con acceso abre su PDF (A&F aprueba el pago pero
+  puede no ver actas). Actas aprobadas antes de esta fase no tienen firmas y
+  no se congelan. Sin `SUPABASE_SERVICE_ROLE_KEY` sale el PDF sin congelar.
+  Las rutas mandan `X-Documento-Sha256`.
+- **Verificar documento** (menú del nombre): subir el PDF (SHA-256 en el
+  navegador contra `documentos_firmados`) o escribir el código impreso bajo la
+  firma (`verificar_documento`; dice qué documento es y quién firmó, no su
+  contenido).
+- **Contratista**: acta aprobada → "Copia firmada por el contratista" en el
+  detalle del acta (quien elabora actas): soporte tipo `firmada_contratista`
+  (`subir_acta_firmada_contratista`; una por acta, reemplaza la anterior;
+  evento `firmada_contratista` en el historial). No se ofrece al elaborar.
+- **Órdenes de compra** (`20261130100000_firmas_ordenes_compra.sql`): al
+  aprobar una OC se copian las firmas de quien la elaboró (`created_by`) y quien
+  la aprobó (`trg_firmar_oc_aprobada`; no exige firma). Desaprobar y volver a
+  aprobar renueva fecha y código: el PDF congelado lleva el código de la firma
+  de quien aprobó en su ruta (`<entidad>/<id>-<código>.pdf`), así que se congela
+  otra vez y el registro se reemplaza (la huella vieja ya no verifica). La
+  migración firma las OC y actas aprobadas después de que quien aprobó registró
+  su firma. "Registra tu firma" también para Comprar y Aprobar OC.
+- **Mis pendientes** (`20261130000000_pendientes_firma_y_polizas.sql`, recrea
+  `_pendientes_de` de main): `mi_firma` le sale a quien elabora o aprueba
+  documentos (elaborar_actas, aprobar_pagos, aprobar_contratos,
+  aprobar_minutas, solicitar_contratos) y no tiene firma; su url `#mi-firma`
+  abre el diálogo de la barra (eventos `EVENTO_ABRIR_MI_FIRMA` /
+  `EVENTO_FIRMA_GUARDADA` en `lib/firmas.ts`: guardar quita el pendiente y
+  recuenta el número del menú). También `mi_poliza_por_subir` (director, póliza
+  pendiente o devuelta) y `poliza_por_revisar` (Jurídica con la pestaña).
+  OJO: quien vuelva a recrear `_pendientes_de` debe conservar estos bloques.
+- **Representantes legales** (`20261201000000_representantes_legales.sql`,
+  decisiones del usuario 2026-10-21): `empresa_representantes` (un principal y
+  un suplente activos por empresa; documento, expedición, `perfil_id` si usa la
+  app, `imagen_firma` si no). Los DATOS se registran en Admin › Empresas
+  (botón "Representantes", `components/representantes-empresa-dialog.tsx`,
+  `guardar_representantes_empresa`, solo Administrador): mismo documento =
+  corregir datos y conservar la firma; otro documento = el anterior queda
+  inactivo y entra el nuevo (o vuelve uno anterior con ese documento, con su
+  firma; el intercambio principal <-> suplente también conserva las firmas).
+  La FIRMA se adjunta ahí mismo ("Adjuntar firma" debajo de cada empresa) o,
+  para Subgerencia (acción `aprobar_minutas`), con el botón «Adjuntar firma de
+  RL» de Aprobación de contratos (diálogo con
+  `components/representantes-legales-view.tsx`; `FirmaRepresentanteDialog` lo
+  usan los dos; `guardar_firma_representante` = aprobar_minutas o
+  Administrador; dibujada o subida con el editor de Mi firma, y el usuario si
+  usa la app). No hay pestaña aparte.
+  Sin políticas: todo por funciones (`listar_representantes_legales`,
+  `representantes_de_contrato` sin la imagen). La minuta trae al principal (`DatosExtraMinuta.empresaRepresentante`
+  en `cargarBaseMinuta`) y Jurídica lo cambia por un suplente con
+  `SelectorRepresentante` (en los 6 editores). Al aprobar la minuta,
+  `trg_firmar_representante_contrato` copia la firma del representante CUYA
+  CÉDULA ESTÁ EN LA MINUTA (`_representante_que_firma`; arrendamiento usa
+  `arrendatarioCedula`): primero su Mi firma, si no la subida. Empresa sin
+  representantes = se aprueba sin firma; con representantes y otra cédula, o
+  sin firma = no deja aprobar (Aprobación de contratos lo avisa antes con
+  `representante_que_firma`). Los 6 PDF de minuta la dibujan sobre la línea del
+  contratante (`components/linea-firma-pdf.tsx`, posición absoluta: no mueve el
+  texto) y el contrato aprobado se congela (`pdfContratoFirmado`, en la ruta de
+  Pre-aprobación y la de ver contrato desde otrosí). `_puede_ver_contrato_rl` =
+  la regla de `contratos_select` (en producción no existe `puede_ver_contrato`).
+  Pendiente: otrosí y acta de liquidación (el usuario: "quizás en el futuro").
+- PDF: `components/firma-pdf.tsx` (bloque de firma con leyenda "Firmado
+  electrónicamente el … · Código …"); `acta-pdf.tsx` y `acta-poliza-pdf.tsx`
+  la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
+  firma, verificar por código y huella, copia del contratista, correr dos veces).
+
+## Requisiciones administrativas `/ayf/requisiciones-administrativas` (2026-10-21)
+
+`20261202000000_requisiciones_administrativas.sql` +
+`20261203000000_requisiciones_admin_aprobacion_conjunta.sql`, formato GF-F-018
+"Relación de pagos" (el Excel de A&F). Flujo DISTINTO de las requisiciones de
+obra (decisiones del usuario):
+- **Las hace cualquiera**: no hay pestaña ni acción en la matriz. El menú las
+  muestra a todos desde `PESTANAS_PARA_TODOS` (`lib/pestanas.ts`: A&F ›
+  Requisiciones › Realizar requisiciones administrativas) y la ruta es libre.
+  Las funciones solo exigen sesión.
+- **Se aprueba como una orden de compra** (2026-10-22: "no hay aprobación de
+  la requisición sola" y "deben ser aprobadas como las órdenes de compra,
+  porque es un cuadro junto"): al enviarla, cada ítem es un pago `solicitado`
+  (el consolidado necesita una fila por ítem, cada uno con su titular y
+  cuenta), todos del mismo lote (`pagos.requisicion_admin_lote`). En
+  Aprobación de pagos (misma lista, sin pestaña aparte) la requisición sale en
+  UNA fila: el pago del ítem 1 (`requisicion_admin_principal`; la lista filtra
+  `requisicion_admin_id is null or requisicion_admin_principal`) con el total y
+  los ítems del lote (columna calculada `lote_requisicion_admin(pagos)`,
+  `Pago.requisicionAdminLote`). Aprobar / Rechazar en esa fila llaman
+  `aprobar_requisicion_admin` / `rechazar_requisicion_admin` (acción
+  `aprobar_pagos`): todos los pagos a la vez; aprobar da el ITEM a cada uno en
+  el orden de los ítems. `aprobar_pago` / `rechazar_pago` no aceptan un ítem
+  suelto. La columna Origen ("Req. admin. N° X" + "· PSE") abre el detalle
+  (`obtenerRequisicionAdminAprobacion`). `resolver_requisicion_admin` se borró.
+- **Estados**: `por_aprobar` | `aprobada` | `rechazada` | `cancelada`. Aviso a
+  quien la hizo al aprobarla o rechazarla.
+- **Modificar / corregir / cancelar**: solo quien la hizo, por aprobar o
+  rechazada (el detalle trae `editable`). Modificar anula sus pagos por aprobar
+  y crea un lote nuevo (mismo número); los rechazados quedan como registro sin
+  ítem (FK `on delete set null`) y su fila sigue en "Rechazados". Cancelar
+  anula los pagos por aprobar.
+- **Métodos**: transferencia = el tercero que factura y el titular de la cuenta
+  (por omisión el mismo) inscritos en Terceros, con una cuenta no inactiva del
+  titular (B-J, L-N y observaciones; los nombres y documentos los toma la base
+  de Terceros). PSE = se escriben empresa que factura, NIT, titular, tipo (CC,
+  NIT, PPT, CE) y documento, sin banco/tipo/número (H-J); "Subir Excel" con la
+  plantilla (`lib/excel-req-admin-pse.ts`, listas desplegables) para muchos
+  pagos. Máximo 50 ítems. Código de proyecto = proyectos de la app; grupo
+  empresarial = `empresas` (se propone la del proyecto).
+- **Tablas** `requisiciones_admin` (número consecutivo que se da al final de
+  crear: un intento fallido no gasta número) y `requisicion_admin_items`. Se
+  escribe solo por funciones; leer = quien la hizo o las pestañas de pagos
+  (`_ve_requisiciones_admin`). Para pantallas: `opciones_requisicion_admin`,
+  `buscar_terceros_requisicion_admin`, `cuentas_tercero_requisicion_admin`
+  (número enmascarado), `listar_requisiciones_admin`, `detalle_requisicion_admin`
+  (número de cuenta completo solo para A&F; pago de cada ítem con su estado,
+  ITEM y motivo), `historial_requisicion_admin`.
+- **Pagos** (`pagos.fuente = 'requisicion_admin'`, `requisicion_admin_id` /
+  `requisicion_admin_item_id`): la empresa y el consolidado salen del GRUPO
+  EMPRESARIAL del ítem (`_pago_sincronizar_empresa` no toca estos pagos y
+  `_pago_asignar_item` toma el consolidado de su empresa). PSE: sin tercero ni
+  cuenta en la app; `_pago_novedad` no lo marca como novedad y no sale en
+  "Pagos aprobados sin tercero"; el tercero que se muestra es el titular
+  escrito (`mapPago`). **El embed de pagos (`CAMPOS_PAGO`) pide estas tablas:
+  la migración tiene que estar antes que el código.**
+- **Pendientes**: A&F, `req_admin_por_aprobar` (una por requisición; sus
+  pagos no salen sueltos en "Pagos por aprobar"); quien la hizo,
+  `mi_req_admin_rechazada`. Historial con
+  entidad `requisicion_admin`.
+- **Con la rama lcpr** (merge 2026-10-22): lcpr tiene `20261202000000_soportes_oc_actas_entradas`
+  y `20261203000000_liquidacion_pagos` con los MISMOS números que las de aquí
+  (nombres distintos; todas aplicadas). Ninguna recrea las funciones de pagos
+  de la otra. La liquidación se quitó después (`20261205000000_quitar_liquidacion_pagos`).
+  **Pendiente**: `_pago_desglose_origen` no llena valor documento ni
+  "solicitado por" para la fuente `requisicion_admin`.
+- `_guardar_requisicion_admin` de 20261202000000 fallaba en la primera
+  requisición PSE de una conexión (leía `v_fac.id` sin asignar); la corrige
+  20261203000000.
+- Pantallas: `components/requisiciones-admin-pagina.tsx` (Realizar / Mis
+  requisiciones, `?ver=<id>`), `requisicion-admin-form.tsx`,
+  `item-requisicion-admin-dialog.tsx`, `detalle-requisicion-admin.tsx`.
+  Lógica pura en `lib/requisiciones-admin.ts` (pruebas en
+  `tests/requisiciones-admin.test.ts`). Probadas las dos migraciones en un
+  Postgres local con las columnas de producción (crear, permisos, ítem suelto
+  bloqueado, rechazar y corregir, aprobar con ITEM, PSE, cancelar, correr dos
+  veces).
+
 ## Menú de Contratos (2026-10-14)
 
 La sección Contratos queda: **Contratistas**; subgrupo **Contratos** (Contratos
 por grupos = `contratos.solicitar`, Contratos generales = `contratos.contratos`
 (`/contratos/generales`), Pre aprobación de contratos = `contratos.preaprobacion`, Aprobación
-de contratos = `contratos.aprobar_minutas` (Subgerencia)); subgrupo
+de contratos = `contratos.aprobar_minutas` (Subgerencia), Pólizas =
+`contratos.polizas` y Aprobación de pólizas = `contratos.aprobar_polizas`
+(2026-10-21)); subgrupo
 **Otrosí** (Solicitud de otrosí = `contratos.solicitar_otrosi`, Aprobación de
 otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
@@ -2931,7 +3251,23 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261122000000` historial del contrato con sus otrosí ·
 `20261123000000` prórroga y nuevo valor del otrosí ·
 `20261124000000` tope de mano de obra y actividades por otrosí ·
-`20261125000000` control de proyecto con el valor vigente de los contratos.
+`20261125000000` control de proyecto con el valor vigente de los contratos ·
+`20261126000000` pólizas · `20261127000000` acta de aprobación de pólizas ·
+`20261128000000` junta `contrato_para_acta` de pólizas + avance sin % (lcpr) ·
+`20261129000000` firmas electrónicas (fase 1) ·
+`20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`) ·
+`20261130100000` firmas en órdenes de compra ·
+`20261201000000` representantes legales y su firma en el contrato ·
+`20261202000000` requisiciones administrativas (A&F) ·
+`20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos ·
+`20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro ·
+`20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura) ·
+`20261205000000_quitar_liquidacion_pagos` (lcpr, mismo número que la anterior: quita la liquidación de pagos; ya aplicada) ·
+`20261206000000` cambio de cuenta de un tercero con pagos en curso: novedad y evento en cada pago ·
+`20261207000000` APU: escribir solo en los proyectos de cada quien (opción B) ·
+`20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
+`20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
+`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

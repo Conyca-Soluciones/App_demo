@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
+import { esEstadoPolizaContrato } from "@/lib/polizas"
 import type {
   ActaDetalle,
   ActaResumen,
@@ -109,6 +110,7 @@ export async function obtenerContratoParaActa(contratoId: string, excluirActa?: 
     vencido: Boolean(d.vencido),
     liquidado: Boolean(d.liquidado),
     listoParaActas: Boolean(d.listo_para_actas),
+    polizaEstado: esEstadoPolizaContrato(d.poliza_estado) ? d.poliza_estado : null,
     tieneFinal: Boolean(d.tiene_final),
     tieneLiquidacion: Boolean(d.tiene_liquidacion),
     actasPorAprobar: Number(d.actas_por_aprobar),
@@ -285,4 +287,19 @@ export async function enlaceSoporteActa(ruta: string): Promise<string> {
   const { data, error } = await supabase.storage.from("actas").createSignedUrl(ruta, 120)
   if (error || !data) throw new Error(error?.message ?? "No se pudo abrir el soporte.")
   return data.signedUrl
+}
+
+// Acta aprobada: la copia impresa que firmó el contratista, escaneada (el
+// archivo ya se subió a <acta>/). Reemplaza la anterior; devuelve su ruta para
+// borrar el archivo (20261129000000_firmas.sql).
+export async function subirActaFirmadaContratista(actaId: string, archivo: Omit<SoporteSubido, "tipo">): Promise<{ rutaAnterior: string | null }> {
+  await requerirAccion("elaborar_actas")
+  if (!archivo.ruta.startsWith(`${actaId}/`)) throw new Error("La ruta del archivo no corresponde al acta.")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("subir_acta_firmada_contratista", {
+    p_acta_id: actaId,
+    p_soporte: { ruta: archivo.ruta, nombre_archivo: archivo.nombreArchivo, tamano: archivo.tamano, mime: archivo.mime },
+  })
+  if (error) throw new Error(error.message)
+  return { rutaAnterior: (data?.ruta_anterior as string | null) ?? null }
 }

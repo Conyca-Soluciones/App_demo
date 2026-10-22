@@ -23,6 +23,7 @@ const info = (cambios: Partial<InfoContratoActa> = {}): InfoContratoActa => ({
   vencido: false,
   liquidado: false,
   listoParaActas: true,
+  polizaEstado: "aprobada",
   tieneFinal: false,
   tieneLiquidacion: false,
   actasPorAprobar: 0,
@@ -124,6 +125,10 @@ describe("acta de liquidación", () => {
 })
 
 describe("tiposPermitidos", () => {
+  it("sin póliza aprobada no hay actas", () => {
+    expect(tiposPermitidos(info({ polizaEstado: "pendiente" }))).toEqual({ tipos: [], motivo: expect.stringMatching(/Falta la póliza/) })
+    expect(tiposPermitidos(info({ polizaEstado: "recibida" })).tipos).toEqual([])
+  })
   it("normal: parcial, final y liquidación", () => {
     expect(tiposPermitidos(info()).tipos).toEqual(["parcial", "final", "liquidacion"])
   })
