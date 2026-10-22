@@ -185,3 +185,18 @@ describe("valores y guardado", () => {
     expect(d.lineas[0]).toMatchObject({ tipo: "retefuente", concepto: "compras", base: 1090000, tarifa: 0.025, valor: 27250 })
   })
 })
+
+describe("concepto escrito (requisiciones administrativas)", () => {
+  it("clasifica el texto como la prueba contra el cuadro", async () => {
+    const { conceptoDesdeTexto } = await import("@/lib/liquidacion")
+    expect(conceptoDesdeTexto("PAGO DE NOMINA PRIMERA QUINCENA OCTUBRE 2026")).toBeNull()
+    expect(conceptoDesdeTexto("RT FT SEP")).toBeNull()
+    expect(conceptoDesdeTexto("POLIZA RC SEGÚN OTROSI No.2")).toBeNull()
+    expect(conceptoDesdeTexto("SERVICIO DE ENERGIA ESTUARIOS")).toBeNull()
+    expect(conceptoDesdeTexto("CUENTA DE COBRO MANO DE OBRA")).toBe("construccion")
+    expect(conceptoDesdeTexto("ALQUILER DE EQUIPOS")).toBe("arrendamiento_muebles")
+    expect(conceptoDesdeTexto("FLETE MATERIAL")).toBe("transporte_carga")
+    expect(conceptoDesdeTexto("LAMPARA")).toBe("compras")
+    expect(conceptoDesdeTexto(null)).toBe("compras")
+  })
+})

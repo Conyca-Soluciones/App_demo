@@ -199,6 +199,32 @@ const CONCEPTO_POR_CATEGORIA: Record<string, string> = {
   B: "arrendamiento_muebles",
 }
 
+// Concepto escrito (pagos sin OC ni acta: requisiciones administrativas) ->
+// concepto del catálogo; null = no lleva retefuente (nómina, impuestos,
+// servicios públicos, pólizas...). Mismas reglas que la prueba contra el
+// cuadro de Contabilidad (`scripts/generar_datos_liquidacion.py`, REGLAS_TEXTO);
+// la primera que aplica gana, y sin ninguna es compras.
+const REGLAS_CONCEPTO_TEXTO: [string | null, RegExp][] = [
+  [
+    null,
+    /N[OÓ]MINA|SEGURIDAD\s+SOCIAL|PLANILLA|PRESTACIONES|LIQUIDACI[OÓ]N\b|\bRT\b|AUTO ?RENTA|DIAN|IMPUESTO|ACUEDUCTO|ALCANTARILLADO|ENERG[IÍ]A|\bLUZ\b|GASES|INTERNET|TELEFON|CELULAR|P[OÓ]LIZA|SOAT|SEGURO|CAJA MENOR|REEMBOLSO|PEAJE|PR[EÉ]STAMO/,
+  ],
+  ["combustibles", /COMBUSTIBLE|DIESEL|GASOLINA|ACPM/],
+  ["honorarios", /SERVICIOS? PROFESIONAL|HONORARIO|ASESOR[IÍ]A|CONSULTOR|TOPOGRAF|AVAL[UÚ]O|DICTAMEN|RETIE|INTERVENTOR|DISE[NÑ]O/],
+  ["transporte_carga", /TRANSPORTE|FLETE|ACARREO|MOTOCARRO|VOLQUETA|RECOLECCI/],
+  ["arrendamiento_inmuebles", /CANON|ARRIENDO|ARRENDAMIENTO/],
+  ["arrendamiento_muebles", /ALQUILER/],
+  ["hoteles_restaurantes", /HOSPEDAJE|HOTEL|ALOJAMIENTO|ALIMENTACI[OÓ]N|RESTAURANTE/],
+  ["construccion", /MANO DE OBRA|CORTE (DE|FINAL)|\bOBRA\b|OBRAS|ACTA|INSTALACI[OÓ]N/],
+  ["servicios", /SERVICIO|MANTENIMIENTO|ARREGLO|REPARACI|EX[AÁ]MEN/],
+]
+
+export function conceptoDesdeTexto(texto: string | null): string | null {
+  const t = (texto ?? "").toUpperCase()
+  for (const [concepto, rx] of REGLAS_CONCEPTO_TEXTO) if (rx.test(t)) return concepto
+  return "compras"
+}
+
 // Tipo de contrato (contratos.tipo) -> concepto.
 const CONCEPTO_POR_CONTRATO: Record<string, string> = {
   obra: "construccion",
@@ -551,7 +577,9 @@ export function contextoDesdeJson(p: any): ContextoPago {
     origen:
       p.fuente === "acta"
         ? { fuente: "acta", contratoTipo: p.contrato?.tipo ?? null, contratoClase: p.contrato?.clase ?? null }
-        : { fuente: "orden_compra", categorias: Object.fromEntries(Object.entries(p.categorias ?? {}).map(([k, v]) => [k, Number(v)])) },
+        : p.fuente === "requisicion_admin"
+          ? { fuente: "texto", concepto: conceptoDesdeTexto(p.concepto ?? null) }
+          : { fuente: "orden_compra", categorias: Object.fromEntries(Object.entries(p.categorias ?? {}).map(([k, v]) => [k, Number(v)])) },
     retefuenteAnticipos: Number(p.retefuente_anticipos ?? 0),
   }
 }
