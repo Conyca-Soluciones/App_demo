@@ -88,6 +88,15 @@ export function mapOpciones(raw: any): OpcionesReqAdmin {
 // Un ítem como se edita en pantalla. En transferencia los datos del tercero
 // que factura y del titular se muestran (vienen de Terceros) y la base los
 // vuelve a tomar de ahí; en PSE se escriben.
+// Soporte de un ítem (factura o cuenta de cobro), ya subido al bucket privado
+// requisiciones_admin (<usuario>/<archivo>; 20261212000000). Opcional.
+export type TipoSoporteReqAdmin = "factura" | "cuenta_cobro"
+export const ETIQUETA_SOPORTE_REQ_ADMIN: Record<TipoSoporteReqAdmin, string> = {
+  factura: "Factura",
+  cuenta_cobro: "Cuenta de cobro",
+}
+export type SoporteReqAdmin = { ruta: string; nombre: string; mime: string | null; tamano: number | null; tipo: TipoSoporteReqAdmin }
+
 export type ItemFormReqAdmin = {
   clave: string // llave de React
   empresaId: string // B
@@ -105,6 +114,11 @@ export type ItemFormReqAdmin = {
   proyectoId: string // M
   valor: string // N, como se escribe ("1.250.000,50")
   observaciones: string
+  soporte: SoporteReqAdmin | null // el ya subido
+  // Archivo elegido que se sube al enviar (solo en el navegador: el formulario
+  // lo quita antes de llamar al servidor).
+  archivoSoporte?: File | null
+  tipoSoporte: TipoSoporteReqAdmin
 }
 
 let contadorClaves = 0
@@ -128,6 +142,9 @@ export function itemVacio(): ItemFormReqAdmin {
     proyectoId: "",
     valor: "",
     observaciones: "",
+    soporte: null,
+    archivoSoporte: null,
+    tipoSoporte: "factura",
   }
 }
 
@@ -142,6 +159,9 @@ export function itemParaMetodo(item: ItemFormReqAdmin): ItemFormReqAdmin {
     proyectoId: item.proyectoId,
     valor: item.valor,
     observaciones: item.observaciones,
+    soporte: item.soporte,
+    archivoSoporte: item.archivoSoporte,
+    tipoSoporte: item.tipoSoporte,
   }
 }
 
@@ -205,6 +225,9 @@ export function itemParaGuardar(item: ItemFormReqAdmin, metodo: MetodoReqAdmin) 
     concepto: item.concepto.trim(),
     valor: valorItem(item),
     observaciones: item.observaciones.trim(),
+    soporte: item.soporte
+      ? { ruta: item.soporte.ruta, nombre: item.soporte.nombre, mime: item.soporte.mime, tamano: item.soporte.tamano, tipo: item.soporte.tipo }
+      : null,
   }
   if (metodo === "transferencia") {
     return {
@@ -265,6 +288,7 @@ export type ItemReqAdmin = {
   proyectoNombre: string
   valor: number
   observaciones: string | null
+  soporte: SoporteReqAdmin | null
   // Del pago, cuando ya se aprobó.
   pagoItem: number | null
   pagoSemana: number | null
@@ -332,6 +356,15 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
       proyectoNombre: String(i.proyecto_nombre ?? ""),
       valor: Number(i.valor ?? 0),
       observaciones: i.observaciones ?? null,
+      soporte: i.soporte?.ruta
+        ? {
+            ruta: String(i.soporte.ruta),
+            nombre: String(i.soporte.nombre ?? ""),
+            mime: i.soporte.mime ?? null,
+            tamano: i.soporte.tamano == null ? null : Number(i.soporte.tamano),
+            tipo: i.soporte.tipo === "cuenta_cobro" ? "cuenta_cobro" : "factura",
+          }
+        : null,
       pagoItem: i.pago_item == null ? null : Number(i.pago_item),
       pagoSemana: i.pago_semana == null ? null : Number(i.pago_semana),
       pagoAnio: i.pago_anio == null ? null : Number(i.pago_anio),
@@ -362,5 +395,8 @@ export function itemFormDesdeDetalle(i: ItemReqAdmin): ItemFormReqAdmin {
     proyectoId: i.proyectoId,
     valor: String(i.valor).replace(".", ","),
     observaciones: i.observaciones ?? "",
+    soporte: i.soporte,
+    archivoSoporte: null,
+    tipoSoporte: i.soporte?.tipo ?? "factura",
   }
 }

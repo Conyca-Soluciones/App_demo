@@ -10,8 +10,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
+import { CampoSoporte } from "@/components/campo-soporte"
 import { formatoMoneda } from "@/lib/pagos"
 import {
+  ETIQUETA_SOPORTE_REQ_ADMIN,
   TIPOS_DOCUMENTO_PSE,
   etiquetaProyecto,
   textoCuenta,
@@ -342,6 +344,17 @@ export function ItemRequisicionAdminDialog({
         <Campo etiqueta="Observaciones (opcional)">
           <Textarea rows={2} value={item.observaciones} onChange={(e) => cambiar({ observaciones: e.target.value })} />
         </Campo>
+        {/* El archivo se sube al enviar la requisición. */}
+        <CampoSoporte
+          etiqueta="Soporte (factura o cuenta de cobro)"
+          tipos={ETIQUETA_SOPORTE_REQ_ADMIN}
+          tipo={item.tipoSoporte}
+          onTipo={(t) => cambiar({ tipoSoporte: t })}
+          archivo={item.archivoSoporte ?? null}
+          onArchivo={(f) => cambiar({ archivoSoporte: f })}
+          onError={setError}
+          actual={item.soporte && !item.archivoSoporte ? { nombreArchivo: item.soporte.nombre } : null}
+        />
 
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>

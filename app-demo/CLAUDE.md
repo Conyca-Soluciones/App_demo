@@ -1437,6 +1437,32 @@ que existen; el otro maneja los tres.
   los botones de la fila abajo (`BarraPago`). `obtenerActa` acepta también esas
   pestañas (la base decide por el pago).
 
+## Consolidado Gerencia `/ayf/consolidado-gerencia` (2026-10-22)
+
+`20261212000000_consolidado_gerencia.sql` (decisión del usuario: control de
+Gerencia, junta los tres consolidados; se le agregarán columnas).
+- Pestaña `ayf.consolidado_gerencia` (rol Gerencia): `_consolidados_visibles`
+  devuelve TODOS los consolidados con ella, así que RLS, embeds y detalles
+  funcionan igual que en cada consolidado. Solo consulta.
+- Filtros: años / semanas (`SelectorNumeros`), grupo empresarial, tercero
+  (texto), proyecto y solicitante (`opciones_consolidado_gerencia()`, solo los
+  que tienen pagos con consolidado). Columnas: ITEM, semana/año, grupo
+  empresarial, tercero, proyecto, solicitante, valor a pagar y soporte. El ITEM
+  se repite entre consolidados (es por consolidado y semana).
+- **Soporte** (`soportesDePagos`, tres consultas por página): OC = soporte de
+  la orden (factura / cuenta de cobro antes que cotización); acta = su factura
+  o cuenta de cobro; requisición administrativa = el del ítem.
+- **Soporte de los ítems de requisiciones administrativas** (no existía):
+  `requisicion_admin_items.soporte_*` (factura o cuenta de cobro, opcional),
+  bucket privado `requisiciones_admin` (`<uid>/...`). El navegador sube y
+  `_guardar_requisicion_admin` lo valida (`_validar_soporte_req_admin`) y lo
+  copia al ítem (se conserva al modificar porque viaja en el ítem). Se ve en el
+  detalle (`verSoporteReqAdmin`).
+- `_pago_desglose_origen` llena ahora `solicitado_por` (quien hizo la
+  requisición) y `valor_documento` de los pagos de requisiciones administrativas.
+- Parcha sobre la versión VIVA `_guardar_requisicion_admin`,
+  `detalle_requisicion_admin` y `_pago_desglose_origen` (texto exacto).
+
 ## Liquidación de pagos: se quitó (2026-10-22)
 
 Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,
@@ -3308,7 +3334,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261207000000` APU: escribir solo en los proyectos de cada quien (opción B) ·
 `20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
 `20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
-`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario).
+`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario) ·
+`20261212000000` Consolidado Gerencia y soporte de requisiciones administrativas.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

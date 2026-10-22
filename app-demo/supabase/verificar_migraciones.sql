@@ -436,5 +436,11 @@ select * from (
   select '20261211000000_roles_contabilidad',
          exists (select 1 from public.roles where clave = 'contabilidad_bogota')
          and exists (select 1 from public.roles where clave = 'contabilidad_barranquilla')
+  union all
+  select '20261212000000_consolidado_gerencia',
+         exists (select 1 from pg_proc where proname = 'opciones_consolidado_gerencia')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'requisicion_admin_items' and column_name = 'soporte_ruta')
+         and exists (select 1 from storage.buckets where id = 'requisiciones_admin')
 ) t
 order by 1;

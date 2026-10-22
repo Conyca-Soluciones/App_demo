@@ -118,6 +118,8 @@ export const PESTANAS: Pestana[] = [
   { clave: "ayf.consolidado_bogota", titulo: "Consolidado Bogotá", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf"] },
   { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf"] },
   { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf"] },
+  // Los pagos de los tres consolidados, para control de Gerencia (20261212000000).
+  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 

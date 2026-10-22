@@ -105,6 +105,7 @@ describe("valores y lo que se guarda", () => {
       tercero_factura_id: "t1",
       titular_tercero_id: "t1",
       cuenta_tercero_id: "c1",
+      soporte: null,
     })
     expect(itemParaGuardar(transferencia({ titularTerceroId: "t2" }), "transferencia")).toMatchObject({ titular_tercero_id: "t2" })
   })

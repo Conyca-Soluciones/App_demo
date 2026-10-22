@@ -137,6 +137,30 @@ export function esClaveConsolidado(c: string): c is ClaveConsolidado {
   return CONSOLIDADOS.some((x) => x.clave === c)
 }
 
+// Consolidado Gerencia (20261212000000): los pagos de los tres consolidados.
+export const PESTANA_CONSOLIDADO_GERENCIA = "ayf.consolidado_gerencia"
+export type FiltrosConsolidadoGerencia = {
+  // Vacíos = todos. Las semanas valen en cada año elegido.
+  anios?: number[]
+  semanas?: number[]
+  empresaId?: string
+  proyectoId?: string
+  solicitanteId?: string
+  tercero?: string
+}
+export type OpcionesConsolidadoGerencia = {
+  empresas: { id: string; nombre: string }[]
+  proyectos: { id: string; codigo: string | null; nombre: string }[]
+  solicitantes: { id: string; nombre: string }[]
+}
+// El archivo original del pago: factura / cuenta de cobro de la OC (o su
+// cotización), soporte de pago del acta, o el del ítem de la requisición
+// administrativa.
+export type SoportePago =
+  | { origen: "orden_compra"; id: string; nombre: string; tipo: string }
+  | { origen: "acta"; ruta: string; nombre: string; tipo: string }
+  | { origen: "requisicion_admin"; ruta: string; nombre: string; tipo: string }
+
 export type FiltrosAprobacionPagos = {
   estado?: EstadoPago
   tercero?: string
