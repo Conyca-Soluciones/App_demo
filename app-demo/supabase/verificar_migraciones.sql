@@ -415,6 +415,11 @@ select * from (
          and exists (select 1 from information_schema.columns
                       where table_schema = 'public' and table_name = 'pagos' and column_name = 'cuenta_modificada')
   union all
+  select '20261207000000_apu_por_proyecto',
+         exists (select 1 from pg_proc where proname = '_apus_de_proyectos_ajenos')
+         and exists (select 1 from pg_policy where polname = 'item_apu_update'
+                      and pg_get_expr(polqual, polrelid) like '%_apus_de_proyectos_ajenos%')
+  union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
                   where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)

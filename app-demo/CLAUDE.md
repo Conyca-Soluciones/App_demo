@@ -1206,7 +1206,12 @@ proyecto, por la API (mueve el valor del presupuesto y el cupo de requisiciones)
   `eliminar_apu_huerfano`). `recalcular_valor_apu(s)` no escriben en estas tablas.
 - Una server action nueva que escriba en estas tablas desde otro rol necesita
   que ese rol tenga `editar_presupuestos`, o pasar por una función SECURITY DEFINER.
-- **Pendiente (opción B)**: restringir por proyecto.
+- **Opción B hecha (2026-10-22, `20261207000000_apu_por_proyecto.sql`)**: además
+  de la acción, escribir exige que el APU / ítem / proyecto sea de un proyecto que
+  el usuario ve (`_apus_de_proyectos_ajenos`, `_items_de_proyectos_ajenos`,
+  conjuntos evaluados una vez por consulta). Un APU recién creado sin ítem no es
+  de ningún proyecto y se puede llenar. Antes un Director sin proyectos cambió el
+  APU de Malecón y duplicó el cupo de requisición de un ítem.
 
 ## Seguridad de documentos de contratos y datos bancarios (2026-10-15)
 
@@ -1649,8 +1654,8 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   (separar la de editar en insert/update/delete).
 - Import y "Crear versión nueva" no son todo-o-nada (ver más abajo).
 
-- **Seguridad APU**: opción A hecha (2026-10-08, ver "Seguridad de APU").
-  Falta la B: restringir lectura y escritura por proyecto.
+- **Seguridad APU**: opciones A y B hechas (ver "Seguridad de APU"); la lectura
+  sigue abierta a propósito (APU recomendados e import).
 - **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
   mitad, deja una versión vacía y APUs huérfanos).
 - **Resuelto en `20261024000000_requisiciones_y_almacen_por_proyecto.sql`
@@ -3340,7 +3345,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos ·
 `20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro ·
 `20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura) ·
-`20261206000000` cambio de cuenta de un tercero con pagos en curso: novedad y evento en cada pago.
+`20261206000000` cambio de cuenta de un tercero con pagos en curso: novedad y evento en cada pago ·
+`20261207000000` APU: escribir solo en los proyectos de cada quien (opción B).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
