@@ -39,7 +39,6 @@ import {
   semanasDelAnio,
   type EstadoPago,
   type FiltrosConsolidado,
-  totalAPagar,
   type Pago,
 } from "@/lib/pagos"
 
@@ -51,7 +50,7 @@ async function buscarTercerosAdaptado(termino: string): Promise<OpcionBuscador[]
 }
 
 // Columna de pesos del desglose (como el cuadro de pagos): vacía si no aplica
-// (sin liquidar) y en gris si es cero.
+// y en gris si es cero.
 function columnaPesos(clave: string, titulo: string, valor: (p: Pago) => number | null): ColumnaExcel<Pago> {
   return {
     clave,
@@ -170,8 +169,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
 
   // Los anulados y rechazados no se pagan: se listan pero no suman al total.
   const pagosQueSuman = pagos ? pagos.filter((p) => p.estado !== "anulado" && p.estado !== "rechazado") : []
-  const totalPagina = pagosQueSuman.reduce((acc, p) => acc + totalAPagar(p), 0)
-  const sinLiquidar = pagosQueSuman.filter((p) => !p.liquidacion).length
+  const totalPagina = pagosQueSuman.reduce((acc, p) => acc + p.valor, 0)
   const pagosExcluidos = (pagos?.length ?? 0) - pagosQueSuman.length
 
   async function handleReintentar() {
@@ -269,27 +267,16 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
     columnaPesos("documento", "Valor documento", (p) => p.valorDocumento),
     columnaPesos("base", "Base", (p) => p.baseGravable),
     columnaPesos("iva", "IVA", (p) => p.iva),
-    columnaPesos("retefuente", "Retefuente", (p) => p.liquidacion?.retefuente ?? null),
-    columnaPesos("reteica", "ReteICA", (p) => p.liquidacion?.reteica ?? null),
-    columnaPesos("reteiva", "ReteIVA", (p) => p.liquidacion?.reteiva ?? null),
-    columnaPesos("asumidas", "Asumidas", (p) => p.liquidacion?.asumidas ?? null),
     columnaPesos("garantia", "Retención en garantía", (p) => p.retencionGarantia),
     columnaPesos("anticipos", "Anticipos y/o descuentos", (p) => anticiposYDescuentos(p)),
     {
       clave: "valor",
-      titulo: "Total a pagar",
+      titulo: "Valor a pagar",
       ancho: 160,
       alinear: "right",
-      texto: (p) => formatoMoneda(totalAPagar(p)),
-      valorOrden: (p) => totalAPagar(p),
-      celda: (p) => (
-        <div className="leading-tight">
-          <div className="font-medium">{formatoMoneda(totalAPagar(p))}</div>
-          {!p.liquidacion && p.estado !== "anulado" && p.estado !== "rechazado" && (
-            <div className="text-xs text-amber-700">Sin liquidar</div>
-          )}
-        </div>
-      ),
+      texto: (p) => formatoMoneda(p.valor),
+      valorOrden: (p) => p.valor,
+      celda: (p) => <div className="font-medium">{formatoMoneda(p.valor)}</div>,
       claseCelda: "tabular-nums",
     },
     {
@@ -507,15 +494,12 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                       {ETIQUETA_ESTADO_PAGO[p.estado]}
                     </Badge>
                   ),
-                  campos: ["cuenta", "concepto", "proyecto", "documento", "retefuente", "reteica", "reteiva", "valor", "novedad", "acciones"],
+                  campos: ["cuenta", "concepto", "proyecto", "documento", "base", "iva", "valor", "novedad", "acciones"],
                 }}
               />
               <div className="text-right text-sm text-muted-foreground">
-                {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total a pagar de la página{" "}
+                {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total de la página{" "}
                 <span className="font-medium text-foreground tabular-nums">{formatoMoneda(totalPagina)}</span>
-                {sinLiquidar > 0 && (
-                  <> ({sinLiquidar} sin liquidar: cuentan por su valor aprobado, todavía sin retenciones)</>
-                )}
                 {pagosExcluidos > 0 && (
                   <> (sin {pagosExcluidos} {pagosExcluidos === 1 ? "anulado o rechazado" : "anulados o rechazados"})</>
                 )}
@@ -638,7 +622,7 @@ function ContenidoResolver({
         <DialogTitle>Tercero y cuenta del pago {pago.item != null ? `· ITEM ${pago.item}` : ""}</DialogTitle>
       </DialogHeader>
       <p className="text-sm text-muted-foreground">
-        {pago.concepto} · {formatoMoneda(totalAPagar(pago))}
+        {pago.concepto} · {formatoMoneda(pago.valor)}
       </p>
       {pago.novedad && (
         <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">{pago.novedad}</p>
@@ -681,13 +665,6 @@ function ContenidoResolver({
           </p>
         )}
       </div>
-
-      {pago.liquidacion && tercero && tercero.id !== pago.terceroId && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          El pago ya está liquidado: al cambiar el tercero la liquidación se anula y Contabilidad tiene que
-          liquidarlo otra vez.
-        </p>
-      )}
 
       <DialogFooter>
         <Button variant="outline" disabled={guardando} onClick={onCerrar}>
