@@ -73,8 +73,20 @@ export async function contextoLiquidacion(
   const { data, error } = await supabase.rpc("contexto_liquidacion", { p_pago_ids: pagoIds })
   if (error) throw new Error(error.message)
   const j = data as any
+  // Los pagos de requisiciones administrativas no tienen OC ni acta: el motor
+  // clasifica su concepto escrito (contexto_liquidacion no lo trae).
+  const admin = Object.entries(j?.pagos ?? {})
+    .filter(([, p]: [string, any]) => p?.fuente === "requisicion_admin")
+    .map(([id]) => id)
+  const conceptos = new Map<string, string>()
+  for (let i = 0; i < admin.length; i += 100) {
+    const { data: filas, error: e } = await supabase.from("pagos").select("id, concepto").in("id", admin.slice(i, i + 100))
+    if (e) throw new Error(e.message)
+    for (const f of (filas ?? []) as any[]) conceptos.set(f.id, f.concepto)
+  }
   const contextos: Record<string, ContextoPago> = {}
-  for (const [id, p] of Object.entries(j?.pagos ?? {})) contextos[id] = contextoDesdeJson(p)
+  for (const [id, p] of Object.entries(j?.pagos ?? {}))
+    contextos[id] = contextoDesdeJson(conceptos.has(id) ? { ...(p as object), concepto: conceptos.get(id) } : p)
   return { catalogo: catalogoDesdeJson(j), contextos }
 }
 
