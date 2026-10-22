@@ -1,0 +1,4 @@
+# Locales: agentes de revisión por rol y sus revisiones (no se suben).
+/.claude/agents/
+/.claude/skills/revision-por-rol/
+/app-demo/docs/agentes/
