@@ -94,6 +94,7 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   poliza_aprobada: { etiqueta: "Póliza aprobada por Jurídica", tono: "ok" },
   firma_representante: { etiqueta: "Firma del representante legal puesta en el contrato", tono: "ok" },
   poliza_devuelta: { etiqueta: "Póliza devuelta por Jurídica", tono: "aviso" },
+  poliza_no_aplica: { etiqueta: "El contrato no requiere póliza", tono: "neutro" },
 }
 
 // Eventos de un OTROSÍ (Jurídica y Subgerencia).

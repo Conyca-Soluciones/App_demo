@@ -2793,6 +2793,9 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
   `poliza_estado = 'no_aplica'`: `_guardar_acta` deja hacer actas, no sale en
   Pólizas y `subir_poliza` lo rechaza. El detalle muestra "Requiere póliza".
   **La migración va antes que el código** (el detalle lee `requiere_poliza`).
+  CJ-10-2026 (alquiler) y CJ-1-2026 (arrendamiento), ya aprobados, pasaron a "no
+  aplica" (`20261209100000`, decisión del usuario; la póliza subida del CJ-1 quedó
+  devuelta con el motivo, evento `poliza_no_aplica`).
 - **Acta de aprobación** (`20261127000000_acta_poliza.sql`, plantilla GJ-F-013
   versión 03 de Jurídica): en Aprobación de pólizas la pestaña "Póliza y acta"
   muestra lado a lado la póliza y el acta (`components/acta-poliza-editor.tsx`:
@@ -3357,7 +3360,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura) ·
 `20261206000000` cambio de cuenta de un tercero con pagos en curso: novedad y evento en cada pago ·
 `20261207000000` APU: escribir solo en los proyectos de cada quien (opción B) ·
-`20261208000000` póliza según la solicitud (obra y mano de obra siempre).
+`20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
+`20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
+`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

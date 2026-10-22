@@ -425,6 +425,13 @@ select * from (
                   where table_schema = 'public' and table_name = 'contratos' and column_name = 'requiere_poliza')
          and position('no_aplica' in pg_get_functiondef('public._guardar_acta(uuid,uuid,jsonb)'::regprocedure)) > 0
   union all
+  select '20261209000000_requisicion_exige_pestana',
+         position('tecnico.pedidos' in pg_get_functiondef('public.crear_requisicion(jsonb,date,boolean,text,text)'::regprocedure)) > 0
+  union all
+  select '20261209100000_contratos_sin_poliza_existentes',
+         not exists (select 1 from public.contratos
+                      where numero_contrato in ('CJ-10-2026', 'CJ-1-2026') and poliza_estado in ('pendiente', 'recibida'))
+  union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
                   where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)
