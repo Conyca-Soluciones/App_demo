@@ -8,9 +8,9 @@
 // Terceros (columnas B-J, L-N y observaciones). PSE: los datos se escriben y
 // no lleva banco, tipo ni número de cuenta (H-J).
 //
-// Sin aprobación de la requisición sola (20261203000000): al enviarla, cada
-// ítem es un pago por aprobar en Aprobación de pagos, y el estado de la
-// requisición sale de sus pagos.
+// Se aprueba en Aprobación de pagos como una orden de compra, el cuadro
+// completo (20261203000000): cada ítem es un pago (una fila del consolidado),
+// pero en Aprobación de pagos la requisición sale en una sola fila.
 //
 // Archivo plano: tipos, validación y mapeos (los usan las actions y los
 // componentes; pruebas en tests/requisiciones-admin.test.ts).
@@ -19,7 +19,7 @@
 import { leerNumero } from "@/lib/contratos"
 
 export type MetodoReqAdmin = "transferencia" | "pse"
-export type EstadoReqAdmin = "por_aprobar" | "aprobada" | "parcial" | "rechazada" | "cancelada"
+export type EstadoReqAdmin = "por_aprobar" | "aprobada" | "rechazada" | "cancelada"
 
 export const MAX_ITEMS_REQ_ADMIN = 50
 
@@ -31,7 +31,6 @@ export const ETIQUETA_METODO_REQ_ADMIN: Record<MetodoReqAdmin, string> = {
 export const ETIQUETA_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
   por_aprobar: "Pagos por aprobar",
   aprobada: "Aprobada",
-  parcial: "Aprobada en parte",
   rechazada: "Rechazada",
   cancelada: "Cancelada",
 }
@@ -40,7 +39,6 @@ export const ETIQUETA_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
 export const CLASE_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
   por_aprobar: "border-amber-300 bg-amber-50 text-amber-700",
   aprobada: "border-green-300 bg-green-50 text-green-700",
-  parcial: "border-blue-300 bg-blue-50 text-blue-700",
   rechazada: "border-red-300 bg-red-50 text-red-700",
   cancelada: "border-gray-300 bg-gray-50 text-gray-500",
 }

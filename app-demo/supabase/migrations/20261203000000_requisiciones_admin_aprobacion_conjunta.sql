@@ -1,24 +1,26 @@
 -- ---------------------------------------------------------------------------
--- Requisiciones administrativas: pasan DIRECTO a Aprobación de pagos
--- (corrige 20261202000000, decisión del usuario 2026-10-22: "no hay
--- aprobación de la requisición sola").
+-- Requisiciones administrativas: se aprueban en Aprobación de pagos COMO UNA
+-- ORDEN DE COMPRA, el cuadro completo (corrige 20261202000000; decisiones del
+-- usuario 2026-10-22: "no hay aprobación de la requisición sola" y "deben ser
+-- aprobadas como las órdenes de compra, porque es un cuadro junto").
 --
---   * Al enviarla, cada ítem es un pago "por aprobar" (solicitado) en la misma
---     lista de Aprobación de pagos; A&F aprueba o rechaza cada pago con
---     aprobar_pago / rechazar_pago, como los demás.
---   * El estado de la requisición sale de sus pagos (disparador sobre pagos):
---     por_aprobar (algún pago por aprobar) | aprobada (todos aprobados) |
---     rechazada (todos rechazados) | parcial (unos aprobados y otros
---     rechazados) | cancelada.
---   * Quien la hizo la modifica o la corrige mientras NINGÚN pago esté
---     aprobado: los pagos por aprobar se anulan y se crean los nuevos (los
---     rechazados quedan como registro). Igual para cancelar.
+--   * Al enviarla, cada ítem es un pago "por aprobar" (solicitado): el
+--     consolidado necesita una fila por ítem (cada uno con su titular y
+--     cuenta). En Aprobación de pagos la requisición sale en UNA fila (el pago
+--     "principal" del lote, con el total y el número de ítems por
+--     `lote_requisicion_admin`) y se aprueba o rechaza completa
+--     (aprobar_requisicion_admin / rechazar_requisicion_admin). aprobar_pago y
+--     rechazar_pago no aceptan un ítem suelto.
+--   * Estados: por_aprobar | aprobada | rechazada | cancelada.
+--   * Quien la hizo la modifica o la corrige mientras no esté aprobada: los
+--     pagos por aprobar se anulan y se crean los nuevos (un lote nuevo); los
+--     rechazados quedan como registro. Igual para cancelar.
 --   * Se borra resolver_requisicion_admin.
 -- ---------------------------------------------------------------------------
 
 alter table public.requisiciones_admin drop constraint if exists requisiciones_admin_estado_check;
 alter table public.requisiciones_admin add constraint requisiciones_admin_estado_check
-  check (estado in ('por_aprobar', 'aprobada', 'parcial', 'rechazada', 'cancelada'));
+  check (estado in ('por_aprobar', 'aprobada', 'rechazada', 'cancelada'));
 
 -- Al modificar se reemplazan los ítems: los pagos viejos (rechazados o
 -- anulados) se quedan con su requisición pero sin ítem.
@@ -40,9 +42,15 @@ alter table public.notificaciones add constraint notificaciones_tipo_check check
   'minuta_aprobada', 'minuta_devuelta', 'contrato_vencido', 'contrato_vencido_juridica', 'insumo_rechazado',
   'otrosi_por_revisar', 'otrosi_por_aprobar', 'otrosi_devuelto', 'otrosi_rechazado', 'otrosi_aprobado',
   'otrosi_devuelto_subgerencia', 'poliza_pendiente', 'poliza_por_revisar', 'poliza_aprobada', 'poliza_devuelta',
-  'requisicion_admin_aprobada', 'requisicion_admin_rechazada', 'requisicion_admin_parcial')) not valid;
+  'requisicion_admin_aprobada', 'requisicion_admin_rechazada')) not valid;
 
 drop function if exists public.resolver_requisicion_admin(uuid, text, text);
+
+-- Lote = los pagos de UN envío de la requisición; el principal (ítem 1) es la
+-- fila que sale en Aprobación de pagos.
+alter table public.pagos add column if not exists requisicion_admin_lote uuid;
+alter table public.pagos add column if not exists requisicion_admin_principal boolean not null default false;
+create index if not exists idx_pagos_requisicion_admin_lote on public.pagos(requisicion_admin_lote);
 
 -- ------------------------------------------------------ guardar (corrección)
 -- La versión de 20261202000000 leía v_fac.id / v_tit.id también en PSE, donde
@@ -183,7 +191,7 @@ $$;
 revoke all on function public._guardar_requisicion_admin(uuid, text, jsonb) from public, anon, authenticated;
 
 -- ------------------------------------------------------ pagos de la requisición
--- Un pago por aprobar por ítem. La empresa y el consolidado salen del grupo
+-- Un pago por aprobar por ítem, todos del mismo lote. La empresa y el consolidado salen del grupo
 -- empresarial del ítem.
 create or replace function public._crear_pagos_requisicion_admin(p_id uuid)
 returns void
@@ -195,6 +203,8 @@ declare
   v_r record;
   v_it record;
   v_pago uuid;
+  v_lote uuid := gen_random_uuid();
+  v_primero boolean := true;
 begin
   select * into v_r from public.requisiciones_admin where id = p_id;
   for v_it in
@@ -204,15 +214,17 @@ begin
      where i.requisicion_id = p_id
      order by i.orden
   loop
-    insert into public.pagos (fuente, requisicion_admin_id, requisicion_admin_item_id, tipo, proyecto_id, empresa_id,
+    insert into public.pagos (fuente, requisicion_admin_id, requisicion_admin_item_id, requisicion_admin_lote,
+                              requisicion_admin_principal, tipo, proyecto_id, empresa_id,
                               consolidado_id, tercero_id, cuenta_tercero_id, concepto, valor, estado, solicitado_en)
-    values ('requisicion_admin', p_id, v_it.id, 'unico', v_it.proyecto_id, v_it.empresa_id, v_it.consolidado_id,
+    values ('requisicion_admin', p_id, v_it.id, v_lote, v_primero, 'unico', v_it.proyecto_id, v_it.empresa_id, v_it.consolidado_id,
             v_it.titular_tercero_id, v_it.cuenta_tercero_id,
             upper('Req. administrativa N° ' || v_r.numero || case when v_r.metodo = 'pse' then ' (PSE)' else '' end
                   || ' - ' || v_it.concepto || ' - ' || v_it.factura_nombre),
             v_it.valor, 'solicitado', now())
     returning id into v_pago;
     perform public._pago_actualizar_novedad(v_pago);
+    v_primero := false;
   end loop;
 end;
 $$;
@@ -329,84 +341,173 @@ begin
 end;
 $$;
 
--- ------------------------------------------------ estado desde los pagos
--- Cuando A&F aprueba o rechaza un pago, la requisición se pone al día. Al
--- quedar sin pagos por aprobar se avisa a quien la hizo.
-create or replace function public._req_admin_sigue_pagos()
-returns trigger
+-- ------------------------------------------------ aprobar / rechazar (A&F)
+-- El cuadro completo, como una orden de compra: todos los pagos por aprobar de
+-- la requisición a la vez (acción aprobar_pagos). Aprobar da el ITEM del
+-- consolidado a cada uno, en el orden de los ítems.
+drop trigger if exists trg_req_admin_sigue_pagos on public.pagos;
+drop function if exists public._req_admin_sigue_pagos();
+
+create or replace function public.aprobar_requisicion_admin(p_id uuid)
+returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_r record;
-  v_por_aprobar integer;
-  v_aprobados integer;
-  v_rechazados integer;
-  v_estado text;
-  v_motivos text;
+  v_pago record;
+  v_n integer := 0;
 begin
-  if new.requisicion_admin_id is null or old.estado is not distinct from new.estado
-     or new.estado not in ('aprobado', 'rechazado') then
-    return null;
+  if not public.tiene_accion(auth.uid(), 'aprobar_pagos') then
+    raise exception 'No autorizado -- no tienes permiso para aprobar pagos.';
   end if;
-  select * into v_r from public.requisiciones_admin where id = new.requisicion_admin_id for update;
-  if v_r.id is null or v_r.estado = 'cancelada' then
-    return null;
+  select * into v_r from public.requisiciones_admin where id = p_id for update;
+  if v_r.id is null or v_r.estado <> 'por_aprobar' then
+    raise exception 'La requisición no existe o ya no está por aprobar.';
   end if;
-
-  -- Solo los pagos de los ítems vigentes (los de antes de modificar ya no cuentan).
-  select count(*) filter (where g.estado = 'solicitado'),
-         count(*) filter (where g.estado not in ('solicitado', 'rechazado', 'anulado')),
-         count(*) filter (where g.estado = 'rechazado'),
-         string_agg(i.orden || ': ' || g.motivo_rechazo, ' · ' order by i.orden) filter (where g.estado = 'rechazado')
-    into v_por_aprobar, v_aprobados, v_rechazados, v_motivos
-    from public.pagos g
-    join public.requisicion_admin_items i on i.id = g.requisicion_admin_item_id
-   where g.requisicion_admin_id = v_r.id;
-
-  v_estado := case when v_por_aprobar > 0 then 'por_aprobar'
-                   when v_rechazados = 0 then 'aprobada'
-                   when v_aprobados = 0 then 'rechazada'
-                   else 'parcial' end;
-  if v_estado = v_r.estado then
-    return null;
+  for v_pago in
+    select g.id from public.pagos g
+      join public.requisicion_admin_items i on i.id = g.requisicion_admin_item_id
+     where g.requisicion_admin_id = p_id and g.estado = 'solicitado'
+     order by i.orden
+     for update of g
+  loop
+    update public.pagos set estado = 'aprobado', aprobado_por = auth.uid(), aprobado_en = now() where id = v_pago.id;
+    perform public._pago_asignar_item(v_pago.id);
+    v_n := v_n + 1;
+  end loop;
+  if v_n = 0 then
+    raise exception 'La requisición no tiene pagos por aprobar.';
   end if;
-
   update public.requisiciones_admin
-     set estado = v_estado,
-         resuelta_por = case when v_estado = 'por_aprobar' then null else auth.uid() end,
-         resuelta_en = case when v_estado = 'por_aprobar' then null else now() end,
-         motivo_rechazo = case when v_rechazados > 0 then 'Ítem ' || v_motivos end
-   where id = v_r.id;
-
-  if v_estado <> 'por_aprobar' then
-    insert into public.historial_eventos (entidad_tipo, entidad_id, evento, usuario_id, motivo, datos)
-    values ('requisicion_admin', v_r.id, v_estado, auth.uid(),
-            case when v_rechazados > 0 then 'Ítem ' || v_motivos end,
-            jsonb_build_object('aprobados', v_aprobados, 'rechazados', v_rechazados));
-    if v_r.creado_por is distinct from auth.uid() then
-      insert into public.notificaciones (usuario_id, tipo, entidad_tipo, entidad_id, titulo, mensaje)
-      values (v_r.creado_por, 'requisicion_admin_' || v_estado, 'requisicion_admin', v_r.id,
-              'Requisición administrativa N° ' || v_r.numero || case v_estado when 'aprobada' then ' aprobada'
-                                                                              when 'rechazada' then ' rechazada'
-                                                                              else ' aprobada en parte' end,
-              case v_estado
-                when 'aprobada' then 'A&F aprobó sus ' || v_aprobados || ' pago(s).'
-                when 'rechazada' then 'A&F rechazó sus pagos (ítem ' || v_motivos || '). Corrígela y envíala otra vez.'
-                else 'A&F aprobó ' || v_aprobados || ' pago(s) y rechazó ' || v_rechazados || ' (ítem ' || v_motivos
-                     || '). Los rechazados van en una requisición nueva.' end);
-    end if;
+     set estado = 'aprobada', resuelta_por = auth.uid(), resuelta_en = now(), motivo_rechazo = null
+   where id = p_id;
+  insert into public.historial_eventos (entidad_tipo, entidad_id, evento, usuario_id, datos)
+  values ('requisicion_admin', p_id, 'aprobada', auth.uid(), jsonb_build_object('pagos', v_n, 'valor', v_r.valor_total));
+  if v_r.creado_por is distinct from auth.uid() then
+    insert into public.notificaciones (usuario_id, tipo, entidad_tipo, entidad_id, titulo, mensaje)
+    values (v_r.creado_por, 'requisicion_admin_aprobada', 'requisicion_admin', p_id,
+            'Requisición administrativa N° ' || v_r.numero || ' aprobada',
+            'A&F aprobó la requisición: sus ' || v_n || ' pago(s) pasan al consolidado.');
   end if;
-  return null;
 end;
 $$;
-revoke all on function public._req_admin_sigue_pagos() from public, anon, authenticated;
 
-drop trigger if exists trg_req_admin_sigue_pagos on public.pagos;
-create trigger trg_req_admin_sigue_pagos
-  after update of estado on public.pagos
-  for each row execute function public._req_admin_sigue_pagos();
+create or replace function public.rechazar_requisicion_admin(p_id uuid, p_motivo text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_r record;
+begin
+  if not public.tiene_accion(auth.uid(), 'aprobar_pagos') then
+    raise exception 'No autorizado -- no tienes permiso para rechazar pagos.';
+  end if;
+  if btrim(coalesce(p_motivo, '')) = '' then
+    raise exception 'El motivo de rechazo es obligatorio.';
+  end if;
+  select * into v_r from public.requisiciones_admin where id = p_id for update;
+  if v_r.id is null or v_r.estado <> 'por_aprobar' then
+    raise exception 'La requisición no existe o ya no está por aprobar.';
+  end if;
+  update public.pagos
+     set estado = 'rechazado', rechazado_por = auth.uid(), rechazado_en = now(), motivo_rechazo = btrim(p_motivo)
+   where requisicion_admin_id = p_id and estado = 'solicitado';
+  update public.requisiciones_admin
+     set estado = 'rechazada', resuelta_por = auth.uid(), resuelta_en = now(), motivo_rechazo = btrim(p_motivo)
+   where id = p_id;
+  insert into public.historial_eventos (entidad_tipo, entidad_id, evento, usuario_id, motivo)
+  values ('requisicion_admin', p_id, 'rechazada', auth.uid(), btrim(p_motivo));
+  if v_r.creado_por is distinct from auth.uid() then
+    insert into public.notificaciones (usuario_id, tipo, entidad_tipo, entidad_id, titulo, mensaje)
+    values (v_r.creado_por, 'requisicion_admin_rechazada', 'requisicion_admin', p_id,
+            'Requisición administrativa N° ' || v_r.numero || ' rechazada',
+            'A&F la rechazó: ' || btrim(p_motivo) || '. Corrígela y envíala otra vez.');
+  end if;
+end;
+$$;
+
+do $$
+declare
+  f text;
+begin
+  foreach f in array array['aprobar_requisicion_admin(uuid)', 'rechazar_requisicion_admin(uuid, text)'] loop
+    execute format('revoke all on function public.%s from public, anon', f);
+    execute format('grant execute on function public.%s to authenticated', f);
+  end loop;
+end $$;
+
+-- Un ítem suelto no se aprueba ni se rechaza: va con su requisición.
+create or replace function public.aprobar_pago(p_pago_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  if not public.tiene_accion(auth.uid(), 'aprobar_pagos') then
+    raise exception 'No autorizado -- no tienes permiso para aprobar pagos.';
+  end if;
+  if exists (select 1 from public.pagos where id = p_pago_id and requisicion_admin_id is not null) then
+    raise exception 'Este pago es de una requisición administrativa: se aprueba con la requisición completa.';
+  end if;
+
+  update public.pagos
+     set estado = 'aprobado', aprobado_por = auth.uid(), aprobado_en = now()
+   where id = p_pago_id and estado = 'solicitado';
+  if not found then
+    raise exception 'El pago no existe o ya no está pendiente de aprobación.';
+  end if;
+
+  perform public._pago_asignar_item(p_pago_id);
+end;
+$function$;
+
+create or replace function public.rechazar_pago(p_pago_id uuid, p_motivo text)
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  if not public.tiene_accion(auth.uid(), 'aprobar_pagos') then
+    raise exception 'No autorizado -- no tienes permiso para rechazar pagos.';
+  end if;
+  if p_motivo is null or btrim(p_motivo) = '' then
+    raise exception 'El motivo de rechazo es obligatorio.';
+  end if;
+  if exists (select 1 from public.pagos where id = p_pago_id and requisicion_admin_id is not null) then
+    raise exception 'Este pago es de una requisición administrativa: se rechaza con la requisición completa.';
+  end if;
+
+  update public.pagos
+     set estado = 'rechazado', rechazado_por = auth.uid(), rechazado_en = now(),
+         motivo_rechazo = btrim(p_motivo)
+   where id = p_pago_id and estado = 'solicitado';
+  if not found then
+    raise exception 'El pago no existe o ya no está pendiente de aprobación.';
+  end if;
+end;
+$function$;
+
+-- Total e ítems del lote, para la fila de la requisición en Aprobación de
+-- pagos (columna calculada de PostgREST: `lote_requisicion_admin` en el
+-- select). Con la sesión de quien consulta: la RLS de pagos aplica.
+create or replace function public.lote_requisicion_admin(p public.pagos)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  select case when p.requisicion_admin_lote is null then null else
+    (select jsonb_build_object('items', count(*), 'total', coalesce(sum(g.valor), 0))
+       from public.pagos g where g.requisicion_admin_lote = p.requisicion_admin_lote) end
+$$;
+revoke all on function public.lote_requisicion_admin(public.pagos) from public, anon;
+grant execute on function public.lote_requisicion_admin(public.pagos) to authenticated;
 
 -- ------------------------------------------------------- detalle
 -- Con el pago de cada ítem (estado, ITEM del consolidado y motivo de rechazo)
@@ -477,8 +578,8 @@ grant execute on function public.detalle_requisicion_admin(uuid) to authenticate
 
 -- ------------------------------------------------- Mis pendientes
 -- Recrea _pendientes_de (copia EXACTA de 20261202000000, verificada contra la
--- base) SIN el bloque "req_admin_por_aprobar": los pagos de la requisición ya
--- salen en "Pagos por aprobar". Se queda "mi_req_admin_rechazada".
+-- base): la requisición sale UNA vez ("req_admin_por_aprobar") y sus ítems ya
+-- no salen sueltos en "Pagos por aprobar".
 create or replace function public._pendientes_de(p_uid uuid)
 returns table (
   tipo text,         -- clave del grupo (lib/pendientes.ts tiene su título)
@@ -611,7 +712,17 @@ begin
          g.valor, coalesce(g.solicitado_en, g.creado_en), null::uuid, null::date, '/ayf/aprobacion-pagos'
     from pagos g
     left join terceros t on t.id = g.tercero_id
-   where v_aprobar_pagos and g.estado = 'solicitado'
+   where v_aprobar_pagos and g.estado = 'solicitado' and g.requisicion_admin_id is null
+
+  -- ------------------------------------------------ Requisiciones administrativas por aprobar (A&F: global)
+  union all
+  select 'req_admin_por_aprobar', 'hacer', ra.id, null::uuid,
+         'Requisición administrativa N° ' || ra.numero,
+         concat_ws(' · ', pf.nombre, ra.n_items || ' ítem(s)', case when ra.metodo = 'pse' then 'PSE' end),
+         ra.valor_total, ra.enviada_en, ra.creado_por, null::date, '/ayf/aprobacion-pagos'
+    from requisiciones_admin ra
+    left join perfiles pf on pf.id = ra.creado_por
+   where v_aprobar_pagos and ra.estado = 'por_aprobar'
 
   -- ------------------------------------------------ Pagos aprobados sin tercero o cuenta
   -- Los de PSE (requisiciones administrativas) no tienen tercero ni cuenta en la app.

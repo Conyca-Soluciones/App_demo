@@ -374,14 +374,15 @@ select * from (
   union all
   select '20261202000000_requisiciones_administrativas',
          to_regclass('public.requisiciones_admin') is not null
-         and exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
+         and exists (select 1 from pg_proc where proname = 'listar_requisiciones_admin')
          and exists (select 1 from information_schema.columns
                       where table_schema = 'public' and table_name = 'pagos' and column_name = 'requisicion_admin_item_id')
-         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%mi_req_admin_rechazada%')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%req_admin_por_aprobar%')
   union all
-  select '20261203000000_requisiciones_admin_pago_directo',
-         exists (select 1 from pg_trigger where tgname = 'trg_req_admin_sigue_pagos')
+  select '20261203000000_requisiciones_admin_aprobacion_conjunta',
+         exists (select 1 from pg_proc where proname = 'aprobar_requisicion_admin')
+         and exists (select 1 from pg_proc where proname = 'lote_requisicion_admin')
          and not exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
-         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) not like '%req_admin_por_aprobar%')
+         and position('requisicion_admin_id is not null' in pg_get_functiondef('public.aprobar_pago(uuid)'::regprocedure)) > 0
 ) t
 order by 1;

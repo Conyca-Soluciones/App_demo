@@ -286,12 +286,16 @@ describe("pago de una requisición administrativa", () => {
       valor: "50000",
       concepto: "REQ",
       requisicion_admin_id: "r4",
+      requisicion_admin_principal: true,
+      lote: { items: 3, total: "1500.5" },
       req: { numero: 4, metodo: "pse" },
       req_item: { titular_nombre: "Distrito", titular_tipo_documento: "NIT", titular_documento: "899999061" },
       tercero: null,
     })
     expect(p.origen).toBe("Req. admin. N° 4 · PSE")
     expect(p.requisicionAdminId).toBe("r4")
+    expect(p.requisicionAdminLote).toEqual({ items: 3, total: 1500.5 })
+    expect(mapPago({ id: "g2", fuente: "requisicion_admin", requisicion_admin_principal: false, lote: { items: 3, total: 1 } }).requisicionAdminLote).toBeNull()
     expect(p.terceroNombre).toBe("Distrito")
     expect(p.terceroDocumento).toBe("NIT 899999061")
   })

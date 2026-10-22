@@ -1068,7 +1068,6 @@ export type NotificacionTipo =
   | "poliza_devuelta"
   | "requisicion_admin_aprobada"
   | "requisicion_admin_rechazada"
-  | "requisicion_admin_parcial"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"

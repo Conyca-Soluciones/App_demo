@@ -53,6 +53,7 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   poliza_por_revisar: { titulo: "Pólizas por revisar", accion: "Revisar", orden: 36 },
   contrato_vencido: { titulo: "Contratos vencidos sin liquidar", accion: "Liquidar", orden: 35 },
   pago_por_aprobar: { titulo: "Pagos por aprobar", accion: "Aprobar", orden: 40 },
+  req_admin_por_aprobar: { titulo: "Requisiciones administrativas por aprobar", accion: "Aprobar", orden: 40.5 },
   pago_sin_tercero: { titulo: "Pagos aprobados sin tercero o cuenta", accion: "Resolver", orden: 41 },
   cuenta_por_verificar: { titulo: "Cuentas de terceros por verificar", accion: "Verificar", orden: 42 },
   mi_req_atrasada: { titulo: "Mis requisiciones atrasadas", accion: "Ver", orden: 90 },

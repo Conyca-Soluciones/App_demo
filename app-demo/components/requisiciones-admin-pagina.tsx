@@ -33,7 +33,7 @@ import {
 
 type Pestana = "nueva" | "mias"
 
-const ESTADOS: EstadoReqAdmin[] = ["por_aprobar", "rechazada", "parcial", "aprobada", "cancelada"]
+const ESTADOS: EstadoReqAdmin[] = ["por_aprobar", "rechazada", "aprobada", "cancelada"]
 
 // Requisiciones administrativas: realizar una (o corregirla) y consultar las
 // mías. ?ver=<id> abre una (aviso de la campanita o Mis pendientes).

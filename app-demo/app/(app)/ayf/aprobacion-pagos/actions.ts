@@ -32,6 +32,9 @@ export async function listarPagosAprobacion(
     .order("solicitado_en", { ascending: true, nullsFirst: false })
     .order("id", { ascending: true })
 
+  // Una requisición administrativa sale en UNA fila (el pago de su ítem 1):
+  // se aprueba completa, como una orden de compra.
+  query = query.or("requisicion_admin_id.is.null,requisicion_admin_principal.eq.true")
   if (filtros.estado) query = query.eq("estado", filtros.estado)
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
 
@@ -80,12 +83,31 @@ export async function resolicitarPago(pagoId: string): Promise<Pago> {
   return await obtenerPago(data as string)
 }
 
-// Requisición administrativa de un pago (20261203000000: sus ítems pasan
-// directo como pagos por aprobar; aquí se ve el detalle para revisarlos).
+// Requisición administrativa de un pago (sus ítems y cuentas, para revisarla
+// antes de aprobarla).
 export async function obtenerRequisicionAdminAprobacion(id: string): Promise<RequisicionAdminDetalle> {
   await requerirPestana(PESTANA)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("detalle_requisicion_admin", { p_id: id })
   if (error) throw new Error(error.message)
   return mapDetalleReqAdmin(data)
+}
+
+// La requisición completa (todos sus pagos por aprobar a la vez, como una
+// orden de compra). Devuelve su fila (el pago principal) actualizada.
+export async function aprobarRequisicionAdminPago(pagoId: string, requisicionId: string): Promise<Pago> {
+  await requerirAccion("aprobar_pagos")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("aprobar_requisicion_admin", { p_id: requisicionId })
+  if (error) throw new Error(error.message)
+  return await obtenerPago(pagoId)
+}
+
+export async function rechazarRequisicionAdminPago(pagoId: string, requisicionId: string, motivo: string): Promise<Pago> {
+  await requerirAccion("aprobar_pagos")
+  if (!motivo.trim()) throw new Error("El motivo de rechazo es obligatorio.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("rechazar_requisicion_admin", { p_id: requisicionId, p_motivo: motivo.trim() })
+  if (error) throw new Error(error.message)
+  return await obtenerPago(pagoId)
 }

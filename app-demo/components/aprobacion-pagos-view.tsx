@@ -17,8 +17,10 @@ import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import {
   aprobarPago,
   listarPagosAprobacion,
+  aprobarRequisicionAdminPago,
   obtenerRequisicionAdminAprobacion,
   rechazarPago,
+  rechazarRequisicionAdminPago,
   resolicitarPago,
 } from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
@@ -41,6 +43,18 @@ const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
 ]
+
+// Una requisición administrativa sale en una fila con el total de su cuadro y
+// se aprueba o rechaza completa, como una orden de compra.
+const valorFila = (p: Pago) => p.requisicionAdminLote?.total ?? p.valor
+const tipoFila = (p: Pago) =>
+  p.requisicionAdminLote
+    ? `Requisición · ${p.requisicionAdminLote.items} ${p.requisicionAdminLote.items === 1 ? "ítem" : "ítems"}`
+    : ETIQUETA_TIPO_PAGO[p.tipo]
+const terceroFila = (p: Pago) =>
+  p.requisicionAdminLote && p.requisicionAdminLote.items > 1
+    ? `${p.terceroNombre ?? "Sin tercero"} y ${p.requisicionAdminLote.items - 1} más`
+    : p.terceroNombre
 
 function EtiquetaEstado({ estado }: { estado: EstadoPago }) {
   return (
@@ -119,7 +133,11 @@ export function AprobacionPagosView({
     setProcesandoId(p.id)
     setError(null)
     try {
-      reflejar(await aprobarPago(p.id))
+      reflejar(
+        p.requisicionAdminLote && p.requisicionAdminId
+          ? await aprobarRequisicionAdminPago(p.id, p.requisicionAdminId)
+          : await aprobarPago(p.id)
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo aprobar el pago.")
     } finally {
@@ -152,7 +170,11 @@ export function AprobacionPagosView({
     setProcesandoId(rechazando.id)
     setError(null)
     try {
-      reflejar(await rechazarPago(rechazando.id, motivo.trim()))
+      reflejar(
+        rechazando.requisicionAdminLote && rechazando.requisicionAdminId
+          ? await rechazarRequisicionAdminPago(rechazando.id, rechazando.requisicionAdminId, motivo.trim())
+          : await rechazarPago(rechazando.id, motivo.trim())
+      )
       setRechazando(null)
       setMotivo("")
     } catch (e) {
@@ -189,18 +211,18 @@ export function AprobacionPagosView({
       clave: "tipo",
       titulo: "Pago",
       ancho: 110,
-      texto: (p) => ETIQUETA_TIPO_PAGO[p.tipo],
+      texto: (p) => tipoFila(p),
     },
     {
       clave: "tercero",
       titulo: "Tercero",
       ancho: 280,
       flexible: true,
-      texto: (p) => p.terceroNombre ?? "",
+      texto: (p) => terceroFila(p) ?? "",
       celda: (p) => (
         <div className="min-w-0">
-          <div className="truncate" title={p.terceroNombre ?? undefined}>
-            {p.terceroNombre ?? <span className="text-muted-foreground/60">Sin tercero</span>}
+          <div className="truncate" title={terceroFila(p) ?? undefined}>
+            {terceroFila(p) ?? <span className="text-muted-foreground/60">Sin tercero</span>}
           </div>
           {p.terceroDocumento && <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>}
         </div>
@@ -218,10 +240,10 @@ export function AprobacionPagosView({
       titulo: "Valor a pagar",
       ancho: 150,
       alinear: "right",
-      texto: (p) => formatoMoneda(p.valor),
+      texto: (p) => formatoMoneda(valorFila(p)),
       celda: (p) => (
         <div className="leading-tight">
-          <div>{formatoMoneda(p.valor)}</div>
+          <div>{formatoMoneda(valorFila(p))}</div>
           {p.actaBruto != null && p.actaBruto !== p.valor && (
             <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
           )}
@@ -328,7 +350,7 @@ export function AprobacionPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y los de las requisiciones administrativas (un pago por ítem; el origen abre la requisición)."
+          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y las requisiciones administrativas (una fila por requisición, que se aprueba completa; el origen la abre)."
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>
@@ -384,8 +406,8 @@ export function AprobacionPagosView({
               columnas={columnas}
               claveFila={(p) => p.id}
               tarjeta={{
-                titulo: (p) => p.terceroNombre ?? "Sin tercero",
-                subtitulo: (p) => `${p.origen || "—"} · ${ETIQUETA_TIPO_PAGO[p.tipo]}`,
+                titulo: (p) => terceroFila(p) ?? "Sin tercero",
+                subtitulo: (p) => `${p.origen || "—"} · ${tipoFila(p)}`,
                 esquina: (p) => <EtiquetaEstado estado={p.estado} />,
                 campos: ["proyecto", "empresa", "valor", "fecha", "acciones"],
               }}
@@ -410,11 +432,13 @@ export function AprobacionPagosView({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Rechazar pago — {rechazando?.origen} ({rechazando ? ETIQUETA_TIPO_PAGO[rechazando.tipo] : ""})
+              {rechazando?.requisicionAdminLote ? "Rechazar requisición" : "Rechazar pago"} — {rechazando?.origen} (
+              {rechazando ? tipoFila(rechazando) : ""})
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {rechazando && `${rechazando.terceroNombre ?? "Sin tercero"} · ${formatoMoneda(rechazando.valor)}`}
+            {rechazando && `${terceroFila(rechazando) ?? "Sin tercero"} · ${formatoMoneda(valorFila(rechazando))}`}
+            {rechazando?.requisicionAdminLote && ". Vuelve completa a quien la hizo para corregirla."}
           </p>
           <Textarea
             placeholder="Motivo del rechazo (obligatorio)"
@@ -435,12 +459,16 @@ export function AprobacionPagosView({
 
       <ConfirmarAprobacion
         abierta={porAprobar !== null}
-        titulo={`¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`}
+        titulo={
+          porAprobar?.requisicionAdminLote
+            ? `¿Aprobar la requisición completa (${porAprobar.requisicionAdminLote.items} ${porAprobar.requisicionAdminLote.items === 1 ? "pago" : "pagos"} por ${formatoMoneda(porAprobar.requisicionAdminLote.total)})?`
+            : `¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`
+        }
         detalle={
           porAprobar
-            ? `${porAprobar.terceroNombre ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
+            ? `${terceroFila(porAprobar) ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
                 porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
-              }. ${porAprobar.concepto}`
+              }. ${porAprobar.requisicionAdminLote ? "Los pagos de todos sus ítems pasan al consolidado." : porAprobar.concepto}`
             : ""
         }
         procesando={porAprobar !== null && procesandoId === porAprobar.id}

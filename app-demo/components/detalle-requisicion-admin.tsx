@@ -140,7 +140,8 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
 // botones los pone cada pantalla.
 export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdminDetalle }) {
   const columnas = columnasItemsReqAdmin<ItemReqAdmin>(detalle.metodo, leerItem)
-  // Pago de cada ítem: cada uno lo aprueba o rechaza A&F en Aprobación de pagos.
+  // Pago de cada ítem (una fila del consolidado); A&F los aprueba o rechaza
+  // juntos, con la requisición.
   columnas.push({
     clave: "pago",
     titulo: "Pago",
@@ -183,16 +184,16 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
           <span className="tabular-nums">{formatoMoneda(detalle.valorTotal)}</span>
         </Dato>
         {detalle.resueltaEn && (
-          <Dato etiqueta={detalle.estado === "rechazada" ? "Rechazada" : detalle.estado === "parcial" ? "Resuelta" : "Aprobada"}>
+          <Dato etiqueta={detalle.estado === "rechazada" ? "Rechazada" : "Aprobada"}>
             {formatearFechaHora(detalle.resueltaEn)}
             {detalle.resueltaPorNombre ? ` · ${detalle.resueltaPorNombre}` : ""}
           </Dato>
         )}
       </div>
 
-      {(detalle.estado === "rechazada" || detalle.estado === "parcial") && detalle.motivoRechazo && (
+      {detalle.estado === "rechazada" && detalle.motivoRechazo && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <span className="font-medium">Pagos rechazados:</span> {detalle.motivoRechazo}
+          <span className="font-medium">Motivo del rechazo:</span> {detalle.motivoRechazo}
         </p>
       )}
       {detalle.estado === "cancelada" && detalle.motivoCancelacion && (

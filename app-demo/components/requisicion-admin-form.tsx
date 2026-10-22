@@ -417,7 +417,7 @@ export function RequisicionAdminForm({
             <DialogTitle>¿Enviar la requisición a A&F?</DialogTitle>
             <DialogDescription>
               {metodo ? ETIQUETA_METODO_REQ_ADMIN[metodo] : ""} · {items.length} {items.length === 1 ? "ítem" : "ítems"} ·{" "}
-              {formatoMoneda(total)}. Cada ítem pasa como pago a Aprobación de pagos (A&F), que los aprueba o rechaza.
+              {formatoMoneda(total)}. Pasa a Aprobación de pagos (A&F), que la aprueba o rechaza completa.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

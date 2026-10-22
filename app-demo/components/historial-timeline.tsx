@@ -61,12 +61,11 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
 }
 
 const EVENTOS_REQUISICION_ADMIN: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
-  creada: { etiqueta: "Requisición enviada: sus pagos pasan a Aprobación de pagos", tono: "neutro" },
+  creada: { etiqueta: "Requisición enviada a Aprobación de pagos", tono: "neutro" },
   modificada: { etiqueta: "Requisición modificada", tono: "aviso" },
   reenviada: { etiqueta: "Requisición corregida y enviada otra vez", tono: "neutro" },
-  aprobada: { etiqueta: "A&F aprobó todos los pagos", tono: "ok" },
-  parcial: { etiqueta: "A&F aprobó unos pagos y rechazó otros", tono: "aviso" },
-  rechazada: { etiqueta: "A&F rechazó los pagos", tono: "malo" },
+  aprobada: { etiqueta: "Aprobada por A&F", tono: "ok" },
+  rechazada: { etiqueta: "Rechazada por A&F", tono: "malo" },
   cancelada: { etiqueta: "Requisición cancelada", tono: "malo" },
 }
 
@@ -423,7 +422,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   if (tipo === "requisicion_admin") {
     if (d.items != null && d.valor != null)
       return [`${d.items} ${d.items === 1 ? "ítem" : "ítems"} · ${pesosTexto(d.valor)}${d.metodo === "pse" ? " · PSE" : ""}`]
-    if (d.aprobados != null && d.rechazados != null) return [`Aprobados: ${d.aprobados} · Rechazados: ${d.rechazados}`]
+    if (e.evento === "aprobada" && d.pagos != null) return [`${d.pagos} ${d.pagos === 1 ? "pago" : "pagos"} al consolidado`]
     return []
   }
   if (tipo === "requisicion") {
