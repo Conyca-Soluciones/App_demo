@@ -407,6 +407,9 @@ select * from (
          and position('A&F' in pg_get_functiondef('public.aprobar_orden_compra(uuid)'::regprocedure)) > 0
          and not exists (select 1 from public.rol_permisos where permiso in ('accion.aprobar_oc', 'tab.compras.aprobar_oc'))
   union all
+  select '20261205000000_remisiones_entradas_visibles',
+         exists (select 1 from pg_policy where polname = 'entradas_almacen_select')
+  union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
                   where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)

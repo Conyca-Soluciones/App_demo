@@ -1368,6 +1368,8 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   - **Entradas**: soporte de la remisión, opcional (`entrada_soportes`, bucket
     `entradas`, `guardar_remision_entrada` pone o cambia el archivo). Al
     registrar y al editar; botón "Remisión" en la entrada.
+    Se leen por `entradas_almacen_select` (`20261205000000`): pestaña Entradas en
+    sus proyectos o quien ve la OC. Antes la tabla no tenía política y nadie las veía.
   - Componente `CampoSoporte` y ayudas en `lib/soportes.ts`.
 - **ITEM del consolidado**: consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
@@ -3320,7 +3322,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261201000000` representantes legales y su firma en el contrato ·
 `20261202000000` requisiciones administrativas (A&F) ·
 `20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos ·
-`20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro.
+`20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro ·
+`20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
