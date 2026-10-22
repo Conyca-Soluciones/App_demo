@@ -35,6 +35,7 @@ import {
   type MinutaVehiculo,
 } from "@/lib/minuta-vehiculo"
 import { guardarMinutaVehiculo, obtenerMinutaVehiculo, type MinutaContratoVehiculo } from "@/app/(app)/contratos/pre-aprobacion/actions"
+import { SelectorRepresentante } from "@/components/selector-representante"
 
 // ---------------------------------------------------------------------------
 // Editor de la minuta de alquiler de vehículo o maquinaria dentro del detalle
@@ -230,6 +231,7 @@ export function MinutaVehiculoEditor({ detalle, puedeEditar }: { detalle: Solici
         <LeyendaOrigen />
 
         <Seccion titulo="Contratante" ayuda="La empresa del proyecto.">
+          <SelectorRepresentante representantes={datos?.representantes ?? []} documentoActual={m.contratanteRepresentanteCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ contratanteRepresentante: r.nombre, contratanteRepresentanteCedula: r.numeroDocumento })} />
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("contratanteNombre", "Razón social")}
             {campo("contratanteNit", "NIT")}

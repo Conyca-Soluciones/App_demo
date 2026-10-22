@@ -31,6 +31,7 @@ import {
   type MinutaServicios,
 } from "@/lib/minuta-servicios"
 import { guardarMinutaServicios, obtenerMinutaServicios, type MinutaContratoServicios } from "@/app/(app)/contratos/pre-aprobacion/actions"
+import { SelectorRepresentante } from "@/components/selector-representante"
 
 // ---------------------------------------------------------------------------
 // Editor de la minuta de prestación de servicios (plantilla GJ-F-020) dentro
@@ -209,6 +210,7 @@ export function MinutaServiciosEditor({ detalle, puedeEditar }: { detalle: Solic
         <LeyendaOrigen />
 
         <Seccion titulo="Contratante" ayuda="La empresa del proyecto.">
+          <SelectorRepresentante representantes={datos?.representantes ?? []} documentoActual={m.contratanteRepresentanteCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ contratanteRepresentante: r.nombre, contratanteRepresentanteCedula: r.numeroDocumento })} />
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("contratanteNombre", "Razón social")}
             {campo("contratanteNit", "NIT")}

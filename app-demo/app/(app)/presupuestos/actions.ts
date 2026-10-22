@@ -894,9 +894,14 @@ export async function buscarManoObraSimilares(nombreItem: string): Promise<Categ
     throw new Error(error.message)
   }
 
-  const filas: any[] = data ?? []
-  const candidatos = filas.map((f: any) => ({ id: f.id, texto: f.categoria, unidad: f.unidad }))
+  return rankearManoObra(nombreItem, data ?? [])
+}
 
+// Ranking de categorías de MO para un nombre de ítem, sobre filas ya
+// traídas (del RPC de un ítem, o del catálogo completo en el import).
+function rankearManoObra(nombreItem: string, filas: any[]): CategoriaManoObra[] {
+  if (!nombreItem || nombreItem.trim().length < 2) return []
+  const candidatos = filas.map((f: any) => ({ id: f.id, texto: f.categoria, unidad: f.unidad }))
   // umbral más bajo que el de insumos (0.4) A PROPÓSITO -- acá NUNCA hay
   // auto_match (decisión de negocio), así que no hay riesgo de asignar
   // algo mal solo. Con un umbral más laxo se le muestran al ingeniero
@@ -3224,10 +3229,23 @@ export async function matchearManoDeObraApuImport(
 ): Promise<ResolucionManoObra[]> {
   const bloquesConManoObra = bloques.filter((b) => b.lineas.some((l) => l.tipo === "MO"))
 
-  return procesarEnLotes(bloquesConManoObra, 15, async (bloque) => {
-    const candidatosSugeridos = await buscarManoObraSimilares(bloque.nombreItem)
-    return { codigoItem: bloque.codigoItem, candidatosSugeridos }
-  })
+  if (bloquesConManoObra.length === 0) return []
+
+  // El catálogo es chico (~264 categorías): se trae UNA vez y se compara en
+  // memoria. Antes era un RPC por ítem (~400 en el Malecón, ~100 s).
+  const supabase = await createClient()
+  const catalogo = await traerTodo<any>((desde, hasta) =>
+    supabase
+      .from("mano_obra_categorias")
+      .select("id, grupo, categoria, unidad, valor_unitario")
+      .order("id")
+      .range(desde, hasta)
+  )
+
+  return bloquesConManoObra.map((bloque) => ({
+    codigoItem: bloque.codigoItem,
+    candidatosSugeridos: rankearManoObra(bloque.nombreItem, catalogo),
+  }))
 }
 
 /**

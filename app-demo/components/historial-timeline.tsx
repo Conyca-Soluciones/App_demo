@@ -57,6 +57,16 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   reenviada: { etiqueta: "Acta corregida y enviada otra vez", tono: "neutro" },
   aprobada: { etiqueta: "Acta aprobada", tono: "ok" },
   rechazada: { etiqueta: "Acta rechazada", tono: "malo" },
+  firmada_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
+}
+
+const EVENTOS_REQUISICION_ADMIN: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
+  creada: { etiqueta: "Requisición enviada a Aprobación de pagos", tono: "neutro" },
+  modificada: { etiqueta: "Requisición modificada", tono: "aviso" },
+  reenviada: { etiqueta: "Requisición corregida y enviada otra vez", tono: "neutro" },
+  aprobada: { etiqueta: "Aprobada por A&F", tono: "ok" },
+  rechazada: { etiqueta: "Rechazada por A&F", tono: "malo" },
+  cancelada: { etiqueta: "Requisición cancelada", tono: "malo" },
 }
 
 const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
@@ -79,6 +89,12 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   otrosi_reenviado_subgerencia: { etiqueta: "Otrosí corregido y enviado otra vez a Subgerencia", tono: "neutro" },
   otrosi_devuelto_subgerencia: { etiqueta: "Otrosí devuelto a Jurídica por Subgerencia", tono: "aviso" },
   otrosi_aprobado: { etiqueta: "Otrosí aprobado por Subgerencia", tono: "ok" },
+  // Póliza (20261126000000_polizas.sql).
+  poliza_subida: { etiqueta: "Póliza subida", tono: "neutro" },
+  poliza_aprobada: { etiqueta: "Póliza aprobada por Jurídica", tono: "ok" },
+  firma_representante: { etiqueta: "Firma del representante legal puesta en el contrato", tono: "ok" },
+  poliza_devuelta: { etiqueta: "Póliza devuelta por Jurídica", tono: "aviso" },
+  poliza_no_aplica: { etiqueta: "El contrato no requiere póliza", tono: "neutro" },
 }
 
 // Eventos de un OTROSÍ (Jurídica y Subgerencia).
@@ -107,6 +123,7 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   en_dispersion: { etiqueta: "Pago en dispersión", tono: "neutro" },
   dispersado: { etiqueta: "Pago dispersado", tono: "ok" },
   tercero_cambiado: { etiqueta: "Tercero o cuenta cambiados", tono: "aviso" },
+  cuenta_modificada: { etiqueta: "La cuenta del tercero cambió", tono: "aviso" },
   valor_cambiado: { etiqueta: "Valor cambiado", tono: "aviso" },
 }
 
@@ -187,6 +204,7 @@ const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>
   contrato: EVENTOS_CONTRATO,
   acta: EVENTOS_ACTA,
   otrosi: EVENTOS_OTROSI,
+  requisicion_admin: EVENTOS_REQUISICION_ADMIN,
   pago: EVENTOS_PAGO,
   tercero: EVENTOS_TERCERO,
   proveedor: EVENTOS_PROVEEDOR,
@@ -209,6 +227,7 @@ export const NOMBRE_TIPO_HISTORIAL: Record<TipoHistorial, string> = {
   contrato: "Contrato",
   acta: "Acta",
   otrosi: "Otrosí",
+  requisicion_admin: "Requisición administrativa",
   pago: "Pago",
   tercero: "Tercero",
   proveedor: "Proveedor",
@@ -326,9 +345,12 @@ export function quienHizo(e: Pick<EventoHistorial, "usuarioNombre" | "usuarioRol
 // Detalle extra de algunos eventos (qué cambió en una modificación, etc.).
 export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[] {
   const d = e.datos ?? {}
+  if (e.evento === "firma_representante" && d.representante)
+    return [`${d.representante}${d.tipo === "suplente" ? " (suplente)" : ""}`]
   if (tipo === "pago") {
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
+    if (e.evento === "cuenta_modificada") return [`${formatoValor(d.cuenta_de)} → ${formatoValor(d.cuenta_a)}`]
     if (e.evento === "reliquidado" && d.neto != null) return [`Versión ${d.version}: neto ${pesosTexto(d.neto)}`]
     if (e.evento === "tercero_cambiado") {
       const lineas: string[] = []
@@ -402,6 +424,12 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     const lineas = [d.otrosi_numero ? `Otrosí N° ${d.otrosi_numero}` : "Otrosí en trámite"]
     if (d.clausulas) lineas.push(`Cláusulas: ${d.clausulas}`)
     return lineas
+  }
+  if (tipo === "requisicion_admin") {
+    if (d.items != null && d.valor != null)
+      return [`${d.items} ${d.items === 1 ? "ítem" : "ítems"} · ${pesosTexto(d.valor)}${d.metodo === "pse" ? " · PSE" : ""}`]
+    if (e.evento === "aprobada" && d.pagos != null) return [`${d.pagos} ${d.pagos === 1 ? "pago" : "pagos"} al consolidado`]
+    return []
   }
   if (tipo === "requisicion") {
     if (e.evento === "creada" && d.insumos) return [`${d.insumos} ${d.insumos === 1 ? "insumo" : "insumos"}`]

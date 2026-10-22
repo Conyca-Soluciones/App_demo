@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Loader2, Undo2 } from "lucide-react"
+import { CheckCircle2, Loader2, PenLine, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { BadgePolizaContrato } from "@/components/badge-poliza"
+import { ETIQUETA_POLIZA_CONTRATO } from "@/lib/polizas"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
@@ -21,6 +23,9 @@ import {
   type SolicitudContratoFila,
 } from "@/lib/contratos"
 import { listarMinutasSubgerencia, resolverMinutaContrato, type AccionMinuta } from "@/app/(app)/contratos/aprobacion-minutas/actions"
+import { firmaRepresentanteContrato } from "@/app/(app)/contratos/representantes/actions"
+import { RepresentantesLegalesView } from "@/components/representantes-legales-view"
+import { textoFirmaRepresentante, type FirmaRepresentanteContrato } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
 // Aprobación de contratos (ruta /contratos/aprobacion-minutas): Subgerencia
@@ -137,6 +142,14 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
             </Badge>
           ) : null,
       },
+      {
+        clave: "poliza",
+        titulo: "Póliza",
+        ancho: 150,
+        alinear: "center",
+        texto: (s) => (s.polizaEstado ? ETIQUETA_POLIZA_CONTRATO[s.polizaEstado] : ""),
+        celda: (s) => <BadgePolizaContrato estado={s.polizaEstado} />,
+      },
       { clave: "enviadaPor", titulo: "Enviada por", ancho: 150, texto: (s) => s.minutaEnviadaPorNombre ?? "" },
       { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => (s.minutaEnviadaAt ? fechaContrato(s.minutaEnviadaAt) : ""), claseCelda: "tabular-nums" },
     ],
@@ -147,6 +160,23 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
     setDetalleId(null)
     if (verInicial) router.replace("/contratos/aprobacion-minutas")
   }
+
+  // Antes de aprobar: quién firma como representante legal (o qué falta).
+  const [firmaRL, setFirmaRL] = useState<{ id: string; firma: FirmaRepresentanteContrato } | null>(null)
+  const idAprobar = accion?.tipo === "aprobar" && accion.detalle.clase !== "general" ? accion.detalle.id : null
+  useEffect(() => {
+    if (!idAprobar) return
+    let vigente = true
+    firmaRepresentanteContrato(idAprobar)
+      .then((firma: FirmaRepresentanteContrato) => vigente && setFirmaRL({ id: idAprobar, firma }))
+      .catch(() => vigente && setFirmaRL(null))
+    return () => {
+      vigente = false
+    }
+  }, [idAprobar])
+  const avisoFirma = idAprobar && firmaRL?.id === idAprobar ? textoFirmaRepresentante(firmaRL.firma) : null
+  // «Adjuntar firma de RL»: la firma de los representantes legales de las empresas.
+  const [firmasRL, setFirmasRL] = useState(false)
 
   async function confirmar() {
     if (!accion) return
@@ -184,6 +214,11 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
               </Button>
             ))}
           </div>
+          {puedeResolver && (
+            <Button size="sm" variant="outline" className="order-last ml-auto" onClick={() => setFirmasRL(true)}>
+              <PenLine className="size-4" /> Adjuntar firma de RL
+            </Button>
+          )}
           <select
             aria-label="Proyecto"
             value={proyectoId}
@@ -260,6 +295,15 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
         }
       />
 
+      <Dialog open={firmasRL} onOpenChange={(a) => !a && setFirmasRL(false)}>
+        <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-4xl overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Adjuntar firma de representante legal</DialogTitle>
+          </DialogHeader>
+          {firmasRL && <RepresentantesLegalesView puedeEditar />}
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={accion !== null}
         onOpenChange={(abierto) => {
@@ -298,12 +342,17 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
                   />
                 </div>
               )}
+              {avisoFirma && (
+                <p className={`rounded-md border px-3 py-2 text-sm ${avisoFirma.bloquea ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                  {avisoFirma.texto}
+                </p>
+              )}
               {errorAccion && <p className="text-sm text-destructive">{errorAccion}</p>}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAccion(null)} disabled={procesando}>
                   Cancelar
                 </Button>
-                <Button onClick={confirmar} disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim())}>
+                <Button onClick={confirmar} disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim()) || Boolean(avisoFirma?.bloquea)}>
                   {procesando && <Loader2 className="size-4 animate-spin" />}
                   {TEXTO_ACCION[accion.tipo].boton}
                 </Button>

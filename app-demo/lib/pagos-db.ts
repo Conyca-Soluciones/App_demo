@@ -11,9 +11,11 @@ export const CAMPOS_PAGO = `
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
+  requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
   orden:ordenes_compra(numero),
-  req_admin:requisiciones_admin(numero),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
+  req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
+  req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros(razon_social, tipo_documento, numero_documento, dv),
@@ -51,6 +53,11 @@ export function mapPago(f: any): Pago {
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
     requisicionAdminItemId: f.requisicion_admin_item_id ?? null,
+    requisicionAdminId: f.requisicion_admin_id ?? null,
+    requisicionAdminLote:
+      f.requisicion_admin_principal && f.lote
+        ? { items: Number(f.lote.items ?? 0), total: Number(f.lote.total ?? 0) }
+        : null,
     // De dónde sale el pago: una orden de compra, un acta de contrato o una
     // requisición administrativa. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
@@ -58,11 +65,11 @@ export function mapPago(f: any): Pago {
       ? `OC ${f.orden.numero}`
       : f.acta
         ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}`
-        : f.fuente === "requisicion_admin"
-          ? `Req. administrativa${f.req_admin?.numero != null ? ` N° ${f.req_admin.numero}` : ""}`
-          : f.fuente === "acta"
+        : f.fuente === "acta"
           ? "Acta"
-          : "",
+          : f.fuente === "requisicion_admin"
+            ? `Req. admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${f.req?.metodo === "pse" ? " · PSE" : ""}`
+            : "",
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
     // no es de acta o quien consulta no lee el acta (RLS).
     actaBruto: f.acta?.valor_bruto != null ? Number(f.acta.valor_bruto) : null,
@@ -71,14 +78,17 @@ export function mapPago(f: any): Pago {
     empresaNombre: f.empresa?.razon_social ?? null,
     consolidadoId: f.consolidado_id,
     terceroId: f.tercero_id,
-    terceroNombre: t?.razon_social ?? null,
+    // PSE (requisición administrativa): el titular escrito, sin tercero en la app.
+    terceroNombre: t?.razon_social ?? f.req_item?.titular_nombre ?? null,
     terceroDocumento: t
       ? `${t.tipo_documento} ${documentoFormateado({
           tipoDocumento: t.tipo_documento,
           numeroDocumento: t.numero_documento,
           dv: t.dv,
         })}`
-      : null,
+      : f.req_item
+        ? `${f.req_item.titular_tipo_documento} ${f.req_item.titular_documento}`
+        : null,
     cuentaId: f.cuenta_tercero_id,
     cuentaTexto: f.cuenta
       ? `${f.cuenta.banco?.nombre ?? ""} · ${ETIQUETA_TIPO_CUENTA[f.cuenta.tipo_cuenta as keyof typeof ETIQUETA_TIPO_CUENTA] ?? f.cuenta.tipo_cuenta} · ${f.cuenta.numero_cuenta}`

@@ -63,6 +63,12 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  // Requisición administrativa de la que sale el pago (para ver su detalle).
+  requisicionAdminId: string | null
+  // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
+  // aprueba o rechaza la requisición completa, con el total y los ítems de su
+  // lote. null = no es la fila de una requisición.
+  requisicionAdminLote: { items: number; total: number } | null
   // Documento de donde sale el pago (para abrir su detalle).
   ordenCompraId: string | null
   actaId: string | null

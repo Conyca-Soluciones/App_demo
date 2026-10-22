@@ -14,6 +14,7 @@ import {
 import { useAnchoSidebar } from "@/components/app-shell"
 import { construirModulos, type ModuloClave, type PermisosRol } from "@/lib/pestanas"
 import { contarMisPendientes } from "@/app/(app)/pendientes/actions"
+import { EVENTO_FIRMA_GUARDADA } from "@/lib/firmas"
 
 // El menú sale de lib/pestanas.ts filtrado por el rol del usuario (Roles y
 // permisos). Un usuario sin rol asignado ve el menú completo, como antes.
@@ -59,15 +60,25 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   // Cuántas cosas le tocan a la persona (Mis pendientes). Se vuelve a contar al
   // cambiar de página: resolver algo y volver baja el número.
   const [pendientes, setPendientes] = useState<number | null>(null)
+  const [recontar, setRecontar] = useState(0)
+  useEffect(() => {
+    const otraVez = () => setRecontar((n) => n + 1)
+    window.addEventListener(EVENTO_FIRMA_GUARDADA, otraVez)
+    return () => window.removeEventListener(EVENTO_FIRMA_GUARDADA, otraVez)
+  }, [])
   useEffect(() => {
     let activo = true
-    contarMisPendientes()
-      .then((n: number) => activo && setPendientes(n))
-      .catch(() => activo && setPendientes(null))
+    // Las server actions van en fila: contar después deja que la página cargue primero.
+    const espera = setTimeout(() => {
+      contarMisPendientes()
+        .then((n: number) => activo && setPendientes(n))
+        .catch(() => activo && setPendientes(null))
+    }, 1200)
     return () => {
       activo = false
+      clearTimeout(espera)
     }
-  }, [pathname])
+  }, [pathname, recontar])
 
   const modulo = modulos.find((m) => m.clave === moduloAbierto) ?? null
   const seccion = modulo?.grupos.find((g) => g.titulo === seccionAbierta) ?? null

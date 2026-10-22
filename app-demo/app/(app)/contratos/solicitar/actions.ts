@@ -102,6 +102,7 @@ async function guardarSolicitud(
       anexo_tipo: d.anexoTipo,
       valor_mensual: d.valorMensual ?? "",
       tiene_anticipo: d.tieneAnticipo,
+      requiere_poliza: d.requierePoliza,
       anticipo_porcentaje: d.anticipoPorcentaje ?? "",
       forma_pago: d.formaPago,
       plazo_tipo: d.plazoTipo,

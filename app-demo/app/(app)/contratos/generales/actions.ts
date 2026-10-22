@@ -60,6 +60,7 @@ async function guardar(
       referencia: d.referencia,
       correo_notificacion: d.correoNotificacion,
       observaciones: d.observaciones,
+      requiere_poliza: d.requierePoliza,
     },
     p_documentos: documentos.map((x) => ({
       tipo: x.tipo,

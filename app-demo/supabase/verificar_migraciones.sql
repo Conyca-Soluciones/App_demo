@@ -342,6 +342,86 @@ select * from (
          exists (select 1 from pg_proc where proname = 'control_proyecto'
                   and pg_get_functiondef(oid) like '%_valor_contrato(c.id)%')
   union all
+  select '20261126000000_polizas',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'poliza_estado')
+         and exists (select 1 from pg_proc where proname = 'resolver_poliza')
+         and exists (select 1 from pg_trigger where tgname = 'trg_poliza_al_aprobar_minuta')
+         and exists (select 1 from pg_proc where proname = 'contrato_para_acta'
+                  and pg_get_functiondef(oid) like '%poliza_estado%')
+  union all
+  select '20261127000000_acta_poliza',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contrato_polizas' and column_name = 'acta_datos')
+         and exists (select 1 from pg_proc where proname = 'guardar_acta_poliza')
+  union all
+  select '20261128000000_contrato_para_acta_poliza_y_avance',
+         position('poliza_estado' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
+         and position('coalesce(a.porcentaje_avance' in pg_get_functiondef('public.contrato_para_acta(uuid,uuid)'::regprocedure)) > 0
+  union all
+  select '20261129000000_firmas',
+         to_regclass('public.firmas_usuario') is not null
+         and to_regclass('public.documentos_firmados') is not null
+         and exists (select 1 from pg_trigger where tgname = 'trg_firmar_poliza_aprobada')
+         and exists (select 1 from pg_proc where proname = 'subir_acta_firmada_contratista')
+         and exists (select 1 from storage.buckets where id = 'documentos_firmados')
+  union all
+  select '20261130000000_pendientes_firma_y_polizas',
+         exists (select 1 from pg_proc where proname = '_pendientes_de'
+                  and pg_get_functiondef(oid) like '%mi_firma%' and pg_get_functiondef(oid) like '%poliza_por_revisar%')
+  union all
+  select '20261130100000_firmas_ordenes_compra',
+         exists (select 1 from pg_trigger where tgname = 'trg_firmar_oc_aprobada')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%or public.tiene_accion(p_uid, ''aprobar_oc'')%')
+  union all
+  select '20261201000000_representantes_legales',
+         to_regclass('public.empresa_representantes') is not null
+         and exists (select 1 from pg_trigger where tgname = 'trg_firmar_representante_contrato')
+         and exists (select 1 from pg_proc where proname = 'guardar_firma_representante')
+  union all
+  select '20261202000000_requisiciones_administrativas',
+         to_regclass('public.requisiciones_admin') is not null
+         and exists (select 1 from pg_proc where proname = 'listar_requisiciones_admin')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'pagos' and column_name = 'requisicion_admin_item_id')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%req_admin_por_aprobar%')
+  union all
+  select '20261203000000_requisiciones_admin_aprobacion_conjunta',
+         exists (select 1 from pg_proc where proname = 'aprobar_requisicion_admin')
+         and exists (select 1 from pg_proc where proname = 'lote_requisicion_admin')
+         and not exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
+         and position('requisicion_admin_id is not null' in pg_get_functiondef('public.aprobar_pago(uuid)'::regprocedure)) > 0
+  union all
+  select '20261204000000_oc_se_aprueba_en_pagos',
+         exists (select 1 from pg_trigger where tgname = 'trg_oc_sigue_pago')
+         and position('A&F' in pg_get_functiondef('public.aprobar_orden_compra(uuid)'::regprocedure)) > 0
+         and not exists (select 1 from public.rol_permisos where permiso in ('accion.aprobar_oc', 'tab.compras.aprobar_oc'))
+  union all
+  select '20261205000000_remisiones_entradas_visibles',
+         exists (select 1 from pg_policy where polname = 'entradas_almacen_select')
+  union all
+  select '20261206000000_cuenta_cambiada_en_pagos',
+         exists (select 1 from pg_trigger where tgname = 'trg_cuenta_tercero_sigue_pagos')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'pagos' and column_name = 'cuenta_modificada')
+  union all
+  select '20261207000000_apu_por_proyecto',
+         exists (select 1 from pg_proc where proname = '_apus_de_proyectos_ajenos')
+         and exists (select 1 from pg_policy where polname = 'item_apu_update'
+                      and pg_get_expr(polqual, polrelid) like '%_apus_de_proyectos_ajenos%')
+  union all
+  select '20261208000000_poliza_segun_solicitud',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'requiere_poliza')
+         and position('no_aplica' in pg_get_functiondef('public._guardar_acta(uuid,uuid,jsonb)'::regprocedure)) > 0
+  union all
+  select '20261209000000_requisicion_exige_pestana',
+         position('tecnico.pedidos' in pg_get_functiondef('public.crear_requisicion(jsonb,date,boolean,text,text)'::regprocedure)) > 0
+  union all
+  select '20261209100000_contratos_sin_poliza_existentes',
+         not exists (select 1 from public.contratos
+                      where numero_contrato in ('CJ-10-2026', 'CJ-1-2026') and poliza_estado in ('pendiente', 'recibida'))
+  union all
   -- 20261203000000/20261203100000/20261204000000 (liquidación de pagos) los
   -- deshace 20261205000000: cuentan como aplicadas si ya se quitaron.
   select '20261205000000_quitar_liquidacion_pagos',
@@ -349,7 +429,7 @@ select * from (
                   where table_schema = 'public' and table_name = 'respaldo_liquidacion_20261022')
          and not exists (select 1 from pg_proc where proname = 'liquidar_pago')
   union all
-  select '20261206000000_consolidados_separados',
+  select '20261210000000_consolidados_separados',
          exists (select 1 from pg_proc where proname = '_consolidados_visibles')
          and not exists (select 1 from public.rol_permisos where permiso = 'tab.ayf.consolidado')
 ) t

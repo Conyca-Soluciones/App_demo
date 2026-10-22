@@ -1,5 +1,9 @@
 -- Un consolidado por pestaña (decisión del usuario, 2026-10-22).
 --
+-- (Se aplicó con el número 20261206000000; se renumeró al mezclar con main para
+-- que corra DESPUÉS de las de spr 20261204-20261209, que recrean las políticas
+-- "desde un pago" y asignar_tercero_pago con la pestaña vieja.)
+--
 -- Hay dos equipos de Contabilidad: uno maneja solo el Consolidado Bogotá
 -- (CONYCA) y no debe ver los otros consolidados, ni pistas de que existen; el
 -- otro maneja los tres. La pestaña ayf.consolidado se parte en

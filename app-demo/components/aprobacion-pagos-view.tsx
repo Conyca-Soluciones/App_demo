@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertTriangle, Check, History, Loader2, RotateCcw, X } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,10 +14,20 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { DetalleOrigenPago, EtiquetaEstadoPago } from "@/components/detalle-origen-pago"
-import { AYUDA_DOBLE_CLIC, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
-import { aprobarPago, listarPagosAprobacion, rechazarPago, resolicitarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
+import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
+import { DetalleActa } from "@/components/detalle-acta"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
 import {
+  aprobarPago,
+  aprobarRequisicionAdminPago,
+  listarPagosAprobacion,
+  obtenerRequisicionAdminAprobacion,
+  rechazarPago,
+  rechazarRequisicionAdminPago,
+  resolicitarPago,
+} from "@/app/(app)/ayf/aprobacion-pagos/actions"
+import {
+  CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
   ETIQUETA_TIPO_PAGO,
   formatoFechaHora,
@@ -26,6 +37,8 @@ import {
   type Pago,
 } from "@/lib/pagos"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
+import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "solicitado", etiqueta: "Por aprobar" },
@@ -33,6 +46,68 @@ const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
 ]
+
+// Una requisición administrativa sale en una fila con el total de su cuadro y
+// se aprueba o rechaza completa, como una orden de compra.
+const valorFila = (p: Pago) => p.requisicionAdminLote?.total ?? p.valor
+const tipoFila = (p: Pago) =>
+  p.requisicionAdminLote
+    ? `Requisición · ${p.requisicionAdminLote.items} ${p.requisicionAdminLote.items === 1 ? "ítem" : "ítems"}`
+    : ETIQUETA_TIPO_PAGO[p.tipo]
+const terceroFila = (p: Pago) =>
+  p.requisicionAdminLote && p.requisicionAdminLote.items > 1
+    ? `${p.terceroNombre ?? "Sin tercero"} y ${p.requisicionAdminLote.items - 1} más`
+    : p.terceroNombre
+
+function EtiquetaEstado({ estado }: { estado: EstadoPago }) {
+  return (
+    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[estado]}`}>
+      {ETIQUETA_ESTADO_PAGO[estado]}
+    </Badge>
+  )
+}
+
+// Debajo del documento (orden o acta): el pago que se está aprobando y los
+// mismos botones de la fila. Un botón abre su propio paso (confirmar,
+// motivo...) y el detalle se cierra.
+function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: React.ReactNode; onCerrar: () => void }) {
+  return (
+    <div className="flex w-full shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="font-medium">{tipoFila(pago)}</span>
+        <span className="tabular-nums">
+          {formatoMoneda(valorFila(pago))}
+          {pago.actaBruto != null && pago.actaBruto !== pago.valor && (
+            <span className="text-muted-foreground"> (bruto del acta {formatoMoneda(pago.actaBruto)})</span>
+          )}
+        </span>
+        <EtiquetaEstado estado={pago.estado} />
+        <span className="min-w-0 truncate text-muted-foreground" title={pago.cuentaTexto ?? undefined}>
+          {terceroFila(pago) ?? "Sin tercero"}
+          {!pago.requisicionAdminLote && pago.cuentaTexto ? ` · ${pago.cuentaTexto}${pago.cuentaVerificada ? "" : " (sin verificar)"}` : ""}
+        </span>
+        {pago.novedad && (
+          <span className="flex items-center gap-1 text-amber-700">
+            <AlertTriangle className="h-4 w-4" /> {pago.novedad}
+          </span>
+        )}
+      </div>
+      <div
+        className="flex flex-wrap items-center justify-end gap-2"
+        // Después del onClick del botón (que abre su paso). Se frena el clic
+        // para que no llegue al documento: si llega, la confirmación recién
+        // abierta lo toma como un clic afuera y se cierra sola.
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest("button, a")) return
+          e.stopPropagation()
+          onCerrar()
+        }}
+      >
+        {acciones}
+      </div>
+    </div>
+  )
+}
 
 export function AprobacionPagosView({
   puedeAprobar,
@@ -58,6 +133,8 @@ export function AprobacionPagosView({
   // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
   const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
+  // Fila de una requisición administrativa abierta (su detalle con los botones).
+  const [requisicionDe, setRequisicionDe] = useState<Pago | null>(null)
   const [viendo, setViendo] = useState<Pago | null>(null)
   const [motivo, setMotivo] = useState("")
   // Rechazados que ya se volvieron a solicitar en esta pantalla (se oculta el botón).
@@ -103,7 +180,11 @@ export function AprobacionPagosView({
     setProcesandoId(p.id)
     setError(null)
     try {
-      reflejar(await aprobarPago(p.id))
+      reflejar(
+        p.requisicionAdminLote && p.requisicionAdminId
+          ? await aprobarRequisicionAdminPago(p.id, p.requisicionAdminId)
+          : await aprobarPago(p.id)
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo aprobar el pago.")
     } finally {
@@ -136,7 +217,11 @@ export function AprobacionPagosView({
     setProcesandoId(rechazando.id)
     setError(null)
     try {
-      reflejar(await rechazarPago(rechazando.id, motivo.trim()))
+      reflejar(
+        rechazando.requisicionAdminLote && rechazando.requisicionAdminId
+          ? await rechazarRequisicionAdminPago(rechazando.id, rechazando.requisicionAdminId, motivo.trim())
+          : await rechazarPago(rechazando.id, motivo.trim())
+      )
       setRechazando(null)
       setMotivo("")
     } catch (e) {
@@ -154,23 +239,37 @@ export function AprobacionPagosView({
       ancho: 150,
       fija: true,
       texto: (p) => p.origen,
+      // Requisición administrativa: abre su detalle (todos sus ítems, cuentas y pagos).
+      celda: (p) =>
+        p.requisicionAdminId ? (
+          <button
+            type="button"
+            className="truncate text-left text-primary underline-offset-2 hover:underline"
+            title="Ver la requisición administrativa"
+            onClick={() => setRequisicionDe(p)}
+          >
+            {p.origen}
+          </button>
+        ) : (
+          <span className="truncate">{p.origen}</span>
+        ),
     },
     {
       clave: "tipo",
       titulo: "Pago",
       ancho: 110,
-      texto: (p) => ETIQUETA_TIPO_PAGO[p.tipo],
+      texto: (p) => tipoFila(p),
     },
     {
       clave: "tercero",
       titulo: "Tercero",
       ancho: 280,
       flexible: true,
-      texto: (p) => p.terceroNombre ?? "",
+      texto: (p) => terceroFila(p) ?? "",
       celda: (p) => (
         <div className="min-w-0">
-          <div className="truncate" title={p.terceroNombre ?? undefined}>
-            {p.terceroNombre ?? <span className="text-muted-foreground/60">Sin tercero</span>}
+          <div className="truncate" title={terceroFila(p) ?? undefined}>
+            {terceroFila(p) ?? <span className="text-muted-foreground/60">Sin tercero</span>}
           </div>
           {p.terceroDocumento && <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>}
         </div>
@@ -188,10 +287,10 @@ export function AprobacionPagosView({
       titulo: "Valor a pagar",
       ancho: 150,
       alinear: "right",
-      texto: (p) => formatoMoneda(p.valor),
+      texto: (p) => formatoMoneda(valorFila(p)),
       celda: (p) => (
         <div className="leading-tight">
-          <div>{formatoMoneda(p.valor)}</div>
+          <div>{formatoMoneda(valorFila(p))}</div>
           {p.actaBruto != null && p.actaBruto !== p.valor && (
             <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
           )}
@@ -217,7 +316,7 @@ export function AprobacionPagosView({
       texto: (p) => ETIQUETA_ESTADO_PAGO[p.estado],
       celda: (p) => (
         <div className="flex items-center gap-1.5">
-          <EtiquetaEstadoPago estado={p.estado} />
+          <EtiquetaEstado estado={p.estado} />
           {p.novedad && (
             <span title={p.novedad}>
               <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Con novedad" />
@@ -238,8 +337,8 @@ export function AprobacionPagosView({
             size="sm"
             variant="ghost"
             className="h-8 w-8 shrink-0 p-0"
-            title="Historial del pago"
-            aria-label="Historial del pago"
+            title={p.requisicionAdminLote ? "Historial de la requisición" : "Historial del pago"}
+            aria-label={p.requisicionAdminLote ? "Historial de la requisición" : "Historial del pago"}
             onClick={() => setHistorialDe(p)}
           >
             <History className="h-4 w-4" />
@@ -298,7 +397,7 @@ export function AprobacionPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos y los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta)."
+          ayuda="Aquí se aprueban las órdenes de compra: aprobar su pago único o su anticipo aprueba la orden y rechazarlo la rechaza (el origen la abre). También los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y las requisiciones administrativas (una fila por requisición, que se aprueba completa; el origen la abre)."
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>
@@ -353,12 +452,12 @@ export function AprobacionPagosView({
               filas={pagos}
               columnas={columnas}
               claveFila={(p) => p.id}
-              onDobleClickFila={setViendo}
+              onDobleClickFila={(p) => (p.requisicionAdminLote ? setRequisicionDe(p) : setViendo(p))}
               tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
-                titulo: (p) => p.terceroNombre ?? "Sin tercero",
-                subtitulo: (p) => `${p.origen || "—"} · ${ETIQUETA_TIPO_PAGO[p.tipo]}`,
-                esquina: (p) => <EtiquetaEstadoPago estado={p.estado} />,
+                titulo: (p) => terceroFila(p) ?? "Sin tercero",
+                subtitulo: (p) => `${p.origen || "—"} · ${tipoFila(p)}`,
+                esquina: (p) => <EtiquetaEstado estado={p.estado} />,
                 campos: ["proyecto", "empresa", "valor", "fecha", "acciones"],
               }}
             />
@@ -382,11 +481,13 @@ export function AprobacionPagosView({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Rechazar pago — {rechazando?.origen} ({rechazando ? ETIQUETA_TIPO_PAGO[rechazando.tipo] : ""})
+              {rechazando?.requisicionAdminLote ? "Rechazar requisición" : "Rechazar pago"} — {rechazando?.origen} (
+              {rechazando ? tipoFila(rechazando) : ""})
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {rechazando && `${rechazando.terceroNombre ?? "Sin tercero"} · ${formatoMoneda(rechazando.valor)}`}
+            {rechazando && `${terceroFila(rechazando) ?? "Sin tercero"} · ${formatoMoneda(valorFila(rechazando))}`}
+            {rechazando?.requisicionAdminLote && ". Vuelve completa a quien la hizo para corregirla."}
           </p>
           <Textarea
             placeholder="Motivo del rechazo (obligatorio)"
@@ -407,12 +508,16 @@ export function AprobacionPagosView({
 
       <ConfirmarAprobacion
         abierta={porAprobar !== null}
-        titulo={`¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`}
+        titulo={
+          porAprobar?.requisicionAdminLote
+            ? `¿Aprobar la requisición completa (${porAprobar.requisicionAdminLote.items} ${porAprobar.requisicionAdminLote.items === 1 ? "pago" : "pagos"} por ${formatoMoneda(porAprobar.requisicionAdminLote.total)})?`
+            : `¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`
+        }
         detalle={
           porAprobar
-            ? `${porAprobar.terceroNombre ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
+            ? `${terceroFila(porAprobar) ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
                 porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
-              }. ${porAprobar.concepto}`
+              }. ${porAprobar.requisicionAdminLote ? "Los pagos de todos sus ítems pasan al consolidado." : porAprobar.concepto}`
             : ""
         }
         procesando={porAprobar !== null && procesandoId === porAprobar.id}
@@ -420,22 +525,103 @@ export function AprobacionPagosView({
         onCerrar={() => setPorAprobar(null)}
       />
 
-      {/* Doble clic: el documento de donde sale el pago (OC, acta o
-          requisición administrativa), con el pago y sus botones abajo. */}
-      <DetalleOrigenPago
-        pago={viendo}
-        acciones={accionesDeFila(columnas, viendo)}
-        camposPago={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+      {requisicionDe?.requisicionAdminId && (
+        <VerRequisicionAdminPago
+          id={requisicionDe.requisicionAdminId}
+          onCerrar={() => setRequisicionDe(null)}
+          acciones={
+            <BarraPago pago={requisicionDe} acciones={accionesDeFila(columnas, requisicionDe)} onCerrar={() => setRequisicionDe(null)} />
+          }
+        />
+      )}
+
+      {/* La fila de una requisición administrativa muestra el historial de la
+          requisición (total, ítems, rechazos, aprobación), no el del pago de su ítem 1. */}
+      {/* Doble clic: el documento de donde sale el pago, completo (la orden de
+          compra con sus insumos, o el acta), con el pago y sus botones abajo.
+          Sin documento (o sin id), la ventana común con los datos del pago. */}
+      <Dialog open={viendo?.ordenCompraId != null} onOpenChange={(abierto) => !abierto && setViendo(null)}>
+        <DialogContent className="flex h-[90vh] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden sm:w-[90vw] sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de la orden de compra del pago</DialogTitle>
+          {viendo?.ordenCompraId && (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <OrdenCompraDetalleView ordenId={viendo.ordenCompraId} onCerrar={() => setViendo(null)} />
+              </div>
+              <BarraPago pago={viendo} acciones={accionesDeFila(columnas, viendo)} onCerrar={() => setViendo(null)} />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <DetalleActa
+        id={viendo?.ordenCompraId == null ? (viendo?.actaId ?? null) : null}
         onCerrar={() => setViendo(null)}
+        acciones={() =>
+          viendo && <BarraPago pago={viendo} acciones={accionesDeFila(columnas, viendo)} onCerrar={() => setViendo(null)} />
+        }
+      />
+
+      <VentanaDetalle
+        abierta={viendo !== null && viendo.ordenCompraId == null && viendo.actaId == null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo ? viendo.concepto : ""}
+        subtitulo={viendo ? `${viendo.origen || "—"} · ${ETIQUETA_TIPO_PAGO[viendo.tipo]}` : undefined}
+        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        acciones={accionesDeFila(columnas, viendo)}
       />
 
       <HistorialDialog
         abierto={historialDe !== null}
-        tipo="pago"
-        id={historialDe?.id ?? null}
-        titulo={`Historial del pago${historialDe?.origen ? ` — ${historialDe.origen}` : ""}`}
+        tipo={historialDe?.requisicionAdminLote && historialDe.requisicionAdminId ? "requisicion_admin" : "pago"}
+        id={
+          historialDe?.requisicionAdminLote && historialDe.requisicionAdminId
+            ? historialDe.requisicionAdminId
+            : (historialDe?.id ?? null)
+        }
+        titulo={`Historial ${historialDe?.requisicionAdminLote ? "de la requisición" : "del pago"}${historialDe?.origen ? ` — ${historialDe.origen}` : ""}`}
         onCerrar={() => setHistorialDe(null)}
       />
     </div>
+  )
+}
+
+// Detalle de la requisición administrativa de un pago: sus ítems (con la cuenta
+// completa para A&F) y el estado del pago de cada uno. Se aprueban o rechazan
+// en la lista, pago por pago.
+function VerRequisicionAdminPago({ id, onCerrar, acciones }: { id: string; onCerrar: () => void; acciones?: React.ReactNode }) {
+  const [carga, setCarga] = useState<{ id: string; detalle: RequisicionAdminDetalle | null; error: string | null } | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    obtenerRequisicionAdminAprobacion(id)
+      .then((d: RequisicionAdminDetalle) => vigente && setCarga({ id, detalle: d, error: null }))
+      .catch((e) => vigente && setCarga({ id, detalle: null, error: e instanceof Error ? e.message : "No se pudo cargar." }))
+    return () => {
+      vigente = false
+    }
+  }, [id])
+
+  const actual = carga?.id === id ? carga : null
+  return (
+    <Dialog open onOpenChange={(a) => !a && onCerrar()}>
+      <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto sm:max-w-6xl">
+        <DialogHeader>
+          <DialogTitle>
+            Requisición administrativa {actual?.detalle?.numero != null ? `N° ${actual.detalle.numero}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        {!actual ? (
+          <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Cargando…
+          </p>
+        ) : actual.error ? (
+          <p className="text-sm text-destructive">{actual.error}</p>
+        ) : actual.detalle ? (
+          <DetalleRequisicionAdmin detalle={actual.detalle} />
+        ) : null}
+        {acciones}
+      </DialogContent>
+    </Dialog>
   )
 }

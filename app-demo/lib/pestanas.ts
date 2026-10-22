@@ -79,7 +79,6 @@ export const PESTANAS: Pestana[] = [
   { clave: "compras.comprar_pedidos", titulo: "Requisiciones por comprar", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
   { clave: "compras.saldos_pendientes", titulo: "Saldos pendientes", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/saldos-pendientes", rutas: ["/almacen/saldos-pendientes"], nota: "Requisiciones compradas a medias, para cerrar su saldo." },
   { clave: "compras.ordenes", titulo: "Registro de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
-  { clave: "compras.aprobar_oc", titulo: "Aprobación de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/aprobar-oc", rutas: ["/almacen/aprobar-oc"] },
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
 
   // Almacén en el orden en que se trabaja.
@@ -97,6 +96,8 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.contratos", titulo: "Contratos generales", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/generales", rutas: ["/contratos/generales", "/contratos/otrosi-pdf"] },
   { clave: "contratos.preaprobacion", titulo: "Pre aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/pre-aprobacion", rutas: ["/contratos/pre-aprobacion", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_minutas", titulo: "Aprobación de contratos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-minutas", rutas: ["/contratos/aprobacion-minutas", "/contratos/otrosi-pdf"] },
+  { clave: "contratos.polizas", titulo: "Pólizas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/polizas", rutas: ["/contratos/polizas", "/contratos/otrosi-pdf", "/contratos/poliza-acta"] },
+  { clave: "contratos.aprobar_polizas", titulo: "Aprobación de pólizas", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/aprobacion-polizas", rutas: ["/contratos/aprobacion-polizas", "/contratos/otrosi-pdf", "/contratos/poliza-acta"] },
   // Otrosí (20261119000000_otrosis.sql): el PDF va en una ruta de las dos
   // pestañas; las que ven contratos también la tienen, para abrir el otrosí y
   // el contrato desde el detalle del contrato (PESTANAS_VER_OTROSI).
@@ -111,13 +112,20 @@ export const PESTANAS: Pestana[] = [
 
   // A&F (Administrativo y Financiero)
   { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf"] },
-  // Un consolidado por pestaña (20261206000000): quien solo tiene una no ve los
+  // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
   // lleva a la primera que tenga.
   { clave: "ayf.consolidado_bogota", titulo: "Consolidado Bogotá", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf"] },
   { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf"] },
   { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
+]
+
+// Pestañas de TODOS los usuarios con sesión (no están en la matriz de roles y
+// su ruta es libre): las requisiciones administrativas las hace cualquiera
+// (20261202000000_requisiciones_administrativas.sql).
+export const PESTANAS_PARA_TODOS: { titulo: string; modulo: ModuloClave; seccion: string; url: string }[] = [
+  { titulo: "Realizar requisiciones administrativas", modulo: "ayf", seccion: "Requisiciones", url: "/ayf/requisiciones-administrativas" },
 ]
 
 // Pestañas que SOLO ve el Administrador (no aparecen en la matriz): el módulo
@@ -146,8 +154,7 @@ export const ACCIONES: Accion[] = [
   { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
-  { clave: "aprobar_oc", titulo: "Aprobar / rechazar órdenes de compra", descripcion: "Aprobar o rechazar órdenes de compra pendientes.", seccion: "Compras" },
-  { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente.", seccion: "Compras" },
+  { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente: su pago vuelve a Aprobación de pagos.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato y de otrosí de los proyectos a los que tiene acceso.", seccion: "Contratos" },
@@ -255,6 +262,13 @@ export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpr
     return [...grupos.values()]
   }
 
+  for (const p of PESTANAS_PARA_TODOS) {
+    if (p.modulo !== modulo) continue
+    const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
+    g.items.push({ titulo: p.titulo, url: p.url })
+    grupos.set(p.seccion, g)
+  }
+
   for (const p of PESTANAS) {
     if ((p.modulo ?? "adpro") !== modulo) continue
     if (!veTodo && !permisos.pestanas.includes(p.clave)) continue
@@ -309,7 +323,7 @@ export function permisosDesdeBanderas(b: BanderasPerfil | null | undefined): Per
     acciones.push("aprobar_pedidos", "desaprobar_pedidos", "cancelar_pedidos")
   }
   if (admin || b?.admin_mano_obra) acciones.push("aprobar_mano_obra")
-  if (admin) acciones.push("aprobar_oc", "desaprobar_oc", "cancelar_oc", "editar_presupuestos")
+  if (admin) acciones.push("desaprobar_oc", "cancelar_oc", "editar_presupuestos")
 
   return {
     sinRol: true,

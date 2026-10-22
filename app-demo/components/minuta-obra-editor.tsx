@@ -37,6 +37,7 @@ import {
   type MinutaObra,
 } from "@/lib/minuta-obra"
 import { guardarMinutaObra, obtenerMinutaObra, type MinutaContratoObra } from "@/app/(app)/contratos/pre-aprobacion/actions"
+import { SelectorRepresentante } from "@/components/selector-representante"
 
 // ---------------------------------------------------------------------------
 // Editor de la minuta de obra a todo costo y de la de mano de obra (plantilla
@@ -253,6 +254,7 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
         <LeyendaOrigen />
 
         <Seccion titulo="Contratante" ayuda="La empresa del proyecto.">
+          <SelectorRepresentante representantes={datos?.representantes ?? []} documentoActual={m.contratanteRepresentanteCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ contratanteRepresentante: r.nombre, contratanteRepresentanteCedula: r.numeroDocumento })} />
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("contratanteNombre", "Razón social")}
             {campo("contratanteNit", "NIT")}

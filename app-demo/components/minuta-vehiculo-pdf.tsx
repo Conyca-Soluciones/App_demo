@@ -4,6 +4,8 @@ import { blanco, cantidadEnLetras, ordinalClausula, partesFecha, pesosSinSimbolo
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_VEHICULO, obligacionOferta, type MinutaVehiculo } from "@/lib/minuta-vehiculo"
 import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { LineaFirma } from "@/components/linea-firma-pdf"
+import type { FirmaDocumento } from "@/lib/firmas"
 
 // ---------------------------------------------------------------------------
 // PDF de la minuta del contrato de alquiler de vehículo o maquinaria: el texto
@@ -17,7 +19,7 @@ const ENCABEZADO = { formato: "CONTRATO DE ALQUILER DE VEHÍCULO O MAQUINARIA", 
 const numero = (i: number) => `${i + 1}.`
 const pct = (t: string) => `${blanco(t.replace(/%/g, ""))}%`
 
-export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foco }: { minuta: MinutaVehiculo; numero: number; logo: string | Buffer; foco?: string }) {
+export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foco, firmaContratante }: { minuta: MinutaVehiculo; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
@@ -233,7 +235,7 @@ export function MinutaVehiculoPDF({ minuta: m, numero: numeroContrato, logo, foc
         <View style={s.firmas} wrap={false}>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATANTE</Text>
-            <View style={s.firmaLinea} />
+            <LineaFirma firma={firmaContratante} />
             <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
             <Text>NIT. {res("contratanteNit", blanco(m.contratanteNit))}</Text>
             <Text>RL. {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>

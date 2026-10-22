@@ -491,6 +491,7 @@ function ContratoActas({
       <DetalleActa
         id={verActa}
         onCerrar={cerrarActa}
+        puedeSubirFirmada={puedeElaborar}
         acciones={(a) =>
           puedeElaborar && actaEditable(a) ? (
             <Button onClick={() => editar(a)}>

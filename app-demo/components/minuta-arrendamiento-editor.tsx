@@ -38,6 +38,7 @@ import {
   obtenerMinutaArrendamiento,
   type MinutaContratoArrendamiento,
 } from "@/app/(app)/contratos/pre-aprobacion/actions"
+import { SelectorRepresentante } from "@/components/selector-representante"
 
 // ---------------------------------------------------------------------------
 // Editor de la minuta de arrendamiento (plantilla GJ-F-014) dentro del detalle
@@ -257,6 +258,7 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
         </Seccion>
 
         <Seccion titulo="Arrendatario" ayuda="La empresa del proyecto.">
+          <SelectorRepresentante representantes={datos?.representantes ?? []} documentoActual={m.arrendatarioCedula} deshabilitado={deshabilitado} onElegir={(r) => actualizar({ arrendatarioRepresentante: r.nombre, arrendatarioCedula: r.numeroDocumento })} />
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("arrendatarioNombre", "Razón social")}
             {campo("arrendatarioNit", "NIT")}

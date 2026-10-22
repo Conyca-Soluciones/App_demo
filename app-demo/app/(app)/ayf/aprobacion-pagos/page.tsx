@@ -12,7 +12,7 @@ export default async function AprobacionPagosPage() {
   const puedeResolicitar = puedeAprobar || Boolean(permisos?.acciones.includes("gestionar_pagos"))
 
   return (
-    <MarcoPagina titulo="Aprobación de pagos" subtitulo="Saldos de órdenes de compra y pagos de actas por aprobar">
+    <MarcoPagina titulo="Aprobación de pagos" subtitulo="Saldos de órdenes de compra, pagos de actas y de requisiciones administrativas por aprobar">
       <AprobacionPagosView puedeAprobar={puedeAprobar} puedeResolicitar={puedeResolicitar} />
     </MarcoPagina>
   )

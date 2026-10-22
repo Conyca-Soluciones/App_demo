@@ -5,6 +5,7 @@ import { numeroALetrasCOP } from "@/lib/numero-a-letras"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import { nombreUnidad } from "@/lib/unidades"
 import type { OrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
+import { firmaDe, textoFirmado, type FirmaDocumento } from "@/lib/firmas"
 
 const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 
@@ -104,9 +105,13 @@ const styles = StyleSheet.create({
   },
   totalFinalTxt: { fontFamily: "Helvetica-Bold", fontSize: 10, color: AZUL },
 
-  firmas: { flexDirection: "row", marginTop: 44, justifyContent: "space-between" },
-  firma: { width: "30%", borderTopWidth: 1, borderColor: "#333", paddingTop: 4 },
+  firmas: { flexDirection: "row", marginTop: 8, justifyContent: "space-between" },
+  firma: { width: "30%" },
+  firmaEspacio: { height: 40, justifyContent: "flex-end", marginBottom: 2 },
+  firmaImagen: { maxHeight: 38, maxWidth: 140, objectFit: "contain" },
+  firmaLinea: { borderTopWidth: 1, borderColor: "#333", paddingTop: 4 },
   firmaLabel: { fontSize: 7.5, color: GRIS_TEXTO },
+  firmaLeyenda: { fontSize: 6, color: GRIS_TEXTO, marginTop: 2 },
   footer: {
     position: "absolute",
     bottom: 20,
@@ -131,7 +136,25 @@ function Dato({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
+// Bloque de firma: la firma registrada de quien elaboró / aprobó (copiada al
+// aprobar la OC, 20261130100000_firmas_ordenes_compra.sql) sobre la línea.
+function Firma({ nombre, rol, firma }: { nombre: string; rol: string; firma?: FirmaDocumento | null }) {
+  return (
+    <View style={styles.firma}>
+      <View style={styles.firmaEspacio}>
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de react-pdf, no de HTML */}
+        {firma?.imagen ? <Image src={firma.imagen} style={styles.firmaImagen} /> : null}
+      </View>
+      <View style={styles.firmaLinea}>
+        <Text>{firma?.nombre ?? nombre}</Text>
+        <Text style={styles.firmaLabel}>{rol}</Text>
+        {firma && <Text style={styles.firmaLeyenda}>{textoFirmado(firma)}</Text>}
+      </View>
+    </View>
+  )
+}
+
+export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetalle; firmas?: FirmaDocumento[] }) {
   const lineasCalculables = orden.lineas.map((l) => ({
     cantidad: l.cantidad,
     precioUnitario: l.precioUnitario,
@@ -270,24 +293,17 @@ export function OrdenCompraPDF({ orden }: { orden: OrdenCompraDetalle }) {
         </View>
 
         <View style={styles.firmas} wrap={false}>
-          <View style={styles.firma}>
-            <Text>{orden.creadaPorNombre ?? "—"}</Text>
-            <Text style={styles.firmaLabel}>Elaboró</Text>
-          </View>
-          <View style={styles.firma}>
-            <Text>{orden.aprobadaPorNombre ?? "—"}</Text>
-            <Text style={styles.firmaLabel}>Aprobó</Text>
-          </View>
-          <View style={styles.firma}>
-            <Text> </Text>
-            <Text style={styles.firmaLabel}>Firma y sello del cliente</Text>
-          </View>
+          <Firma nombre={orden.creadaPorNombre ?? "—"} rol="Elaboró" firma={firmaDe(firmas, "elaboro")} />
+          <Firma nombre={orden.aprobadaPorNombre ?? "—"} rol="Aprobó" firma={firmaDe(firmas, "aprobo")} />
+          <Firma nombre=" " rol="Firma y sello del cliente" />
         </View>
 
         <View style={styles.footer} fixed>
           <Text>
-            Generado el {formatearFechaHora(new Date().toISOString())} · Las firmas se muestran como constancia
-            mientras se habilitan las firmas digitalizadas.
+            Generado el {formatearFechaHora(new Date().toISOString())}
+            {firmas.length > 0
+              ? " · Firmado electrónicamente: verifícalo en la plataforma (tu nombre › Verificar documento)."
+              : " · Las firmas se muestran como constancia (orden aprobada antes de las firmas electrónicas)."}
           </Text>
           <Text render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} />
         </View>

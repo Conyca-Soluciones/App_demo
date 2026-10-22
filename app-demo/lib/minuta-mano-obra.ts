@@ -89,6 +89,9 @@ export type DatosExtraMinuta = {
   contratistaRepresentanteTipoDocumento?: string | null // CC, CE, PPT o PA
   contratistaCedulaExpedida?: string | null // de la persona natural o del representante
   contratistaCiudad: string | null
+  // Representante legal principal de la empresa (Contratos › Representantes
+  // legales, 20261201000000); Jurídica lo puede cambiar por un suplente.
+  empresaRepresentante?: { nombre: string; documento: string; expedidaEn: string | null } | null
 }
 
 export const CONTRATANTE_POR_DEFECTO = { nombre: "CONYCA SOLUCIONES S.A.S", nit: "900.701.968-7", correo: "gerencia@conycasoluciones.com" }
@@ -228,9 +231,9 @@ export function minutaPorDefecto(d: SolicitudContratoDetalle, extra: DatosExtraM
     fechaFirma: hoy,
     contratanteNombre: extra.empresaNombre ?? CONTRATANTE_POR_DEFECTO.nombre,
     contratanteNit: extra.empresaNit ?? CONTRATANTE_POR_DEFECTO.nit,
-    contratanteRepresentante: "",
-    contratanteRepresentanteCedula: "",
-    contratanteRepresentanteExpedida: "",
+    contratanteRepresentante: extra.empresaRepresentante?.nombre ?? "",
+    contratanteRepresentanteCedula: extra.empresaRepresentante?.documento ?? "",
+    contratanteRepresentanteExpedida: extra.empresaRepresentante?.expedidaEn ?? "",
     contratanteCorreo: CONTRATANTE_POR_DEFECTO.correo,
     contratistaTipoPersona: juridica ? "juridica" : "natural",
     contratistaNombre: d.contratistaNombre,

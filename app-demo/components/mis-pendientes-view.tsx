@@ -10,6 +10,7 @@ import { seleccionarProyecto } from "@/app/(app)/inicio/actions"
 import { obtenerMisPendientes } from "@/app/(app)/pendientes/actions"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { formatoMoneda } from "@/lib/pagos"
+import { EVENTO_ABRIR_MI_FIRMA, EVENTO_FIRMA_GUARDADA, URL_MI_FIRMA } from "@/lib/firmas"
 import { defGrupo, diasDesde, textoEspera, type GrupoPendientes, type PendienteItem } from "@/lib/pendientes"
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,18 @@ export function MisPendientesView() {
     setVersion((v) => v + 1)
   }
 
+  // Guardar la firma (diálogo de la barra de arriba) quita su pendiente.
+  useEffect(() => {
+    const recargar = () => setVersion((v) => v + 1)
+    window.addEventListener(EVENTO_FIRMA_GUARDADA, recargar)
+    return () => window.removeEventListener(EVENTO_FIRMA_GUARDADA, recargar)
+  }, [])
+
   async function abrir(item: PendienteItem) {
+    if (item.url === URL_MI_FIRMA) {
+      window.dispatchEvent(new Event(EVENTO_ABRIR_MI_FIRMA))
+      return
+    }
     setAbriendo(item.id)
     setError(null)
     try {
