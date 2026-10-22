@@ -433,7 +433,11 @@ select * from (
          exists (select 1 from pg_proc where proname = '_consolidados_visibles')
          and not exists (select 1 from public.rol_permisos where permiso = 'tab.ayf.consolidado')
   union all
-  select '20261211000000_titular_cuenta_actas',
+  select '20261211000000_roles_contabilidad',
+         exists (select 1 from public.roles where clave = 'contabilidad_bogota')
+         and exists (select 1 from public.roles where clave = 'contabilidad_barranquilla')
+  union all
+  select '20261212000000_titular_cuenta_actas',
          exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'actas' and column_name = 'pago_cuenta_id')
          and exists (select 1 from pg_proc where proname = 'cuenta_pago_acta')

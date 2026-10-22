@@ -1406,8 +1406,11 @@ que existen; el otro maneja los tres.
   rutas `/ayf/consolidado/<clave>` (una sola página, `[clave]`); `/ayf/consolidado`
   lleva a la primera que tenga la persona. Sin subgrupo en el menú y sin
   selector ni columna de consolidado en la pantalla. Los roles que tenían
-  `ayf.consolidado` recibieron las tres: para el equipo de Bogotá hay que hacer
-  un rol con solo la de Bogotá. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
+  `ayf.consolidado` recibieron las tres. Roles de Contabilidad
+  (`20261211000000_roles_contabilidad.sql`): **Contabilidad Barranquilla**
+  (`contabilidad_barranquilla`, el rol Contabilidad de antes renombrado: los
+  tres consolidados + Terceros) y **Contabilidad Bogotá** (`contabilidad_bogota`:
+  solo Consolidado Bogotá + Terceros). Ninguno tiene acciones. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
   `PESTANA_CONSOLIDADO`, `esClaveConsolidado`).
 - **La base lo exige**: `_consolidados_visibles(uid)` (los de las pestañas que
   tiene), `_ve_algun_consolidado`, `_ve_pago(uid, pago)`. Un pago se lee con
@@ -3148,7 +3151,7 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   anteriores". OJO: main tiene 20261112000000 y 20261112100000 con los mismos
   números que las de lcpr (otros nombres): al mezclar no chocan como archivos,
   pero cualquier función que las dos toquen hay que juntarla a mano.
-- **Tercero y titular del pago** (`20261211000000_titular_cuenta_actas.sql`,
+- **Tercero y titular del pago** (`20261212000000_titular_cuenta_actas.sql`,
   pedido del usuario 2026-10-22, igual que transferencia en requisiciones
   administrativas): el formulario del acta (si tiene pago) trae el bloque
   "Pago" (`components/cuenta-pago-acta.tsx`): tercero que factura (buscador de
@@ -3323,7 +3326,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
 `20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
 `20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario) ·
-`20261211000000` actas: tercero que factura y titular de la cuenta del pago.
+`20261212000000` actas: tercero que factura y titular de la cuenta del pago.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

@@ -272,7 +272,7 @@ export type DatosActa = {
   actividades: { anexo_item_id: string; cantidad: number }[]
   porcentaje_avance: number | null
   descuentos: { concepto: string; valor: number }[]
-  // Tercero que factura y cuenta del pago (20261211000000). Sin la clave
+  // Tercero que factura y cuenta del pago (20261212000000). Sin la clave
   // pago_tercero_id la base no cambia lo guardado; null = automático.
   pago_tercero_id?: string | null
   pago_titular_id?: string | null
