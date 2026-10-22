@@ -290,8 +290,8 @@ export function AprobacionPagosView({
             size="sm"
             variant="ghost"
             className="h-8 w-8 shrink-0 p-0"
-            title="Historial del pago"
-            aria-label="Historial del pago"
+            title={p.requisicionAdminLote ? "Historial de la requisición" : "Historial del pago"}
+            aria-label={p.requisicionAdminLote ? "Historial de la requisición" : "Historial del pago"}
             onClick={() => setHistorialDe(p)}
           >
             <History className="h-4 w-4" />
@@ -478,11 +478,17 @@ export function AprobacionPagosView({
 
       {requisicionDe && <VerRequisicionAdminPago id={requisicionDe} onCerrar={() => setRequisicionDe(null)} />}
 
+      {/* La fila de una requisición administrativa muestra el historial de la
+          requisición (total, ítems, rechazos, aprobación), no el del pago de su ítem 1. */}
       <HistorialDialog
         abierto={historialDe !== null}
-        tipo="pago"
-        id={historialDe?.id ?? null}
-        titulo={`Historial del pago${historialDe?.origen ? ` — ${historialDe.origen}` : ""}`}
+        tipo={historialDe?.requisicionAdminLote && historialDe.requisicionAdminId ? "requisicion_admin" : "pago"}
+        id={
+          historialDe?.requisicionAdminLote && historialDe.requisicionAdminId
+            ? historialDe.requisicionAdminId
+            : (historialDe?.id ?? null)
+        }
+        titulo={`Historial ${historialDe?.requisicionAdminLote ? "de la requisición" : "del pago"}${historialDe?.origen ? ` — ${historialDe.origen}` : ""}`}
         onCerrar={() => setHistorialDe(null)}
       />
     </div>
