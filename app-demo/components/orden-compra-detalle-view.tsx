@@ -422,7 +422,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   ? `el ${formatearFechaSinHora(orden.saldoFecha)}.`
                   : "al ser entregada la orden por completo."}
                 {orden.estado === "pendiente_aprobacion" &&
-                  " Al aprobar la orden se aprueba el pago del anticipo; el saldo llega después a la aprobación de pagos."}
+                  " Al aprobar la orden, el anticipo pasa a Aprobación de pagos (A&F); el saldo llega después."}
               </p>
             </div>
           )}
@@ -559,7 +559,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
       <ConfirmarAprobacion
         abierta={confirmandoAprobacion}
         titulo={`¿Aprobar la orden de compra #${orden.numero}?`}
-        detalle={`Proveedor: ${orden.proveedorNombre}. Al aprobarla se generan sus pagos y queda lista para recibir en almacén.`}
+        detalle={`Proveedor: ${orden.proveedorNombre}. Al aprobarla sus pagos pasan a Aprobación de pagos (A&F) y queda lista para recibir en almacén.`}
         procesando={procesando}
         onConfirmar={handleAprobar}
         onCerrar={() => setConfirmandoAprobacion(false)}

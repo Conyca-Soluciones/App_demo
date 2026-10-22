@@ -1095,7 +1095,10 @@ con anticipo pasa de programado a **solicitado 3 días antes** de la fecha
 `_liberar_pagos_programados`, sin EXECUTE para usuarios). Antes era el mismo
 día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
 `liberar_pagos_programados` (misma regla). Sin anticipo y anticipo: nacen
-aprobados. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
+**por aprobar** (`solicitado`) y A&F los aprueba en Aprobación de pagos
+(`20261204000000_pagos_oc_por_aprobar.sql`, decisión del usuario 2026-10-22:
+Subgerencia aprueba la OC y luego el pago se aprueba en pagos; antes nacían
+aprobados a nombre de quien aprobó la OC). Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
 orden entregada completa (no con entrega parcial).
 Un saldo que NACE con fecha a 3 días o menos (OC aprobada hoy, saldo para
 pasado mañana) entra directo como solicitado: disparador BEFORE INSERT
@@ -3296,7 +3299,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261130100000` firmas en órdenes de compra ·
 `20261201000000` representantes legales y su firma en el contrato ·
 `20261202000000` requisiciones administrativas (A&F) ·
-`20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos.
+`20261203000000` requisiciones administrativas: se aprueban completas en Aprobación de pagos ·
+`20261204000000` pagos de OC nacen por aprobar (A&F) y Subgerencia aprueba OC.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

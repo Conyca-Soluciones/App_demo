@@ -546,7 +546,7 @@ export function AprobarOCView() {
         titulo={`¿Aprobar la orden de compra #${porAprobar?.numero ?? ""}?`}
         detalle={
           porAprobar
-            ? `Proveedor: ${porAprobar.proveedorNombre}. Al aprobarla se generan sus pagos y queda lista para recibir en almacén.`
+            ? `Proveedor: ${porAprobar.proveedorNombre}. Al aprobarla sus pagos pasan a Aprobación de pagos (A&F) y queda lista para recibir en almacén.`
             : ""
         }
         procesando={porAprobar !== null && procesandoId === porAprobar.id}

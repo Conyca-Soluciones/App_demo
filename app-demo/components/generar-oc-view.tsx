@@ -778,7 +778,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Al aprobar la orden se aprueba el pago del anticipo. El saldo llega a aprobación de Gerencia
+                  Al aprobar la orden, el anticipo pasa a Aprobación de pagos (A&amp;F). El saldo llega a aprobación de pagos
                   {saldoModo === "entrega"
                     ? " cuando la orden quede entregada por completo."
                     : saldoFecha
