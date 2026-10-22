@@ -122,19 +122,37 @@ function extraerNumeros(textoNormalizado: string): number[] {
 // extensión fuzzystrmatch de Postgres).
 // ---------------------------------------------------------------------------
 
+// Dos filas reutilizadas en vez de una matriz (m+1)×(n+1) nueva por
+// llamada: mismo resultado, sin la basura que hacía lento el import
+// (cientos de ítems × todo el catálogo de mano de obra).
+let filaPrev = new Int32Array(0)
+let filaAct = new Int32Array(0)
+
 function levenshtein(a: string, b: string): number {
   const m = a.length
   const n = b.length
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0))
-  for (let i = 0; i <= m; i++) dp[i][0] = i
-  for (let j = 0; j <= n; j++) dp[0][j] = j
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const costo = a[i - 1] === b[j - 1] ? 0 : 1
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + costo)
-    }
+  if (filaPrev.length < n + 1) {
+    filaPrev = new Int32Array(n + 1)
+    filaAct = new Int32Array(n + 1)
   }
-  return dp[m][n]
+  let prev = filaPrev
+  let act = filaAct
+  for (let j = 0; j <= n; j++) prev[j] = j
+  for (let i = 1; i <= m; i++) {
+    act[0] = i
+    const ca = a.charCodeAt(i - 1)
+    for (let j = 1; j <= n; j++) {
+      const costo = ca === b.charCodeAt(j - 1) ? 0 : 1
+      const borrar = prev[j] + 1
+      const insertar = act[j - 1] + 1
+      const cambiar = prev[j - 1] + costo
+      act[j] = borrar < insertar ? (borrar < cambiar ? borrar : cambiar) : insertar < cambiar ? insertar : cambiar
+    }
+    const t = prev
+    prev = act
+    act = t
+  }
+  return prev[n]
 }
 
 function fuzzyRatio(a: string, b: string): number {
@@ -243,12 +261,30 @@ export function buscarSimilares<T extends CandidatoTexto>(
 
   const vecConsulta = vectorTfIdf(consultaTokens, df, nDocs)
 
-  const resultados: ResultadoSimilitud<T>[] = candidatos.map((candidato, i) => {
+  // Fase 1 (barata): coseno, cobertura y penalizaciones de cada candidato,
+  // y una COTA SUPERIOR del score: Levenshtein >= diferencia de largos, así
+  // que fuzzy <= largo menor / largo mayor. Fase 2: el score exacto (con el
+  // Levenshtein, lo caro) se calcula en orden de cota y se para cuando ya
+  // nada puede llegar al umbral ni entrar al top. Mismo resultado que
+  // calcular todos (incluido el orden de los empates), sin el Levenshtein
+  // de los que no podían quedar (import: cientos de ítems × catálogo de MO).
+  interface Previo {
+    i: number
+    cosine: number
+    tokenOverlap: number
+    factor: number
+    medidaDistinta: boolean
+    unidadDistinta: boolean
+    cota: number
+  }
+  const previos: Previo[] = []
+  candidatos.forEach((candidato, i) => {
     const tokensCand = docsTokens[i]
     const normCand = docsNorm[i]
 
     const candSet = new Set(tokensCand)
-    const interseccion = [...consultaSet].filter((t) => candSet.has(t)).length
+    let interseccion = 0
+    for (const t of consultaSet) if (candSet.has(t)) interseccion++
     // Cobertura de la búsqueda, NO Jaccard simétrico -- acá la pregunta
     // correcta es "¿el candidato contiene lo que estoy buscando?", no
     // "¿se parecen en tamaño estas dos descripciones?". Con Jaccard
@@ -260,31 +296,12 @@ export function buscarSimilares<T extends CandidatoTexto>(
     // pasa de 0.17 a 1.0.
     const tokenOverlap = consultaSet.size > 0 ? interseccion / consultaSet.size : 0
 
-    // EARLY EXIT (matemáticamente exacto, no una aproximación): si la
-    // consulta y el candidato NO comparten ni una sola palabra,
-    // tokenOverlap = 0 -- y como el coseno de TF-IDF se calcula sobre
-    // ese MISMO vocabulario compartido, si no hay palabras en común el
-    // coseno también es EXACTAMENTE 0 (el producto punto solo suma
-    // sobre términos que aparecen en ambos). Con cosine=0 y
-    // tokenOverlap=0, el score máximo posible es 0.25×fuzzy ≤ 0.25 --
-    // no puede llegar al umbral (0.4 por default) sin importar qué tan
-    // parecidos sean los caracteres letra por letra. Se puede filtrar
-    // este candidato de una, sin gastar el Levenshtein (lo más caro del
-    // pipeline) calculando algo cuyo resultado no puede cambiar el
-    // veredicto.
-    if (tokenOverlap === 0 && umbral > 0.25) {
-      return {
-        candidato,
-        score: 0,
-        detalle: { cosine: 0, tokenOverlap: 0, fuzzy: 0, medidaDistinta: false, unidadDistinta: false },
-      }
-    }
+    // Sin palabras en común, el coseno también es 0 y el score máximo es
+    // 0.25×fuzzy ≤ 0.25: no llega a un umbral mayor que 0.25.
+    if (tokenOverlap === 0 && umbral > 0.25) return
 
     const vecCand = vectorTfIdf(tokensCand, df, nDocs)
     const cosine = coseno(vecConsulta, vecCand)
-    const fuzzy = fuzzyRatio(consultaNorm, normCand)
-
-    let score = 0.45 * cosine + 0.3 * tokenOverlap + 0.25 * fuzzy
 
     // --- reglas especiales: números (medidas/dimensiones) ---
     // Penalización SUAVE a propósito -- no se quiere esconder estas
@@ -297,28 +314,57 @@ export function buscarSimilares<T extends CandidatoTexto>(
       const coincideAlgunNumero = consultaNumeros.some((n) =>
         candNumeros.some((m) => Math.abs(n - m) < 0.001)
       )
-      if (!coincideAlgunNumero) {
-        score *= 0.85
-        medidaDistinta = true
-      }
+      if (!coincideAlgunNumero) medidaDistinta = true
     }
 
     // --- reglas especiales: unidad (M2, M3, UN...) ---
-    let unidadDistinta = false
-    if (consultaUnidad && candidato.unidad && consultaUnidad !== candidato.unidad) {
-      score *= 0.85
-      unidadDistinta = true
-    }
+    const unidadDistinta = !!consultaUnidad && !!candidato.unidad && consultaUnidad !== candidato.unidad
 
-    return {
-      candidato,
-      score: Math.min(1, Math.max(0, score)),
-      detalle: { cosine, tokenOverlap, fuzzy, medidaDistinta, unidadDistinta },
-    }
+    const factor = (medidaDistinta ? 0.85 : 1) * (unidadDistinta ? 0.85 : 1)
+    const largoMax = Math.max(consultaNorm.length, normCand.length, 1)
+    const fuzzyMax = 1 - Math.abs(consultaNorm.length - normCand.length) / largoMax
+    const cota = (0.45 * cosine + 0.3 * tokenOverlap + 0.25 * fuzzyMax) * factor
+    if (cota < umbral) return
+    previos.push({ i, cosine, tokenOverlap, factor, medidaDistinta, unidadDistinta, cota })
   })
 
-  return resultados
-    .filter((r) => r.score >= umbral)
-    .sort((a, b) => b.score - a.score)
+  previos.sort((a, b) => b.cota - a.cota)
+  const calculados: (ResultadoSimilitud<T> & { i: number })[] = []
+  // Los `top` mejores scores exactos hasta ahora, de mayor a menor.
+  const mejores: number[] = []
+  for (const p of previos) {
+    if (mejores.length >= top && p.cota < mejores[top - 1]) break
+    const fuzzy = fuzzyRatio(consultaNorm, docsNorm[p.i])
+    let score = 0.45 * p.cosine + 0.3 * p.tokenOverlap + 0.25 * fuzzy
+    if (p.medidaDistinta) score *= 0.85
+    if (p.unidadDistinta) score *= 0.85
+    score = Math.min(1, Math.max(0, score))
+    if (score < umbral) continue
+    calculados.push({
+      i: p.i,
+      candidato: candidatos[p.i],
+      score,
+      detalle: {
+        cosine: p.cosine,
+        tokenOverlap: p.tokenOverlap,
+        fuzzy,
+        medidaDistinta: p.medidaDistinta,
+        unidadDistinta: p.unidadDistinta,
+      },
+    })
+    let k = mejores.length
+    mejores.push(score)
+    while (k > 0 && mejores[k - 1] < score) {
+      mejores[k] = mejores[k - 1]
+      k--
+    }
+    mejores[k] = score
+    if (mejores.length > top) mejores.pop()
+  }
+
+  // Empates en el orden original de los candidatos (como el sort estable de antes).
+  return calculados
+    .sort((a, b) => b.score - a.score || a.i - b.i)
     .slice(0, top)
+    .map(({ candidato, score, detalle }) => ({ candidato, score, detalle }))
 }

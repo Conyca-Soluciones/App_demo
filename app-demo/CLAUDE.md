@@ -1639,8 +1639,11 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   (p50 medido en edge_logs) aunque sea trivial. Si la app está en Vercel,
   poner las funciones en `pdx1`. Es la mejora más grande y no es código.
 - **Import de APU** (~3,5 min el Malecón, 18 tandas de ~6,5 s): mano de obra
-  hace un RPC por ítem (catálogo de 264: traerlo una vez y comparar en
-  memoria); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
+  ya trae el catálogo una vez por tanda y compara en memoria
+  (`matchearManoDeObraApuImport`, 2026-10-22; antes un RPC por ítem, ~400);
+  `buscarSimilares` calcula el Levenshtein solo de los candidatos que por su
+  cota pueden entrar al top (mismo resultado, 411 ítems × 264 categorías:
+  15,7 s -> 1,9 s); `lineas_apu_oficial` se actualiza en serie (paralelo); precios,
   presentaciones e inserts de insumo/equipo/herramienta van en serie;
   `page.tsx` espera `refrescarEstadosApu` antes de la tanda siguiente.
 - **Decisiones del usuario**: quién pone el precio al aprobar un insumo;

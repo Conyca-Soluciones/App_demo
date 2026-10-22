@@ -861,7 +861,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // Mano de obra se separa del resto -- no se agrupa por descripción
   // (dos líneas "Cuadrilla AA-4" de ítems distintos tienen candidatos
   // DISTINTOS, agruparlas por texto sería incorrecto -- ver
-  // matchearManoDeObraApuImport en actions.ts, es 1 búsqueda por ítem).
+  // matchearManoDeObraApuImport en actions.ts, se busca por ítem).
   // Equipo SÍ se agrupa por descripción, igual que insumos -- ver
   // matchearEquipoApuImport en actions.ts (matching por texto de línea).
   // Transporte NO tiene candidatos de ningún tipo -- se excluye acá
