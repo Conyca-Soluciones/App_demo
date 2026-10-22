@@ -19,11 +19,7 @@ export const CAMPOS_PAGO = `
   cuenta:terceros_cuentas(numero_cuenta, tipo_cuenta, estado, banco:bancos(nombre)),
   aprobador:perfiles!pagos_aprobado_por_fkey(nombre),
   rechazador:perfiles!pagos_rechazado_por_fkey(nombre),
-  solicitante:perfiles!pagos_solicitado_por_fkey(nombre),
-  liquidacion:pago_liquidaciones!pagos_liquidacion_id_fkey(
-    version, estado, retefuente, reteica, reteiva, asumidas, descuentos, neto, liquidado_en,
-    liquidador:perfiles!pago_liquidaciones_liquidado_por_fkey(nombre)
-  )
+  solicitante:perfiles!pagos_solicitado_por_fkey(nombre)
 `
 
 // Igual, pero con el join !inner al tercero (para filtrar por su nombre en la
@@ -34,7 +30,6 @@ const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
 export function mapPago(f: any): Pago {
   const t = f.tercero
-  const l = f.liquidacion?.estado === "vigente" ? f.liquidacion : null
   return {
     id: f.id,
     tipo: f.tipo,
@@ -92,18 +87,5 @@ export function mapPago(f: any): Pago {
     descuentoAnticipos: Number(f.descuento_anticipos ?? 0),
     retencionGarantia: Number(f.retencion_garantia ?? 0),
     otrosDescuentos: Number(f.otros_descuentos ?? 0),
-    liquidacion: l
-      ? {
-          version: l.version,
-          retefuente: Number(l.retefuente),
-          reteica: Number(l.reteica),
-          reteiva: Number(l.reteiva),
-          asumidas: Number(l.asumidas),
-          descuentos: Number(l.descuentos),
-          neto: Number(l.neto),
-          liquidadoPorNombre: l.liquidador?.nombre ?? null,
-          liquidadoEn: l.liquidado_en,
-        }
-      : null,
   }
 }

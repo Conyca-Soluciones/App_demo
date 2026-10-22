@@ -1348,127 +1348,29 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
 
-## Liquidación de pagos (2026-10-21, pasos 1 y 2)
+## Liquidación de pagos: se quitó (2026-10-22)
 
-Decisiones del usuario: Contabilidad revisa TODOS los pagos; el sistema sugiere
-y aprende de sus correcciones (85 % de acierto al inicio es bueno); el
-consolidado muestra los números liquidados con todo el desglose del cuadro de
-pagos (como el maestro de Contabilidad) y los datos del tercero, quién pidió y
-la empresa. Reglas sacadas del cuadro de las semanas 31-42 de 2026 (3.024
-pagos), 2.005 RUT y las tablas de Contabilidad: un motor de reglas replica la
-retefuente en el 81,5 % de los pagos comparables (detalle en la respuesta de esa
-sesión). Hallazgos: autorretenedor y régimen simple sin retefuente; simple con
-IVA = ReteIVA 15 % del IVA; bases reales compras ~10 UVT y servicios ~2 UVT;
-anticipos sin retención (se retiene la factura completa al final); varias
-empresas del grupo no retienen; el ICA va por municipio del proyecto × actividad.
-
-- **Migración** `20261203000000_liquidacion_pagos.sql` (probada en un Postgres
-  local con el volcado + las migraciones: liquidar, reliquidar, deshacer, cambio
-  de tercero, anulación, permisos, RLS, desglose de OC y de acta).
-  - Catálogos (`gestionar_retenciones`): `uvt` (2026 = 52.374, por confirmar),
-    `retencion_conceptos` (tarifa declarante / no declarante / jurídica, base
-    en UVT, tabla del 383 para honorarios de persona natural, actividad ICA),
-    `ica_actividades`, `municipios` (bases de ReteICA) e `ica_tarifas` (31
-    municipios × 14 actividades, verificadas celda por celda contra el Excel),
-    `proyectos.municipio_ica_id` (por ciudad o por código CTG/BAQ/ARA/AQT/SAR/BOG).
-  - Empresas que pagan: `empresas_retenciones` (agente de retefuente / ReteIVA,
-    `confirmado`) y `empresas_reteica_municipios`. Sin fila = no se sabe.
-  - Tercero: `terceros_tributario` (tipo de persona, declarante = jurídica o 05,
-    48 / 47 / 15 / 13, ZOMAC, CIIU, fecha del RUT, `estado` PENDIENTE /
-    VERIFICADO, `alerta`). `rut_extracciones` (sin acceso por la API; sin
-    correo, teléfono ni dirección): un tercero nuevo recibe su perfil solo
-    (`trg_tercero_perfil_desde_rut`). La `alerta_dv` del Excel venía mal (marca
-    "no cuadra" con DV iguales): el script recalcula el DV.
-  - Memoria: `liquidacion_preferencias` por DOCUMENTO (retefuente: concepto y
-    tarifa; reteica: por municipio; reteiva), `origen` historial | contabilidad.
-    `liquidar_pago` la actualiza con cada línea confirmada y guarda tarifa 0
-    cuando Contabilidad quita una retefuente / ReteIVA que el motor sugirió.
-  - Pagos: desglose de origen (`valor_documento`, `base_gravable`, `iva`,
-    `descuento_anticipos`, `retencion_garantia`, `otros_descuentos`) y
-    `solicitado_por`, por el disparador `trg_pago_desglose_origen` (OC: base =
-    subtotal con descuento sin IVA; saldo = factura completa con el anticipo
-    en anticipos; acta: bruto, amortización, retención − devolución, otros).
-    Siempre valor = documento − anticipos − garantía − otros.
-  - `pago_liquidaciones` (versiones, una vigente, copia del desglose, totales,
-    `sugerencia` y `sin_cambios` para medir el acierto) y
-    `pago_liquidacion_lineas` (retefuente / reteica / reteiva / descuento; base,
-    tarifa, valor al peso, `asumida`, `regla`, `editada`). Neto = valor −
-    retenciones no asumidas − descuentos (> 0). `pagos.valor_neto` y
-    `liquidacion_id`; CHECK: liquidado ⇒ neto.
-  - `liquidar_pago(pago, datos)` (acción `liquidar_pagos`; aprobado o
-    liquidado = reliquidar; exige tercero) y `deshacer_liquidacion(pago,
-    motivo)`. `trg_pago_liquidacion_sigue`: anular / rechazar un liquidado anula
-    su liquidación; cambiarle el tercero lo devuelve a aprobado. Historial:
-    `liquidado` (del disparador de siempre), `reliquidado`, `liquidacion_anulada`.
-  - Permisos: pestaña `ayf.liquidacion` (todavía sin página), acciones
-    `liquidar_pagos` y `gestionar_retenciones`, rol `contabilidad` (con
-    Consolidado y Terceros). `pagos`, `terceros` y `terceros_cuentas` también
-    los lee la pestaña de Liquidación.
-- **Datos iniciales** (`scripts/generar_datos_liquidacion.py RUT.xlsx
-  PAGOS.xlsx` -> `referencias/seed_liquidacion_ayf.sql`, fuera de git, se corre
-  a mano DESPUÉS de la migración; repetible): 1.656 RUT, perfiles de los
-  terceros existentes, retenciones de las empresas (inferidas; lista de las
-  empresas del cuadro que no cuadran con `empresas`) y 531 preferencias
-  (357 retefuente, 158 ICA, 16 ReteIVA). Las empresas se cruzan por
-  `_clave_nombre_empresa` (sin tildes, signos, SAS/SA/LTDA/ZOMAC/ZESE).
-- **Consolidado**: columnas del cuadro (factura, origen, solicita, valor
-  documento, base, IVA, retefuente, ReteICA, ReteIVA, asumidas, garantía,
-  anticipos y/o descuentos, total a pagar = neto o "Sin liquidar"); el total de
-  la página suma lo que se gira (`totalAPagar`). `CAMPOS_PAGO` lee columnas
-  nuevas: **la migración tiene que estar antes que el código** (si no,
-  Consolidado y Aprobación de pagos fallan).
-- **Paso 3: pantalla de Liquidación** (`/ayf/liquidacion`, pestaña
-  `ayf.liquidacion`, 2026-10-22):
-  - `20261203100000_liquidacion_contexto.sql`: `contexto_liquidacion(ids)`
-    (hasta 200; pestaña o `liquidar_pagos`) devuelve en un jsonb lo que el
-    motor necesita: pago y desglose, tercero y perfil (con `municipio_rut`),
-    memoria del documento (que no se lee por la API), retenciones de la
-    empresa, municipio ICA con bases y tarifas, letras de categoría de los
-    insumos de la OC con su subtotal, tipo de contrato del acta y retefuente ya
-    practicada en los anticipos de la misma OC; más UVT, conceptos y
-    actividades.
-  - Motor `lib/liquidacion.ts` (`sugerirLiquidacion`, puro, cada línea con su
-    `regla` y la lista de `avisos` revisar / info). Orden: anticipo sin nada →
-    empresa no agente → autorretenedor / simple / gran contribuyente → memoria
-    del documento → origen (OC: T transporte, Q servicios, S construcción, H
-    honorarios, F consultoría, B arriendo de muebles, lo demás compras; acta:
-    obra / mano de obra / suministro = construcción, prestación de servicios =
-    honorarios si es persona natural, alquiler = muebles, arrendamiento =
-    inmuebles) → catálogo + RUT (declarante, jurídica, ZOMAC a la mitad, base
-    en UVT, tabla del 383). ReteIVA: simple responsable de IVA, 15 % del IVA.
-    ReteICA: solo si la empresa la practica en ese municipio y el tercero es
-    de ese municipio según su RUT (en Arauca nunca se le practicó a uno de
-    fuera, 0 de 18), salvo que la memoria diga lo contrario; base mínima del
-    municipio. `valorLinea` / `totalesLiquidacion` = mismo cálculo que
-    `liquidar_pago`. `datosLiquidacion` arma `p_datos` con la sugerencia y
-    `sin_cambios`.
-  - Pruebas: `tests/liquidacion.test.ts` (reglas, con el catálogo leído de la
-    migración por `tests/liquidacion-catalogo.ts`) y
-    `tests/liquidacion-historial.test.ts`, que corre si existe
-    `referencias/prueba_liquidacion.json` (`scripts/generar_prueba_liquidacion.py
-    RUT.xlsx PAGOS.xlsx`): recorre 2.195 pagos del cuadro en orden de fecha y
-    aprende como la app. Resultado (las 3 retenciones exactas a la vez, ±$1.000
-    o 1 %): solo reglas 62 %; aprendiendo 70 % (retefuente 78 %, ReteICA
-    84 %, ReteIVA 99 %), 75-81 % en las semanas 37-42. Es más difícil que en
-    la app: el cuadro no tiene el origen estructurado y 519 pagos no traen
-    concepto.
-  - Pantalla (`components/liquidacion-pagos-view.tsx`): filtros Por liquidar /
-    Liquidados, consolidado, años, semanas, tercero; la sugerencia de cada pago
-    se calcula en el navegador con el contexto de la página (en cursiva) y las
-    filas con algo por revisar salen en ámbar; "Elegir los que no tienen nada
-    por revisar" + "Liquidar con la sugerencia" (`liquidarVarios`, hasta 50,
-    uno por uno, informa los que fallan). Diálogo (`liquidar-pago-dialogo.tsx`):
-    desglose del pago, perfil del tercero, avisos, líneas editables (concepto,
-    actividad ICA del municipio, base, tarifa %, asumida, quitar / agregar
-    retefuente, ReteICA, ReteIVA o descuento con descripción), neto en vivo,
-    factura y observaciones; en un liquidado, sus líneas guardadas, "Volver a
-    liquidar" y "Deshacer liquidación" con motivo.
-- **Pendiente**: ficha tributaria y RUT en Terceros (ver, corregir y
-  verificar el perfil; subir el RUT), catálogos y retenciones de las empresas
-  en pantalla (hoy en la base / SQL), municipio ICA en Control administrativo,
-  "Pagos por liquidar" en `_pendientes_de` (hay que leer la versión viva),
-  reglas sugeridas y medición semanal del acierto (`sin_cambios`), fecha de
-  pago y cuenta a debitar (dispersión).
+Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,
+así que la app NO liquida (no calcula retefuente, ReteICA ni ReteIVA). Se hizo y
+se probó contra la semana 43 (un motor de sugerencias por RUT, memoria por
+tercero y catálogos de Contabilidad) y se quitó completo en
+`20261205000000_quitar_liquidacion_pagos.sql`: pantalla `/ayf/liquidacion`,
+pestaña `ayf.liquidacion`, acciones `liquidar_pagos` / `gestionar_retenciones`,
+tablas (catálogos de retención, UVT, municipios y tarifas ICA, perfiles
+tributarios, extracción de RUT, memoria, liquidaciones), `proyectos.municipio_ica_id`
+y `pagos.valor_neto` / `liquidacion_id`. Copia de todo en
+`respaldo_liquidacion_20261022` (jsonb por tabla, sin acceso por la API).
+- **Se conservó**: el desglose de cada pago (`valor_documento`, `base_gravable`,
+  `iva`, `descuento_anticipos`, `retencion_garantia`, `otros_descuentos`,
+  `solicitado_por`, disparador `trg_pago_desglose_origen`), que el Consolidado
+  muestra para liquidar en Excel; el rol Contabilidad (Consolidado y Terceros);
+  el estado `liquidado` de pagos (ya era del diseño original de A&F) y los
+  eventos de historial ya escritos.
+- Si se retoma: el código está en la historia de git (commits 23c8fa7, 02b9537,
+  98a49e1, bd09d11). Lo aprendido en la prueba: las retenciones van con quien
+  FACTURA (no el titular de la cuenta), sin concepto de retención no hay ICA,
+  los anticipos no se retienen, y el IVA hay que tomarlo de la factura (en obra
+  con AIU va solo sobre la utilidad).
 
 ## Insumos sin sugerencias y aprobación por Excel (2026-10-18)
 

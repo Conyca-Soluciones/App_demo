@@ -342,21 +342,11 @@ select * from (
          exists (select 1 from pg_proc where proname = 'control_proyecto'
                   and pg_get_functiondef(oid) like '%_valor_contrato(c.id)%')
   union all
-  select '20261203000000_liquidacion_pagos',
-         exists (select 1 from pg_proc where proname = 'liquidar_pago')
-         and exists (select 1 from information_schema.columns
-                  where table_schema = 'public' and table_name = 'pagos' and column_name = 'valor_neto')
-         and exists (select 1 from public.rol_permisos where permiso = 'accion.liquidar_pagos')
-  union all
-  select '20261203100000_liquidacion_contexto',
-         exists (select 1 from pg_proc where proname = 'contexto_liquidacion'
-                  and pg_get_functiondef(oid) like '%municipio_rut%')
-  union all
-  select '20261204000000_liquidacion_base_iva_factura',
-         exists (select 1 from pg_proc where proname = '_liquidar_pago_lineas')
-  union all
-  select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
-         exists (select 1 from pg_stat_user_tables
-                  where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)
+  -- 20261203000000/20261203100000/20261204000000 (liquidación de pagos) los
+  -- deshace 20261205000000: cuentan como aplicadas si ya se quitaron.
+  select '20261205000000_quitar_liquidacion_pagos',
+         exists (select 1 from information_schema.tables
+                  where table_schema = 'public' and table_name = 'respaldo_liquidacion_20261022')
+         and not exists (select 1 from pg_proc where proname = 'liquidar_pago')
 ) t
 order by 1;
