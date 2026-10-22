@@ -4,6 +4,7 @@ import {
   esNoAplica,
   leerNumero,
   pideValorMensual,
+  polizaObligatoria,
   porcentajeEnLetras,
   totalAnexo,
   validarSolicitud,
@@ -24,6 +25,7 @@ const base: SolicitudContratoForm = {
   items: [],
   tieneAnticipo: false,
   anticipoPorcentaje: "",
+  requierePoliza: true,
   formaPago: "Actas quincenales",
   plazoTipo: "fechas",
   fechaInicio: "2026-10-01",
@@ -117,6 +119,13 @@ describe("validarSolicitud", () => {
     it("no puede pasar el valor del contrato", () => {
       expect(errores({ tipo: "arrendamiento", valorMensual: "30.000.000" }).valorMensual).toMatch(/mayor/)
     })
+  })
+
+  it("póliza: obra y mano de obra siempre; los demás según la casilla", () => {
+    const sin = (r: ReturnType<typeof validarSolicitud>) => r.ok && r.datos.requierePoliza
+    expect(sin(validarSolicitud({ ...base, requierePoliza: false }))).toBe(true) // mano de obra
+    expect(polizaObligatoria("obra")).toBe(true)
+    expect(polizaObligatoria("prestacion_servicios")).toBe(false)
   })
 
   it("anticipo entre 1 y 100 %", () => {

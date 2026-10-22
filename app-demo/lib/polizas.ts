@@ -8,18 +8,22 @@ import { nombreTipoContrato, type ClaseContrato } from "@/lib/contratos"
 // aprobada no se hacen actas.
 // ---------------------------------------------------------------------------
 
-export type EstadoPolizaContrato = "pendiente" | "recibida" | "aprobada"
+// "no_aplica": el contrato no pide póliza (la solicitud lo dice; obra y mano de
+// obra siempre la piden, 20261208000000). Se pueden hacer actas sin ella.
+export type EstadoPolizaContrato = "pendiente" | "recibida" | "aprobada" | "no_aplica"
 export type EstadoPoliza = "por_revisar" | "aprobada" | "devuelta"
 
 export const ETIQUETA_POLIZA_CONTRATO: Record<EstadoPolizaContrato, string> = {
   pendiente: "Póliza pendiente",
   recibida: "Póliza recibida",
   aprobada: "Póliza aprobada",
+  no_aplica: "Sin póliza (no aplica)",
 }
 export const CLASE_POLIZA_CONTRATO: Record<EstadoPolizaContrato, string> = {
   pendiente: "border-amber-300 bg-amber-50 text-amber-800",
   recibida: "border-sky-300 bg-sky-50 text-sky-800",
   aprobada: "border-emerald-300 bg-emerald-50 text-emerald-800",
+  no_aplica: "border-slate-300 bg-slate-50 text-slate-700",
 }
 export const ETIQUETA_ESTADO_POLIZA: Record<EstadoPoliza, string> = {
   por_revisar: "Por revisar",
@@ -33,7 +37,7 @@ export const CLASE_ESTADO_POLIZA: Record<EstadoPoliza, string> = {
 }
 
 export const esEstadoPolizaContrato = (v: unknown): v is EstadoPolizaContrato =>
-  v === "pendiente" || v === "recibida" || v === "aprobada"
+  v === "pendiente" || v === "recibida" || v === "aprobada" || v === "no_aplica"
 
 export type ContratistaPoliza = {
   id: string
@@ -167,9 +171,9 @@ export function rutaArchivoPoliza(contratoId: string, nombre: string, marca: num
   return `${contratoId}/${marca}.${ext}`
 }
 
-// Sin póliza aprobada no hay actas (igual que _guardar_acta).
+// Sin póliza aprobada no hay actas, salvo que no aplique (igual que _guardar_acta).
 export const motivoSinActasPorPoliza = (estado: EstadoPolizaContrato | null): string | null =>
-  estado === "aprobada"
+  estado === "aprobada" || estado === "no_aplica"
     ? null
     : estado === "recibida"
       ? "La póliza del contrato está en revisión de Jurídica: cuando la apruebe se pueden hacer actas."

@@ -9,7 +9,7 @@
 // - valor global: un % de avance (acumulado <= 100 %).
 // Descuentos: amortización del anticipo, retención en garantía y otros.
 
-import { motivoSinActasPorPoliza } from "@/lib/polizas"
+import { motivoSinActasPorPoliza, type EstadoPolizaContrato } from "@/lib/polizas"
 import { aCentavos, leerNumero, numero, type TipoContrato } from "@/lib/contratos"
 
 export type TipoActa = "parcial" | "final" | "liquidacion"
@@ -133,7 +133,7 @@ export type InfoContratoActa = {
   liquidado: boolean
   listoParaActas: boolean
   // Póliza del contrato (20261126000000): sin aprobar no hay actas.
-  polizaEstado: "pendiente" | "recibida" | "aprobada" | null
+  polizaEstado: EstadoPolizaContrato | null
   tieneFinal: boolean
   tieneLiquidacion: boolean
   actasPorAprobar: number

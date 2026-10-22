@@ -420,6 +420,11 @@ select * from (
          and exists (select 1 from pg_policy where polname = 'item_apu_update'
                       and pg_get_expr(polqual, polrelid) like '%_apus_de_proyectos_ajenos%')
   union all
+  select '20261208000000_poliza_segun_solicitud',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'requiere_poliza')
+         and position('no_aplica' in pg_get_functiondef('public._guardar_acta(uuid,uuid,jsonb)'::regprocedure)) > 0
+  union all
   select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
          exists (select 1 from pg_stat_user_tables
                   where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)

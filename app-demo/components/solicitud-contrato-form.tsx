@@ -21,6 +21,7 @@ import {
   empiezaConVerbo,
   pesosEnLetras,
   pideValorMensual,
+  polizaObligatoria,
   leerNumero,
   pesos,
   numero,
@@ -63,6 +64,7 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   items: [{ ...ITEM_VACIO }],
   tieneAnticipo: false,
   anticipoPorcentaje: "",
+  requierePoliza: true,
   formaPago: "",
   plazoTipo: "fechas",
   fechaInicio: "",
@@ -103,6 +105,7 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
         ? d.items.map((i) => ({ presupuestoItemId: i.presupuestoItemId, cantidad: numero(i.cantidad), valorUnitario: numero(i.valorUnitario) }))
         : [{ ...ITEM_VACIO }],
     tieneAnticipo: d.tieneAnticipo,
+    requierePoliza: d.requierePoliza !== false,
     anticipoPorcentaje: d.anticipoPorcentaje !== null ? numero(d.anticipoPorcentaje) : "",
     formaPago: d.formaPago,
     plazoTipo: d.plazoTipo,
@@ -940,6 +943,31 @@ export function SolicitudContratoForm({
               </div>
             )}
           </div>
+          {f.tipo && (
+            <div className="space-y-1">
+              {polizaObligatoria(f.tipo) ? (
+                <p className="text-sm text-muted-foreground">
+                  Este tipo de contrato siempre requiere póliza: Jurídica la revisa antes de las actas.
+                </p>
+              ) : (
+                <>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={f.requierePoliza}
+                      onCheckedChange={(v) => cambiar("requierePoliza", v === true)}
+                      disabled={enviando}
+                    />
+                    Requiere póliza
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {f.requierePoliza
+                      ? "Al aprobarse el contrato hay que subir la póliza y Jurídica la aprueba antes de las actas."
+                      : "Sin póliza: al aprobarse el contrato se pueden hacer actas de una vez."}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
           {f.tieneAnticipo && total !== null && total > 0 && leerNumero(f.anticipoPorcentaje) !== null && !errores.anticipoPorcentaje && (
             <p className="rounded-md bg-muted/50 px-3 py-2 text-xs">
               <span className="font-medium">Anticipo en letras: </span>

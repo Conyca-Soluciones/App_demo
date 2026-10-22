@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
+import { esEstadoPolizaContrato } from "@/lib/polizas"
 import type {
   ActaDetalle,
   ActaResumen,
@@ -109,7 +110,7 @@ export async function obtenerContratoParaActa(contratoId: string, excluirActa?: 
     vencido: Boolean(d.vencido),
     liquidado: Boolean(d.liquidado),
     listoParaActas: Boolean(d.listo_para_actas),
-    polizaEstado: d.poliza_estado === "pendiente" || d.poliza_estado === "recibida" || d.poliza_estado === "aprobada" ? d.poliza_estado : null,
+    polizaEstado: esEstadoPolizaContrato(d.poliza_estado) ? d.poliza_estado : null,
     tieneFinal: Boolean(d.tiene_final),
     tieneLiquidacion: Boolean(d.tiene_liquidacion),
     actasPorAprobar: Number(d.actas_por_aprobar),

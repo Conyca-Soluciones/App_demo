@@ -67,7 +67,10 @@ export function mapFilaContrato(f: any): SolicitudContratoFila {
     retencionFicPct: Number(f.retencion_fic_pct ?? 0),
     liquidadoAt: f.liquidado_at ?? null,
     otrosisAprobados: Number(f.otrosis_aprobados ?? 0),
-    polizaEstado: f.poliza_estado === "pendiente" || f.poliza_estado === "recibida" || f.poliza_estado === "aprobada" ? f.poliza_estado : null,
+    polizaEstado:
+      f.poliza_estado === "pendiente" || f.poliza_estado === "recibida" || f.poliza_estado === "aprobada" || f.poliza_estado === "no_aplica"
+        ? f.poliza_estado
+        : null,
   }
 }
 
@@ -80,7 +83,7 @@ export async function cargarDetalleContrato(
     .select(`
       ${SELECT_FILA_CONTRATO},
       anexo_tipo, valor_mensual, tiene_anticipo, anticipo_porcentaje, forma_pago, correo_notificacion, observaciones,
-      domicilio_departamento, datos_tipo,
+      domicilio_departamento, datos_tipo, requiere_poliza,
       contratista_completo:contratistas!contratos_contratista_id_fkey(
         tipo_persona, documentos:contratista_documentos(id, tipo, nombre_archivo, mime)
       ),
@@ -111,6 +114,7 @@ export async function cargarDetalleContrato(
     valorMensual: x.valor_mensual === null || x.valor_mensual === undefined ? null : Number(x.valor_mensual),
     tieneAnticipo: x.tiene_anticipo,
     anticipoPorcentaje: x.anticipo_porcentaje === null ? null : Number(x.anticipo_porcentaje),
+    requierePoliza: x.requiere_poliza !== false,
     formaPago: x.forma_pago,
     correoNotificacion: x.correo_notificacion,
     observaciones: x.observaciones,

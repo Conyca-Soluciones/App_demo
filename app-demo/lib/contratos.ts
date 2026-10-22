@@ -100,6 +100,10 @@ export const TIPOS_CONTRATO: { valor: TipoContrato; titulo: string; documentos: 
 
 export const TIPO_CONTRATO_POR_VALOR = new Map(TIPOS_CONTRATO.map((t) => [t.valor, t]))
 
+// Obra (a todo costo) y mano de obra siempre piden póliza; los demás tipos, según
+// la casilla de la solicitud (20261208000000, igual que _fijar_requiere_poliza).
+export const polizaObligatoria = (tipo: string): boolean => tipo === "obra" || tipo === "mano_obra"
+
 // Tipos que, además del valor del contrato, llevan un valor de pago mensual
 // obligatorio (la base repite la regla en _guardar_solicitud_contrato,
 // 20261016000001_solicitud_valor_mensual.sql).
@@ -260,8 +264,9 @@ export type SolicitudContratoFila = {
   liquidadoAt: string | null
   // Otrosí aprobados (columna calculada otrosis_aprobados, 20261121000000).
   otrosisAprobados?: number
-  // Póliza (20261126000000_polizas.sql): null hasta que Subgerencia aprueba.
-  polizaEstado?: "pendiente" | "recibida" | "aprobada" | null
+  // Póliza (20261126000000_polizas.sql): null hasta que Subgerencia aprueba;
+  // "no_aplica" si el contrato no la pide (20261208000000).
+  polizaEstado?: "pendiente" | "recibida" | "aprobada" | "no_aplica" | null
 }
 
 export type ClaseContrato = "grupo" | "general"
@@ -286,6 +291,8 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   valorMensual: number | null
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
+  // Si pide póliza (20261208000000): obra y mano de obra, siempre. Sin dato = sí.
+  requierePoliza?: boolean
   formaPago: string
   correoNotificacion: string
   observaciones: string | null
@@ -443,6 +450,7 @@ export type SolicitudContratoForm = {
   items: ItemAnexoForm[]
   tieneAnticipo: boolean
   anticipoPorcentaje: string
+  requierePoliza: boolean
   formaPago: string
   plazoTipo: "fechas" | "duracion"
   fechaInicio: string
@@ -504,6 +512,7 @@ export type SolicitudContratoValida = {
   items: { presupuestoItemId: string; cantidad: number; valorUnitario: number }[]
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
+  requierePoliza: boolean
   formaPago: string
   plazoTipo: "fechas" | "duracion"
   fechaInicio: string | null
@@ -707,6 +716,7 @@ export function validarSolicitud(
       items,
       tieneAnticipo: f.tieneAnticipo,
       anticipoPorcentaje,
+      requierePoliza: polizaObligatoria(f.tipo) || f.requierePoliza,
       formaPago: f.formaPago.trim(),
       plazoTipo: f.plazoTipo,
       fechaInicio,
@@ -820,6 +830,7 @@ export type ContratoGeneralForm = {
   referencia: string
   correoNotificacion: string
   observaciones: string
+  requierePoliza: boolean
 }
 
 export type CampoContratoGeneral = keyof ContratoGeneralForm | "plazo"
@@ -839,6 +850,7 @@ export const CONTRATO_GENERAL_VACIO: ContratoGeneralForm = {
   referencia: "",
   correoNotificacion: "",
   observaciones: "",
+  requierePoliza: true,
 }
 
 export type ContratoGeneralValido = {
@@ -856,6 +868,7 @@ export type ContratoGeneralValido = {
   referencia: string | null
   correoNotificacion: string
   observaciones: string | null
+  requierePoliza: boolean
 }
 
 // Porcentaje de retención: vacío = 0; entre 0 y 100.
@@ -905,6 +918,7 @@ export function validarContratoGeneral(
       referencia: f.referencia.trim() || null,
       correoNotificacion: correo,
       observaciones: f.observaciones.trim() || null,
+      requierePoliza: f.requierePoliza,
     },
   }
 }
@@ -928,5 +942,6 @@ export function contratoGeneralDesde(d: SolicitudContratoDetalle): ContratoGener
     referencia: d.referencia ?? "",
     correoNotificacion: d.correoNotificacion,
     observaciones: d.observaciones ?? "",
+    requierePoliza: d.requierePoliza !== false,
   }
 }

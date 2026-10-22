@@ -230,6 +230,7 @@ export function DetalleSolicitudContrato({
                       ] as FilaDatos[])
                     : ([["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"]] as FilaDatos[])),
                   ["Forma de pago", detalle.formaPago],
+                  ["Póliza", detalle.requierePoliza === false ? "No requiere póliza" : "Requiere póliza"],
                   [
                     "Plazo",
                     plazoTexto(detalle, formatearFechaSinHora) +

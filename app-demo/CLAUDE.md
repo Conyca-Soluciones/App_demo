@@ -2783,6 +2783,16 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
   `_puede_ver_otrosis` / `PESTANAS_VER_OTROSI` (ver el PDF del contrato).
 - Probada en el Postgres local (flujo completo, devolución, bloqueo de actas,
   backfill dos veces).
+- **Póliza según la solicitud** (`20261208000000_poliza_segun_solicitud.sql`,
+  decisión del usuario 2026-10-22; cambia "todos piden póliza"): Obra y Mano de
+  obra SIEMPRE piden póliza (el "¿exige garantías?" de mano de obra solo cambia
+  la minuta). Los demás tipos y los contratos generales tienen la casilla
+  "Requiere póliza" en la solicitud (`contratos.requiere_poliza`, por omisión
+  true; la fijan crear/reenviar con `_fijar_requiere_poliza`; en TS
+  `polizaObligatoria`). Sin póliza, al aprobar la minuta queda
+  `poliza_estado = 'no_aplica'`: `_guardar_acta` deja hacer actas, no sale en
+  Pólizas y `subir_poliza` lo rechaza. El detalle muestra "Requiere póliza".
+  **La migración va antes que el código** (el detalle lee `requiere_poliza`).
 - **Acta de aprobación** (`20261127000000_acta_poliza.sql`, plantilla GJ-F-013
   versión 03 de Jurídica): en Aprobación de pólizas la pestaña "Póliza y acta"
   muestra lado a lado la póliza y el acta (`components/acta-poliza-editor.tsx`:
@@ -3346,7 +3356,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261204000000` las OC se aprueban en A&F (Aprobación de pagos), sin pantalla en AdPro ·
 `20261205000000` remisiones de las entradas visibles (`entradas_almacen` no tenía política de lectura) ·
 `20261206000000` cambio de cuenta de un tercero con pagos en curso: novedad y evento en cada pago ·
-`20261207000000` APU: escribir solo en los proyectos de cada quien (opción B).
+`20261207000000` APU: escribir solo en los proyectos de cada quien (opción B) ·
+`20261208000000` póliza según la solicitud (obra y mano de obra siempre).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
