@@ -32,17 +32,22 @@ export const CLASE_ESTADO_ACTA: Record<EstadoActa, string> = {
   rechazada: "bg-red-100 text-red-800 hover:bg-red-100",
 }
 
-export type TipoSoporte = "factura" | "memoria" | "foto" | "otro" | "firmada_contratista"
+export type TipoSoporte = "factura" | "cuenta_cobro" | "memoria" | "foto" | "otro" | "firmada_contratista"
 export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
   factura: "Factura del contratista",
+  cuenta_cobro: "Cuenta de cobro del contratista",
   memoria: "Memoria de cantidades",
   foto: "Registro fotográfico",
   otro: "Otro",
   firmada_contratista: "Copia firmada por el contratista",
 }
-// Los que se adjuntan al elaborar el acta. La copia firmada por el contratista
-// se sube aparte, con el acta ya aprobada (20261129000000_firmas.sql).
-export const TIPOS_SOPORTE_ELABORAR: TipoSoporte[] = ["factura", "memoria", "foto", "otro"]
+// Dos grupos en el formulario (decisión del usuario, T4): el soporte de pago
+// (obligatorio si el acta tiene pago; lo exige también _pago_de_acta) y los demás.
+export const TIPOS_SOPORTE_PAGO: TipoSoporte[] = ["factura", "cuenta_cobro"]
+export const TIPOS_SOPORTE_OTROS: TipoSoporte[] = ["memoria", "foto", "otro"]
+export const esSoportePago = (tipo: string) => tipo === "factura" || tipo === "cuenta_cobro"
+// La copia firmada por el contratista se sube aparte, con el acta ya aprobada
+// (20261129000000_firmas.sql).
 export const MIME_COPIA_FIRMADA = ["application/pdf", "image/jpeg", "image/png"]
 export const MIME_SOPORTES = [
   "application/pdf",

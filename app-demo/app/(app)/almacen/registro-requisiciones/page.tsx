@@ -1,7 +1,7 @@
 "use client"
 // app/(app)/almacen/registro-requisiciones/page.tsx
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -15,11 +15,11 @@ import type { RequisicionResumen } from "@/lib/requisiciones-lineas"
 import { descargarExcelRequisiciones } from "@/lib/exportar-requisiciones"
 
 import { exportarRequisiciones, listarRequisiciones, type FiltrosRequisiciones } from "../actions"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { Badge } from "@/components/ui/badge"
 
 
-const headClasses =
-  "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
-const celda = "border-r px-3 py-2 text-xs last:border-r-0"
 
 export default function RegistroRequisiciones() {
   const [error, setError] = useState<string | null>(null)
@@ -34,6 +34,64 @@ export default function RegistroRequisiciones() {
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosRequisiciones>({})
   const [abiertaId, setAbiertaId] = useState<string | null>(null)
   const [descargando, setDescargando] = useState(false)
+
+  const columnas: ColumnaExcel<RequisicionResumen>[] = useMemo(
+    () => [
+      {
+        clave: "numero",
+        titulo: "Requisición",
+        ancho: 200,
+        fija: true,
+        texto: (r) => `Requisición ${r.numero}`,
+        valorOrden: (r) => r.numero,
+        celda: (r) => (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-medium">Requisición {r.numero}</span>
+            {r.urgente && <Badge variant="destructive">Urgente</Badge>}
+          </span>
+        ),
+      },
+      { clave: "proyecto", titulo: "Proyecto", ancho: 220, flexible: true, texto: (r) => [r.proyectoCodigo, r.proyectoNombre].filter(Boolean).join(" · ") },
+      { clave: "solicitante", titulo: "Solicitado por", ancho: 170, texto: (r) => r.solicitanteNombre ?? "" },
+      {
+        clave: "creada",
+        titulo: "Fecha requisición",
+        ancho: 130,
+        alinear: "center",
+        texto: (r) => formatearFechaSinHora(r.createdAt),
+        valorOrden: (r) => r.createdAt,
+        claseCelda: "tabular-nums",
+      },
+      {
+        clave: "requerida",
+        titulo: "Fecha requerida",
+        ancho: 130,
+        alinear: "center",
+        texto: (r) => (r.fechaRequerida ? formatearFechaSinHora(r.fechaRequerida) : ""),
+        valorOrden: (r) => r.fechaRequerida,
+        claseCelda: "tabular-nums",
+      },
+      { clave: "insumos", titulo: "Insumos", ancho: 90, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
+      {
+        clave: "estado",
+        titulo: "Estado",
+        ancho: 120,
+        alinear: "center",
+        texto: (r) => r.estado,
+        celda: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
+      },
+      {
+        clave: "compra",
+        titulo: "Compra",
+        ancho: 130,
+        alinear: "center",
+        texto: (r) => r.estadoCompra ?? "",
+        celda: (r) => <BadgeCompraRequisicion estadoCompra={r.estadoCompra} />,
+      },
+    ],
+    []
+  )
+  const { ordenadas, orden, ordenar } = useOrdenExcel(requisiciones ?? [], columnas)
 
   // Descarga TODO lo que cumple la última consulta (no solo esta página).
   async function descargar() {
@@ -101,7 +159,7 @@ export default function RegistroRequisiciones() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
                   {requisiciones.length} {requisiciones.length === 1 ? "requisición" : "requisiciones"} en
-                  esta página. Haz clic en una para ver su detalle.
+                  esta página. Doble clic en una para ver su detalle.
                 </p>
                 <Button
                   size="sm"
@@ -114,60 +172,22 @@ export default function RegistroRequisiciones() {
                   Descargar Excel
                 </Button>
               </div>
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full border-separate border-spacing-0">
-                  <thead>
-                    <tr>
-                      <th className={`${headClasses} w-28`}>Requisición</th>
-                      <th className={`${headClasses} w-48`}>Proyecto</th>
-                      <th className={`${headClasses} w-40`}>Solicitado por</th>
-                      <th className={`${headClasses} w-28 text-center`}>Fecha requisición</th>
-                      <th className={`${headClasses} w-28 text-center`}>Fecha requerida</th>
-                      <th className={`${headClasses} w-20 text-center`}>Insumos</th>
-                      <th className={`${headClasses} w-28 text-center`}>Estado</th>
-                      <th className={`${headClasses} w-32 text-center`}>Compra</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requisiciones.map((r) => (
-                      <tr
-                        key={r.id}
-                        onClick={() => setAbiertaId(r.id)}
-                        className={`cursor-pointer border-b hover:bg-accent/40 ${
-                          r.urgente && r.estado === "pendiente" ? "bg-amber-50/60" : ""
-                        }`}
-                      >
-                        <td className={`${celda} font-medium text-primary`}>
-                          Requisición {r.numero}
-                          {r.urgente && (
-                            <span className="ml-1.5 rounded-full bg-red-100 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-red-800">
-                              Urgente
-                            </span>
-                          )}
-                        </td>
-                        <td className={celda}>
-                          <p className="font-medium">{r.proyectoCodigo ?? "—"}</p>
-                          <p className="text-muted-foreground">{r.proyectoNombre}</p>
-                        </td>
-                        <td className={celda}>{r.solicitanteNombre ?? "—"}</td>
-                        <td className={`${celda} text-center`}>
-                          {formatearFechaSinHora(r.createdAt)}
-                        </td>
-                        <td className={`${celda} text-center`}>
-                          {r.fechaRequerida ? formatearFechaSinHora(r.fechaRequerida) : "—"}
-                        </td>
-                        <td className={`${celda} text-center`}>{r.nLineas}</td>
-                        <td className={`${celda} text-center`}>
-                          <BadgeEstadoRequisicion estado={r.estado} />
-                        </td>
-                        <td className={`${celda} text-center`}>
-                          <BadgeCompraRequisicion estadoCompra={r.estadoCompra} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <TablaExcel
+                filas={ordenadas}
+                columnas={columnas}
+                claveFila={(r) => r.id}
+                orden={orden}
+                onOrdenar={ordenar}
+                onDobleClickFila={(r) => setAbiertaId(r.id)}
+                tituloFila={AYUDA_DOBLE_CLIC}
+                fondoFila={(r) => (r.urgente && r.estado === "pendiente" ? "bg-amber-50" : undefined)}
+                tarjeta={{
+                  titulo: (r) => `Requisición ${r.numero}`,
+                  subtitulo: (r) => `${r.proyectoCodigo ?? "—"} · ${r.proyectoNombre ?? ""}`,
+                  esquina: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
+                  campos: ["solicitante", "creada", "requerida", "insumos", "compra"],
+                }}
+              />
               <PaginacionSimple
                 pagina={pagina}
                 hayMas={hayMas}

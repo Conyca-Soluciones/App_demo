@@ -3,6 +3,7 @@
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { redondear } from "@/lib/presentacion-compra"
 
+import type { SoporteGuardado, SoporteSubidoArchivo } from "@/lib/soportes"
 import { createClient } from "@/lib/supabase/server"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { requerirAccion } from "@/lib/permisos"
@@ -249,7 +250,9 @@ export type DatosEntrada = {
 }
 
 // Devuelve el estado_entrega en el que quedó la OC tras registrar la entrada.
-export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntrega> {
+// `remision`: el archivo del soporte de la remisión, ya subido al bucket
+// `entradas` (opcional).
+export async function registrarEntrada(datos: DatosEntrada, remision?: SoporteSubidoArchivo | null): Promise<EstadoEntrega> {
   await requerirAccion("gestionar_almacen")
 
   const lineas = datos.lineas.filter((l) => l.cantidad > 0)
@@ -260,7 +263,7 @@ export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntre
   if (!lineas.every((l) => esCantidadEnteraPositiva(l.cantidad))) throw new Error("Las cantidades deben ser números enteros mayores que cero.")
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc("registrar_entrada_almacen", {
+  const { data: entradaId, error } = await supabase.rpc("registrar_entrada_almacen", {
     p_orden_id: datos.ordenId,
     p_remision: datos.remision ?? null,
     p_observaciones: datos.observaciones ?? null,
@@ -271,9 +274,49 @@ export async function registrarEntrada(datos: DatosEntrada): Promise<EstadoEntre
     ),
   })
   if (error) throw new Error(error.message)
+  if (remision && entradaId) await guardarRemisionEntrada(entradaId as string, remision)
 
   const detalle = await obtenerDetalleOrdenParaEntrada(datos.ordenId)
   return detalle.estadoEntrega
+}
+
+// Pone o cambia el soporte de la remisión de una entrada. Devuelve las rutas
+// que dejó de usar (para borrarlas del bucket).
+export async function guardarRemisionEntrada(entradaId: string, soporte: SoporteSubidoArchivo): Promise<string[]> {
+  await requerirAccion("gestionar_almacen")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("guardar_remision_entrada", {
+    p_entrada_id: entradaId,
+    p_soporte: { ruta: soporte.ruta, nombre_archivo: soporte.nombreArchivo, tamano: soporte.tamano, mime: soporte.mime },
+  })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as string[]
+}
+
+// Remisiones de las entradas de una orden, por entrada (aparte del detalle:
+// una base sin la migración de soportes no rompe la pantalla).
+export async function listarRemisionesDeOrden(ordenId: string): Promise<Record<string, SoporteGuardado>> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("entrada_soportes")
+    .select("id, tipo, entrada_id, nombre_archivo, mime, entrada:entradas_almacen!inner(orden_compra_id)")
+    .eq("entrada.orden_compra_id", ordenId)
+  if (error) return {}
+  const porEntrada: Record<string, SoporteGuardado> = {}
+  for (const s of (data ?? []) as { id: string; tipo: string; entrada_id: string; nombre_archivo: string; mime: string | null }[]) {
+    porEntrada[s.entrada_id] = { id: s.id, tipo: s.tipo, nombreArchivo: s.nombre_archivo, mime: s.mime }
+  }
+  return porEntrada
+}
+
+// Enlace firmado de 2 minutos para ver la remisión (quien ve la entrada).
+export async function enlaceRemisionEntrada(soporteId: string): Promise<string> {
+  const supabase = await createClient()
+  const { data: s, error } = await supabase.from("entrada_soportes").select("ruta").eq("id", soporteId).single()
+  if (error || !s) throw new Error("No se encontró la remisión.")
+  const { data, error: e } = await supabase.storage.from("entradas").createSignedUrl(s.ruta, 120)
+  if (e || !data) throw new Error("No se pudo abrir la remisión.")
+  return data.signedUrl
 }
 
 export type DatosEdicionEntrada = {

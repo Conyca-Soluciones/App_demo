@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { guardarBanco, listarBancosAdmin, type BancoAdmin } from "@/app/(app)/admin/bancos/actions"
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,7 @@ export function BancosAdminView() {
   const [guardando, setGuardando] = useState(false)
   const [errorDialogo, setErrorDialogo] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
+  const [viendo, setViendo] = useState<BancoAdmin | null>(null)
 
   useEffect(() => {
     let activo = true
@@ -127,6 +129,8 @@ export function BancosAdminView() {
           filas={filtrados}
           columnas={columnas}
           claveFila={(b) => b.id}
+          onDobleClickFila={setViendo}
+          tituloFila={AYUDA_DOBLE_CLIC}
           tarjeta={{
             titulo: (b) => b.nombre,
             subtitulo: (b) => (b.codigo ? `Código ${b.codigo}` : "Sin código"),
@@ -135,6 +139,22 @@ export function BancosAdminView() {
           }}
         />
       )}
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.nombre}
+        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        onEditar={
+          viendo
+            ? () => {
+                setErrorDialogo(null)
+                setEditando({ id: viendo.id, nombre: viendo.nombre, codigo: viendo.codigo ?? "", activo: viendo.activo })
+                setViendo(null)
+              }
+            : undefined
+        }
+      />
 
       <Dialog open={editando !== null} onOpenChange={(abierto) => !abierto && !guardando && setEditando(null)}>
         <DialogContent>

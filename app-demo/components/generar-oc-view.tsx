@@ -37,6 +37,9 @@ import {
   presentacionesPara,
 } from "@/lib/presentacion-compra"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { CampoSoporte } from "@/components/campo-soporte"
+import { createClient } from "@/lib/supabase/client"
+import { ETIQUETA_SOPORTE_ORDEN, rutaSoporte, type TipoSoporteOrden } from "@/lib/soportes"
 
 // Valor del desplegable "UM disponible" para la opción normal: la unidad de
 // compra del insumo (la del maestro). Cualquier otra es una presentación.
@@ -142,6 +145,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const [contactoProyecto, setContactoProyecto] = useState("")
   const [condicionesPago, setCondicionesPago] = useState("")
   const [observaciones, setObservaciones] = useState("")
+  // Soporte obligatorio de la orden (cotización, cuenta de cobro o factura).
+  const [tipoSoporte, setTipoSoporte] = useState<TipoSoporteOrden>("cotizacion")
+  const [archivoSoporte, setArchivoSoporte] = useState<File | null>(null)
   // Anticipo (A&F): % del total y cuándo se paga el saldo.
   const [conAnticipo, setConAnticipo] = useState(false)
   const [anticipoPct, setAnticipoPct] = useState("")
@@ -311,7 +317,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const montoAnticipo = conAnticipo && totales && anticipoValido ? Math.round((totales.total * pctNumero) / 100) : null
 
   const puedeGenerar =
-    proveedor !== null && !cargandoProveedor && todasLasLineasValidas && anticipoValido && !generando
+    proveedor !== null && !cargandoProveedor && todasLasLineasValidas && anticipoValido && archivoSoporte !== null && !generando
 
   async function handleGenerar() {
     if (!seleccion || !proveedor || !todasLasLineasValidas) return
@@ -330,9 +336,22 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     ) {
       return
     }
+    if (!archivoSoporte) {
+      setError("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
+      return
+    }
     setGenerando(true)
     setError(null)
+    // El soporte se sube primero; si la orden no se crea, se borra.
+    const supabase = createClient()
+    const ruta = rutaSoporte(crypto.randomUUID(), tipoSoporte, archivoSoporte)
+    let subido = false
     try {
+      const { error: e } = await supabase.storage
+        .from("ordenes_compra")
+        .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
+      if (e) throw new Error(`No se pudo subir el soporte: ${e.message}`)
+      subido = true
       const ordenId = await crearOrdenCompra({
         proyectoId: seleccion.proyectoId,
         proveedorId: proveedor.id,
@@ -359,14 +378,31 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             ...(l.presentacion ? { presentacion: l.presentacion } : {}),
           }
         }),
-      })
+      }, { tipo: tipoSoporte, ruta, nombreArchivo: archivoSoporte.name, tamano: archivoSoporte.size, mime: archivoSoporte.type })
       sessionStorage.removeItem(CLAVE_SELECCION)
       setOrdenCreada(ordenId)
     } catch (e) {
+      if (subido) await supabase.storage.from("ordenes_compra").remove([ruta])
       setError(e instanceof Error ? e.message : "No se pudo generar la orden de compra.")
     } finally {
       setGenerando(false)
     }
+  }
+
+  // Primero la orden creada: al crearla se borra la selección guardada y,
+  // si no, saldría "No hay requisiciones seleccionadas".
+  if (ordenCreada) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <ClipboardList className="h-10 w-10 text-primary" />
+        <p className="text-lg font-medium">Orden de compra generada</p>
+        <p className="text-sm text-muted-foreground">
+          Se creó correctamente para el proveedor {detalleProveedor?.nombre}. Queda pendiente de
+          aprobación.
+        </p>
+        <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Requisiciones por comprar</Button>
+      </div>
+    )
   }
 
   if (seleccion === undefined) return null
@@ -378,20 +414,6 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         <Button variant="outline" onClick={() => router.push("/almacen/comprar-pedidos")}>
           Volver a Requisiciones por comprar
         </Button>
-      </div>
-    )
-  }
-
-  if (ordenCreada) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <ClipboardList className="h-10 w-10 text-primary" />
-        <p className="text-lg font-medium">Orden de compra generada</p>
-        <p className="text-sm text-muted-foreground">
-          Se creó correctamente para el proveedor {detalleProveedor?.nombre}. Queda pendiente de
-          aprobación.
-        </p>
-        <Button onClick={() => router.push("/almacen/comprar-pedidos")}>Volver a Requisiciones por comprar</Button>
       </div>
     )
   }
@@ -779,11 +801,26 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             />
           </div>
 
+          <CampoSoporte
+            etiqueta="Soporte de la orden"
+            obligatorio
+            tipos={ETIQUETA_SOPORTE_ORDEN}
+            tipo={tipoSoporte}
+            onTipo={setTipoSoporte}
+            archivo={archivoSoporte}
+            onArchivo={setArchivoSoporte}
+            onError={setError}
+            disabled={generando}
+          />
+
           <Button className="w-full" disabled={!puedeGenerar} onClick={handleGenerar}>
             {generando ? "Generando..." : "Generar OC"}
           </Button>
           {!proveedor && (
             <p className="text-xs text-muted-foreground">Selecciona un proveedor para continuar.</p>
+          )}
+          {proveedor && todasLasLineasValidas && !archivoSoporte && (
+            <p className="text-xs text-muted-foreground">Adjunta el soporte (cotización, cuenta de cobro o factura) para generar la orden.</p>
           )}
           {proveedor && !todasLasLineasValidas && (
             <p className="text-xs text-destructive">

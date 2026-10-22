@@ -290,6 +290,13 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'guardar_banco')
          and exists (select 1 from pg_policies where policyname = 'contratistas_certificacion_verificar')
   union all
+  select '20261202000000_soportes_oc_actas_entradas',
+         to_regclass('public.orden_compra_soportes') is not null
+         and to_regclass('public.entrada_soportes') is not null
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte')
+         and not has_function_privilege('authenticated', 'public.crear_orden_compra(uuid,uuid,text,date,text,text,text,text,text,text,jsonb,numeric,text,date)', 'execute')
+         and position('cuenta_cobro' in pg_get_functiondef('public._pago_de_acta(uuid)'::regprocedure)) > 0
+  union all
   select '20261127000000_mis_pendientes',
          exists (select 1 from pg_proc where proname = 'mis_pendientes')
          and exists (select 1 from pg_proc where proname = 'contar_mis_pendientes')
@@ -384,5 +391,19 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'lote_requisicion_admin')
          and not exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
          and position('requisicion_admin_id is not null' in pg_get_functiondef('public.aprobar_pago(uuid)'::regprocedure)) > 0
+  union all
+  select '20261203000000_liquidacion_pagos',
+         exists (select 1 from pg_proc where proname = 'liquidar_pago')
+         and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'pagos' and column_name = 'valor_neto')
+         and exists (select 1 from public.rol_permisos where permiso = 'accion.liquidar_pagos')
+  union all
+  select '20261203100000_liquidacion_contexto',
+         exists (select 1 from pg_proc where proname = 'contexto_liquidacion'
+                  and pg_get_functiondef(oid) like '%municipio_rut%')
+  union all
+  select 'datos iniciales de liquidación (referencias/seed_liquidacion_ayf.sql)',
+         exists (select 1 from pg_stat_user_tables
+                  where schemaname = 'public' and relname = 'rut_extracciones' and n_live_tup > 0)
 ) t
 order by 1;

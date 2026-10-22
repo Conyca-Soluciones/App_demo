@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { verProyectos } from "@/app/(app)/almacen/actions"
 import {
   cerrarSaldoPedido,
@@ -56,6 +57,7 @@ export function SaldosPendientesView() {
   const [cerrando, setCerrando] = useState<SaldoPendiente | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
+  const [viendo, setViendo] = useState<SaldoPendiente | null>(null)
 
   useEffect(() => {
     verProyectos()
@@ -230,6 +232,8 @@ export function SaldosPendientesView() {
               filas={saldos}
               columnas={columnas}
               claveFila={(s) => s.pedidoId}
+              onDobleClickFila={setViendo}
+              tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
                 titulo: (s) => s.insumoDescripcion,
                 subtitulo: (s) => `Requisición #${s.requisicionNumero ?? "—"} · ${s.proyectoCodigo ?? s.proyectoNombre}`,
@@ -244,6 +248,31 @@ export function SaldosPendientesView() {
           )}
         </div>
       </div>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.insumoDescripcion}
+        subtitulo={viendo ? `Requisición #${viendo.requisicionNumero ?? "—"} · ${viendo.proyectoCodigo ?? viendo.proyectoNombre}` : undefined}
+        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        acciones={
+          viendo && (
+            <Button
+              variant="outline"
+              className="border-amber-300 text-amber-800 hover:bg-amber-50"
+              onClick={() => {
+                setCerrando(viendo)
+                setMotivo("")
+                setError(null)
+                setViendo(null)
+              }}
+            >
+              <PackageX className="mr-1.5 h-4 w-4" />
+              Cerrar saldo
+            </Button>
+          )
+        }
+      />
 
       <Dialog
         open={cerrando !== null}

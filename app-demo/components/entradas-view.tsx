@@ -4,7 +4,7 @@ import { leerCantidadEntera } from "@/lib/numeros"
 
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, CheckCircle2, History, Loader2 } from "lucide-react"
+import { ArrowLeft, CheckCircle2, History, Loader2, Paperclip } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,6 +43,9 @@ import {
 import {
   anularEntrada,
   editarEntrada,
+  enlaceRemisionEntrada,
+  guardarRemisionEntrada,
+  listarRemisionesDeOrden,
   listarOrdenesEntradas,
   obtenerDetalleOrdenParaEntrada,
   registrarEntrada,
@@ -53,6 +56,11 @@ import {
   type OrdenEntradaFila,
 } from "@/app/(app)/almacen/entradas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
+import { CampoSoporte } from "@/components/campo-soporte"
+import { createClient } from "@/lib/supabase/client"
+import { rutaSoporte, type SoporteGuardado, type SoporteSubidoArchivo } from "@/lib/soportes"
 
 const formatoFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -118,6 +126,29 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
   const [numero, setNumero] = useState("")
   const [proveedor, setProveedor] = useState("")
   const [usuario, setUsuario] = useState<OpcionBuscador | null>(null)
+
+  const columnas: ColumnaExcel<OrdenEntradaFila>[] = [
+    { clave: "numero", titulo: "OC N°", ancho: 90, fija: true, texto: (o) => String(o.numero), valorOrden: (o) => o.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "proveedor", titulo: "Proveedor", ancho: 260, flexible: true, texto: (o) => o.proveedorNombre },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 160,
+      alinear: "center",
+      texto: (o) => ESTADO_BADGE[o.estadoEntrega].label,
+      celda: (o) => <Badge variant="outline" className={ESTADO_BADGE[o.estadoEntrega].clase}>{ESTADO_BADGE[o.estadoEntrega].label}</Badge>,
+    },
+    { clave: "persona", titulo: "Persona que hizo la entrada", ancho: 220, texto: (o) => o.entradaPersona ?? "" },
+    {
+      clave: "fecha",
+      titulo: "Fecha de la entrada",
+      ancho: 170,
+      texto: (o) => (o.entradaFecha ? formatoFechaHora(o.entradaFecha) : ""),
+      valorOrden: (o) => o.entradaFecha,
+      claseCelda: "tabular-nums",
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(ordenes ?? [], columnas)
   const [estado, setEstado] = useState<EstadoEntrega | "todos">("todos")
   // "Solo por Recibir" (marcado de entrada): entrega pendiente o parcial.
   const [soloPorRecibir, setSoloPorRecibir] = useState(true)
@@ -299,44 +330,24 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
               Ninguna orden de compra de este proyecto coincide con los filtros.
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>OC N°</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Persona que hizo la entrada</TableHead>
-                    <TableHead>Fecha de la entrada</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ordenes.map((o) => {
-                    const badge = ESTADO_BADGE[o.estadoEntrega]
-                    return (
-                      <TableRow
-                        key={o.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => {
-                          setAviso(null)
-                          setOrdenId(o.id)
-                        }}
-                      >
-                        <TableCell>{o.numero}</TableCell>
-                        <TableCell>{o.proveedorNombre}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
-                        </TableCell>
-                        <TableCell>{o.entradaPersona ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {o.entradaFecha ? formatoFechaHora(o.entradaFecha) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <TablaExcel
+              filas={ordenadas}
+              columnas={columnas}
+              claveFila={(o) => o.id}
+              orden={orden}
+              onOrdenar={ordenar}
+              onDobleClickFila={(o) => {
+                setAviso(null)
+                setOrdenId(o.id)
+              }}
+              tituloFila={AYUDA_DOBLE_CLIC}
+              tarjeta={{
+                titulo: (o) => `OC N° ${o.numero}`,
+                subtitulo: (o) => o.proveedorNombre,
+                esquina: (o) => <Badge variant="outline" className={ESTADO_BADGE[o.estadoEntrega].clase}>{ESTADO_BADGE[o.estadoEntrega].label}</Badge>,
+                campos: ["persona", "fecha"],
+              }}
+            />
           )}
           {ordenes !== null && ordenes.length > 0 && (
             <PaginacionSimple
@@ -364,6 +375,10 @@ function DetalleEntrada({
   const [detalle, setDetalle] = useState<DetalleOrdenEntrada | null>(null)
   const [cantidades, setCantidades] = useState<Record<string, string>>({})
   const [remision, setRemision] = useState("")
+  // Soporte de la remisión (opcional): el archivo que se sube al registrar.
+  const [archivoRemision, setArchivoRemision] = useState<File | null>(null)
+  const [edArchivoRemision, setEdArchivoRemision] = useState<File | null>(null)
+  const [remisiones, setRemisiones] = useState<Record<string, SoporteGuardado>>({})
   const [observaciones, setObservaciones] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -386,6 +401,7 @@ function DetalleEntrada({
     setEditando(e)
     setEdCantidades(Object.fromEntries(e.lineas.map((l) => [l.id, String(l.cantidad)])))
     setEdRemision(e.remision ?? "")
+    setEdArchivoRemision(null)
     setEdObservaciones(e.observaciones ?? "")
   }
 
@@ -419,6 +435,7 @@ function DetalleEntrada({
     }
 
     setProcesandoEdicion(true)
+    let subida: SoporteSubidoArchivo | null = null
     try {
       const estado = await editarEntrada({
         entradaId: editando.id,
@@ -426,12 +443,19 @@ function DetalleEntrada({
         observaciones: edObservaciones,
         lineas,
       })
+      if (edArchivoRemision) {
+        subida = await subirRemision(edArchivoRemision)
+        const viejas = await guardarRemisionEntrada(editando.id, subida)
+        if (viejas.length > 0) await createClient().storage.from("entradas").remove(viejas)
+        subida = null
+      }
       setEditando(null)
       setAviso(
         `Entrada #${editando.numero} corregida. La orden quedó en ${ESTADO_BADGE[estado].label}.`
       )
       cargar()
     } catch (e) {
+      if (subida) await createClient().storage.from("entradas").remove([subida.ruta])
       setError(e instanceof Error ? e.message : "No se pudo editar la entrada.")
       setEditando(null)
     } finally {
@@ -459,9 +483,35 @@ function DetalleEntrada({
   }
 
   function cargar() {
-    obtenerDetalleOrdenParaEntrada(ordenId)
-      .then((d: DetalleOrdenEntrada) => setDetalle(d))
+    Promise.all([obtenerDetalleOrdenParaEntrada(ordenId), listarRemisionesDeOrden(ordenId)])
+      .then(([d, r]: [DetalleOrdenEntrada, Record<string, SoporteGuardado>]) => {
+        setDetalle(d)
+        setRemisiones(r)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
+  }
+
+  // Sube el archivo de la remisión al bucket (antes de guardar). Si después
+  // falla el guardado, quien llama lo borra.
+  async function subirRemision(archivo: File): Promise<SoporteSubidoArchivo> {
+    const supabase = createClient()
+    const ruta = rutaSoporte(ordenId, "remision", archivo)
+    const { error: e } = await supabase.storage.from("entradas").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
+    if (e) throw new Error(`No se pudo subir la remisión: ${e.message}`)
+    return { ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type }
+  }
+
+  async function verRemision(soporteId: string) {
+    // La pestaña se abre antes de pedir el enlace (si no, el navegador la bloquea).
+    const ventana = window.open("", "_blank")
+    try {
+      const url = await enlaceRemisionEntrada(soporteId)
+      if (ventana) ventana.location.href = url
+      else window.location.href = url
+    } catch (e) {
+      ventana?.close()
+      setError(e instanceof Error ? e.message : "No se pudo abrir la remisión.")
+    }
   }
 
   useEffect(cargar, [ordenId])
@@ -505,13 +555,18 @@ function DetalleEntrada({
     }
 
     setGuardando(true)
+    let subida: SoporteSubidoArchivo | null = null
     try {
-      const estado = await registrarEntrada({
-        ordenId: detalle.id,
-        remision,
-        observaciones,
-        lineas,
-      })
+      if (archivoRemision) subida = await subirRemision(archivoRemision)
+      const estado = await registrarEntrada(
+        {
+          ordenId: detalle.id,
+          remision,
+          observaciones,
+          lineas,
+        },
+        subida
+      )
       onRegistrada(estado)
       if (estado === "entregada") {
         onVolver()
@@ -519,9 +574,11 @@ function DetalleEntrada({
       }
       setCantidades({})
       setRemision("")
+      setArchivoRemision(null)
       setObservaciones("")
       cargar()
     } catch (e) {
+      if (subida) await createClient().storage.from("entradas").remove([subida.ruta])
       setError(e instanceof Error ? e.message : "No se pudo registrar la entrada.")
     } finally {
       setGuardando(false)
@@ -625,6 +682,13 @@ function DetalleEntrada({
             onChange={(e) => setObservaciones(e.target.value)}
             rows={2}
           />
+          <CampoSoporte
+            etiqueta="Soporte de la remisión"
+            archivo={archivoRemision}
+            onArchivo={setArchivoRemision}
+            onError={setError}
+            disabled={guardando}
+          />
         </div>
       )}
 
@@ -654,6 +718,12 @@ function DetalleEntrada({
                   {e.remision ? ` · Remisión ${e.remision}` : ""}
                 </span>
                 <span className="ml-auto flex gap-1">
+                  {remisiones[e.id] && (
+                    <Button variant="ghost" size="sm" onClick={() => verRemision(remisiones[e.id].id)} title={remisiones[e.id].nombreArchivo}>
+                      <Paperclip className="mr-1 h-4 w-4" />
+                      Remisión
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" onClick={() => setHistorialDe(e)}>
                     <History className="mr-1 h-4 w-4" />
                     Historial
@@ -734,6 +804,18 @@ function DetalleEntrada({
             value={edObservaciones}
             onChange={(ev) => setEdObservaciones(ev.target.value)}
             rows={2}
+          />
+          <CampoSoporte
+            etiqueta="Soporte de la remisión"
+            archivo={edArchivoRemision}
+            onArchivo={setEdArchivoRemision}
+            onError={setError}
+            disabled={procesandoEdicion}
+            actual={
+              editando && remisiones[editando.id]
+                ? { nombreArchivo: remisiones[editando.id].nombreArchivo, onVer: () => verRemision(remisiones[editando.id].id) }
+                : null
+            }
           />
           <p className="text-xs text-muted-foreground">
             Para quitar un insumo o pasar la entrada a otra orden, anúlala y regístrala de nuevo.

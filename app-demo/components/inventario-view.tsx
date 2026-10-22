@@ -6,20 +6,14 @@ import { AlertTriangle, Loader2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import {
   obtenerInventarioProyecto,
   type InsumoInventario,
 } from "@/app/(app)/almacen/inventario/actions"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
@@ -41,6 +35,7 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [insumoAplicado, setInsumoAplicado] = useState<OpcionBuscador | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [viendo, setViendo] = useState<InsumoInventario | null>(null)
 
   useEffect(() => {
     if (!proyectoId) return
@@ -81,6 +76,30 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
     () => filtrado.reduce((acc, i) => acc + i.valorInventario, 0),
     [filtrado]
   )
+
+  const columnas: ColumnaExcel<InsumoInventario>[] = [
+    { clave: "codigo", titulo: "Código", ancho: 90, fija: true, texto: (i) => String(i.insumoCodigo), valorOrden: (i) => Number(i.insumoCodigo), claseCelda: "tabular-nums" },
+    { clave: "insumo", titulo: "Insumo", ancho: 280, flexible: true, texto: (i) => i.insumoDescripcion },
+    { clave: "um", titulo: "UM", ancho: 130, texto: (i) => i.insumoUm ?? "" },
+    { clave: "entradas", titulo: "Entradas", ancho: 110, alinear: "right", texto: (i) => formatoNumero.format(i.cantidadEntrada), valorOrden: (i) => i.cantidadEntrada, claseCelda: "tabular-nums" },
+    { clave: "salidas", titulo: "Salidas", ancho: 110, alinear: "right", texto: (i) => formatoNumero.format(i.cantidadSalida), valorOrden: (i) => i.cantidadSalida, claseCelda: "tabular-nums" },
+    {
+      clave: "disponible",
+      titulo: "Disponible",
+      ancho: 110,
+      alinear: "right",
+      texto: (i) => formatoNumero.format(i.cantidadDisponible),
+      valorOrden: (i) => i.cantidadDisponible,
+      celda: (i) => (
+        <span className={`font-medium tabular-nums ${i.cantidadDisponible < 0 ? "text-destructive" : ""}`}>
+          {formatoNumero.format(i.cantidadDisponible)}
+        </span>
+      ),
+    },
+    { clave: "costo", titulo: "Costo promedio", ancho: 140, alinear: "right", texto: (i) => formatoMoneda.format(i.costoPromedio), valorOrden: (i) => i.costoPromedio, claseCelda: "tabular-nums" },
+    { clave: "valor", titulo: "Valor en bodega", ancho: 150, alinear: "right", texto: (i) => formatoMoneda.format(i.valorInventario), valorOrden: (i) => i.valorInventario, claseCelda: "tabular-nums" },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(filtrado, columnas)
   const hayNegativos = (inventario ?? []).some((i) => i.cantidadDisponible < 0)
 
   return (
@@ -134,48 +153,52 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
             : "Este proyecto todavía no tiene movimientos de bodega."}
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Insumo</TableHead>
-                <TableHead>UM</TableHead>
-                <TableHead className="text-right">Entradas</TableHead>
-                <TableHead className="text-right">Salidas</TableHead>
-                <TableHead className="text-right">Disponible</TableHead>
-                <TableHead className="text-right">Costo promedio</TableHead>
-                <TableHead className="text-right">Valor en bodega</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtrado.map((i) => (
-                <TableRow key={i.insumoId}>
-                  <TableCell>{i.insumoCodigo}</TableCell>
-                  <TableCell>{i.insumoDescripcion}</TableCell>
-                  <TableCell>{i.insumoUm ?? "—"}</TableCell>
-                  <TableCell className="text-right">{formatoNumero.format(i.cantidadEntrada)}</TableCell>
-                  <TableCell className="text-right">{formatoNumero.format(i.cantidadSalida)}</TableCell>
-                  <TableCell
-                    className={`text-right font-medium ${i.cantidadDisponible < 0 ? "text-destructive" : ""}`}
-                  >
-                    {formatoNumero.format(i.cantidadDisponible)}
-                  </TableCell>
-                  <TableCell className="text-right">{formatoMoneda.format(i.costoPromedio)}</TableCell>
-                  <TableCell className="text-right">{formatoMoneda.format(i.valorInventario)}</TableCell>
-                </TableRow>
-              ))}
-              <TableRow className="bg-muted/40 font-semibold">
-                <TableCell colSpan={7} className="text-right">
-                  Valor total en bodega
-                </TableCell>
-                <TableCell className="text-right">{formatoMoneda.format(valorTotal)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+        <div className="space-y-2">
+          <TablaExcel
+            filas={ordenadas}
+            columnas={columnas}
+            claveFila={(i) => i.insumoId}
+            orden={orden}
+            onOrdenar={ordenar}
+            onDobleClickFila={setViendo}
+            tituloFila={AYUDA_DOBLE_CLIC}
+            tarjeta={{
+              titulo: (i) => i.insumoDescripcion,
+              subtitulo: (i) => `Código ${i.insumoCodigo}`,
+              campos: ["um", "entradas", "salidas", "disponible", "costo", "valor"],
+            }}
+          />
+          <div className="flex justify-end rounded-lg border bg-muted/40 px-3 py-2 text-sm font-semibold">
+            Valor total en bodega: <span className="ml-2 tabular-nums">{formatoMoneda.format(valorTotal)}</span>
+          </div>
         </div>
       )}
       </div>
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.insumoDescripcion}
+        subtitulo={viendo ? `Código ${viendo.insumoCodigo}` : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "UM", valor: viendo.insumoUm ?? "" },
+                { etiqueta: "Entradas", valor: formatoNumero.format(viendo.cantidadEntrada) },
+                { etiqueta: "Salidas", valor: formatoNumero.format(viendo.cantidadSalida) },
+                {
+                  etiqueta: "Disponible",
+                  valor: (
+                    <span className={viendo.cantidadDisponible < 0 ? "font-medium text-destructive" : "font-medium"}>
+                      {formatoNumero.format(viendo.cantidadDisponible)}
+                    </span>
+                  ),
+                },
+                { etiqueta: "Costo promedio", valor: formatoMoneda.format(viendo.costoPromedio) },
+                { etiqueta: "Valor en bodega", valor: formatoMoneda.format(viendo.valorInventario) },
+              ]
+            : []
+        }
+      />
     </div>
   )
 }

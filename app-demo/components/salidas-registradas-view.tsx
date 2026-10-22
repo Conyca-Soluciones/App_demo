@@ -19,14 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { useProyectoActual } from "@/components/proyecto-provider"
@@ -39,6 +31,8 @@ import {
   type SalidaRegistrada,
 } from "@/app/(app)/almacen/salidas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 const formatoHora = (iso: string) =>
@@ -73,6 +67,100 @@ export function SalidasRegistradasView() {
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
   const [historialDe, setHistorialDe] = useState<SalidaRegistrada | null>(null)
+  const [viendo, setViendo] = useState<SalidaRegistrada | null>(null)
+
+  const columnas: ColumnaExcel<SalidaRegistrada>[] = [
+    { clave: "fecha", titulo: "Fecha", ancho: 110, fija: true, texto: (s) => formatearFechaSinHora(s.fecha), valorOrden: (s) => s.fecha, claseCelda: "tabular-nums" },
+    {
+      clave: "insumo",
+      titulo: "Insumo",
+      ancho: 280,
+      flexible: true,
+      texto: (s) => `${s.insumoCodigo} · ${s.insumoDescripcion}`,
+      celda: (s) => (
+        <span className={`truncate ${s.anuladaAt ? "text-muted-foreground line-through" : ""}`} title={s.observaciones ?? undefined}>
+          {s.insumoCodigo} · {s.insumoDescripcion}
+        </span>
+      ),
+    },
+    { clave: "um", titulo: "UM", ancho: 120, texto: (s) => s.insumoUm ?? "" },
+    {
+      clave: "cantidad",
+      titulo: "Cantidad",
+      ancho: 110,
+      alinear: "right",
+      texto: (s) => formatoNumero.format(s.cantidad),
+      valorOrden: (s) => s.cantidad,
+      celda: (s) => (
+        <span className="flex flex-col items-end leading-tight tabular-nums">
+          <span>{formatoNumero.format(s.cantidad)}</span>
+          {s.cantidadOriginal !== null && <span className="text-[11px] text-muted-foreground">antes {formatoNumero.format(s.cantidadOriginal)}</span>}
+        </span>
+      ),
+    },
+    { clave: "retira", titulo: "Retira", ancho: 150, texto: (s) => s.retira ?? "" },
+    { clave: "registro", titulo: "Registró", ancho: 190, texto: (s) => `${s.registradoPorNombre ?? "—"} · ${formatoHora(s.createdAt)}`, valorOrden: (s) => s.createdAt },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 110,
+      alinear: "center",
+      texto: (s) => (s.anuladaAt ? "Anulada" : s.editadaAt ? "Editada" : "Vigente"),
+      celda: (s) =>
+        s.anuladaAt ? (
+          <Badge variant="destructive">Anulada</Badge>
+        ) : s.editadaAt ? (
+          <Badge variant="outline" title={`Editada ${formatoHora(s.editadaAt)}${s.editadaPorNombre ? ` por ${s.editadaPorNombre}` : ""}`}>
+            Editada
+          </Badge>
+        ) : (
+          <Badge variant="outline">Vigente</Badge>
+        ),
+    },
+    {
+      clave: "acciones",
+      titulo: "Acciones",
+      ancho: 200,
+      alinear: "center",
+      ordenable: false,
+      texto: () => "",
+      celda: (s) => (
+        <span className="inline-flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Historial de la salida"
+            aria-label="Historial de la salida"
+            onClick={() => setHistorialDe(s)}
+          >
+            <History className="h-4 w-4" />
+          </Button>
+          {!s.anuladaAt && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => abrirEdicion(s)}>
+                Editar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => {
+                  setError(null)
+                  setAviso(null)
+                  setMotivo("")
+                  setAnulando(s)
+                }}
+              >
+                Anular
+              </Button>
+            </>
+          )}
+        </span>
+      ),
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(salidas ?? [], columnas)
 
   function cargar(filtros: FiltrosSalidas, nuevaPagina: number) {
     if (!proyectoId) return
@@ -215,104 +303,21 @@ export function SalidasRegistradasView() {
           <p className="text-sm text-muted-foreground">No hay salidas con esos filtros.</p>
         ) : (
           <>
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Insumo</TableHead>
-                    <TableHead>UM</TableHead>
-                    <TableHead className="text-right">Cantidad</TableHead>
-                    <TableHead>Retira</TableHead>
-                    <TableHead>Registró</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-center">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {salidas.map((s) => (
-                    <TableRow key={s.id} className={s.anuladaAt ? "text-muted-foreground" : ""}>
-                      <TableCell className="whitespace-nowrap">{formatearFechaSinHora(s.fecha)}</TableCell>
-                      <TableCell className="min-w-56">
-                        <span className={s.anuladaAt ? "line-through" : ""}>
-                          {s.insumoCodigo} · {s.insumoDescripcion}
-                        </span>
-                        {s.observaciones && <p className="text-xs text-muted-foreground">{s.observaciones}</p>}
-                        {s.anuladaAt && (
-                          <p className="text-xs">
-                            Anulada {formatoHora(s.anuladaAt)}
-                            {s.anuladaPorNombre ? ` por ${s.anuladaPorNombre}` : ""}
-                            {s.motivoAnulacion ? `: ${s.motivoAnulacion}` : ""}
-                          </p>
-                        )}
-                      </TableCell>
-                      <TableCell>{s.insumoUm ?? "—"}</TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        {formatoNumero.format(s.cantidad)}
-                        {s.cantidadOriginal !== null && (
-                          <span className="block text-xs text-muted-foreground">
-                            antes {formatoNumero.format(s.cantidadOriginal)}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>{s.retira ?? "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {s.registradoPorNombre ?? "—"}
-                        <span className="block text-xs text-muted-foreground">{formatoHora(s.createdAt)}</span>
-                      </TableCell>
-                      <TableCell>
-                        {s.anuladaAt ? (
-                          <Badge variant="destructive">Anulada</Badge>
-                        ) : s.editadaAt ? (
-                          <Badge
-                            variant="outline"
-                            title={`Editada ${formatoHora(s.editadaAt)}${s.editadaPorNombre ? ` por ${s.editadaPorNombre}` : ""}`}
-                          >
-                            Editada
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Vigente</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            title="Historial de la salida"
-                            aria-label="Historial de la salida"
-                            onClick={() => setHistorialDe(s)}
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                        {!s.anuladaAt && (
-                          <span className="inline-flex gap-1">
-                            <Button variant="outline" size="sm" onClick={() => abrirEdicion(s)}>
-                              Editar
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              onClick={() => {
-                                setError(null)
-                                setAviso(null)
-                                setMotivo("")
-                                setAnulando(s)
-                              }}
-                            >
-                              Anular
-                            </Button>
-                          </span>
-                        )}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <TablaExcel
+              filas={ordenadas}
+              columnas={columnas}
+              claveFila={(s) => s.id}
+              orden={orden}
+              onOrdenar={ordenar}
+              onDobleClickFila={setViendo}
+              tituloFila={AYUDA_DOBLE_CLIC}
+              tarjeta={{
+                titulo: (s) => `${s.insumoCodigo} · ${s.insumoDescripcion}`,
+                subtitulo: (s) => formatearFechaSinHora(s.fecha),
+                esquina: (s) => columnas.find((c) => c.clave === "estado")!.celda!(s),
+                campos: ["um", "cantidad", "retira", "registro", "acciones"],
+              }}
+            />
             <PaginacionSimple
               pagina={pagina}
               hayMas={hayMas}
@@ -322,6 +327,68 @@ export function SalidasRegistradasView() {
           </>
         )}
       </div>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo ? `${viendo.insumoCodigo} · ${viendo.insumoDescripcion}` : ""}
+        subtitulo={viendo ? `Salida del ${formatearFechaSinHora(viendo.fecha)}` : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "Fecha", valor: formatearFechaSinHora(viendo.fecha) },
+                { etiqueta: "UM", valor: viendo.insumoUm ?? "" },
+                {
+                  etiqueta: "Cantidad",
+                  valor: `${formatoNumero.format(viendo.cantidad)}${viendo.cantidadOriginal !== null ? ` (antes ${formatoNumero.format(viendo.cantidadOriginal)})` : ""}`,
+                },
+                { etiqueta: "Retira", valor: viendo.retira ?? "" },
+                { etiqueta: "Registró", valor: `${viendo.registradoPorNombre ?? "—"} · ${formatoHora(viendo.createdAt)}` },
+                {
+                  etiqueta: "Estado",
+                  valor: viendo.anuladaAt ? "Anulada" : viendo.editadaAt ? "Editada" : "Vigente",
+                },
+                ...(viendo.editadaAt
+                  ? [{ etiqueta: "Editada", valor: `${formatoHora(viendo.editadaAt)}${viendo.editadaPorNombre ? ` por ${viendo.editadaPorNombre}` : ""}` }]
+                  : []),
+                ...(viendo.anuladaAt
+                  ? [
+                      {
+                        etiqueta: "Anulada",
+                        valor: `${formatoHora(viendo.anuladaAt)}${viendo.anuladaPorNombre ? ` por ${viendo.anuladaPorNombre}` : ""}${viendo.motivoAnulacion ? `: ${viendo.motivoAnulacion}` : ""}`,
+                        ancho: "completo" as const,
+                      },
+                    ]
+                  : []),
+                { etiqueta: "Observaciones", valor: viendo.observaciones ?? "", ancho: "completo" as const },
+              ]
+            : []
+        }
+        onEditar={viendo && !viendo.anuladaAt ? () => abrirEdicion(viendo) : undefined}
+        acciones={
+          viendo && (
+            <>
+              <Button variant="outline" onClick={() => setHistorialDe(viendo)}>
+                <History className="mr-1.5 h-4 w-4" /> Historial
+              </Button>
+              {!viendo.anuladaAt && (
+                <Button
+                  variant="outline"
+                  className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => {
+                    setError(null)
+                    setAviso(null)
+                    setMotivo("")
+                    setAnulando(viendo)
+                  }}
+                >
+                  Anular
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
 
       <Dialog
         open={editando !== null}

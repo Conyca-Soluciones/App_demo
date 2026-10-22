@@ -27,14 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { OrdenCompraDetalleView } from "./orden-compra-detalle-view"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
@@ -53,6 +45,8 @@ import {
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { verProyectos } from "@/app/(app)/almacen/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
 
 // Valor total de la orden (descuento e IVA incluidos, como el PDF).
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
@@ -160,6 +154,104 @@ export function AprobarOCView() {
 
   // Aprobar pide confirmación (ver ConfirmarAprobacion).
   const [porAprobar, setPorAprobar] = useState<OrdenCompraListado | null>(null)
+
+  const columnas: ColumnaExcel<OrdenCompraListado>[] = [
+    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (o) => String(o.numero), valorOrden: (o) => o.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "proyecto", titulo: "Proyecto", ancho: 170, texto: (o) => o.proyectoCodigo ?? o.proyectoNombre ?? "" },
+    { clave: "proveedor", titulo: "Proveedor", ancho: 240, flexible: true, texto: (o) => o.proveedorNombre },
+    { clave: "creadaPor", titulo: "Creada por", ancho: 160, texto: (o) => o.creadaPorNombre ?? "" },
+    { clave: "fecha", titulo: "Fecha", ancho: 160, texto: (o) => formatoFecha(o.createdAt), valorOrden: (o) => o.createdAt, claseCelda: "tabular-nums" },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 200,
+      texto: (o) => ESTADO_VISIBLE_BADGE[o.estado].label,
+      celda: (o) => (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={ESTADO_VISIBLE_BADGE[o.estado].clase}>{ESTADO_VISIBLE_BADGE[o.estado].label}</Badge>
+          {o.tieneSobrecostoPrecio && (
+            <Badge variant="destructive" title="Alguna línea tiene un precio por encima del +10% del precio unitario vigente">
+              Precio +10%
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    { clave: "valor", titulo: "Valor total", ancho: 140, alinear: "right", texto: (o) => formatoMoneda.format(o.valorTotal), valorOrden: (o) => o.valorTotal, claseCelda: "tabular-nums" },
+    {
+      clave: "acciones",
+      titulo: "Acciones",
+      ancho: 300,
+      ordenable: false,
+      texto: () => "",
+      celda: (orden) => {
+        const puedeGestionar = permisos?.esAdmin && orden.estado === "pendiente_aprobacion"
+        const puedeDesaprobar = permisos?.puedeDesaprobar && sePuedeDesaprobar(orden)
+        const procesando = procesandoId === orden.id
+        // Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
+        // lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto).
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-20 shrink-0"
+              onClick={() => setOrdenAbiertaId(orden.id)}
+            >
+              <Eye className="mr-1.5 h-4 w-4" />
+              Ver
+            </Button>
+            <div className="flex h-8 w-44 shrink-0 items-center gap-2">
+              {puedeDesaprobar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                  disabled={procesando}
+                  onClick={() => {
+                    setDesaprobando(orden)
+                    setMotivoDesaprobacion("")
+                  }}
+                  aria-label={`Desaprobar orden ${orden.numero}`}
+                >
+                  <Undo2 className="mr-1.5 h-4 w-4" />
+                  Desaprobar
+                </Button>
+              )}
+              {puedeGestionar && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    disabled={procesando}
+                    onClick={() => setPorAprobar(orden)}
+                    aria-label={`Aprobar orden ${orden.numero}`}
+                  >
+                    {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    disabled={procesando}
+                    onClick={() => {
+                      setRechazandoId(orden.id)
+                      setMotivoRechazo("")
+                    }}
+                    aria-label={`Rechazar orden ${orden.numero}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      },
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(ordenes ?? [], columnas)
 
   async function handleAprobar(id: string) {
     setProcesandoId(id)
@@ -322,116 +414,22 @@ export function AprobarOCView() {
               Ninguna orden de compra coincide con los filtros.
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>N°</TableHead>
-                    <TableHead>Proyecto</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead>Creada por</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Valor total</TableHead>
-                    <TableHead className="w-[300px]">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ordenes.map((orden) => {
-                    const badge = ESTADO_VISIBLE_BADGE[orden.estado]
-                    const puedeGestionar = permisos?.esAdmin && orden.estado === "pendiente_aprobacion"
-                    const puedeDesaprobar = permisos?.puedeDesaprobar && sePuedeDesaprobar(orden)
-                    const procesando = procesandoId === orden.id
-                    return (
-                      <TableRow
-                        key={orden.id}
-                        className={orden.tieneSobrecostoPrecio ? "bg-destructive/10 hover:bg-destructive/15" : undefined}
-                      >
-                        <TableCell className="font-medium">{orden.numero}</TableCell>
-                        <TableCell>{orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"}</TableCell>
-                        <TableCell>{orden.proveedorNombre}</TableCell>
-                        <TableCell>{orden.creadaPorNombre ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap">{formatoFecha(orden.createdAt)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
-                            {orden.tieneSobrecostoPrecio && (
-                              <Badge
-                                variant="destructive"
-                                title="Alguna línea tiene un precio por encima del +10% del precio unitario vigente"
-                              >
-                                Precio +10%
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatoMoneda.format(orden.valorTotal)}</TableCell>
-                        <TableCell>
-                          {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
-                              lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto). */}
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-20 shrink-0"
-                              onClick={() => setOrdenAbiertaId(orden.id)}
-                            >
-                              <Eye className="mr-1.5 h-4 w-4" />
-                              Ver
-                            </Button>
-                            <div className="flex h-8 w-44 shrink-0 items-center gap-2">
-                              {puedeDesaprobar && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-                                  disabled={procesando}
-                                  onClick={() => {
-                                    setDesaprobando(orden)
-                                    setMotivoDesaprobacion("")
-                                  }}
-                                  aria-label={`Desaprobar orden ${orden.numero}`}
-                                >
-                                  <Undo2 className="mr-1.5 h-4 w-4" />
-                                  Desaprobar
-                                </Button>
-                              )}
-                              {puedeGestionar && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                                    disabled={procesando}
-                                    onClick={() => setPorAprobar(orden)}
-                                    aria-label={`Aprobar orden ${orden.numero}`}
-                                  >
-                                    {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                    disabled={procesando}
-                                    onClick={() => {
-                                      setRechazandoId(orden.id)
-                                      setMotivoRechazo("")
-                                    }}
-                                    aria-label={`Rechazar orden ${orden.numero}`}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <TablaExcel
+              filas={ordenadas}
+              columnas={columnas}
+              claveFila={(o) => o.id}
+              orden={orden}
+              onOrdenar={ordenar}
+              onDobleClickFila={(o) => setOrdenAbiertaId(o.id)}
+              tituloFila={AYUDA_DOBLE_CLIC}
+              fondoFila={(o) => (o.tieneSobrecostoPrecio ? "bg-red-50" : undefined)}
+              tarjeta={{
+                titulo: (o) => `OC N° ${o.numero}`,
+                subtitulo: (o) => `${o.proyectoCodigo ?? o.proyectoNombre ?? "—"} · ${o.proveedorNombre}`,
+                esquina: (o) => <Badge variant="outline" className={ESTADO_VISIBLE_BADGE[o.estado].clase}>{ESTADO_VISIBLE_BADGE[o.estado].label}</Badge>,
+                campos: ["creadaPor", "fecha", "valor", "acciones"],
+              }}
+            />
           )}
           {ordenes !== null && ordenes.length > 0 && (
             <PaginacionSimple

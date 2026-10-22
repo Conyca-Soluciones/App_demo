@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, camposDesdeColumnas } from "@/components/ventana-detalle"
 import {
   COLOR_TONO_EVENTO,
   NOMBRE_TIPO_HISTORIAL,
@@ -52,6 +53,7 @@ export function AuditoriaView() {
   const [hayMas, setHayMas] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [viendo, setViendo] = useState<FilaAuditoria | null>(null)
 
   useEffect(() => {
     let activo = true
@@ -236,6 +238,8 @@ export function AuditoriaView() {
               filas={filas}
               columnas={columnas}
               claveFila={(f) => f.id}
+              onDobleClickFila={setViendo}
+              tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
                 titulo: (f) => definicionEvento(f.tipo, f.evento).etiqueta,
                 subtitulo: (f) => `${NOMBRE_TIPO_HISTORIAL[f.tipo] ?? f.tipo}${f.referencia ? ` · ${f.referencia}` : ""}`,
@@ -248,6 +252,13 @@ export function AuditoriaView() {
           {filas !== null && filas.length > 0 && (
             <PaginacionSimple pagina={pagina} hayMas={hayMas} cargando={cargando} onCambiar={(n) => cargar(aplicados, n)} />
           )}
+        <VentanaDetalle
+          abierta={viendo !== null}
+          onCerrar={() => setViendo(null)}
+          titulo={viendo ? definicionEvento(viendo.tipo, viendo.evento).etiqueta : ""}
+          subtitulo={viendo ? `${NOMBRE_TIPO_HISTORIAL[viendo.tipo] ?? viendo.tipo}${viendo.referencia ? ` · ${viendo.referencia}` : ""}` : undefined}
+          campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        />
         </div>
       </div>
     </div>

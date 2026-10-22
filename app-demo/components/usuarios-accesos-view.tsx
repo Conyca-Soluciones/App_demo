@@ -14,14 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   listarProyectosAdmin,
   crearUsuario,
   cambiarPasswordUsuario,
@@ -34,6 +26,8 @@ import {
   listarUsuariosAcceso,
   type UsuarioAcceso,
 } from "@/app/(app)/admin/accesos/actions"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
 
 const SIN_ROL = "__sin_rol__"
 
@@ -62,6 +56,7 @@ export function UsuariosAccesosView() {
   const [passwordNueva, setPasswordNueva] = useState("")
   const [guardandoPassword, setGuardandoPassword] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [viendo, setViendo] = useState<UsuarioAcceso | null>(null)
 
   function cargar() {
     Promise.all([listarUsuariosAcceso(), listarRolesConPermisos(), listarProyectosAdmin()])
@@ -196,6 +191,74 @@ export function UsuariosAccesosView() {
         ? "Ninguno"
         : `${u.proyectoIds.length} ${u.proyectoIds.length === 1 ? "proyecto" : "proyectos"}`
 
+  const columnas: ColumnaExcel<UsuarioAcceso>[] = [
+    { clave: "nombre", titulo: "Usuario", ancho: 200, fija: true, texto: (u) => u.nombre, claseCelda: "font-medium" },
+    { clave: "correo", titulo: "Correo", ancho: 240, flexible: true, texto: (u) => u.email ?? u.username ?? "" },
+    {
+      clave: "rol",
+      titulo: "Rol general",
+      ancho: 240,
+      texto: (u) => (u.rolId ? (roles.find((r) => r.id === u.rolId)?.nombre ?? "") : "Sin rol"),
+      celda: (u) => (
+        <select
+          className="h-7 w-full rounded-md border bg-background px-2 text-sm"
+          value={u.rolId ?? SIN_ROL}
+          disabled={guardandoRol === u.id}
+          onChange={(e) => cambiarRol(u, e.target.value)}
+          title={
+            !u.rolId
+              ? `Permisos anteriores${u.banderasAnteriores.length > 0 ? `: ${u.banderasAnteriores.join(", ")}` : ": ninguno especial"}`
+              : undefined
+          }
+        >
+          <option value={SIN_ROL}>Sin rol</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.nombre}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      clave: "proyectos",
+      titulo: "Proyectos",
+      ancho: 190,
+      texto: (u) => resumenProyectos(u),
+      celda: (u) => (
+        <Button variant="outline" size="sm" className="h-7" onClick={() => abrirProyectos(u)}>
+          {resumenProyectos(u)}
+        </Button>
+      ),
+    },
+    {
+      clave: "clave",
+      titulo: "Contraseña",
+      ancho: 110,
+      alinear: "center",
+      ordenable: false,
+      texto: () => "",
+      celda: (u) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          title="Cambiar contraseña"
+          aria-label={`Cambiar contraseña de ${u.nombre}`}
+          onClick={() => {
+            setError(null)
+            setAviso(null)
+            setPasswordNueva("")
+            setCambiandoPassword(u)
+          }}
+        >
+          <KeyRound className="h-4 w-4" />
+        </Button>
+      ),
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(filtrados, columnas)
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -232,77 +295,27 @@ export function UsuariosAccesosView() {
           </div>
         )
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead className="w-60">Rol general</TableHead>
-                <TableHead className="w-56">Proyectos</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtrados.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <div className="font-medium">{u.nombre}</div>
-                    <div className="text-xs text-muted-foreground">{u.email ?? u.username ?? ""}</div>
-                  </TableCell>
-                  <TableCell>
-                    <select
-                      className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-                      value={u.rolId ?? SIN_ROL}
-                      disabled={guardandoRol === u.id}
-                      onChange={(e) => cambiarRol(u, e.target.value)}
-                    >
-                      <option value={SIN_ROL}>Sin rol</option>
-                      {roles.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.nombre}
-                        </option>
-                      ))}
-                    </select>
-                    {!u.rolId && (
-                      <div className="mt-1 text-[11px] text-amber-700">
-                        Permisos anteriores
-                        {u.banderasAnteriores.length > 0 ? `: ${u.banderasAnteriores.join(", ")}` : ": ninguno especial"}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => abrirProyectos(u)}>
-                      {resumenProyectos(u)}
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Cambiar contraseña"
-                      aria-label={`Cambiar contraseña de ${u.nombre}`}
-                      onClick={() => {
-                        setError(null)
-                        setAviso(null)
-                        setPasswordNueva("")
-                        setCambiandoPassword(u)
-                      }}
-                    >
-                      <KeyRound className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filtrados.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Ningún usuario coincide con la búsqueda.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        filtrados.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+            Ningún usuario coincide con la búsqueda.
+          </div>
+        ) : (
+          <TablaExcel
+            filas={ordenadas}
+            columnas={columnas}
+            claveFila={(u) => u.id}
+            orden={orden}
+            onOrdenar={ordenar}
+            onDobleClickFila={setViendo}
+            tituloFila={AYUDA_DOBLE_CLIC}
+            tarjeta={{
+              titulo: (u) => u.nombre,
+              subtitulo: (u) => u.email ?? u.username ?? "",
+              esquina: (u) => columnas.find((c) => c.clave === "clave")!.celda!(u),
+              campos: ["rol", "proyectos"],
+            }}
+          />
+        )
       )}
 
       <Dialog
@@ -356,6 +369,46 @@ export function UsuariosAccesosView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VentanaDetalle
+        abierta={viendo !== null}
+        onCerrar={() => setViendo(null)}
+        titulo={viendo?.nombre}
+        subtitulo={viendo ? (viendo.email ?? viendo.username ?? undefined) : undefined}
+        campos={
+          viendo
+            ? [
+                { etiqueta: "Rol general", valor: roles.find((r) => r.id === viendo.rolId)?.nombre ?? "Sin rol" },
+                { etiqueta: "Proyectos", valor: resumenProyectos(viendo) },
+                ...(!viendo.rolId
+                  ? [
+                      {
+                        etiqueta: "Permisos anteriores",
+                        valor: viendo.banderasAnteriores.length > 0 ? viendo.banderasAnteriores.join(", ") : "Ninguno especial",
+                        ancho: "completo" as const,
+                      },
+                    ]
+                  : []),
+              ]
+            : []
+        }
+        onEditar={viendo ? () => abrirProyectos(viendo) : undefined}
+        acciones={
+          viendo && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setError(null)
+                setAviso(null)
+                setPasswordNueva("")
+                setCambiandoPassword(viendo)
+              }}
+            >
+              <KeyRound className="mr-1.5 h-4 w-4" /> Cambiar contraseña
+            </Button>
+          )
+        }
+      />
 
       <Dialog open={creandoUsuario} onOpenChange={(abierto) => !abierto && setCreandoUsuario(false)}>
         <DialogContent>

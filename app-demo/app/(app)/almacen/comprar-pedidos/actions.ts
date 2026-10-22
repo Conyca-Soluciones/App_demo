@@ -4,6 +4,7 @@ import { unidadesDeCompra } from "@/lib/unidades"
 import { conversionValida, type PresentacionLinea } from "@/lib/presentacion-compra"
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { calcularLinea } from "@/lib/ordenes-compra-calculos"
+import type { SoporteGuardado, SoporteSubidoArchivo, TipoSoporteOrden } from "@/lib/soportes"
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -453,8 +454,15 @@ export type DatosOrdenCompra = {
   lineas: LineaOrdenCompra[]
 }
 
-export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string> {
+// La orden se crea con su soporte (cotización, cuenta de cobro o factura),
+// obligatorio: el archivo ya está en el bucket `ordenes_compra` y la base lo
+// registra en la misma transacción (crear_orden_compra_con_soporte).
+export async function crearOrdenCompra(
+  datos: DatosOrdenCompra,
+  soporte: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }
+): Promise<string> {
   await requerirScope("rol_compras")
+  if (!soporte?.ruta) throw new Error("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
 
   if (datos.lineas.length === 0) {
     throw new Error("Selecciona al menos un insumo para la orden de compra.")
@@ -503,7 +511,7 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
 
   const supabase = await createClient()
 
-    const { data, error } = await supabase.rpc("crear_orden_compra", {
+    const { data, error } = await supabase.rpc("crear_orden_compra_con_soporte", {
     p_proyecto_id: datos.proyectoId,
     p_proveedor_id: datos.proveedorId,
     p_sitio_entrega: datos.sitioEntrega ?? null,
@@ -514,6 +522,13 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
     p_email: datos.email ?? null,
     p_condiciones_pago: datos.condicionesPago ?? null,
     p_observaciones: datos.observaciones ?? null,
+    p_soporte: {
+      tipo: soporte.tipo,
+      ruta: soporte.ruta,
+      nombre_archivo: soporte.nombreArchivo,
+      tamano: soporte.tamano,
+      mime: soporte.mime,
+    },
     ...(anticipo ?? {}),
     p_lineas: datos.lineas.map((l) =>
       l.presentacion
@@ -539,6 +554,35 @@ export async function crearOrdenCompra(datos: DatosOrdenCompra): Promise<string>
 
   if (error) throw new Error(error.message)
   return data as string
+}
+
+// Soportes de una orden (quien ve la orden los ve: RLS). Aparte del detalle
+// para que una base sin la migración de soportes no rompa el detalle.
+export async function listarSoportesOrden(ordenId: string): Promise<SoporteGuardado[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("orden_compra_soportes")
+    .select("id, tipo, nombre_archivo, mime")
+    .eq("orden_compra_id", ordenId)
+    .order("created_at", { ascending: true })
+  if (error) return []
+  return (data ?? []).map((s: { id: string; tipo: string; nombre_archivo: string; mime: string | null }) => ({
+    id: s.id,
+    tipo: s.tipo,
+    nombreArchivo: s.nombre_archivo,
+    mime: s.mime,
+  }))
+}
+
+// Enlace firmado de 2 minutos para ver un soporte (la política del bucket
+// exige ver la orden).
+export async function enlaceSoporteOrden(soporteId: string): Promise<string> {
+  const supabase = await createClient()
+  const { data: s, error } = await supabase.from("orden_compra_soportes").select("ruta").eq("id", soporteId).single()
+  if (error || !s) throw new Error("No se encontró el soporte.")
+  const { data, error: e } = await supabase.storage.from("ordenes_compra").createSignedUrl(s.ruta, 120)
+  if (e || !data) throw new Error("No se pudo abrir el soporte.")
+  return data.signedUrl
 }
 
 // ---------------------------------------------------------------------------

@@ -233,3 +233,10 @@ export function documentoFormateado(c: Pick<Contratista, "tipoDocumento" | "nume
     ? `NIT ${c.numeroDocumento}-${c.digitoVerificacion ?? ""}`
     : `${c.tipoDocumento} ${c.numeroDocumento}`
 }
+
+// Filtros de la pantalla Contratistas (vacíos = todos).
+export type FiltrosContratistas = {
+  nombre?: string // nombre o razón social; si son números, el documento
+  ciudad?: string
+  tipoPersona?: TipoPersona
+}

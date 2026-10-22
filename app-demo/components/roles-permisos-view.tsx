@@ -151,26 +151,26 @@ export function RolesPermisosView() {
           <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 top-0 z-20 min-w-64 border-b bg-background px-3 py-2 text-left font-medium">
+                <th className="sticky left-0 top-0 z-30 min-w-64 px-3 py-2.5 text-left">
                   Permiso
                 </th>
                 {roles.map((r) => (
                   <th
                     key={r.id}
-                    className="sticky top-0 z-10 min-w-28 border-b border-l bg-background px-2 py-2 text-center font-medium"
+                    className="sticky top-0 z-20 min-w-28 px-2 py-2.5 text-center"
                   >
                     <div className="flex items-center justify-center gap-1">
-                      {r.clave === "administrador" && <Lock className="h-3 w-3 text-muted-foreground" />}
+                      {r.clave === "administrador" && <Lock className="h-3 w-3 opacity-80" />}
                       {r.nombre}
                     </div>
-                    <div className="text-[10px] font-normal text-muted-foreground">
+                    <div className="text-[10px] font-normal opacity-80">
                       {r.usuarios} {r.usuarios === 1 ? "usuario" : "usuarios"}
                     </div>
                     {!r.esSistema && (
                       <button
                         type="button"
                         onClick={() => handleEliminar(r)}
-                        className="mt-0.5 text-muted-foreground hover:text-destructive"
+                        className="mt-0.5 opacity-80 hover:text-red-200 hover:opacity-100"
                         title="Eliminar rol"
                       >
                         <Trash2 className="mx-auto h-3 w-3" />

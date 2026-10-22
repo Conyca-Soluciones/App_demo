@@ -16,11 +16,13 @@ import { Input } from "@/components/ui/input"
 import { BannerPreciosInsumos } from "@/components/banner-precios-insumos"
 import { useSearchParams, useRouter } from "next/navigation"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
+import { CLASE_CELDA_EXCEL, CLASE_ENCABEZADO_EXCEL, CLASE_MARCO_EXCEL, CLASE_TABLA_EXCEL } from "@/components/tabla-excel"
 
 const TODOS_LOS_TIPOS = CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string[])
 
-const headClasses = "border-r bg-primary px-3 py-2.5 text-left text-xs font-medium text-primary-foreground last:border-r-0"
-const celda = "border-r px-3 py-2 text-xs last:border-r-0"
+const headClasses = CLASE_ENCABEZADO_EXCEL
+const celda = `${CLASE_CELDA_EXCEL} text-xs`
 
 // Lo que se elige al aprobar para que el insumo entre estandarizado al maestro.
 type DatosAprobacion = {
@@ -208,8 +210,8 @@ function TablaPendientes({
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   return (
-    <div className="overflow-x-auto rounded-none border">
-      <table className="w-full border-separate border-spacing-0">
+    <div className={CLASE_MARCO_EXCEL}>
+      <table className={CLASE_TABLA_EXCEL}>
         <thead>
           <tr>
             <th className={`${headClasses} w-64`}>Insumo</th>
@@ -253,6 +255,7 @@ function FilaPendiente({
   onRechazar: (s: SolicitudInsumo, motivo: string) => void
 }) {
   const [precio, setPrecio] = useState("")
+  const [viendo, setViendo] = useState(false)
   // Lo que trae la solicitud (del Excel: "INSUMO", "m³") se usa solo si
   // corresponde a la lista estándar; si no, queda vacío para elegirlo.
   const [tipo, setTipo] = useState(solicitud.tipo && TODOS_LOS_TIPOS.includes(solicitud.tipo) ? solicitud.tipo : "")
@@ -316,7 +319,11 @@ function FilaPendiente({
   }
 
   return (
-    <tr className="border-b align-top hover:bg-muted/30">
+    <tr
+      className={`align-top hover:bg-muted/30 ${CLASE_FILA_DOBLE_CLIC}`}
+      title={AYUDA_DOBLE_CLIC}
+      onDoubleClick={alDobleClic(() => setViendo(true))}
+    >
       <td className={celda}>
         <p className="font-medium">{solicitud.descripcion}</p>
       </td>
@@ -488,6 +495,22 @@ function FilaPendiente({
           {error && <p className="text-[10px] text-destructive">{error}</p>}
         </div>
       </td>
+      {/* Solo datos de la solicitud: aprobar y rechazar se hacen en la fila,
+          donde están los campos que hay que llenar. */}
+      <VentanaDetalle
+        abierta={viendo}
+        onCerrar={() => setViendo(false)}
+        titulo={solicitud.descripcion}
+        subtitulo="Solicitud por aprobar: los datos para aprobarla se llenan en la fila."
+        campos={[
+          { etiqueta: "Solicitado por", valor: solicitud.solicitadoPorNombre ?? "" },
+          { etiqueta: "Fecha", valor: formatearFechaSinHora(solicitud.createdAt) },
+          { etiqueta: "Proyecto", valor: solicitud.proyectoNombre ?? "" },
+          { etiqueta: "Ítem", valor: solicitud.itemCodigo ?? "" },
+          { etiqueta: "Tipo pedido", valor: solicitud.tipo ?? "" },
+          { etiqueta: "Unidad pedida", valor: solicitud.uM ?? "" },
+        ]}
+      />
     </tr>
   )
 }

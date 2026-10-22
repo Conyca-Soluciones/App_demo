@@ -23,14 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { BadgeEstadoRequisicion } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
@@ -44,6 +36,8 @@ import {
   type RequisicionParaAprobar,
   type PermisosPedidos,
 } from "./actions"
+import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
+import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 
 type TipoAccion = "rechazar" | "desaprobar"
 const TEXTO_ACCION: Record<TipoAccion, { titulo: string; explicacion: string; boton: string }> = {
@@ -76,6 +70,103 @@ export default function AdminTecnico() {
   const [porAprobar, setPorAprobar] = useState<RequisicionParaAprobar | null>(null)
   // Últimos filtros consultados (para repetir la consulta tras una acción).
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
+
+  const columnas: ColumnaExcel<RequisicionParaAprobar>[] = [
+    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (r) => String(r.numero), valorOrden: (r) => r.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "proyecto", titulo: "Proyecto", ancho: 190, flexible: true, texto: (r) => r.proyectoCodigo ?? r.proyectoNombre ?? "" },
+    { clave: "solicitante", titulo: "Solicitado por", ancho: 170, texto: (r) => r.solicitanteNombre ?? "" },
+    { clave: "creada", titulo: "Fecha requisición", ancho: 130, alinear: "center", texto: (r) => formatearFechaSinHora(r.createdAt), valorOrden: (r) => r.createdAt, claseCelda: "tabular-nums" },
+    {
+      clave: "requerida",
+      titulo: "Fecha requerida",
+      ancho: 130,
+      alinear: "center",
+      texto: (r) => (r.fechaRequerida ? formatearFechaSinHora(r.fechaRequerida) : ""),
+      valorOrden: (r) => r.fechaRequerida,
+      claseCelda: "tabular-nums",
+    },
+    { clave: "insumos", titulo: "Insumos", ancho: 90, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
+    {
+      clave: "estado",
+      titulo: "Estado",
+      ancho: 190,
+      texto: (r) => r.estado,
+      celda: (r) => (
+        <div className="flex items-center gap-2">
+          <BadgeEstadoRequisicion estado={r.estado} />
+          {r.urgente && <Badge variant="destructive">Urgente</Badge>}
+        </div>
+      ),
+    },
+    {
+      clave: "acciones",
+      titulo: "Acciones",
+      ancho: 300,
+      ordenable: false,
+      texto: () => "",
+      celda: (req) => {
+        const puedeGestionar = permisos?.aprobar && req.estado === "pendiente"
+        const puedeDesaprobar = permisos?.desaprobar && req.estado === "aprobada"
+        const procesando = idsEnProceso.has(req.id)
+        // Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
+        // lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto).
+        return (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-8 w-20 shrink-0" onClick={() => setAbiertaId(req.id)}>
+              <Eye className="mr-1.5 h-4 w-4" />
+              Ver
+            </Button>
+            <div className="flex h-8 w-44 shrink-0 items-center gap-2">
+              {puedeDesaprobar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                  disabled={procesando}
+                  onClick={() => {
+                    setAccion({ tipo: "desaprobar", req })
+                    setMotivo("")
+                  }}
+                  aria-label={`Desaprobar requisición ${req.numero}`}
+                >
+                  <Undo2 className="mr-1.5 h-4 w-4" />
+                  Desaprobar
+                </Button>
+              )}
+              {puedeGestionar && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    disabled={procesando}
+                    onClick={() => setPorAprobar(req)}
+                    aria-label={`Aprobar requisición ${req.numero}`}
+                  >
+                    {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    disabled={procesando}
+                    onClick={() => {
+                      setAccion({ tipo: "rechazar", req })
+                      setMotivo("")
+                    }}
+                    aria-label={`Rechazar requisición ${req.numero}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      },
+    },
+  ]
+  const { ordenadas, orden, ordenar } = useOrdenExcel(requisiciones ?? [], columnas)
   const [pagina, setPagina] = useState(0)
   const [hayMas, setHayMas] = useState(false)
 
@@ -180,104 +271,22 @@ export default function AdminTecnico() {
               Ninguna requisición coincide con los filtros.
             </div>
           ) : requisiciones !== null ? (
-            <div className="overflow-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>N°</TableHead>
-                    <TableHead>Proyecto</TableHead>
-                    <TableHead>Solicitado por</TableHead>
-                    <TableHead>Fecha requisición</TableHead>
-                    <TableHead>Fecha requerida</TableHead>
-                    <TableHead className="text-center">Insumos</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="w-[300px]">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {requisiciones.map((req) => {
-                    const puedeGestionar = permisos?.aprobar && req.estado === "pendiente"
-                    const puedeDesaprobar = permisos?.desaprobar && req.estado === "aprobada"
-                    const procesando = idsEnProceso.has(req.id)
-                    return (
-                      <TableRow key={req.id} className={req.urgente && req.estado === "pendiente" ? "bg-amber-50/60" : undefined}>
-                        <TableCell className="font-medium">{req.numero}</TableCell>
-                        <TableCell>{req.proyectoCodigo ?? req.proyectoNombre ?? "—"}</TableCell>
-                        <TableCell>{req.solicitanteNombre ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {formatearFechaSinHora(req.createdAt)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}
-                        </TableCell>
-                        <TableCell className="text-center">{req.nLineas}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <BadgeEstadoRequisicion estado={req.estado} />
-                            {req.urgente && <Badge variant="destructive">Urgente</Badge>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {/* Dos casillas de ancho fijo: Ver siempre en el mismo sitio y, a su
-                              lado, o Desaprobar o Aprobar + Rechazar (mismo ancho y alto). */}
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" variant="outline" className="h-8 w-20 shrink-0" onClick={() => setAbiertaId(req.id)}>
-                              <Eye className="mr-1.5 h-4 w-4" />
-                              Ver
-                            </Button>
-                            <div className="flex h-8 w-44 shrink-0 items-center gap-2">
-                              {puedeDesaprobar && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-full border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-                                  disabled={procesando}
-                                  onClick={() => {
-                                    setAccion({ tipo: "desaprobar", req })
-                                    setMotivo("")
-                                  }}
-                                  aria-label={`Desaprobar requisición ${req.numero}`}
-                                >
-                                  <Undo2 className="mr-1.5 h-4 w-4" />
-                                  Desaprobar
-                                </Button>
-                              )}
-                              {puedeGestionar && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                                    disabled={procesando}
-                                    onClick={() => setPorAprobar(req)}
-                                    aria-label={`Aprobar requisición ${req.numero}`}
-                                  >
-                                    {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 flex-1 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                    disabled={procesando}
-                                    onClick={() => {
-                                      setAccion({ tipo: "rechazar", req })
-                                      setMotivo("")
-                                    }}
-                                    aria-label={`Rechazar requisición ${req.numero}`}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <TablaExcel
+              filas={ordenadas}
+              columnas={columnas}
+              claveFila={(r) => r.id}
+              orden={orden}
+              onOrdenar={ordenar}
+              onDobleClickFila={(r) => setAbiertaId(r.id)}
+              tituloFila={AYUDA_DOBLE_CLIC}
+              fondoFila={(r) => (r.urgente && r.estado === "pendiente" ? "bg-amber-50" : undefined)}
+              tarjeta={{
+                titulo: (r) => `Requisición ${r.numero}`,
+                subtitulo: (r) => `${r.proyectoCodigo ?? r.proyectoNombre ?? "—"} · ${r.solicitanteNombre ?? "—"}`,
+                esquina: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
+                campos: ["creada", "requerida", "insumos", "acciones"],
+              }}
+            />
           ) : null}
           {requisiciones !== null && requisiciones.length > 0 && (
             <PaginacionSimple
