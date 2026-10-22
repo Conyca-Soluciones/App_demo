@@ -272,6 +272,48 @@ export type DatosActa = {
   actividades: { anexo_item_id: string; cantidad: number }[]
   porcentaje_avance: number | null
   descuentos: { concepto: string; valor: number }[]
+  // Tercero que factura y cuenta del pago (20261211000000). Sin la clave
+  // pago_tercero_id la base no cambia lo guardado; null = automático.
+  pago_tercero_id?: string | null
+  pago_titular_id?: string | null
+  pago_cuenta_id?: string | null
+}
+
+// Tercero que factura, titular (si la cuenta es de otro) y cuenta del pago del
+// acta, como en las requisiciones administrativas por transferencia.
+export type TerceroPagoActa = { id: string; etiqueta: string; subetiqueta: string }
+export type CuentaPagoActaInicial = {
+  sugerido: TerceroPagoActa | null
+  elegido: { tercero: TerceroPagoActa; titular: TerceroPagoActa | null; cuentaId: string | null } | null
+}
+export type EleccionPagoActa = {
+  tercero: TerceroPagoActa | null
+  titularDistinto: boolean
+  titular: TerceroPagoActa | null
+  cuentaId: string | null
+}
+
+export function eleccionPagoInicial(c: CuentaPagoActaInicial): EleccionPagoActa {
+  if (c.elegido) {
+    return { tercero: c.elegido.tercero, titularDistinto: c.elegido.titular != null, titular: c.elegido.titular, cuentaId: c.elegido.cuentaId }
+  }
+  return { tercero: c.sugerido, titularDistinto: false, titular: null, cuentaId: null }
+}
+
+export function validarPagoActa(e: EleccionPagoActa): string | null {
+  if (!e.tercero && (e.titularDistinto || e.cuentaId)) return "Elige el tercero que factura."
+  if (e.titularDistinto && !e.titular) return "Busca al titular de la cuenta en Terceros."
+  if (e.titularDistinto && !e.cuentaId) return "Elige la cuenta del titular."
+  return null
+}
+
+export function datosPagoActa(e: EleccionPagoActa): Pick<DatosActa, "pago_tercero_id" | "pago_titular_id" | "pago_cuenta_id"> {
+  const titular = e.titularDistinto ? e.titular : null
+  return {
+    pago_tercero_id: e.tercero?.id ?? null,
+    pago_titular_id: titular && titular.id !== e.tercero?.id ? titular.id : null,
+    pago_cuenta_id: e.tercero ? e.cuentaId : null,
+  }
 }
 
 export function validarActa(info: InfoContratoActa, f: FormActa): { ok: true; datos: DatosActa } | { ok: false; error: string } {

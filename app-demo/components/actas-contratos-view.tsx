@@ -13,6 +13,7 @@ import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { DetalleActa } from "@/components/detalle-acta"
 import { tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
+import { CuentaPagoActa } from "@/components/cuenta-pago-acta"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos, numero } from "@/lib/contratos"
@@ -28,15 +29,20 @@ import {
   actaEditable,
   calcularActa,
   consumidoActas,
+  datosPagoActa,
+  eleccionPagoInicial,
   formActaVacio,
   formDesdeActa,
   saldoContrato,
   tiposPermitidos,
   validarActa,
+  validarPagoActa,
   validarSoporte,
   type ActaDetalle,
   type ActaResumen,
   type ContratoParaActa,
+  type CuentaPagoActaInicial,
+  type EleccionPagoActa,
   type FormActa,
   type InfoContratoActa,
   type TipoActa,
@@ -51,6 +57,7 @@ import {
   listarActasDeContrato,
   obtenerActa,
   obtenerContratoParaActa,
+  obtenerCuentaPagoActa,
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
@@ -537,6 +544,20 @@ function FormularioActa({
     }
   }, [contrato.id, edicion?.id])
 
+  // A quién se le paga (tercero que factura, titular si es otro, cuenta).
+  // Si no carga, el acta se guarda sin tocar eso (la base lo pone sola).
+  const [pago, setPago] = useState<EleccionPagoActa | null>(null)
+  const [errorPago, setErrorPago] = useState<string | null>(null)
+  useEffect(() => {
+    let activo = true
+    obtenerCuentaPagoActa(contrato.id, edicion?.id)
+      .then((c: CuentaPagoActaInicial) => activo && setPago(eleccionPagoInicial(c)))
+      .catch((e) => activo && setErrorPago(mensaje(e, "No se pudo cargar el tercero del pago.")))
+    return () => {
+      activo = false
+    }
+  }, [contrato.id, edicion?.id])
+
   const [form, setForm] = useState<FormActa>(() => (edicion ? formDesdeActa(edicion) : formActaVacio(tipo)))
   const [quitarSoportes, setQuitarSoportes] = useState<Set<string>>(new Set())
   const [nuevos, setNuevos] = useState<SoporteNuevo[]>([])
@@ -594,6 +615,12 @@ function FormularioActa({
       setError("Adjunta el soporte de pago (factura o cuenta de cobro del contratista): el acta con pago lo exige.")
       return
     }
+    const errorEleccion = !sinPago && pago ? validarPagoActa(pago) : null
+    if (errorEleccion) {
+      setError(errorEleccion)
+      return
+    }
+    const datos = !sinPago && pago ? { ...v.datos, ...datosPagoActa(pago) } : v.datos
     const actaId = edicion?.id ?? crypto.randomUUID()
     const supabase = createClient()
     const subidos: SoporteSubido[] = []
@@ -612,11 +639,11 @@ function FormularioActa({
       )
       setGuardando("Guardando acta…")
       if (edicion) {
-        const res = await editarActa(edicion.id, v.datos, subidos, [...quitarSoportes])
+        const res = await editarActa(edicion.id, datos, subidos, [...quitarSoportes])
         if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
         onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. ${despues}`)
       } else {
-        const res = await guardarActa(actaId, contrato.id, v.datos, subidos)
+        const res = await guardarActa(actaId, contrato.id, datos, subidos)
         onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. ${despues}`)
       }
     } catch (e) {
@@ -842,6 +869,17 @@ function FormularioActa({
               </tbody>
             </table>
           </div>
+
+          {!sinPago &&
+            (pago ? (
+              <CuentaPagoActa valor={pago} onCambiar={setPago} deshabilitado={guardando != null} />
+            ) : errorPago ? (
+              <p className="text-sm text-destructive">{errorPago}</p>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Cargando el tercero del pago…
+              </p>
+            ))}
 
           {/* Observaciones */}
           <div className="space-y-1">

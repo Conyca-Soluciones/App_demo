@@ -3148,6 +3148,23 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   anteriores". OJO: main tiene 20261112000000 y 20261112100000 con los mismos
   números que las de lcpr (otros nombres): al mezclar no chocan como archivos,
   pero cualquier función que las dos toquen hay que juntarla a mano.
+- **Tercero y titular del pago** (`20261211000000_titular_cuenta_actas.sql`,
+  pedido del usuario 2026-10-22, igual que transferencia en requisiciones
+  administrativas): el formulario del acta (si tiene pago) trae el bloque
+  "Pago" (`components/cuenta-pago-acta.tsx`): tercero que factura (buscador de
+  Terceros; se propone el del documento del contratista, `cuenta_pago_acta`),
+  casilla "El titular de la cuenta es otro tercero" con buscador del titular, y
+  la cuenta del titular (sin titular aparte, "Automática" = la única
+  verificada, o la elige A&F). Va en los datos del acta (`pago_tercero_id`,
+  `pago_titular_id`, `pago_cuenta_id`; `datosPagoActa` / `validarPagoActa` en
+  `lib/actas.ts`), se guarda en `actas.pago_tercero_id` / `pago_cuenta_id`
+  (`_fijar_cuenta_pago_acta`, llamada desde crear_acta / editar_acta antes de
+  `_pago_de_acta`) y el pago la usa. Sin la clave `pago_tercero_id` no cambia
+  nada. Quitar el titular en una edición devuelve el pago a la cuenta
+  automática. **Pendiente**: el botón Tercero de A&F (`asignar_tercero_pago`)
+  solo deja cuentas del mismo tercero; si A&F lo usa en un pago con titular
+  aparte (p. ej. por "la cuenta cambió"), no puede conservar la cuenta del
+  titular (pasa igual con las requisiciones administrativas).
 - **Factura obligatoria** (`20261112300000_acta_exige_factura.sql`, decisión
   del usuario): un acta con pago (neto redondeado > 0) necesita al menos un
   soporte tipo `factura`; lo revisa el formulario y `_pago_de_acta` (al final
@@ -3305,7 +3322,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261207000000` APU: escribir solo en los proyectos de cada quien (opción B) ·
 `20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
 `20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
-`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario).
+`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario) ·
+`20261211000000` actas: tercero que factura y titular de la cuenta del pago.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

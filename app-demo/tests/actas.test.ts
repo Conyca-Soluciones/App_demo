@@ -3,11 +3,14 @@ import {
   actaEditable,
   calcularActa,
   consumidoActas,
+  datosPagoActa,
+  eleccionPagoInicial,
   formActaVacio,
   formDesdeActa,
   saldoContrato,
   tiposPermitidos,
   validarActa,
+  validarPagoActa,
   type ActaDetalle,
   type FormActa,
   type InfoContratoActa,
@@ -197,5 +200,42 @@ describe("calcularActa: valor cambiado por otrosí", () => {
     const r = calcularActa(i, form({ tipo: "final", porcentajeAvance: "100" }))
     expect(r.bruto).toBe(20_000_000)
     expect(r.amortizacion).toBe(3_000_000)
+  })
+})
+
+describe("tercero y titular del pago del acta", () => {
+  const juan = { id: "t1", etiqueta: "JUAN", subetiqueta: "CC 1" }
+  const dos = { id: "t2", etiqueta: "DOS", subetiqueta: "CC 2" }
+
+  it("propone el tercero del contratista; lo elegido gana", () => {
+    expect(eleccionPagoInicial({ sugerido: juan, elegido: null })).toEqual({ tercero: juan, titularDistinto: false, titular: null, cuentaId: null })
+    expect(eleccionPagoInicial({ sugerido: juan, elegido: { tercero: juan, titular: dos, cuentaId: "c2" } })).toEqual({
+      tercero: juan,
+      titularDistinto: true,
+      titular: dos,
+      cuentaId: "c2",
+    })
+  })
+
+  it("con otro titular exige titular y cuenta", () => {
+    expect(validarPagoActa({ tercero: juan, titularDistinto: true, titular: null, cuentaId: null })).toMatch(/titular/)
+    expect(validarPagoActa({ tercero: juan, titularDistinto: true, titular: dos, cuentaId: null })).toMatch(/cuenta/)
+    expect(validarPagoActa({ tercero: juan, titularDistinto: true, titular: dos, cuentaId: "c2" })).toBeNull()
+    expect(validarPagoActa({ tercero: juan, titularDistinto: false, titular: null, cuentaId: null })).toBeNull()
+  })
+
+  it("arma los datos para la base", () => {
+    expect(datosPagoActa({ tercero: juan, titularDistinto: true, titular: dos, cuentaId: "c2" })).toEqual({
+      pago_tercero_id: "t1",
+      pago_titular_id: "t2",
+      pago_cuenta_id: "c2",
+    })
+    // Casilla desmarcada: el titular que quedó escrito no se manda.
+    expect(datosPagoActa({ tercero: juan, titularDistinto: false, titular: dos, cuentaId: null })).toEqual({
+      pago_tercero_id: "t1",
+      pago_titular_id: null,
+      pago_cuenta_id: null,
+    })
+    expect(datosPagoActa({ tercero: null, titularDistinto: false, titular: null, cuentaId: null }).pago_tercero_id).toBeNull()
   })
 })

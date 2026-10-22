@@ -432,5 +432,12 @@ select * from (
   select '20261210000000_consolidados_separados',
          exists (select 1 from pg_proc where proname = '_consolidados_visibles')
          and not exists (select 1 from public.rol_permisos where permiso = 'tab.ayf.consolidado')
+  union all
+  select '20261211000000_titular_cuenta_actas',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'actas' and column_name = 'pago_cuenta_id')
+         and exists (select 1 from pg_proc where proname = 'cuenta_pago_acta')
+         and position('_fijar_cuenta_pago_acta' in pg_get_functiondef('public.crear_acta(uuid,uuid,jsonb,jsonb)'::regprocedure)) > 0
+         and position('_fijar_cuenta_pago_acta' in pg_get_functiondef('public.editar_acta(uuid,jsonb,jsonb,uuid[])'::regprocedure)) > 0
 ) t
 order by 1;

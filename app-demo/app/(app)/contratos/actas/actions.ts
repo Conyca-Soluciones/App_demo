@@ -4,13 +4,16 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
 import { esEstadoPolizaContrato } from "@/lib/polizas"
+import { documentoFormateado } from "@/lib/terceros"
 import type {
   ActaDetalle,
   ActaResumen,
   ContratistaParaActa,
   ContratoParaActa,
+  CuentaPagoActaInicial,
   DatosActa,
   InfoContratoActa,
+  TerceroPagoActa,
   TipoSoporte,
 } from "@/lib/actas"
 
@@ -88,6 +91,34 @@ export async function listarActasDeContrato(contratoId: string): Promise<ActaRes
     creadoPorNombre: f.creado_por_nombre ?? null,
     esMio: Boolean(f.es_mio),
   }))
+}
+
+// Tercero sugerido para el pago (documento del contratista) y lo elegido en el
+// acta que se edita (tercero que factura, titular si es otro, cuenta).
+const mapTerceroPago = (t: any): TerceroPagoActa | null =>
+  t
+    ? {
+        id: t.id,
+        etiqueta: t.razon_social,
+        subetiqueta: `${t.tipo_documento} ${documentoFormateado({ tipoDocumento: t.tipo_documento, numeroDocumento: t.numero_documento, dv: t.dv })}`,
+      }
+    : null
+
+export async function obtenerCuentaPagoActa(contratoId: string, actaId?: string): Promise<CuentaPagoActaInicial> {
+  await requerirPestana("contratos.cortes")
+  const supabase = await createClient()
+  const { data: d, error } = await supabase.rpc("cuenta_pago_acta", {
+    p_contrato_id: contratoId,
+    p_acta_id: actaId ?? null,
+  })
+  if (error) throw new Error(error.message)
+  const tercero = mapTerceroPago(d?.elegido?.tercero)
+  return {
+    sugerido: mapTerceroPago(d?.sugerido),
+    elegido: tercero
+      ? { tercero, titular: mapTerceroPago(d.elegido.titular), cuentaId: d.elegido.cuenta_id ?? null }
+      : null,
+  }
 }
 
 // El contrato con sus actividades y acumulados, para llenar o editar un acta
