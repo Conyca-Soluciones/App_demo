@@ -135,7 +135,12 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
   const permisos = await obtenerPermisosRol()
   const ok =
     permisos?.esAdministrador ||
-    (!permisos?.sinRol && (permisos?.pestanas.includes("contratos.cortes") || permisos?.pestanas.includes("contratos.aprobar_actas")))
+    (!permisos?.sinRol &&
+      (permisos?.pestanas.includes("contratos.cortes") ||
+        permisos?.pestanas.includes("contratos.aprobar_actas") ||
+        // Desde su pago (A&F): detalle_acta solo deja ver el acta si se ve el pago.
+        permisos?.pestanas.includes("ayf.aprobacion_pagos") ||
+        permisos?.pestanas.some((p) => p.startsWith("ayf.consolidado_"))))
   if (!ok) throw new Error("No tienes permiso para ver actas.")
   const supabase = await createClient()
   const { data: d, error } = await supabase.rpc("detalle_acta", { p_acta_id: id })

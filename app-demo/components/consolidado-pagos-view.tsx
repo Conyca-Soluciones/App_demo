@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, History, Loader2, Wrench } from "lucide-react"
+import { History, Loader2, Wrench } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,34 +15,33 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { SelectorNumeros } from "@/components/selector-numeros"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { AYUDA_DOBLE_CLIC, VentanaDetalle, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
+import { AYUDA_DOBLE_CLIC, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
+import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
 import {
   asignarTerceroPago,
   buscarTercerosParaPago,
   cuentasDeTercero,
   listarConsolidado,
-  listarConsolidadosPago,
   obtenerAlertasConsolidado,
   reintentarPagos,
   type AlertasConsolidado,
-  type ConsolidadoOpcion,
   type CuentaOpcion,
 } from "@/app/(app)/ayf/consolidado/actions"
 import {
   CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
-  ETIQUETA_TIPO_PAGO,
   anticiposYDescuentos,
   formatoMoneda,
   fechasSemanaIso,
   semanaIso,
   semanasDelAnio,
   type EstadoPago,
+  type ClaveConsolidado,
   type FiltrosConsolidado,
   type Pago,
 } from "@/lib/pagos"
 
-const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "liquidado", "en_dispersion", "dispersado", "anulado"]
+const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "en_dispersion", "dispersado", "anulado"]
 
 async function buscarTercerosAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const r = await buscarTercerosParaPago(termino)
@@ -74,7 +73,9 @@ function columnaPesos(clave: string, titulo: string, valor: (p: Pago) => number 
 // Un pago ya en dispersión, pagado o anulado no se puede cambiar.
 const puedeResolver = (p: Pago) => !["en_dispersion", "dispersado", "rechazado", "anulado"].includes(p.estado)
 
-export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boolean }) {
+// Un consolidado por pestaña: la pantalla no nombra a los demás (quien solo
+// tiene uno no debe saber que existen) y la base solo le da sus pagos.
+export function ConsolidadoPagosView({ clave, puedeGestionar }: { clave: ClaveConsolidado; puedeGestionar: boolean }) {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [pagos, setPagos] = useState<Pago[] | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -83,15 +84,12 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   const [error, setError] = useState<string | null>(null)
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosConsolidado>({})
 
-  const [consolidados, setConsolidados] = useState<ConsolidadoOpcion[]>([])
   const actual = semanaIso()
-  const [consolidadoId, setConsolidadoId] = useState("todos")
   const [anios, setAnios] = useState<number[]>([actual.anio])
   const [semanas, setSemanas] = useState<number[]>([actual.semana])
   const [estado, setEstado] = useState<EstadoPago | "todos">("todos")
   const [tercero, setTercero] = useState("")
   const [soloConNovedad, setSoloConNovedad] = useState(false)
-  const [sinItem, setSinItem] = useState(false)
 
   const [resolviendo, setResolviendo] = useState<Pago | null>(null)
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
@@ -101,20 +99,16 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   const [aviso, setAviso] = useState<string | null>(null)
 
   function cargarAlertas() {
-    obtenerAlertasConsolidado()
+    obtenerAlertasConsolidado(clave)
       .then((a: AlertasConsolidado) => setAlertas(a))
       .catch(() => setAlertas(null))
   }
 
   useEffect(() => {
     cargarAlertas()
-    listarConsolidadosPago()
-      .then((c: ConsolidadoOpcion[]) => setConsolidados(c))
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los consolidados."))
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave])
 
-  // Nombre del consolidado de cada pago, indexado una vez (sin buscar en la
-  // lista por cada fila).
   // Años desde que hay pagos en la app (2026) hasta el actual. Semanas: las
   // del año si se eligió uno solo (52 o 53); si no, hasta 53.
   const opcionesAnios = useMemo(() => {
@@ -125,13 +119,11 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   const totalSemanas = anios.length === 1 ? semanasDelAnio(anios[0]) : 53
   const opcionesSemanas = useMemo(() => Array.from({ length: totalSemanas }, (_, i) => i + 1), [totalSemanas])
 
-  const nombreConsolidado = useMemo(() => new Map(consolidados.map((c) => [c.id, c.nombre])), [consolidados])
-
   function cargar(filtros: FiltrosConsolidado = ultimosFiltros, pag: number = pagina) {
     setUltimosFiltros(filtros)
     setCargando(true)
     setError(null)
-    listarConsolidado(filtros, pag)
+    listarConsolidado(clave, filtros, pag)
       .then((r: { pagos: Pago[]; hayMas: boolean }) => {
         setPagos(r.pagos)
         setPagina(pag)
@@ -144,13 +136,11 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   function handleConsultar(): boolean {
     cargar(
       {
-        consolidadoId: consolidadoId === "todos" ? undefined : consolidadoId,
-        anios: sinItem || anios.length === 0 ? undefined : anios,
-        semanas: sinItem || semanas.length === 0 ? undefined : semanas,
+        anios: anios.length === 0 ? undefined : anios,
+        semanas: semanas.length === 0 ? undefined : semanas,
         estado: estado === "todos" ? undefined : estado,
         tercero: tercero.trim() || undefined,
         soloConNovedad: soloConNovedad || undefined,
-        sinItem: sinItem || undefined,
       },
       0
     )
@@ -158,13 +148,11 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
   }
 
   function limpiar() {
-    setConsolidadoId("todos")
     setAnios([actual.anio])
     setSemanas([actual.semana])
     setEstado("todos")
     setTercero("")
     setSoloConNovedad(false)
-    setSinItem(false)
   }
 
   // Los anulados y rechazados no se pagan: se listan pero no suman al total.
@@ -191,11 +179,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
     }
   }
 
-  function verSinItem() {
-    setSinItem(true)
-    cargar({ sinItem: true }, 0)
-  }
-
   const columnas: ColumnaExcel<Pago>[] = [
     {
       clave: "item",
@@ -213,12 +196,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
       alinear: "center",
       texto: (p) => (p.semana != null ? `${p.semana} · ${p.anio}` : ""),
       claseCelda: "tabular-nums",
-    },
-    {
-      clave: "consolidado",
-      titulo: "Consolidado",
-      ancho: 150,
-      texto: (p) => (p.consolidadoId ? (nombreConsolidado.get(p.consolidadoId) ?? "") : ""),
     },
     { clave: "empresa", titulo: "Grupo empresarial", ancho: 220, texto: (p) => p.empresaNombre ?? "" },
     {
@@ -248,22 +225,9 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
         </span>
       ),
     },
-    { clave: "factura", titulo: "Factura o cuenta de cobro", ancho: 150, texto: (p) => p.numeroFactura ?? "" },
-    {
-      clave: "concepto",
-      titulo: "Concepto",
-      ancho: 300,
-      texto: (p) => p.concepto,
-    },
     { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen },
     { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" },
     { clave: "solicita", titulo: "Solicita", ancho: 170, texto: (p) => p.solicitadoPorNombre ?? "" },
-    {
-      clave: "tipo",
-      titulo: "Pago",
-      ancho: 100,
-      texto: (p) => ETIQUETA_TIPO_PAGO[p.tipo],
-    },
     columnaPesos("documento", "Valor documento", (p) => p.valorDocumento),
     columnaPesos("base", "Base", (p) => p.baseGravable),
     columnaPesos("iva", "IVA", (p) => p.iva),
@@ -278,24 +242,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
       valorOrden: (p) => p.valor,
       celda: (p) => <div className="font-medium">{formatoMoneda(p.valor)}</div>,
       claseCelda: "tabular-nums",
-    },
-    {
-      clave: "estado",
-      titulo: "Estado",
-      ancho: 140,
-      texto: (p) => ETIQUETA_ESTADO_PAGO[p.estado],
-      celda: (p) => (
-        <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[p.estado]}`}>
-            {ETIQUETA_ESTADO_PAGO[p.estado]}
-          </Badge>
-          {p.novedad && (
-            <span title={p.novedad}>
-              <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Con novedad" />
-            </span>
-          )}
-        </div>
-      ),
     },
     {
       clave: "novedad",
@@ -341,23 +287,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
           onLimpiar={limpiar}
           ayuda="Por omisión: la semana actual. Se pueden elegir varios años y varias semanas (las semanas valen en cada año elegido). El ITEM se numera por consolidado y semana."
         >
-          <div className="space-y-1.5">
-            <Label>Consolidado</Label>
-            <Select value={consolidadoId} onValueChange={(v) => setConsolidadoId(v ?? "todos")}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {consolidados.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <Label htmlFor="anio-pagos">Años</Label>
@@ -369,7 +298,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                 textoTodas="Todos"
                 plural="años"
                 columnas={3}
-                disabled={sinItem}
               />
             </div>
             <div className="space-y-1.5">
@@ -382,7 +310,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                 textoTodas="Todas"
                 plural="semanas"
                 ayuda={anios.length === 1 ? (n) => fechasSemanaIso(anios[0], n) : undefined}
-                disabled={sinItem}
               />
             </div>
           </div>
@@ -419,10 +346,6 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
             <Checkbox checked={soloConNovedad} onCheckedChange={(v) => setSoloConNovedad(v === true)} />
             Solo con novedad
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <Checkbox checked={sinItem} onCheckedChange={(v) => setSinItem(v === true)} />
-            Aprobados sin ITEM (empresa sin consolidado)
-          </label>
         </PanelFiltros>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
@@ -436,33 +359,17 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
             <div className="rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-800">{aviso}</div>
           )}
 
-          {alertas && (alertas.fallos > 0 || alertas.sinItem > 0) && (
-            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {alertas.fallos > 0 && (
-                <p>
-                  <strong>{alertas.fallos}</strong> {alertas.fallos === 1 ? "orden aprobada no generó" : "órdenes aprobadas no generaron"} sus
-                  pagos.
-                </p>
+          {alertas && alertas.fallos > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="min-w-0 flex-1">
+                <strong>{alertas.fallos}</strong> {alertas.fallos === 1 ? "orden aprobada no generó" : "órdenes aprobadas no generaron"} sus
+                pagos.
+              </p>
+              {puedeGestionar && (
+                <Button size="sm" disabled={reintentando} onClick={handleReintentar}>
+                  {reintentando ? "Reintentando..." : "Reintentar"}
+                </Button>
               )}
-              {alertas.sinItem > 0 && (
-                <p>
-                  <strong>{alertas.sinItem}</strong> {alertas.sinItem === 1 ? "pago aprobado no tiene" : "pagos aprobados no tienen"} ITEM
-                  todavía: su proyecto no tiene empresa, o su empresa no tiene consolidado (se asignan en Control
-                  administrativo).
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {alertas.sinItem > 0 && (
-                  <Button size="sm" variant="outline" onClick={verSinItem}>
-                    Ver los pagos sin ITEM
-                  </Button>
-                )}
-                {puedeGestionar && (
-                  <Button size="sm" disabled={reintentando} onClick={handleReintentar}>
-                    {reintentando ? "Reintentando..." : "Reintentar"}
-                  </Button>
-                )}
-              </div>
             </div>
           )}
 
@@ -486,6 +393,8 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                 claveFila={(p) => p.id}
                 onDobleClickFila={setViendo}
                 tituloFila={AYUDA_DOBLE_CLIC}
+                // Sin columna de estado: los anulados (no se pagan) van en gris.
+                fondoFila={(p) => (p.estado === "anulado" || p.estado === "rechazado" ? "bg-muted/60 text-muted-foreground" : undefined)}
                 tarjeta={{
                   titulo: (p) => p.terceroNombre ?? "Sin tercero",
                   subtitulo: (p) => `ITEM ${p.item ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
@@ -494,7 +403,7 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
                       {ETIQUETA_ESTADO_PAGO[p.estado]}
                     </Badge>
                   ),
-                  campos: ["cuenta", "concepto", "proyecto", "documento", "base", "iva", "valor", "novedad", "acciones"],
+                  campos: ["cuenta", "origen", "proyecto", "documento", "base", "iva", "valor", "novedad", "acciones"],
                 }}
               />
               <div className="text-right text-sm text-muted-foreground">
@@ -522,13 +431,12 @@ export function ConsolidadoPagosView({ puedeGestionar }: { puedeGestionar: boole
         }}
       />
 
-      <VentanaDetalle
-        abierta={viendo !== null}
-        onCerrar={() => setViendo(null)}
-        titulo={viendo ? viendo.concepto : ""}
-        subtitulo={viendo ? `${viendo.origen || "—"} · ${ETIQUETA_TIPO_PAGO[viendo.tipo]}` : undefined}
-        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+      {/* Doble clic: la OC, el acta o la requisición administrativa del pago. */}
+      <DetalleOrigenPago
+        pago={viendo}
         acciones={accionesDeFila(columnas, viendo)}
+        camposPago={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        onCerrar={() => setViendo(null)}
       />
 
       <HistorialDialog

@@ -1348,6 +1348,44 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
 
+## Consolidados separados (2026-10-22)
+
+Decisiones del usuario: hay dos equipos de Contabilidad; uno maneja SOLO el
+Consolidado Bogotá (CONYCA) y no debe ver los otros consolidados ni pistas de
+que existen; el otro maneja los tres.
+- **Una pestaña por consolidado** (`20261206000000_consolidados_separados.sql`):
+  `ayf.consolidado_bogota` / `_vanur` / `_otros` (= `consolidados.clave`),
+  rutas `/ayf/consolidado/<clave>` (una sola página, `[clave]`); `/ayf/consolidado`
+  lleva a la primera que tenga la persona. Sin subgrupo en el menú y sin
+  selector ni columna de consolidado en la pantalla. Los roles que tenían
+  `ayf.consolidado` recibieron las tres: para el equipo de Bogotá hay que hacer
+  un rol con solo la de Bogotá. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
+  `PESTANA_CONSOLIDADO`, `esClaveConsolidado`).
+- **La base lo exige**: `_consolidados_visibles(uid)` (los de las pestañas que
+  tiene), `_ve_algun_consolidado`, `_ve_pago(uid, pago)`. Un pago se lee con
+  Aprobación de pagos o con la pestaña de SU consolidado (los pagos sin
+  consolidado, solo Aprobación de pagos). Siguen esa regla: `consolidados`,
+  `pagos_fallos` (por la empresa del proyecto de la OC), las lecturas "desde un
+  pago" de OC / líneas / pedidos / proveedores (subconsulta sobre pagos),
+  `actas_select_de_pagos` (y con ella sus soportes y archivos), terceros y
+  cuentas (algún consolidado), `historial_entidad('pago')`, `_pendientes_de`
+  (pagos sin tercero o cuenta; el enlace va a la pestaña del consolidado),
+  `detalle_acta` y `asignar_tercero_pago`. Requisiciones administrativas:
+  completas con Aprobación de pagos (`_ve_requisiciones_admin` ya no mira el
+  consolidado); desde un consolidado, la cabecera y solo los ítems de sus pagos.
+  Las funciones de la rama de spr se parcharon sobre su versión VIVA (reemplazo
+  de texto exacto, falla si no lo encuentra): si spr las recrea, tiene que
+  conservar estos cambios.
+- **Columnas del Consolidado** (decisión del usuario): sin factura, concepto,
+  tipo de pago ni estado (los anulados van en gris; el filtro de estado sigue).
+  Sin el filtro / aviso de pagos sin ITEM (empresa sin consolidado): esos los
+  ve Aprobación de pagos.
+- **Doble clic en un pago** (Consolidado y Aprobación de pagos,
+  `components/detalle-origen-pago.tsx`): la OC completa, el acta, o el ítem de
+  la requisición administrativa (`obtenerRequisicionAdminDePago`), con el pago y
+  los botones de la fila abajo (`BarraPago`). `obtenerActa` acepta también esas
+  pestañas (la base decide por el pago).
+
 ## Liquidación de pagos: se quitó (2026-10-22)
 
 Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,

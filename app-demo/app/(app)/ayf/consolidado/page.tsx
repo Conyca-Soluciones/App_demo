@@ -1,17 +1,13 @@
+import { redirect } from "next/navigation"
 import { obtenerPermisosRol } from "@/lib/permisos"
-import { MarcoPagina } from "@/components/encabezado-pagina"
-import { ConsolidadoPagosView } from "@/components/consolidado-pagos-view"
+import { CONSOLIDADOS, PESTANA_CONSOLIDADO } from "@/lib/pagos"
 
-// El acceso a la ruta lo controla la pestaña ayf.consolidado (middleware y
-// RLS). Resolver novedades (elegir tercero y cuenta) exige la acción
-// 'gestionar_pagos'; la base la vuelve a exigir.
-export default async function ConsolidadoPage() {
+// La ruta de antes (enlaces viejos, Mis pendientes): lleva al primer
+// consolidado que la persona tenga.
+export default async function ConsolidadoInicio() {
   const permisos = await obtenerPermisosRol()
-  const puedeGestionar = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("gestionar_pagos"))
-
-  return (
-    <MarcoPagina titulo="Consolidado de pagos" subtitulo="Pagos aprobados de la semana, con su ITEM">
-      <ConsolidadoPagosView puedeGestionar={puedeGestionar} />
-    </MarcoPagina>
+  const primero = CONSOLIDADOS.find(
+    (c) => permisos?.esAdministrador || (!permisos?.sinRol && permisos?.pestanas.includes(PESTANA_CONSOLIDADO(c.clave)))
   )
+  redirect(primero ? `/ayf/consolidado/${primero.clave}` : "/inicio?error=no-autorizado")
 }

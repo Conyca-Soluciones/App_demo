@@ -9,9 +9,10 @@ import type { Pago } from "@/lib/pagos"
 export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
-  orden_compra_id, acta_id, numero_factura, valor_documento, base_gravable, iva,
+  orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
   orden:ordenes_compra(numero),
+  req_admin:requisiciones_admin(numero),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
@@ -49,13 +50,17 @@ export function mapPago(f: any): Pago {
     ordenNumero: f.orden?.numero ?? null,
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
-    // De dónde sale el pago: una orden de compra o un acta de contrato. Quien
+    requisicionAdminItemId: f.requisicion_admin_item_id ?? null,
+    // De dónde sale el pago: una orden de compra, un acta de contrato o una
+    // requisición administrativa. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null
       ? `OC ${f.orden.numero}`
       : f.acta
         ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}`
-        : f.fuente === "acta"
+        : f.fuente === "requisicion_admin"
+          ? `Req. administrativa${f.req_admin?.numero != null ? ` N° ${f.req_admin.numero}` : ""}`
+          : f.fuente === "acta"
           ? "Acta"
           : "",
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si

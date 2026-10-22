@@ -348,5 +348,9 @@ select * from (
          exists (select 1 from information_schema.tables
                   where table_schema = 'public' and table_name = 'respaldo_liquidacion_20261022')
          and not exists (select 1 from pg_proc where proname = 'liquidar_pago')
+  union all
+  select '20261206000000_consolidados_separados',
+         exists (select 1 from pg_proc where proname = '_consolidados_visibles')
+         and not exists (select 1 from public.rol_permisos where permiso = 'tab.ayf.consolidado')
 ) t
 order by 1;

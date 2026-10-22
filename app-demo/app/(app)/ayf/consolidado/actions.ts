@@ -6,18 +6,18 @@ import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR, limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
 import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
 import { documentoFormateado, soloDigitos } from "@/lib/terceros"
-import type { FiltrosConsolidado, Pago } from "@/lib/pagos"
+import { PESTANA_CONSOLIDADO, esClaveConsolidado, type FiltrosConsolidado, type Pago } from "@/lib/pagos"
 
-const PESTANA = "ayf.consolidado"
-
-export type ConsolidadoOpcion = { id: string; nombre: string }
-
-export async function listarConsolidadosPago(): Promise<ConsolidadoOpcion[]> {
-  await requerirPestana(PESTANA)
+// Cada consolidado es su propia pestaña (ayf.consolidado_<clave>). La base
+// también lo exige: solo devuelve los pagos de los consolidados que se ven.
+async function idConsolidado(clave: string): Promise<string> {
+  if (!esClaveConsolidado(clave)) throw new Error("Consolidado no válido.")
+  await requerirPestana(PESTANA_CONSOLIDADO(clave))
   const supabase = await createClient()
-  const { data, error } = await supabase.from("consolidados").select("id, nombre").order("orden", { ascending: true })
+  const { data, error } = await supabase.from("consolidados").select("id").eq("clave", clave).maybeSingle()
   if (error) throw new Error(error.message)
-  return (data ?? []).map((c: any) => ({ id: c.id, nombre: c.nombre }))
+  if (!data) throw new Error("El consolidado no existe o no tienes acceso.")
+  return (data as any).id
 }
 
 // Años o semanas elegidos: enteros en el rango, sin repetir (como mucho 53).
@@ -33,26 +33,21 @@ function enteros(lista: number[] | undefined, min: number, max: number, nombre: 
 // el consolidado, el año y la semana usan el índice (consolidado, año, semana,
 // estado); el nombre del tercero, un join !inner en la misma consulta.
 export async function listarConsolidado(
+  clave: string,
   filtros: FiltrosConsolidado = {},
   pagina = 0
 ): Promise<{ pagos: Pago[]; hayMas: boolean }> {
-  await requerirPestana(PESTANA)
+  const consolidadoId = await idConsolidado(clave)
   const supabase = await createClient()
 
   const tercero = filtros.tercero?.trim()
   let query: any = supabase.from("pagos").select(tercero ? CAMPOS_PAGO_TERCERO_INNER : CAMPOS_PAGO)
 
-  if (filtros.sinItem) {
-    // Aprobados que no recibieron ITEM porque su empresa no tiene consolidado.
-    query = query.is("item", null).eq("estado", "aprobado")
-  } else {
-    query = query.not("item", "is", null)
-    const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
-    const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
-    if (anios.length > 0) query = query.in("anio", anios)
-    if (semanas.length > 0) query = query.in("semana", semanas)
-  }
-  if (filtros.consolidadoId) query = query.eq("consolidado_id", filtros.consolidadoId)
+  query = query.eq("consolidado_id", consolidadoId).not("item", "is", null)
+  const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
+  const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
+  if (anios.length > 0) query = query.in("anio", anios)
+  if (semanas.length > 0) query = query.in("semana", semanas)
   if (filtros.estado) query = query.eq("estado", filtros.estado)
   if (filtros.soloConNovedad) query = query.not("novedad", "is", null)
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
@@ -60,7 +55,6 @@ export async function listarConsolidado(
   query = query
     .order("anio", { ascending: false, nullsFirst: false })
     .order("semana", { ascending: false, nullsFirst: false })
-    .order("consolidado_id", { ascending: true })
     .order("item", { ascending: true })
     .order("id", { ascending: true })
 
@@ -70,20 +64,18 @@ export async function listarConsolidado(
   return { pagos: filas.map(mapPago), hayMas }
 }
 
-// Avisos de la pantalla: órdenes aprobadas cuyos pagos no se pudieron crear, y
-// pagos aprobados que esperan su ITEM. Dos conteos baratos (índices parciales).
-export type AlertasConsolidado = { fallos: number; sinItem: number }
+// Aviso de la pantalla: órdenes aprobadas cuyos pagos no se pudieron crear (la
+// base solo cuenta las de las empresas de los consolidados que se ven). Los
+// pagos sin ITEM (empresa sin consolidado) no son de ningún consolidado: los
+// ve Aprobación de pagos.
+export type AlertasConsolidado = { fallos: number }
 
-export async function obtenerAlertasConsolidado(): Promise<AlertasConsolidado> {
-  await requerirPestana(PESTANA)
+export async function obtenerAlertasConsolidado(clave: string): Promise<AlertasConsolidado> {
+  await idConsolidado(clave)
   const supabase = await createClient()
-  const [fallos, sinItem] = await Promise.all([
-    supabase.from("pagos_fallos").select("id", { count: "exact", head: true }).is("resuelto_en", null),
-    supabase.from("pagos").select("id", { count: "exact", head: true }).eq("estado", "aprobado").is("item", null),
-  ])
-  if (fallos.error) throw new Error(fallos.error.message)
-  if (sinItem.error) throw new Error(sinItem.error.message)
-  return { fallos: fallos.count ?? 0, sinItem: sinItem.count ?? 0 }
+  const { count, error } = await supabase.from("pagos_fallos").select("id", { count: "exact", head: true }).is("resuelto_en", null)
+  if (error) throw new Error(error.message)
+  return { fallos: count ?? 0 }
 }
 
 export async function reintentarPagos(): Promise<{ fallosResueltos: number; itemsAsignados: number }> {

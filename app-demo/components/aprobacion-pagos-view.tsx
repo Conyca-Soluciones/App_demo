@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { AlertTriangle, Check, History, Loader2, RotateCcw, X } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,12 +13,10 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
-import { DetalleActa } from "@/components/detalle-acta"
-import { AYUDA_DOBLE_CLIC, VentanaDetalle, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
+import { DetalleOrigenPago, EtiquetaEstadoPago } from "@/components/detalle-origen-pago"
+import { AYUDA_DOBLE_CLIC, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { aprobarPago, listarPagosAprobacion, rechazarPago, resolicitarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
-  CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
   ETIQUETA_TIPO_PAGO,
   formatoFechaHora,
@@ -36,56 +33,6 @@ const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
 ]
-
-function EtiquetaEstado({ estado }: { estado: EstadoPago }) {
-  return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[estado]}`}>
-      {ETIQUETA_ESTADO_PAGO[estado]}
-    </Badge>
-  )
-}
-
-// Debajo del documento (orden o acta): el pago que se está aprobando y los
-// mismos botones de la fila. Un botón abre su propio paso (confirmar,
-// motivo...) y el detalle se cierra.
-function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: React.ReactNode; onCerrar: () => void }) {
-  return (
-    <div className="flex w-full shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="font-medium">{ETIQUETA_TIPO_PAGO[pago.tipo]}</span>
-        <span className="tabular-nums">
-          {formatoMoneda(pago.valor)}
-          {pago.actaBruto != null && pago.actaBruto !== pago.valor && (
-            <span className="text-muted-foreground"> (bruto del acta {formatoMoneda(pago.actaBruto)})</span>
-          )}
-        </span>
-        <EtiquetaEstado estado={pago.estado} />
-        <span className="min-w-0 truncate text-muted-foreground" title={pago.cuentaTexto ?? undefined}>
-          {pago.terceroNombre ?? "Sin tercero"}
-          {pago.cuentaTexto ? ` · ${pago.cuentaTexto}${pago.cuentaVerificada ? "" : " (sin verificar)"}` : ""}
-        </span>
-        {pago.novedad && (
-          <span className="flex items-center gap-1 text-amber-700">
-            <AlertTriangle className="h-4 w-4" /> {pago.novedad}
-          </span>
-        )}
-      </div>
-      <div
-        className="flex flex-wrap items-center justify-end gap-2"
-        // Después del onClick del botón (que abre su paso). Se frena el clic
-        // para que no llegue al documento: si llega, la confirmación recién
-        // abierta lo toma como un clic afuera y se cierra sola.
-        onClick={(e) => {
-          if (!(e.target as HTMLElement).closest("button, a")) return
-          e.stopPropagation()
-          onCerrar()
-        }}
-      >
-        {acciones}
-      </div>
-    </div>
-  )
-}
 
 export function AprobacionPagosView({
   puedeAprobar,
@@ -270,7 +217,7 @@ export function AprobacionPagosView({
       texto: (p) => ETIQUETA_ESTADO_PAGO[p.estado],
       celda: (p) => (
         <div className="flex items-center gap-1.5">
-          <EtiquetaEstado estado={p.estado} />
+          <EtiquetaEstadoPago estado={p.estado} />
           {p.novedad && (
             <span title={p.novedad}>
               <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Con novedad" />
@@ -411,7 +358,7 @@ export function AprobacionPagosView({
               tarjeta={{
                 titulo: (p) => p.terceroNombre ?? "Sin tercero",
                 subtitulo: (p) => `${p.origen || "—"} · ${ETIQUETA_TIPO_PAGO[p.tipo]}`,
-                esquina: (p) => <EtiquetaEstado estado={p.estado} />,
+                esquina: (p) => <EtiquetaEstadoPago estado={p.estado} />,
                 campos: ["proyecto", "empresa", "valor", "fecha", "acciones"],
               }}
             />
@@ -473,38 +420,13 @@ export function AprobacionPagosView({
         onCerrar={() => setPorAprobar(null)}
       />
 
-      {/* Doble clic: el documento de donde sale el pago, completo (la orden de
-          compra con sus insumos, o el acta), con el pago y sus botones abajo.
-          Sin documento (o sin id), la ventana común con los datos del pago. */}
-      <Dialog open={viendo?.ordenCompraId != null} onOpenChange={(abierto) => !abierto && setViendo(null)}>
-        <DialogContent className="flex h-[90vh] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden sm:w-[90vw] sm:max-w-none">
-          <DialogTitle className="sr-only">Detalle de la orden de compra del pago</DialogTitle>
-          {viendo?.ordenCompraId && (
-            <>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <OrdenCompraDetalleView ordenId={viendo.ordenCompraId} onCerrar={() => setViendo(null)} />
-              </div>
-              <BarraPago pago={viendo} acciones={accionesDeFila(columnas, viendo)} onCerrar={() => setViendo(null)} />
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <DetalleActa
-        id={viendo?.ordenCompraId == null ? (viendo?.actaId ?? null) : null}
-        onCerrar={() => setViendo(null)}
-        acciones={() =>
-          viendo && <BarraPago pago={viendo} acciones={accionesDeFila(columnas, viendo)} onCerrar={() => setViendo(null)} />
-        }
-      />
-
-      <VentanaDetalle
-        abierta={viendo !== null && viendo.ordenCompraId == null && viendo.actaId == null}
-        onCerrar={() => setViendo(null)}
-        titulo={viendo ? viendo.concepto : ""}
-        subtitulo={viendo ? `${viendo.origen || "—"} · ${ETIQUETA_TIPO_PAGO[viendo.tipo]}` : undefined}
-        campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+      {/* Doble clic: el documento de donde sale el pago (OC, acta o
+          requisición administrativa), con el pago y sus botones abajo. */}
+      <DetalleOrigenPago
+        pago={viendo}
         acciones={accionesDeFila(columnas, viendo)}
+        camposPago={viendo ? camposDesdeColumnas(columnas, viendo) : []}
+        onCerrar={() => setViendo(null)}
       />
 
       <HistorialDialog

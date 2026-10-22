@@ -66,6 +66,7 @@ export type Pago = {
   // Documento de donde sale el pago (para abrir su detalle).
   ordenCompraId: string | null
   actaId: string | null
+  requisicionAdminItemId: string | null
   origen: string
   actaBruto: number | null
   proyectoCodigo: string | null
@@ -96,21 +97,52 @@ export function anticiposYDescuentos(p: Pick<Pago, "descuentoAnticipos" | "otros
   return p.descuentoAnticipos + p.otrosDescuentos
 }
 
+// Ítem de una requisición administrativa, visto desde su pago (doble clic en
+// el Consolidado o en Aprobación de pagos).
+export type RequisicionAdminDePago = {
+  numero: number | null
+  metodo: string
+  estado: string
+  creadoPorNombre: string | null
+  enviadaEn: string | null
+  resueltaEn: string | null
+  empresa: string | null
+  facturaNombre: string
+  facturaNit: string
+  titularNombre: string
+  titularDocumento: string
+  cuentaTexto: string | null
+  concepto: string
+  proyecto: string | null
+  valor: number
+  observaciones: string | null
+}
+
+// Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
+export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`
+export const CONSOLIDADOS = [
+  { clave: "bogota", titulo: "Consolidado Bogotá" },
+  { clave: "vanur", titulo: "Consolidado Vanur" },
+  { clave: "otros", titulo: "Consolidado Otros" },
+] as const
+export type ClaveConsolidado = (typeof CONSOLIDADOS)[number]["clave"]
+
+export function esClaveConsolidado(c: string): c is ClaveConsolidado {
+  return CONSOLIDADOS.some((x) => x.clave === c)
+}
+
 export type FiltrosAprobacionPagos = {
   estado?: EstadoPago
   tercero?: string
 }
 
 export type FiltrosConsolidado = {
-  consolidadoId?: string
-  // Vacíos o sin enviar = todos. Las semanas valen en cada año elegido.
+  // El consolidado es el de la pestaña. Vacíos o sin enviar = todos. Las semanas valen en cada año elegido.
   anios?: number[]
   semanas?: number[]
   estado?: EstadoPago
   tercero?: string
   soloConNovedad?: boolean
-  // Pagos aprobados que todavía no tienen ITEM (su empresa no tiene consolidado).
-  sinItem?: boolean
 }
 
 export const formatoMoneda = (n: number) =>
