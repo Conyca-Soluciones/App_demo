@@ -1406,8 +1406,11 @@ que existen; el otro maneja los tres.
   rutas `/ayf/consolidado/<clave>` (una sola página, `[clave]`); `/ayf/consolidado`
   lleva a la primera que tenga la persona. Sin subgrupo en el menú y sin
   selector ni columna de consolidado en la pantalla. Los roles que tenían
-  `ayf.consolidado` recibieron las tres: para el equipo de Bogotá hay que hacer
-  un rol con solo la de Bogotá. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
+  `ayf.consolidado` recibieron las tres. Roles de Contabilidad
+  (`20261211000000_roles_contabilidad.sql`): **Contabilidad Barranquilla**
+  (`contabilidad_barranquilla`, el rol Contabilidad de antes renombrado: los
+  tres consolidados + Terceros) y **Contabilidad Bogotá** (`contabilidad_bogota`:
+  solo Consolidado Bogotá + Terceros). Ninguno tiene acciones. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
   `PESTANA_CONSOLIDADO`, `esClaveConsolidado`).
 - **La base lo exige**: `_consolidados_visibles(uid)` (los de las pestañas que
   tiene), `_ve_algun_consolidado`, `_ve_pago(uid, pago)`. Un pago se lee con

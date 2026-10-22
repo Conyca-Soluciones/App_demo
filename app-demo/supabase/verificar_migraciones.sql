@@ -432,5 +432,9 @@ select * from (
   select '20261210000000_consolidados_separados',
          exists (select 1 from pg_proc where proname = '_consolidados_visibles')
          and not exists (select 1 from public.rol_permisos where permiso = 'tab.ayf.consolidado')
+  union all
+  select '20261211000000_roles_contabilidad',
+         exists (select 1 from public.roles where clave = 'contabilidad_bogota')
+         and exists (select 1 from public.roles where clave = 'contabilidad_barranquilla')
 ) t
 order by 1;
