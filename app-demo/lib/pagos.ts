@@ -63,6 +63,8 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  // Requisición administrativa de la que sale el pago (para ver su detalle).
+  requisicionAdminId: string | null
   origen: string
   actaBruto: number | null
   proyectoCodigo: string | null

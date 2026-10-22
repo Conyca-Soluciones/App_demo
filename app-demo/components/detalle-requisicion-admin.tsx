@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { HistorialTimeline } from "@/components/historial-timeline"
-import { formatoMoneda } from "@/lib/pagos"
+import { CLASE_ESTADO_PAGO, ETIQUETA_ESTADO_PAGO, formatoMoneda, type EstadoPago } from "@/lib/pagos"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
   CLASE_ESTADO_REQ_ADMIN,
@@ -140,26 +140,34 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
 // botones los pone cada pantalla.
 export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdminDetalle }) {
   const columnas = columnasItemsReqAdmin<ItemReqAdmin>(detalle.metodo, leerItem)
-  const aprobada = detalle.estado === "aprobada"
-  if (aprobada) {
-    columnas.push({
-      clave: "pago",
-      titulo: "ITEM consolidado",
-      ancho: 130,
-      alinear: "center",
-      texto: (i) => (i.pagoItem != null ? `${i.pagoItem} · sem. ${i.pagoSemana}` : ""),
-      celda: (i) =>
-        i.pagoItem != null ? (
-          <span className="tabular-nums">
-            {i.pagoItem} · sem. {i.pagoSemana}
-          </span>
-        ) : (
-          <span className="text-xs text-amber-700" title="El grupo empresarial no tiene consolidado asignado">
-            Sin ITEM
-          </span>
-        ),
-    })
-  }
+  // Pago de cada ítem: cada uno lo aprueba o rechaza A&F en Aprobación de pagos.
+  columnas.push({
+    clave: "pago",
+    titulo: "Pago",
+    ancho: 200,
+    texto: (i) => (i.pagoEstado ? (ETIQUETA_ESTADO_PAGO[i.pagoEstado as EstadoPago] ?? i.pagoEstado) : ""),
+    celda: (i) => {
+      if (!i.pagoEstado) return vacio
+      const estado = i.pagoEstado as EstadoPago
+      return (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Badge variant="outline" className={`h-6 shrink-0 px-2 text-xs ${CLASE_ESTADO_PAGO[estado] ?? ""}`}>
+            {ETIQUETA_ESTADO_PAGO[estado] ?? i.pagoEstado}
+          </Badge>
+          {i.pagoItem != null && (
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              ITEM {i.pagoItem} · sem. {i.pagoSemana}
+            </span>
+          )}
+          {estado === "rechazado" && i.pagoMotivoRechazo && (
+            <span className="truncate text-xs text-red-700" title={i.pagoMotivoRechazo}>
+              {i.pagoMotivoRechazo}
+            </span>
+          )}
+        </div>
+      )
+    },
+  })
 
   return (
     <div className="space-y-4">
@@ -175,16 +183,16 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
           <span className="tabular-nums">{formatoMoneda(detalle.valorTotal)}</span>
         </Dato>
         {detalle.resueltaEn && (
-          <Dato etiqueta={detalle.estado === "rechazada" ? "Rechazada" : "Aprobada"}>
+          <Dato etiqueta={detalle.estado === "rechazada" ? "Rechazada" : detalle.estado === "parcial" ? "Resuelta" : "Aprobada"}>
             {formatearFechaHora(detalle.resueltaEn)}
             {detalle.resueltaPorNombre ? ` · ${detalle.resueltaPorNombre}` : ""}
           </Dato>
         )}
       </div>
 
-      {detalle.estado === "rechazada" && detalle.motivoRechazo && (
+      {(detalle.estado === "rechazada" || detalle.estado === "parcial") && detalle.motivoRechazo && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          <span className="font-medium">Motivo del rechazo:</span> {detalle.motivoRechazo}
+          <span className="font-medium">Pagos rechazados:</span> {detalle.motivoRechazo}
         </p>
       )}
       {detalle.estado === "cancelada" && detalle.motivoCancelacion && (
@@ -202,7 +210,7 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
           titulo: (i) => `${i.orden}. ${i.facturaNombre}`,
           subtitulo: (i) => i.concepto,
           esquina: (i) => <span className="text-sm font-medium tabular-nums">{formatoMoneda(i.valor)}</span>,
-          campos: ["empresa", "titular", "documento", ...(detalle.metodo === "transferencia" ? ["banco", "numeroCuenta"] : []), "proyecto", "observaciones", ...(aprobada ? ["pago"] : [])],
+          campos: ["empresa", "titular", "documento", ...(detalle.metodo === "transferencia" ? ["banco", "numeroCuenta"] : []), "proyecto", "observaciones", "pago"],
         }}
       />
       <p className="text-right text-sm">

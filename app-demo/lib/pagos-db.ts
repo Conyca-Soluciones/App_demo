@@ -8,7 +8,7 @@ import type { Pago } from "@/lib/pagos"
 // hacia la misma tabla (perfiles).
 export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
-  solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
+  solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id, requisicion_admin_id,
   orden:ordenes_compra(numero),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
@@ -44,6 +44,7 @@ export function mapPago(f: any): Pago {
     rechazadoPorNombre: f.rechazador?.nombre ?? null,
     motivoRechazo: f.motivo_rechazo,
     ordenNumero: f.orden?.numero ?? null,
+    requisicionAdminId: f.requisicion_admin_id ?? null,
     // De dónde sale el pago: una orden de compra o un acta de contrato. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null

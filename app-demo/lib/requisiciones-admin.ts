@@ -8,6 +8,10 @@
 // Terceros (columnas B-J, L-N y observaciones). PSE: los datos se escriben y
 // no lleva banco, tipo ni número de cuenta (H-J).
 //
+// Sin aprobación de la requisición sola (20261203000000): al enviarla, cada
+// ítem es un pago por aprobar en Aprobación de pagos, y el estado de la
+// requisición sale de sus pagos.
+//
 // Archivo plano: tipos, validación y mapeos (los usan las actions y los
 // componentes; pruebas en tests/requisiciones-admin.test.ts).
 // ---------------------------------------------------------------------------
@@ -15,7 +19,7 @@
 import { leerNumero } from "@/lib/contratos"
 
 export type MetodoReqAdmin = "transferencia" | "pse"
-export type EstadoReqAdmin = "por_aprobar" | "aprobada" | "rechazada" | "cancelada"
+export type EstadoReqAdmin = "por_aprobar" | "aprobada" | "parcial" | "rechazada" | "cancelada"
 
 export const MAX_ITEMS_REQ_ADMIN = 50
 
@@ -25,8 +29,9 @@ export const ETIQUETA_METODO_REQ_ADMIN: Record<MetodoReqAdmin, string> = {
 }
 
 export const ETIQUETA_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
-  por_aprobar: "Por aprobar",
+  por_aprobar: "Pagos por aprobar",
   aprobada: "Aprobada",
+  parcial: "Aprobada en parte",
   rechazada: "Rechazada",
   cancelada: "Cancelada",
 }
@@ -35,6 +40,7 @@ export const ETIQUETA_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
 export const CLASE_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
   por_aprobar: "border-amber-300 bg-amber-50 text-amber-700",
   aprobada: "border-green-300 bg-green-50 text-green-700",
+  parcial: "border-blue-300 bg-blue-50 text-blue-700",
   rechazada: "border-red-300 bg-red-50 text-red-700",
   cancelada: "border-gray-300 bg-gray-50 text-gray-500",
 }
@@ -42,8 +48,6 @@ export const CLASE_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
 // Lista del formato (columna F) para PSE; en transferencia sale de Terceros.
 export const TIPOS_DOCUMENTO_PSE = ["CC", "NIT", "PPT", "CE"] as const
 
-// Quien la hizo la modifica por aprobar y la corrige rechazada.
-export const reqAdminEditable = (estado: EstadoReqAdmin) => estado === "por_aprobar" || estado === "rechazada"
 
 // ---------------------------------------------------------------- opciones
 export type EmpresaOpcion = { id: string; razonSocial: string; nit: string | null }
@@ -268,10 +272,14 @@ export type ItemReqAdmin = {
   pagoSemana: number | null
   pagoAnio: number | null
   pagoEstado: string | null
+  pagoMotivoRechazo: string | null
 }
 
 export type RequisicionAdminDetalle = Omit<RequisicionAdminFila, "empresas"> & {
   esMia: boolean
+  // Quien la hizo la modifica o la cancela mientras A&F no haya aprobado
+  // ningún pago (lo calcula la base).
+  editable: boolean
   motivoCancelacion: string | null
   items: ItemReqAdmin[]
 }
@@ -301,6 +309,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
   return {
     ...fila,
     esMia: Boolean(r.es_mia),
+    editable: Boolean(r.editable),
     motivoCancelacion: r.motivo_cancelacion ?? null,
     items: (Array.isArray(r.items) ? r.items : []).map((i: any) => ({
       id: String(i.id),
@@ -329,6 +338,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
       pagoSemana: i.pago_semana == null ? null : Number(i.pago_semana),
       pagoAnio: i.pago_anio == null ? null : Number(i.pago_anio),
       pagoEstado: i.pago_estado ?? null,
+      pagoMotivoRechazo: i.pago_motivo_rechazo ?? null,
     })),
   }
 }

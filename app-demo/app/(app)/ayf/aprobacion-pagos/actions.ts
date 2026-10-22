@@ -2,16 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
-import { TAMANO_PAGINA, cortarPagina, rangoPagina } from "@/lib/paginacion"
+import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
 import type { FiltrosAprobacionPagos, Pago } from "@/lib/pagos"
-import {
-  mapDetalleReqAdmin,
-  mapFilaReqAdmin,
-  type EstadoReqAdmin,
-  type RequisicionAdminDetalle,
-  type RequisicionAdminFila,
-} from "@/lib/requisiciones-admin"
+import { mapDetalleReqAdmin, type RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 const PESTANA = "ayf.aprobacion_pagos"
 
@@ -86,51 +80,12 @@ export async function resolicitarPago(pagoId: string): Promise<Pago> {
   return await obtenerPago(data as string)
 }
 
-// ---------------------------------------------------------------------------
-// Requisiciones administrativas (20261202000000): A&F las aprueba o rechaza
-// COMPLETAS. Aprobar crea un pago aprobado por ítem, con su ITEM del
-// consolidado.
-// ---------------------------------------------------------------------------
-
-export async function listarRequisicionesAdminAprobacion(
-  filtros: { estado?: EstadoReqAdmin; numero?: number } = {},
-  pagina = 0
-): Promise<{ filas: RequisicionAdminFila[]; hayMas: boolean }> {
-  await requerirPestana(PESTANA)
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc("listar_requisiciones_admin", {
-    p_mias: false,
-    p_estado: filtros.estado ?? null,
-    p_numero: filtros.numero ?? null,
-    p_offset: pagina * TAMANO_PAGINA,
-    p_limite: TAMANO_PAGINA + 1,
-  })
-  if (error) throw new Error(error.message)
-  const { filas, hayMas } = cortarPagina((data ?? []) as any[])
-  return { filas: filas.map(mapFilaReqAdmin), hayMas }
-}
-
+// Requisición administrativa de un pago (20261203000000: sus ítems pasan
+// directo como pagos por aprobar; aquí se ve el detalle para revisarlos).
 export async function obtenerRequisicionAdminAprobacion(id: string): Promise<RequisicionAdminDetalle> {
   await requerirPestana(PESTANA)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("detalle_requisicion_admin", { p_id: id })
   if (error) throw new Error(error.message)
   return mapDetalleReqAdmin(data)
-}
-
-export async function resolverRequisicionAdmin(
-  id: string,
-  accion: "aprobar" | "rechazar",
-  motivo?: string
-): Promise<RequisicionAdminDetalle> {
-  await requerirAccion("aprobar_pagos")
-  if (accion === "rechazar" && !motivo?.trim()) throw new Error("El motivo de rechazo es obligatorio.")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("resolver_requisicion_admin", {
-    p_id: id,
-    p_accion: accion,
-    p_motivo: accion === "rechazar" ? motivo!.trim() : null,
-  })
-  if (error) throw new Error(error.message)
-  return await obtenerRequisicionAdminAprobacion(id)
 }

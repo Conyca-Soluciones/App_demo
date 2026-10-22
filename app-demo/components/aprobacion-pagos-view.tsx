@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AlertTriangle, Check, History, Loader2, RotateCcw, X } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,13 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { aprobarPago, listarPagosAprobacion, rechazarPago, resolicitarPago } from "@/app/(app)/ayf/aprobacion-pagos/actions"
+import {
+  aprobarPago,
+  listarPagosAprobacion,
+  obtenerRequisicionAdminAprobacion,
+  rechazarPago,
+  resolicitarPago,
+} from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
   CLASE_ESTADO_PAGO,
   ETIQUETA_ESTADO_PAGO,
@@ -26,6 +32,8 @@ import {
   type Pago,
 } from "@/lib/pagos"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
+import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "solicitado", etiqueta: "Por aprobar" },
@@ -66,6 +74,7 @@ export function AprobacionPagosView({
   // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
   const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
+  const [requisicionDe, setRequisicionDe] = useState<string | null>(null)
   const [motivo, setMotivo] = useState("")
   // Rechazados que ya se volvieron a solicitar en esta pantalla (se oculta el botón).
   const [resolicitados, setResolicitados] = useState<Set<string>>(() => new Set())
@@ -161,6 +170,20 @@ export function AprobacionPagosView({
       ancho: 150,
       fija: true,
       texto: (p) => p.origen,
+      // Requisición administrativa: abre su detalle (todos sus ítems, cuentas y pagos).
+      celda: (p) =>
+        p.requisicionAdminId ? (
+          <button
+            type="button"
+            className="truncate text-left text-primary underline-offset-2 hover:underline"
+            title="Ver la requisición administrativa"
+            onClick={() => setRequisicionDe(p.requisicionAdminId)}
+          >
+            {p.origen}
+          </button>
+        ) : (
+          <span className="truncate">{p.origen}</span>
+        ),
     },
     {
       clave: "tipo",
@@ -305,7 +328,7 @@ export function AprobacionPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos y los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta)."
+          ayuda="Aprobar la orden de compra ya aprueba su pago único o su anticipo. Aquí se aprueban los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y los de las requisiciones administrativas (un pago por ítem; el origen abre la requisición)."
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>
@@ -425,6 +448,8 @@ export function AprobacionPagosView({
         onCerrar={() => setPorAprobar(null)}
       />
 
+      {requisicionDe && <VerRequisicionAdminPago id={requisicionDe} onCerrar={() => setRequisicionDe(null)} />}
+
       <HistorialDialog
         abierto={historialDe !== null}
         tipo="pago"
@@ -433,5 +458,44 @@ export function AprobacionPagosView({
         onCerrar={() => setHistorialDe(null)}
       />
     </div>
+  )
+}
+
+// Detalle de la requisición administrativa de un pago: sus ítems (con la cuenta
+// completa para A&F) y el estado del pago de cada uno. Se aprueban o rechazan
+// en la lista, pago por pago.
+function VerRequisicionAdminPago({ id, onCerrar }: { id: string; onCerrar: () => void }) {
+  const [carga, setCarga] = useState<{ id: string; detalle: RequisicionAdminDetalle | null; error: string | null } | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    obtenerRequisicionAdminAprobacion(id)
+      .then((d: RequisicionAdminDetalle) => vigente && setCarga({ id, detalle: d, error: null }))
+      .catch((e) => vigente && setCarga({ id, detalle: null, error: e instanceof Error ? e.message : "No se pudo cargar." }))
+    return () => {
+      vigente = false
+    }
+  }, [id])
+
+  const actual = carga?.id === id ? carga : null
+  return (
+    <Dialog open onOpenChange={(a) => !a && onCerrar()}>
+      <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto sm:max-w-6xl">
+        <DialogHeader>
+          <DialogTitle>
+            Requisición administrativa {actual?.detalle?.numero != null ? `N° ${actual.detalle.numero}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        {!actual ? (
+          <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Cargando…
+          </p>
+        ) : actual.error ? (
+          <p className="text-sm text-destructive">{actual.error}</p>
+        ) : actual.detalle ? (
+          <DetalleRequisicionAdmin detalle={actual.detalle} />
+        ) : null}
+      </DialogContent>
+    </Dialog>
   )
 }

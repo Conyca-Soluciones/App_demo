@@ -19,7 +19,6 @@ import {
   ETIQUETA_ESTADO_REQ_ADMIN,
   ETIQUETA_METODO_REQ_ADMIN,
   itemFormDesdeDetalle,
-  reqAdminEditable,
   type EstadoReqAdmin,
   type OpcionesReqAdmin,
   type RequisicionAdminDetalle,
@@ -34,7 +33,7 @@ import {
 
 type Pestana = "nueva" | "mias"
 
-const ESTADOS: EstadoReqAdmin[] = ["por_aprobar", "rechazada", "aprobada", "cancelada"]
+const ESTADOS: EstadoReqAdmin[] = ["por_aprobar", "rechazada", "parcial", "aprobada", "cancelada"]
 
 // Requisiciones administrativas: realizar una (o corregirla) y consultar las
 // mías. ?ver=<id> abre una (aviso de la campanita o Mis pendientes).
@@ -309,7 +308,7 @@ function VerRequisicionAdmin({
 
   const actual = carga?.id === id ? carga : null
   const d = actual?.detalle ?? null
-  const editable = d ? d.esMia && reqAdminEditable(d.estado) : false
+  const editable = d ? d.esMia && d.editable : false
 
   async function cancelar() {
     if (!motivo.trim()) return

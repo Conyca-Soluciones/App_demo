@@ -136,6 +136,7 @@ describe("detalle", () => {
     valor_total: "150000.50",
     creado_por: "u1",
     es_mia: true,
+    editable: true,
     creado_en: "2026-10-21T15:00:00Z",
     enviada_en: "2026-10-21T15:00:00Z",
     motivo_rechazo: "Falta la factura",
@@ -169,7 +170,7 @@ describe("detalle", () => {
 
   it("mapea el detalle y vuelve al formulario para corregir", () => {
     const d = mapDetalleReqAdmin(raw)
-    expect(d).toMatchObject({ numero: 7, estado: "rechazada", valorTotal: 150000.5, esMia: true, motivoRechazo: "Falta la factura" })
+    expect(d).toMatchObject({ numero: 7, estado: "rechazada", valorTotal: 150000.5, esMia: true, editable: true, motivoRechazo: "Falta la factura" })
     const f = itemFormDesdeDetalle(d.items[0])
     // El titular es el mismo que factura: queda como "el mismo" (null).
     expect(f.titularTerceroId).toBeNull()
@@ -284,11 +285,13 @@ describe("pago de una requisición administrativa", () => {
       estado: "aprobado",
       valor: "50000",
       concepto: "REQ",
+      requisicion_admin_id: "r4",
       req: { numero: 4, metodo: "pse" },
       req_item: { titular_nombre: "Distrito", titular_tipo_documento: "NIT", titular_documento: "899999061" },
       tercero: null,
     })
     expect(p.origen).toBe("Req. admin. N° 4 · PSE")
+    expect(p.requisicionAdminId).toBe("r4")
     expect(p.terceroNombre).toBe("Distrito")
     expect(p.terceroDocumento).toBe("NIT 899999061")
   })

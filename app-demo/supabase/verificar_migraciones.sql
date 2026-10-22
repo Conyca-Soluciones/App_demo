@@ -377,6 +377,11 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
          and exists (select 1 from information_schema.columns
                       where table_schema = 'public' and table_name = 'pagos' and column_name = 'requisicion_admin_item_id')
-         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%req_admin_por_aprobar%')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) like '%mi_req_admin_rechazada%')
+  union all
+  select '20261203000000_requisiciones_admin_pago_directo',
+         exists (select 1 from pg_trigger where tgname = 'trg_req_admin_sigue_pagos')
+         and not exists (select 1 from pg_proc where proname = 'resolver_requisicion_admin')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and pg_get_functiondef(oid) not like '%req_admin_por_aprobar%')
 ) t
 order by 1;

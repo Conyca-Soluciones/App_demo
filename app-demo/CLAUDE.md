@@ -2711,20 +2711,33 @@ otrosí.
 
 ## Requisiciones administrativas `/ayf/requisiciones-administrativas` (2026-10-21)
 
-`20261202000000_requisiciones_administrativas.sql`, formato GF-F-018 "Relación
-de pagos" (el Excel de A&F). Flujo DISTINTO de las requisiciones de obra
-(decisiones del usuario):
+`20261202000000_requisiciones_administrativas.sql` +
+`20261203000000_requisiciones_admin_pago_directo.sql`, formato GF-F-018
+"Relación de pagos" (el Excel de A&F). Flujo DISTINTO de las requisiciones de
+obra (decisiones del usuario):
 - **Las hace cualquiera**: no hay pestaña ni acción en la matriz. El menú las
   muestra a todos desde `PESTANAS_PARA_TODOS` (`lib/pestanas.ts`: A&F ›
   Requisiciones › Realizar requisiciones administrativas) y la ruta es libre.
   Las funciones solo exigen sesión.
-- **No pasan por Subgerencia ni por el área técnica**: van directo a A&F,
-  Aprobación de pagos, pestaña "Requisiciones administrativas"
-  (`components/aprobacion-req-admin-view.tsx`; `?vista=requisiciones`). Se
-  aprueban o rechazan COMPLETAS (`resolver_requisicion_admin`, acción
-  `aprobar_pagos`). Rechazada: quien la hizo la corrige y la envía otra vez
-  con el mismo número (`modificar_requisicion_admin`, que también modifica una
-  por aprobar); puede cancelarla con motivo.
+- **No hay aprobación de la requisición** (2026-10-22: "pasan directamente a
+  aprobación de pago"): al enviarla, cada ítem es un pago `solicitado` en la
+  MISMA lista de Aprobación de pagos y A&F lo aprueba o rechaza con
+  `aprobar_pago` / `rechazar_pago`, como los demás (el ITEM del consolidado se
+  da al aprobar). La columna Origen ("Req. admin. N° X" + "· PSE") abre el
+  detalle de la requisición (`obtenerRequisicionAdminAprobacion`). No hay
+  pestaña aparte; `resolver_requisicion_admin` se borró.
+- **Estado de la requisición = el de sus pagos** (`trg_req_admin_sigue_pagos`,
+  solo los pagos de los ítems vigentes): `por_aprobar` (alguno por aprobar),
+  `aprobada` (todos aprobados), `rechazada` (todos rechazados), `parcial`
+  (unos y otros), `cancelada`. Al quedar sin pagos por aprobar avisa a quien la
+  hizo (`requisicion_admin_aprobada` / `_rechazada` / `_parcial`) y lo anota en
+  su historial con los motivos de rechazo por ítem.
+- **Modificar / corregir / cancelar**: solo quien la hizo y mientras A&F no
+  haya aprobado ningún pago (`_req_admin_sin_pagos_aprobados`; el detalle trae
+  `editable`). Modificar anula sus pagos por aprobar y crea los nuevos (mismo
+  número); los rechazados quedan como registro sin ítem (FK `on delete set
+  null`). Cancelar anula los pagos por aprobar. Con un pago ya aprobado, lo
+  rechazado va en una requisición nueva.
 - **Métodos**: transferencia = el tercero que factura y el titular de la cuenta
   (por omisión el mismo) inscritos en Terceros, con una cuenta no inactiva del
   titular (B-J, L-N y observaciones; los nombres y documentos los toma la base
@@ -2739,28 +2752,30 @@ de pagos" (el Excel de A&F). Flujo DISTINTO de las requisiciones de obra
   (`_ve_requisiciones_admin`). Para pantallas: `opciones_requisicion_admin`,
   `buscar_terceros_requisicion_admin`, `cuentas_tercero_requisicion_admin`
   (número enmascarado), `listar_requisiciones_admin`, `detalle_requisicion_admin`
-  (número de cuenta completo solo para A&F), `historial_requisicion_admin`.
-- **Al aprobar**: un pago APROBADO por ítem (`pagos.fuente = 'requisicion_admin'`,
-  `requisicion_admin_id` / `requisicion_admin_item_id`), con su ITEM del
-  consolidado. La empresa y el consolidado salen del GRUPO EMPRESARIAL del ítem:
-  `_pago_sincronizar_empresa` no toca estos pagos y `_pago_asignar_item` toma el
-  consolidado de su empresa. PSE: sin tercero ni cuenta en la app; `_pago_novedad`
-  no lo marca como novedad y no sale en "Pagos aprobados sin tercero". En las
-  listas de pagos el origen es "Req. admin. N° X" (+ "· PSE") y el tercero de
-  PSE es el titular escrito (`mapPago`). **El embed de pagos (`CAMPOS_PAGO`)
-  pide estas tablas: la migración tiene que estar antes que el código.**
-- **Avisos y pendientes**: campanita a quien la hizo (`requisicion_admin_aprobada`
-  / `_rechazada`); Mis pendientes `req_admin_por_aprobar` (A&F) y
-  `mi_req_admin_rechazada` (`_pendientes_de` recreada desde la de
-  20261130100000, solo con esos bloques más). Historial con entidad
-  `requisicion_admin`.
+  (número de cuenta completo solo para A&F; pago de cada ítem con su estado,
+  ITEM y motivo), `historial_requisicion_admin`.
+- **Pagos** (`pagos.fuente = 'requisicion_admin'`, `requisicion_admin_id` /
+  `requisicion_admin_item_id`): la empresa y el consolidado salen del GRUPO
+  EMPRESARIAL del ítem (`_pago_sincronizar_empresa` no toca estos pagos y
+  `_pago_asignar_item` toma el consolidado de su empresa). PSE: sin tercero ni
+  cuenta en la app; `_pago_novedad` no lo marca como novedad y no sale en
+  "Pagos aprobados sin tercero"; el tercero que se muestra es el titular
+  escrito (`mapPago`). **El embed de pagos (`CAMPOS_PAGO`) pide estas tablas:
+  la migración tiene que estar antes que el código.**
+- **Pendientes**: los pagos salen en "Pagos por aprobar"; a quien la hizo,
+  `mi_req_admin_rechazada` (todos rechazados, para corregirla). Historial con
+  entidad `requisicion_admin`.
+- `_guardar_requisicion_admin` de 20261202000000 fallaba en la primera
+  requisición PSE de una conexión (leía `v_fac.id` sin asignar); la corrige
+  20261203000000.
 - Pantallas: `components/requisiciones-admin-pagina.tsx` (Realizar / Mis
   requisiciones, `?ver=<id>`), `requisicion-admin-form.tsx`,
   `item-requisicion-admin-dialog.tsx`, `detalle-requisicion-admin.tsx`.
   Lógica pura en `lib/requisiciones-admin.ts` (pruebas en
-  `tests/requisiciones-admin.test.ts`). Probada en un Postgres local con las
-  columnas de producción (crear, permisos, rechazar, corregir, aprobar con
-  ITEM, PSE, cancelar, correr dos veces).
+  `tests/requisiciones-admin.test.ts`). Probadas las dos migraciones en un
+  Postgres local con las columnas de producción (crear, permisos, rechazar un
+  pago, modificar, aprobar con ITEM, parcial, aprobada, PSE, cancelar, correr
+  dos veces).
 
 ## Menú de Contratos (2026-10-14)
 
@@ -3095,7 +3110,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261130000000` Mis pendientes con firma y pólizas (después de `20261127000000_mis_pendientes`) ·
 `20261130100000` firmas en órdenes de compra ·
 `20261201000000` representantes legales y su firma en el contrato ·
-`20261202000000` requisiciones administrativas (A&F).
+`20261202000000` requisiciones administrativas (A&F) ·
+`20261203000000` requisiciones administrativas directo a Aprobación de pagos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

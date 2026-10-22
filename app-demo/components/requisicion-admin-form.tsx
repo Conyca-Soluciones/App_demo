@@ -224,7 +224,7 @@ export function RequisicionAdminForm({
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span>
             {edicion.rechazada ? "Corrigiendo" : "Modificando"} la requisición administrativa N° {edicion.numero}. Al enviarla vuelve a A&F con
-            el mismo número.
+            el mismo número; sus pagos por aprobar se reemplazan por los nuevos.
           </span>
           {onCancelarEdicion && (
             <Button size="sm" variant="outline" onClick={onCancelarEdicion}>
@@ -417,7 +417,7 @@ export function RequisicionAdminForm({
             <DialogTitle>¿Enviar la requisición a A&F?</DialogTitle>
             <DialogDescription>
               {metodo ? ETIQUETA_METODO_REQ_ADMIN[metodo] : ""} · {items.length} {items.length === 1 ? "ítem" : "ítems"} ·{" "}
-              {formatoMoneda(total)}. A&F la aprueba o la rechaza completa en Aprobación de pagos.
+              {formatoMoneda(total)}. Cada ítem pasa como pago a Aprobación de pagos (A&F), que los aprueba o rechaza.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
