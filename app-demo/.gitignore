@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Archivos de referencia con datos reales (no subir)
 /referencias/
+
+# Python
+__pycache__/
