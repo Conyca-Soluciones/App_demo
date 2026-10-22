@@ -1120,6 +1120,10 @@ día y solo si alguien abría Aprobación de pagos. La pantalla sigue llamando
 **por aprobar** (`solicitado`) al CREAR la orden: ver "Las OC se aprueban en
 Aprobación de pagos" abajo. Saldo "al ser entregado": lo libera `_oc_entrega_pagos` al quedar la
 orden entregada completa (no con entrega parcial).
+**Decisión del usuario (2026-10-22): se deja así** que, si después de aprobado
+el saldo se anula o se reduce una entrada, el saldo siga aprobado (solo vuelve a
+programado si todavía estaba solicitado). En la práctica pedir un reembolso al
+proveedor es más complicado que pagar y ajustar después.
 Un saldo que NACE con fecha a 3 días o menos (OC aprobada hoy, saldo para
 pasado mañana) entra directo como solicitado: disparador BEFORE INSERT
 `trg_pago_programado_vencido` (`20261105000000_saldo_programado_inmediato.sql`).
