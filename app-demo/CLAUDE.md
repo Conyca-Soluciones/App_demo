@@ -1401,6 +1401,9 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
 Decisiones del usuario: hay dos equipos de Contabilidad; uno maneja SOLO el
 Consolidado Bogotá (CONYCA) y no debe ver los otros consolidados ni pistas de
 que existen; el otro maneja los tres.
+- **El de Bogotá se llama solo "Consolidado"** (`20261216000000`, decisión del
+  usuario 2026-10-23: ni la pantalla ni el Excel deben dar pistas de que hay
+  otros). La clave sigue `bogota`; Vanur y Otros conservan su nombre.
 - **Una pestaña por consolidado** (`20261210000000_consolidados_separados.sql`):
   `ayf.consolidado_bogota` / `_vanur` / `_otros` (= `consolidados.clave`),
   rutas `/ayf/consolidado/<clave>` (una sola página, `[clave]`); `/ayf/consolidado`
@@ -1530,8 +1533,9 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   ya enviados a liquidar de los filtros (`pagosParaExcelLiquidacion`), hoja
   protegida (clave `CONYCA-AYF`, solo contra errores) con las columnas de
   Contabilidad abiertas en amarillo, "Liquidar sin retenciones" (lista Sí),
-  "Comentario para Financiera", "Último comentario", la diferencia de control
-  en fórmula y el ID oculto. Al subir solo se leen el ID y esas columnas.
+  "Comentario para Financiera", "Último comentario" y el ID oculto (sin columna
+  de diferencia: decisión del usuario; el "no cuadra" sale solo en el reporte de
+  la subida). Al subir solo se leen el ID y esas columnas.
 - **Soporte con enlace fijo**: `/ayf/soporte-pago/<id>` (route handler; pide la
   sesión, la RLS decide, redirige a un enlace firmado de 5 min). Lo usan la
   tabla, la ventana, el Excel y el Consolidado Gerencia. La ruta está en las
@@ -3417,7 +3421,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261212000000` Consolidado Gerencia y soporte de requisiciones administrativas ·
 `20261213000000` soporte obligatorio en requisiciones administrativas ·
 `20261214000000` titular de la cuenta en OC, actas y pagos ·
-`20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel).
+`20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
+`20261216000000` el Consolidado Bogotá se llama "Consolidado".
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

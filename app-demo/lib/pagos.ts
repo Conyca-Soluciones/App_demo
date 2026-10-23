@@ -208,7 +208,7 @@ export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
 // Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
 export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`
 export const CONSOLIDADOS = [
-  { clave: "bogota", titulo: "Consolidado Bogotá" },
+  { clave: "bogota", titulo: "Consolidado" },
   { clave: "vanur", titulo: "Consolidado Vanur" },
   { clave: "otros", titulo: "Consolidado Otros" },
 ] as const

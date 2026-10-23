@@ -459,5 +459,8 @@ select * from (
                   where table_schema = 'public' and table_name = 'pagos' and column_name = 'liquidacion_estado')
          and exists (select 1 from pg_proc where proname = 'liquidar_pagos_lote')
          and exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pago_comentarios')
+  union all
+  select '20261216000000_consolidado_nombre',
+         exists (select 1 from public.consolidados where clave = 'bogota' and nombre = 'Consolidado')
 ) t
 order by 1;

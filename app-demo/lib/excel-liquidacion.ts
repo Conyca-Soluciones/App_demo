@@ -39,7 +39,6 @@ export const COLUMNAS_LIQUIDACION = {
   liquidaciones: "Liquidaciones",
   anticipos: "Anticipos y/o descuentos",
   valorAPagar: "Valor a pagar",
-  diferencia: "Diferencia (control)",
   sinRetenciones: "Liquidar sin retenciones",
   comentario: "Comentario para Financiera",
   ultimoComentario: "Último comentario",
@@ -69,7 +68,6 @@ const ORDEN: { clave: ClaveColumna; ancho: number; editable?: boolean; pesos?: b
   { clave: "liquidaciones", ancho: 14, editable: true, pesos: true },
   { clave: "anticipos", ancho: 16, editable: true, pesos: true },
   { clave: "valorAPagar", ancho: 16, editable: true, pesos: true },
-  { clave: "diferencia", ancho: 14, pesos: true },
   { clave: "sinRetenciones", ancho: 13, editable: true },
   { clave: "comentario", ancho: 40, editable: true },
   { clave: "ultimoComentario", ancho: 40 },
@@ -110,7 +108,7 @@ export type AvisoFilaLiquidacion = { fila: number; item: string; mensaje: string
  * encabezados por el "ID interno" y las columnas por NOMBRE. Una fila sin
  * valor a pagar, sin "Liquidar sin retenciones" y sin comentario se deja
  * igual (sigue por liquidar). Números negativos o que no son números = error.
- * Avisa (no bloquea) cuando el valor a pagar no cuadra con los descuentos.
+ * Avisa en el reporte (no bloquea) cuando el valor a pagar no cuadra con los descuentos.
  */
 export function leerFilasLiquidacion(filas: unknown[][]): {
   filas: FilaLiquidacion[]
@@ -197,19 +195,12 @@ export function leerFilasLiquidacion(filas: unknown[][]): {
   return { filas: resultado, errores, avisos, sinTocar }
 }
 
-const letra = (n: number) => {
-  let s = ""
-  for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) s = String.fromCharCode(65 + ((x - 1) % 26)) + s
-  return s
-}
-
 /** El libro del Excel (sin descargarlo): separado para poder probarlo. */
 export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titulo: string; origenUrl: string; bufferLogo: ArrayBuffer | null }) {
   const ExcelJS = (await import("exceljs")).default
   const libro = new ExcelJS.Workbook()
   const hoja = libro.addWorksheet("Liquidación")
   const n = ORDEN.length
-  const col = Object.fromEntries(ORDEN.map((c, i) => [c.clave, i + 1])) as Record<ClaveColumna, number>
 
   const primera = agregarEncabezadoMarca(libro, hoja, {
     titulo: opciones.titulo,
@@ -229,7 +220,6 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
   })
   encabezado.height = 32
 
-  const L = (k: ClaveColumna, fila: number) => `${letra(col[k])}${fila}`
   pagos.forEach((p, k) => {
     const r = primera + 1 + k
     const fila = hoja.getRow(r)
@@ -265,14 +255,6 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
       if (c.clave === "soporte") {
         celda.value = { text: "Ver", hyperlink: `${opciones.origenUrl}${rutaSoportePago(p.id)}` }
         celda.font = { color: { argb: "FF1F5FBF" }, underline: true }
-      } else if (c.clave === "diferencia") {
-        // Control: valor a pagar − (documento − retenciones + asumidas − liquidaciones − anticipos).
-        const v = L("valorAPagar", r)
-        celda.value = {
-          formula:
-            `IF(${v}="","",${v}-(${L("valorDocumento", r)}-N(${L("retefuente", r)})-N(${L("reteiva", r)})-N(${L("reteica", r)})` +
-            `+N(${L("asumidas", r)})-N(${L("liquidaciones", r)})-N(${L("anticipos", r)})))`,
-        }
       } else {
         const v = valores[c.clave]
         celda.value = v === undefined ? null : (v as never)
@@ -286,22 +268,6 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
       if (c.clave === "comentario" || c.clave === "ultimoComentario") celda.alignment = { wrapText: true, vertical: "top" }
     })
   })
-  // Diferencia en rojo cuando no cuadra.
-  if (pagos.length > 0) {
-    const d = letra(col.diferencia)
-    const rango = `${d}${primera + 1}:${d}${primera + pagos.length}`
-    hoja.addConditionalFormatting({
-      ref: rango,
-      rules: [
-        {
-          type: "expression",
-          priority: 1,
-          formulae: [`AND(${d}${primera + 1}<>"",ABS(${d}${primera + 1})>=1)`],
-          style: { font: { color: { argb: "FFC00000" }, bold: true }, fill: { type: "pattern", pattern: "solid", bgColor: { argb: "FFFDE2E2" } } },
-        },
-      ],
-    })
-  }
   hoja.getColumn(n).hidden = true
   hoja.autoFilter = { from: { row: primera, column: 1 }, to: { row: primera + Math.max(pagos.length, 1), column: n - 1 } }
 

@@ -115,7 +115,7 @@ export const PESTANAS: Pestana[] = [
   // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
   // lleva a la primera que tenga.
-  { clave: "ayf.consolidado_bogota", titulo: "Consolidado Bogotá", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_bogota", titulo: "Consolidado", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
   { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
   { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
   // Los pagos de los tres consolidados, para control de Gerencia (20261212000000).
