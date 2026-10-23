@@ -808,7 +808,7 @@ filtran/ordenan en el cliente) con edición en línea por celda
   `actualizarDatosProveedor`: varios campos en un UPDATE, valida todo antes
   de escribir). Guarda en `proveedores` y actualiza la tarjeta, de donde la
   orden en curso toma teléfono/ciudad/correo; el PDF lee NIT, dirección y
-  contacto de `proveedores`. Datos bancarios: solo lectura.
+  contacto de `proveedores`. La cuenta bancaria vive en Terceros (20261223000000).
 - Sin borrado de proveedores.
 - Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
   (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
@@ -1299,7 +1299,7 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   Administrador; además, quien tiene Registro de OC, Aprobación de OC o Control
   del proyecto lee SOLO los proveedores de las órdenes que ya puede ver
   (`proveedores_select_de_ordenes`, subconsulta sobre ordenes_compra con su
-  RLS). Sin sesión, nada. `informacion_bancaria` sigue solo Compras/Administrador.
+  RLS). Sin sesión, nada. (`informacion_bancaria` se borró en 20261223000000.)
 - **Ningún permiso se salta los proyectos** (`20261118500000_permisos_por_proyecto.sql`,
   E3; va después de las de la auditoría de RLS 20261118400000-430000): Comprar,
   aprobar/rechazar/desaprobar/cancelar OC, Aprobar requisiciones y Aprobar
@@ -1555,7 +1555,7 @@ tiene su tabla con `tercero_id` y lo propio del rol (contratistas: representante
 contacto, documentos; proveedores: id_prov, tipo, estado; empleados: datos
 laborales). Una persona con varios roles es un tercero con una fila en cada
 tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
-contratistas con `tercero_id` (hecho, ver abajo), 3) proveedores con `tercero_id` (retirar `informacion_bancaria`), 4) empleados.
+contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 4) empleados.
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una
@@ -1592,6 +1592,23 @@ contratistas con `tercero_id` (hecho, ver abajo), 3) proveedores con `tercero_id
   y `listar_bancos_admin` también van por `tercero_id`; `guardar_banco` ya no toca
   contratistas. Los contratistas de prueba se enlazaron (o se les creó el tercero,
   sin cuenta).
+- **Proveedores enlazados** (`20261223000000_proveedores_tercero.sql`):
+  `proveedores.tercero_id` (único; 393 de 394 enlazados por documento; EQUINORTE
+  PV0318 sin documento queda sin tercero). Nuevo proveedor = `SelectorTercero`
+  (`components/selector-tercero.tsx`, el mismo de Contratistas) + datos propios.
+  Decisiones del usuario: Terceros manda en NOMBRE y NÚMERO (copia que pone
+  `proveedores_desde_tercero` y actualiza `trg_tercero_a_proveedor`; los nombres
+  pasaron al formato de Terceros, "SAS"); el TIPO que muestra la OC lo decide el
+  proveedor (una persona natural que en Terceros es CC puede salir como NIT) y el
+  DV se calcula (`dv_nit`) si es NIT. En Proveedores y en la tarjeta de Generar
+  OC, nombre, número y DV ya no se editan (`esCampoDeTercero`). Dos documentos
+  repetidos sin OC (PV034/PV0235, PV021/PV0266): se enlazó el de más datos y el
+  otro quedó INACTIVO sin tercero. `informacion_bancaria` se borró (copia en
+  `respaldo_informacion_bancaria_20261023`, sin acceso por la API) con
+  `crear_terceros_desde_proveedores`. `_crear_pagos_orden`, `cuentas_proveedor_oc`,
+  `_fijar_pago_orden`, `_fijar_titular_orden` y `_enlazar_pagos_tercero` buscan
+  por `proveedores.tercero_id`. La ventana del proveedor muestra sus cuentas de
+  Terceros.
 
 ## Liquidación en el Consolidado (2026-10-23)
 
@@ -3524,7 +3541,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261219000000` OC por transferencia (cuenta de Terceros) o PSE ·
 `20261220000000` contratos por transferencia o PSE (después de la anterior) ·
 `20261221000000` crear terceros abierto a todos (editar sigue en A&F) ·
-`20261222000000` contratistas enlazados al tercero (sin datos bancarios propios).
+`20261222000000` contratistas enlazados al tercero (sin datos bancarios propios) ·
+`20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

@@ -18,15 +18,14 @@ import { ETIQUETA_CAMPO, validarCampo, type CampoEditable } from "@/lib/proveedo
 // sale de Terceros, en el bloque "¿Cómo se paga?" (components/metodo-pago-oc.tsx).
 // ---------------------------------------------------------------------------
 
-// Campos editables, en el orden en que se muestran.
+// Campos editables, en el orden en que se muestran. El nombre y el documento
+// salen del tercero (20261223000000): se corrigen en Terceros (A&F).
 const CAMPOS: CampoEditable[] = [
   "nombreContacto",
   "telefono",
   "correo",
   "ciudad",
   "direccion",
-  "numeroDocumento",
-  "digitoVerificacion",
 ]
 
 function valorTexto(d: ProveedorDetalle, campo: CampoEditable): string {

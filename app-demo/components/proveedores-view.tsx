@@ -11,7 +11,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { actualizarProveedor, crearProveedor, listarProveedores } from "@/app/(app)/almacen/proveedores/actions"
-import { ETIQUETA_CAMPO, OPCIONES, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
+import { ETIQUETA_CAMPO, OPCIONES, esCampoDeTercero, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
+import { SelectorTercero } from "@/components/selector-tercero"
+import { CuentasTercero } from "@/components/cuentas-tercero"
+import type { TerceroBasico } from "@/lib/terceros"
 import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
 
 // ---------------------------------------------------------------------------
@@ -274,14 +277,12 @@ function CeldaEditable({
 // Diálogo "Nuevo proveedor". El ID (PV0395...) lo asigna el servidor.
 // ---------------------------------------------------------------------------
 
-// Orden de los campos en el formulario (nombre ocupa toda la fila).
+// Orden de los campos en el formulario. Nombre y número de documento salen del
+// tercero (20261223000000); el tipo dice si la OC lo muestra como NIT o CC.
 const CAMPOS_FORMULARIO: CampoEditable[] = [
-  "nombre",
   "tipoProveedor",
   "estado",
   "tipoDocumento",
-  "numeroDocumento",
-  "digitoVerificacion",
   "nombreContacto",
   "telefono",
   "correo",
@@ -303,10 +304,15 @@ function NuevoProveedorDialog({
   const [errores, setErrores] = useState<Partial<Record<CampoEditable, string>>>({})
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
+  // El tercero: se busca por documento o se crea con el formulario de A&F.
+  const [tercero, setTercero] = useState<TerceroBasico | null>(null)
+  const [errorTercero, setErrorTercero] = useState<string | undefined>(undefined)
 
   function cambiarAbierto(abrir: boolean) {
     if (guardando) return
     if (!abrir) {
+      setTercero(null)
+      setErrorTercero(undefined)
       setValores(FORMULARIO_VACIO)
       setErrores({})
       setErrorGeneral(null)
@@ -319,18 +325,20 @@ function NuevoProveedorDialog({
     const nuevosErrores: Partial<Record<CampoEditable, string>> = {}
     for (const campo of CAMPOS_FORMULARIO) {
       const crudo = valores[campo] ?? ""
-      if (campo !== "nombre" && crudo.trim() === "") continue
+      if (crudo.trim() === "") continue
       const r = validarCampo(campo, crudo)
       if (!r.ok) nuevosErrores[campo] = r.error
     }
     setErrores(nuevosErrores)
-    if (Object.keys(nuevosErrores).length > 0) return
+    setErrorTercero(tercero ? undefined : "Busca el tercero por su documento (o créalo).")
+    if (Object.keys(nuevosErrores).length > 0 || !tercero) return
 
     setGuardando(true)
     setErrorGeneral(null)
     try {
-      const creado = await crearProveedor(valores)
+      const creado = await crearProveedor(tercero.id, valores)
       onCreado(creado)
+      setTercero(null)
       setValores(FORMULARIO_VACIO)
       onAbiertoChange(false)
     } catch (err) {
@@ -347,6 +355,25 @@ function NuevoProveedorDialog({
           <DialogTitle>Nuevo proveedor</DialogTitle>
         </DialogHeader>
         <form id="form-nuevo-proveedor" onSubmit={crear} className="grid gap-3 sm:grid-cols-2" noValidate>
+          <div className="space-y-1 sm:col-span-2">
+            <p className="text-sm font-semibold">Tercero</p>
+            <SelectorTercero
+              tercero={tercero}
+              onElegir={(t) => {
+                setTercero(t)
+                setErrorTercero(undefined)
+                // La OC lo muestra como el tercero; una persona natural puede facturar como NIT.
+                setValores((v) => ({ ...v, tipoDocumento: t.tipoDocumento === "NIT" ? "NIT" : (v.tipoDocumento ?? t.tipoDocumento) }))
+              }}
+              onQuitar={() => setTercero(null)}
+              deshabilitado={guardando}
+              etiqueta="Cédula o NIT del proveedor *"
+              error={errorTercero}
+              claseCampo={`h-9 w-full min-w-0 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                errorTercero ? "border-destructive" : ""
+              }`}
+            />
+          </div>
           {CAMPOS_FORMULARIO.map((campo) => {
             const opciones = OPCIONES[campo]
             const id = `nuevo-proveedor-${campo}`
@@ -354,9 +381,9 @@ function NuevoProveedorDialog({
               errores[campo] ? "border-destructive" : ""
             }`
             return (
-              <div key={campo} className={`min-w-0 space-y-1 ${campo === "nombre" || campo === "direccion" ? "sm:col-span-2" : ""}`}>
+              <div key={campo} className={`min-w-0 space-y-1 ${campo === "direccion" ? "sm:col-span-2" : ""}`}>
                 <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
-                  {campo === "nombre" ? "Nombre del proveedor *" : ETIQUETA[campo]}
+                  {campo === "tipoDocumento" ? "Se muestra en la OC como" : ETIQUETA[campo]}
                 </label>
                 {opciones ? (
                   <select
@@ -375,9 +402,8 @@ function NuevoProveedorDialog({
                 ) : (
                   <input
                     id={id}
-                    autoFocus={campo === "nombre"}
                     value={valores[campo] ?? ""}
-                    inputMode={campo === "numeroDocumento" || campo === "digitoVerificacion" ? "numeric" : campo === "telefono" ? "tel" : campo === "correo" ? "email" : undefined}
+                    inputMode={campo === "telefono" ? "tel" : campo === "correo" ? "email" : undefined}
                     onChange={(e) => {
                       setValores((v) => ({ ...v, [campo]: e.target.value }))
                       if (errores[campo]) setErrores((er) => ({ ...er, [campo]: undefined }))
@@ -804,20 +830,29 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
         }
         campos={
           viendo
-            ? COLUMNAS.filter((c) => c.campo !== "idProv").map((c) => ({
+            ? [...COLUMNAS.filter((c) => c.campo !== "idProv").map((c) => ({
                 etiqueta: c.titulo,
                 valor: (
                   <div className={editandoVentana ? "-mx-3 rounded-md border" : "-mx-3 -my-2"}>
                     <CeldaEditable
                       proveedor={viendo}
                       campo={c.campo as CampoEditable}
-                      puedeEditar={editandoVentana}
+                      puedeEditar={editandoVentana && !esCampoDeTercero(c.campo as CampoEditable)}
                       onGuardar={guardar}
                       multilinea
                     />
                   </div>
                 ),
-              }))
+              })),
+              // La cuenta vive en Terceros (20261223000000): aquí solo se ve.
+              {
+                etiqueta: "Cuenta bancaria (Terceros)",
+                valor: viendo.terceroId ? (
+                  <CuentasTercero terceroId={viendo.terceroId} />
+                ) : (
+                  <span className="text-amber-700">Sin tercero: falta el documento del proveedor.</span>
+                ),
+              }]
             : []
         }
         onEditar={viendo && puedeEditar && !editandoVentana ? () => setEditandoVentana(true) : undefined}

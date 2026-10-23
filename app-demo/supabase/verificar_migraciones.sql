@@ -495,5 +495,10 @@ select * from (
                   where table_schema = 'public' and table_name = 'contratistas' and column_name = 'tercero_id')
          and not exists (select 1 from information_schema.columns
                           where table_schema = 'public' and table_name = 'contratistas' and column_name = 'banco')
+  union all
+  select '20261223000000_proveedores_tercero',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'proveedores' and column_name = 'tercero_id')
+         and to_regclass('public.informacion_bancaria') is null
 ) t
 order by 1;

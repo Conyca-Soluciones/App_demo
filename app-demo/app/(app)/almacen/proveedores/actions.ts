@@ -6,16 +6,18 @@ import { traerTodo } from "@/lib/supabase/traer-todo"
 import {
   COLUMNA_DE_CAMPO,
   ETIQUETA_CAMPO,
+  esCampoDeTercero,
   validarCampo,
   type CampoEditable,
   type Proveedor,
 } from "@/lib/proveedores"
 
 const SELECT_PROVEEDOR =
-  "unique_id, id_prov, nombre, tipo_documento, numero_documento, digito_verificacion, tipo_proveedor, estado, nombre_contacto, telefono, correo, ciudad, direccion"
+  "unique_id, tercero_id, id_prov, nombre, tipo_documento, numero_documento, digito_verificacion, tipo_proveedor, estado, nombre_contacto, telefono, correo, ciudad, direccion"
 
 type FilaProveedor = {
   unique_id: string
+  tercero_id: string | null
   id_prov: string | null
   nombre: string
   tipo_documento: string | null
@@ -33,6 +35,7 @@ type FilaProveedor = {
 function mapearProveedor(f: FilaProveedor): Proveedor {
   return {
     uniqueId: f.unique_id,
+    terceroId: f.tercero_id,
     idProv: f.id_prov,
     nombre: f.nombre,
     tipoDocumento: f.tipo_documento,
@@ -113,13 +116,17 @@ export type NuevoProveedorInput = Partial<Record<CampoEditable, string>>
 // proveedores_insert exige lo mismo en la base). El ID se asigna
 // acá; si otra persona creó uno al mismo tiempo, el UNIQUE de id_prov hace
 // fallar el INSERT (23505) y se reintenta con el número siguiente.
-export async function crearProveedor(input: NuevoProveedorInput): Promise<Proveedor> {
+// El tercero es obligatorio (20261223000000): nombre y número de documento
+// salen de él (_proveedor_desde_tercero); un tercero es un solo proveedor.
+export async function crearProveedor(terceroId: string, input: NuevoProveedorInput): Promise<Proveedor> {
   await requerirAccion("editar_proveedores")
+  if (!terceroId) throw new Error("Busca el tercero por su documento (o créalo) antes de crear el proveedor.")
 
-  const fila: Record<string, string | number | null> = {}
+  const fila: Record<string, string | number | null> = { tercero_id: terceroId }
   for (const campo of Object.keys(COLUMNA_DE_CAMPO) as CampoEditable[]) {
+    if (esCampoDeTercero(campo)) continue
     const crudo = input[campo] ?? ""
-    if (campo !== "nombre" && crudo.trim() === "") continue
+    if (crudo.trim() === "") continue
     const validado = validarCampo(campo, crudo)
     if (!validado.ok) throw new Error(`${ETIQUETA_CAMPO[campo]}: ${validado.error}`)
     fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
@@ -128,17 +135,15 @@ export async function crearProveedor(input: NuevoProveedorInput): Promise<Provee
 
   const supabase = await createClient()
 
-  // Mismo número de documento = casi seguro el mismo proveedor dos veces.
-  if (fila.numero_documento !== undefined) {
-    const { data: repetido, error: errorRepetido } = await supabase
-      .from("proveedores")
-      .select("id_prov, nombre")
-      .eq("numero_documento", fila.numero_documento)
-      .limit(1)
-    if (errorRepetido) throw new Error(errorRepetido.message)
-    if (repetido && repetido.length > 0) {
-      throw new Error(`Ya existe un proveedor con ese número de documento: ${repetido[0].nombre} (${repetido[0].id_prov}).`)
-    }
+  // Un tercero = un proveedor.
+  const { data: repetido, error: errorRepetido } = await supabase
+    .from("proveedores")
+    .select("id_prov, nombre")
+    .eq("tercero_id", terceroId)
+    .limit(1)
+  if (errorRepetido) throw new Error(errorRepetido.message)
+  if (repetido && repetido.length > 0) {
+    throw new Error(`Ese tercero ya es proveedor: ${repetido[0].nombre} (${repetido[0].id_prov}).`)
   }
 
   // Todos los IDs, por páginas: si faltara alguno (límite de filas de la
@@ -156,6 +161,9 @@ export async function crearProveedor(input: NuevoProveedorInput): Promise<Provee
       .single()
 
     if (!error) return mapearProveedor(data)
+    if (error.code === "23505" && error.message.includes("proveedores_tercero_unico")) {
+      throw new Error("Ese tercero ya es proveedor.")
+    }
     if (error.code !== "23505") throw new Error(error.message)
   }
   throw new Error("No se pudo asignar un ID al proveedor (muchas personas creando a la vez). Intenta de nuevo.")
@@ -172,7 +180,7 @@ export async function actualizarDatosProveedor(
 
   const fila: Record<string, string | number | null> = {}
   for (const [campo, crudo] of Object.entries(cambios) as [CampoEditable, string][]) {
-    if (!(campo in COLUMNA_DE_CAMPO)) throw new Error("Campo no editable.")
+    if (!(campo in COLUMNA_DE_CAMPO) || esCampoDeTercero(campo)) throw new Error("Campo no editable.")
     const validado = validarCampo(campo, crudo ?? "")
     if (!validado.ok) throw new Error(`${ETIQUETA_CAMPO[campo]}: ${validado.error}`)
     fila[COLUMNA_DE_CAMPO[campo]] = validado.valor

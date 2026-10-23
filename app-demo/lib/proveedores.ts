@@ -7,6 +7,10 @@
 
 export type Proveedor = {
   uniqueId: string
+  // El tercero (20261223000000): nombre y número de documento son copia del
+  // tercero; la cuenta bancaria vive en Terceros. null = proveedor viejo sin
+  // documento (EQUINORTE) o duplicado inactivo.
+  terceroId: string | null
   idProv: string | null
   nombre: string
   tipoDocumento: string | null
@@ -37,6 +41,15 @@ export const COLUMNA_DE_CAMPO = {
 } as const
 
 export type CampoEditable = keyof typeof COLUMNA_DE_CAMPO
+
+// Salen del tercero (20261223000000): no se editan aquí. El nombre y el número
+// los corrige A&F en Terceros; el DV se calcula cuando el proveedor es NIT.
+export const CAMPOS_DESDE_TERCERO: ReadonlySet<CampoEditable> = new Set<CampoEditable>([
+  "nombre",
+  "numeroDocumento",
+  "digitoVerificacion",
+])
+export const esCampoDeTercero = (campo: CampoEditable) => CAMPOS_DESDE_TERCERO.has(campo)
 
 export const ETIQUETA_CAMPO: Record<CampoEditable, string> = {
   nombre: "Proveedor",
@@ -70,8 +83,8 @@ export function validarCampo(
 ): { ok: true; valor: string | number | null } | { ok: false; error: string } {
   const texto = crudo.trim().replace(/\s+/g, " ")
 
-  if (campo === "nombre") {
-    return texto ? { ok: true, valor: texto } : { ok: false, error: "El nombre no puede quedar vacío." }
+  if (esCampoDeTercero(campo)) {
+    return { ok: false, error: "Sale del tercero: el nombre y el documento se corrigen en Terceros (A&F)." }
   }
   if (texto === "") return { ok: true, valor: null }
 
