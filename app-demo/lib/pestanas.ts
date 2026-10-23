@@ -104,7 +104,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.solicitar_otrosi", titulo: "Solicitud de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/otrosi", rutas: ["/contratos/otrosi", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_otrosi", titulo: "Aprobación de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/aprobacion-otrosi", rutas: ["/contratos/aprobacion-otrosi", "/contratos/otrosi-pdf"] },
   { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
-  // Las actas de los contratos generales, por % de ejecución (20261221000000).
+  // Las actas de los contratos generales, por % de ejecución (20261225000000).
   { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas-generales", rutas: ["/contratos/actas-generales", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
@@ -160,7 +160,7 @@ export const ACCIONES: Accion[] = [
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente: su pago vuelve a Aprobación de pagos.", seccion: "Compras" },
-  { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
+  { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Retirar órdenes pendientes de otros (una aprobada ya no se cancela: su pago ya fue aprobado).", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato y de otrosí de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso. También arma el otrosí y lo envía a Subgerencia, lo devuelve o lo rechaza.", seccion: "Contratos" },
@@ -172,7 +172,7 @@ export const ACCIONES: Accion[] = [
   { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, generar los pagos de una orden ya aprobada, enviar pagos a liquidar y responder lo que Contabilidad observa.", seccion: "A&F" },
   { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
   { clave: "generar_dispersores", titulo: "Generar dispersores", descripcion: "En Realizar Pagos: asignar la cuenta a debitar, confirmar cuentas, sacar pagos del dispersor y generar los archivos del banco (los pagos quedan dispersados).", seccion: "A&F" },
-  { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Crear terceros y agregar o corregir sus cuentas bancarias (las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
+  { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Corregir terceros y agregar o corregir sus cuentas bancarias (crear un tercero lo puede cualquiera; las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]
 

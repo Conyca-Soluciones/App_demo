@@ -21,11 +21,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
+import { CuentasTercero } from "@/components/cuentas-tercero"
+import { SelectorTercero } from "@/components/selector-tercero"
+import type { TerceroBasico } from "@/lib/terceros"
 import { ZONA_HORARIA } from "@/lib/fechas"
 import {
   DOCUMENTOS_POR_PERSONA,
   TIPOS_DOCUMENTO_PERSONA,
   documentoFormateado,
+  esDocumentoContratista,
+  tipoPersonaDeTercero,
   validarArchivo,
   validarContratista,
   type CampoContratista,
@@ -40,7 +45,6 @@ import {
   crearContratista,
   editarContratista,
   enlaceDocumentoContratista,
-  listarBancosContratista,
   listarContratistasPagina,
   type DocumentoSubido,
 } from "@/app/(app)/contratos/contratistas/actions"
@@ -360,12 +364,6 @@ function DetalleContratistaDialog({
         ["Teléfono", c.telefono],
         ["Dirección", c.direccion],
         ["Ciudad", c.ciudad],
-        ...(c.datosBancariosVisibles
-          ? ([
-              ["Banco", c.banco],
-              ["Cuenta", `${c.tipoCuenta === "ahorros" ? "CUENTA AHORROS" : "CUENTA CORRIENTE"} ${c.numeroCuenta}`],
-            ] as [string, string][])
-          : ([["Datos bancarios", "Restringido (solo Director de obra, Jurídica y Gerencia)"]] as [string, string][])),
         ["Creado", `${fechaCreacion(c.createdAt)}${c.creadoPorNombre ? ` por ${c.creadoPorNombre}` : ""}`],
         ...(c.editadoAt
           ? ([["Última edición", `${fechaCreacion(c.editadoAt)}${c.editadoPorNombre ? ` por ${c.editadoPorNombre}` : ""}`]] as [string, string][])
@@ -416,6 +414,11 @@ function DetalleContratistaDialog({
                 </div>
               ))}
             </dl>
+
+            <section className="space-y-1">
+              <h3 className="text-sm font-semibold">Cuenta bancaria (en Terceros)</h3>
+              <CuentasTercero terceroId={c.terceroId} />
+            </section>
 
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">Documentos generales</h3>
@@ -474,11 +477,8 @@ function DetalleContratistaDialog({
 // ---------------------------------------------------------------------------
 
 const FORMULARIO_VACIO: DatosContratista = {
+  terceroId: "",
   tipoPersona: "juridica",
-  tipoDocumento: "NIT",
-  numeroDocumento: "",
-  digitoVerificacion: "",
-  nombre: "",
   representanteNombre: "",
   representanteTipoDocumento: "CC",
   representanteNumeroDocumento: "",
@@ -487,9 +487,6 @@ const FORMULARIO_VACIO: DatosContratista = {
   telefono: "",
   direccion: "",
   ciudad: "",
-  banco: "",
-  tipoCuenta: "",
-  numeroCuenta: "",
 }
 
 const claseCampo = (conError: boolean) =>
@@ -506,11 +503,8 @@ function extension(archivo: File) {
 // Datos del contratista en el formulario (todo como texto), para editarlo.
 function formularioDesde(c: Contratista): DatosContratista {
   return {
+    terceroId: c.terceroId,
     tipoPersona: c.tipoPersona,
-    tipoDocumento: c.tipoDocumento,
-    numeroDocumento: c.numeroDocumento,
-    digitoVerificacion: c.digitoVerificacion !== null ? String(c.digitoVerificacion) : "",
-    nombre: c.nombre,
     representanteNombre: c.representanteNombre ?? "",
     representanteTipoDocumento: c.representanteTipoDocumento ?? "CC",
     representanteNumeroDocumento: c.representanteNumeroDocumento ?? "",
@@ -519,9 +513,6 @@ function formularioDesde(c: Contratista): DatosContratista {
     telefono: c.telefono,
     direccion: c.direccion,
     ciudad: c.ciudad,
-    banco: c.banco,
-    tipoCuenta: c.tipoCuenta,
-    numeroCuenta: c.numeroCuenta,
   }
 }
 
@@ -559,23 +550,39 @@ function ContratistaFormDialog({
     () => new Map<TipoDocumentoContratista, DocumentoContratista>((editando?.documentos ?? []).map((d) => [d.tipo, d])),
     [editando]
   )
-  // Lista de bancos (Admin › Bancos). null = cargando.
-  const [bancos, setBancos] = useState<string[] | null>(null)
-  useEffect(() => {
-    let activo = true
-    listarBancosContratista()
-      .then((lista: string[]) => activo && setBancos(lista))
-      .catch(() => activo && setBancos([]))
-    return () => {
-      activo = false
-    }
-  }, [])
-  // Un contratista viejo puede tener un banco escrito a mano que no está en la
-  // lista: se muestra para no perderlo; si se cambia, hay que elegir uno de la lista.
-  const bancoFueraDeLista = Boolean(valores.banco) && bancos !== null && !bancos.includes(valores.banco)
+  // El tercero del contratista (20261222000000): SelectorTercero lo busca por
+  // documento o lo crea con el formulario de A&F. Al editar queda fijo.
+  const [tercero, setTercero] = useState<TerceroBasico | null>(() =>
+    editando
+      ? {
+          id: editando.terceroId,
+          razonSocial: editando.nombre,
+          tipoDocumento: editando.tipoDocumento,
+          numeroDocumento: editando.numeroDocumento,
+          dv: editando.digitoVerificacion !== null ? String(editando.digitoVerificacion) : null,
+        }
+      : null
+  )
+
+  function elegirTercero(t: TerceroBasico) {
+    setTercero(t)
+    const tipo = tipoPersonaDeTercero(t.tipoDocumento)
+    setValores((v) => ({ ...v, terceroId: t.id, tipoPersona: tipo }))
+    if (errores.terceroId) setErrores((e) => ({ ...e, terceroId: undefined }))
+    // Los documentos de un tipo de persona no sirven para el otro (salvo los comunes).
+    const validos = new Set(DOCUMENTOS_POR_PERSONA[tipo].map((d) => d.tipo))
+    setArchivos((a) => Object.fromEntries(Object.entries(a).filter(([k]) => validos.has(k as TipoDocumentoContratista))))
+    setErroresArchivo({})
+  }
+
+  function quitarTercero() {
+    setTercero(null)
+    setValores((v) => ({ ...v, terceroId: "" }))
+  }
 
   function limpiar() {
     setValores(FORMULARIO_VACIO)
+    setTercero(null)
     setErrores({})
     setArchivos({})
     setErroresArchivo({})
@@ -591,16 +598,6 @@ function ContratistaFormDialog({
   function cambiar<K extends CampoContratista>(campo: K, valor: DatosContratista[K]) {
     setValores((v) => ({ ...v, [campo]: valor }))
     if (errores[campo]) setErrores((e) => ({ ...e, [campo]: undefined }))
-  }
-
-  function cambiarPersona(tipo: TipoPersona) {
-    if (editando || tipo === valores.tipoPersona) return
-    setValores((v) => ({ ...v, tipoPersona: tipo, tipoDocumento: tipo === "juridica" ? "NIT" : "CC", digitoVerificacion: "" }))
-    setErrores({})
-    // Los documentos de un tipo de persona no sirven para el otro (salvo los comunes).
-    const validos = new Set(DOCUMENTOS_POR_PERSONA[tipo].map((d) => d.tipo))
-    setArchivos((a) => Object.fromEntries(Object.entries(a).filter(([t]) => validos.has(t as TipoDocumentoContratista))))
-    setErroresArchivo({})
   }
 
   function elegirArchivo(tipo: TipoDocumentoContratista, archivo: File | undefined) {
@@ -619,7 +616,7 @@ function ContratistaFormDialog({
     e.preventDefault()
     setErrorGeneral(null)
 
-    const r = validarContratista(valores, { sinDatosBancarios: sinBancarios })
+    const r = validarContratista(valores)
     const faltan: Partial<Record<TipoDocumentoContratista, string>> = {}
     for (const d of documentos) if (d.obligatorio && !archivos[d.tipo] && !actuales.has(d.tipo)) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
@@ -708,60 +705,32 @@ function ContratistaFormDialog({
         <form id="form-nuevo-contratista" onSubmit={crear} noValidate className="space-y-6">
           {editando && (
             <p className="text-xs text-muted-foreground">
-              El tipo de persona no se puede cambiar. Los documentos actuales se conservan; adjunta uno nuevo solo para reemplazarlo.
+              El tercero no se cambia aquí. Los documentos actuales se conservan; adjunta uno nuevo solo para reemplazarlo.
             </p>
           )}
-          <div className="flex gap-1" role="radiogroup" aria-label="Tipo de persona">
-            {(["juridica", "natural"] as const).map((t) => (
-              <Button
-                key={t}
-                type="button"
-                role="radio"
-                aria-checked={valores.tipoPersona === t}
-                variant={valores.tipoPersona === t ? "default" : "outline"}
-                onClick={() => cambiarPersona(t)}
-                disabled={guardando || (editando !== null && valores.tipoPersona !== t)}
-              >
-                Persona {ETIQUETA_PERSONA[t].toLowerCase()}
-              </Button>
-            ))}
-          </div>
-
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Identificación</h3>
-            <div className="grid gap-3 sm:grid-cols-6">
-              {campoTexto("nombre", juridica ? "Razón social *" : "Nombre completo *", { ancho: "sm:col-span-6", autoFocus: true })}
-              {juridica ? (
-                <>
-                  {campoTexto("numeroDocumento", "NIT (sin dígito de verificación) *", { ancho: "sm:col-span-4", inputMode: "numeric", placeholder: "Ej. 900123456" })}
-                  {campoTexto("digitoVerificacion", "DV *", { ancho: "sm:col-span-2", inputMode: "numeric" })}
-                </>
-              ) : (
-                <>
-                  <div className="min-w-0 space-y-1 sm:col-span-3">
-                    <label htmlFor="contratista-tipoDocumento" className="text-xs font-medium text-muted-foreground">
-                      Tipo de documento *
-                    </label>
-                    <select
-                      id="contratista-tipoDocumento"
-                      value={valores.tipoDocumento}
-                      onChange={(e) => cambiar("tipoDocumento", e.target.value as DatosContratista["tipoDocumento"])}
-                      disabled={guardando}
-                      className={claseCampo(Boolean(errores.tipoDocumento))}
-                    >
-                      {TIPOS_DOCUMENTO_PERSONA.map((t) => (
-                        <option key={t.valor} value={t.valor}>
-                          {t.titulo}
-                        </option>
-                      ))}
-                    </select>
-                    {errores.tipoDocumento && <p className="text-xs text-destructive">{errores.tipoDocumento}</p>}
-                  </div>
-                  {campoTexto("numeroDocumento", "Número de documento (solo números) *", { ancho: "sm:col-span-3", inputMode: "numeric" })}
-                  {campoTexto("cedulaExpedidaEn", "Cédula expedida en *", { ancho: "sm:col-span-3", placeholder: "Ej. Bogotá" })}
-                </>
-              )}
-            </div>
+            <h3 className="text-sm font-semibold">Tercero</h3>
+            <SelectorTercero
+              tercero={tercero}
+              onElegir={elegirTercero}
+              onQuitar={quitarTercero}
+              fijo={editando !== null}
+              deshabilitado={guardando}
+              etiqueta="Cédula o NIT del contratista *"
+              error={errores.terceroId}
+              validar={(t) =>
+                esDocumentoContratista(t.tipoDocumento)
+                  ? null
+                  : `Un contratista se identifica con CC, CE, PPT, PA o NIT; ${t.razonSocial} tiene ${t.tipoDocumento}.`
+              }
+              detalle={<> · Persona {ETIQUETA_PERSONA[valores.tipoPersona].toLowerCase()}</>}
+              claseCampo={claseCampo(Boolean(errores.terceroId))}
+            />
+            {!juridica && tercero && (
+              <div className="grid gap-3 sm:grid-cols-6">
+                {campoTexto("cedulaExpedidaEn", "Cédula expedida en *", { ancho: "sm:col-span-3", placeholder: "Ej. Bogotá" })}
+              </div>
+            )}
           </section>
 
           {juridica && (
@@ -803,53 +772,6 @@ function ContratistaFormDialog({
               {campoTexto("ciudad", "Ciudad *", { ancho: "sm:col-span-2" })}
             </div>
           </section>
-
-          {!sinBancarios && (
-          <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Datos bancarios</h3>
-            <div className="grid gap-3 sm:grid-cols-6">
-              <div className="min-w-0 space-y-1 sm:col-span-2">
-                <label htmlFor="contratista-banco" className="text-xs font-medium text-muted-foreground">
-                  Banco *
-                </label>
-                <select
-                  id="contratista-banco"
-                  value={valores.banco}
-                  onChange={(e) => cambiar("banco", e.target.value)}
-                  disabled={guardando || bancos === null}
-                  className={claseCampo(Boolean(errores.banco))}
-                >
-                  <option value="">{bancos === null ? "Cargando bancos…" : "— Elige —"}</option>
-                  {bancoFueraDeLista && <option value={valores.banco}>{valores.banco} (fuera de la lista)</option>}
-                  {(bancos ?? []).map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-                {errores.banco && <p className="text-xs text-destructive">{errores.banco}</p>}
-              </div>
-              <div className="min-w-0 space-y-1 sm:col-span-2">
-                <label htmlFor="contratista-tipoCuenta" className="text-xs font-medium text-muted-foreground">
-                  Tipo de cuenta *
-                </label>
-                <select
-                  id="contratista-tipoCuenta"
-                  value={valores.tipoCuenta}
-                  onChange={(e) => cambiar("tipoCuenta", e.target.value as DatosContratista["tipoCuenta"])}
-                  disabled={guardando}
-                  className={claseCampo(Boolean(errores.tipoCuenta))}
-                >
-                  <option value="">— Elige —</option>
-                  <option value="corriente">CUENTA CORRIENTE</option>
-                  <option value="ahorros">CUENTA AHORROS</option>
-                </select>
-                {errores.tipoCuenta && <p className="text-xs text-destructive">{errores.tipoCuenta}</p>}
-              </div>
-              {campoTexto("numeroCuenta", "Número de cuenta *", { ancho: "sm:col-span-2", inputMode: "numeric" })}
-            </div>
-          </section>
-          )}
 
           <section className="space-y-3">
             <div>

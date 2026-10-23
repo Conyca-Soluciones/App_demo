@@ -230,6 +230,14 @@ export function DetalleSolicitudContrato({
                       ] as FilaDatos[])
                     : ([["Anticipo", detalle.tieneAnticipo ? anticipoEnLetras(detalle.anticipoPorcentaje ?? 0, detalle.valor) : "No"]] as FilaDatos[])),
                   ["Forma de pago", detalle.formaPago],
+                  [
+                    "Se paga por",
+                    detalle.metodoPago === "pse"
+                      ? `PSE${detalle.pseTitularNombre ? ` · titular: ${detalle.pseTitularNombre}` : ""}${
+                          detalle.pagoObservaciones ? ` · ${detalle.pagoObservaciones}` : ""
+                        }`
+                      : "Transferencia",
+                  ],
                   ["Póliza", detalle.requierePoliza === false ? "No requiere póliza" : "Requiere póliza"],
                   [
                     "Plazo",

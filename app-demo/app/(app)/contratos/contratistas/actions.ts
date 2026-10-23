@@ -16,11 +16,10 @@ import {
   type TipoDocumentoContratista,
 } from "@/lib/contratistas"
 
-// Sin banco, tipo_cuenta ni numero_cuenta: nadie los lee de la tabla
-// (20261115100000_seguridad_documentos_y_datos_bancarios.sql); quien tiene la
-// acción ver_datos_bancarios los pide aparte (conDatosBancarios).
+// La cuenta bancaria ya no está en contratistas: vive en Terceros
+// (20261222000000). Nombre, documento y tipo de persona son copia del tercero.
 const SELECT_CONTRATISTA = `
-  id, tipo_persona, tipo_documento, numero_documento, digito_verificacion, nombre,
+  id, tercero_id, tipo_persona, tipo_documento, numero_documento, digito_verificacion, nombre,
   representante_nombre, representante_tipo_documento, representante_numero_documento, cedula_expedida_en,
   correo, telefono, direccion, ciudad, created_at,
   updated_at, updated_by,
@@ -32,6 +31,7 @@ const SELECT_CONTRATISTA = `
 function mapContratista(f: any): Contratista {
   return {
     id: f.id,
+    terceroId: f.tercero_id,
     tipoPersona: f.tipo_persona,
     tipoDocumento: f.tipo_documento,
     numeroDocumento: f.numero_documento,
@@ -45,9 +45,6 @@ function mapContratista(f: any): Contratista {
     telefono: f.telefono,
     direccion: f.direccion,
     ciudad: f.ciudad,
-    banco: "",
-    tipoCuenta: "ahorros",
-    numeroCuenta: "",
     datosBancariosVisibles: false,
     creadoPorNombre: f.creador?.nombre ?? null,
     createdAt: f.created_at,
@@ -73,35 +70,14 @@ async function puedeVerDatosBancarios(): Promise<boolean> {
   return Boolean(permisos && (permisos.esAdministrador || permisos.acciones.includes("ver_datos_bancarios")))
 }
 
-// Completa banco y cuenta si quien pregunta tiene la acción (una sola llamada
-// para toda la lista).
+// Marca si quien pregunta ve la certificación bancaria (acción
+// ver_datos_bancarios). Las cuentas se ven en Terceros.
 async function conDatosBancarios(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   lista: Contratista[]
 ): Promise<Contratista[]> {
   if (lista.length === 0 || !(await puedeVerDatosBancarios())) return lista
-  const { data, error } = await supabase.rpc("datos_bancarios_contratistas", { p_ids: lista.map((c) => c.id) })
-  if (error) throw new Error(error.message)
-  const porId = new Map(
-    ((data ?? []) as { contratista_id: string; banco: string; tipo_cuenta: string; numero_cuenta: string }[]).map((b) => [b.contratista_id, b])
-  )
-  return lista.map((c) => {
-    const b = porId.get(c.id)
-    return b
-      ? { ...c, banco: b.banco, tipoCuenta: b.tipo_cuenta as Contratista["tipoCuenta"], numeroCuenta: b.numero_cuenta, datosBancariosVisibles: true }
-      : c
-  })
-}
-
-// Bancos para el formulario del contratista: la misma lista de Terceros (los
-// activos), que se administra en Admin › Bancos. La base exige uno de esta
-// lista al crear o al cambiar los datos bancarios.
-export async function listarBancosContratista(): Promise<string[]> {
-  await requerirAccion("gestionar_contratistas")
-  const supabase = await createClient()
-  const { data, error } = await supabase.from("bancos").select("nombre").eq("activo", true).order("nombre")
-  if (error) throw new Error(error.message)
-  return (data ?? []).map((b: { nombre: string }) => b.nombre)
+  return lista.map((c) => ({ ...c, datosBancariosVisibles: true }))
 }
 
 async function requerirVerContratistas() {
@@ -192,11 +168,7 @@ export type DocumentoSubido = {
 // Datos y documentos con los nombres de columna de la base (crear y editar).
 function datosParaBase(d: DatosContratista) {
   return {
-    tipo_persona: d.tipoPersona,
-    tipo_documento: d.tipoDocumento,
-    numero_documento: d.numeroDocumento,
-    digito_verificacion: d.digitoVerificacion,
-    nombre: d.nombre,
+    tercero_id: d.terceroId,
     representante_nombre: d.representanteNombre,
     representante_tipo_documento: d.representanteTipoDocumento,
     representante_numero_documento: d.representanteNumeroDocumento,
@@ -205,9 +177,6 @@ function datosParaBase(d: DatosContratista) {
     telefono: d.telefono,
     direccion: d.direccion,
     ciudad: d.ciudad,
-    banco: d.banco,
-    tipo_cuenta: d.tipoCuenta,
-    numero_cuenta: d.numeroCuenta,
   }
 }
 
@@ -223,14 +192,8 @@ function validarArchivosSubidos(id: string, documentos: DocumentoSubido[]) {
   }
 }
 
-function errorDeBase(error: { code?: string; message: string }, d: DatosContratista) {
-  if (error.code === "23505") {
-    return new Error(
-      d.tipoPersona === "juridica"
-        ? `Ya existe un contratista con el NIT ${d.numeroDocumento}.`
-        : `Ya existe un contratista con ${d.tipoDocumento} ${d.numeroDocumento}.`
-    )
-  }
+function errorDeBase(error: { code?: string; message: string }) {
+  if (error.code === "23505") return new Error("Ese tercero ya está registrado como contratista.")
   return new Error(error.message)
 }
 
@@ -262,7 +225,7 @@ export async function crearContratista(
     p_datos: datosParaBase(d),
     p_documentos: documentosParaBase(documentos),
   })
-  if (error) throw errorDeBase(error, d)
+  if (error) throw errorDeBase(error)
 
   const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
   if (errorLeer) throw new Error(errorLeer.message)
@@ -280,9 +243,7 @@ export async function editarContratista(
 ): Promise<{ contratista: Contratista; rutasReemplazadas: string[] }> {
   await requerirAccion("gestionar_contratistas")
 
-  // Sin la acción ver_datos_bancarios no se piden ni se cambian (la base los
-  // deja como estaban).
-  const r = validarContratista(crudo, { sinDatosBancarios: !(await puedeVerDatosBancarios()) })
+  const r = validarContratista(crudo)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del contratista.")
   const d = r.datos
   validarArchivosSubidos(id, documentos)
@@ -293,7 +254,7 @@ export async function editarContratista(
     p_datos: datosParaBase(d),
     p_documentos: documentosParaBase(documentos),
   })
-  if (error) throw errorDeBase(error, d)
+  if (error) throw errorDeBase(error)
 
   const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
   if (errorLeer) throw new Error(errorLeer.message)

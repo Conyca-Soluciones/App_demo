@@ -5,7 +5,7 @@
 -- generales son de valor global: el acta es por % de ejecución y el pago es el
 -- neto de ese %. La retención en garantía de un general es su
 -- `retencion_garantia_pct` (0 = sin retención).
--- Va después de 20261220000000 (rama de Sofia, ya aplicada): no toca
+-- Va después de las de la rama de Sofia (20261217000000-20261224000000): no toca
 -- contrato_para_acta ni _pago_de_acta; las demás se parchan sobre su versión
 -- VIVA (reemplazo de texto exacto, falla si no lo encuentra).
 

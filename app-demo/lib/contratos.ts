@@ -294,6 +294,12 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   // Si pide póliza (20261208000000): obra y mano de obra, siempre. Sin dato = sí.
   requierePoliza?: boolean
   formaPago: string
+  // Transferencia o PSE (20261220000000); con PSE, la información para pagar.
+  // Sin dato = transferencia.
+  metodoPago?: MetodoPagoContrato
+  pagoObservaciones?: string | null
+  // PSE con titular distinto del contratista (20261224000000); null = el contratista.
+  pseTitularNombre?: string | null
   correoNotificacion: string
   observaciones: string | null
   domicilioDepartamento: string | null
@@ -452,6 +458,10 @@ export type SolicitudContratoForm = {
   anticipoPorcentaje: string
   requierePoliza: boolean
   formaPago: string
+  metodoPago: MetodoPagoContrato
+  pagoObservaciones: string
+  pseTitularDistinto: boolean
+  pseTitularNombre: string
   plazoTipo: "fechas" | "duracion"
   fechaInicio: string
   fechaFin: string
@@ -485,6 +495,8 @@ export type CampoSolicitud =
   | "items"
   | "anticipoPorcentaje"
   | "formaPago"
+  | "pagoObservaciones"
+  | "pseTitularNombre"
   | "plazo"
   | "correoNotificacion"
   | "obligaciones"
@@ -514,6 +526,9 @@ export type SolicitudContratoValida = {
   anticipoPorcentaje: number | null
   requierePoliza: boolean
   formaPago: string
+  metodoPago: MetodoPagoContrato
+  pagoObservaciones: string | null
+  pseTitularNombre: string | null
   plazoTipo: "fechas" | "duracion"
   fechaInicio: string | null
   fechaFin: string | null
@@ -627,6 +642,8 @@ export function validarSolicitud(
     }
   }
   if (!f.formaPago.trim()) errores.formaPago = "Describe la forma de pago."
+  const pagoObs = errorPagoContrato(f, errores)
+  const pseTitular = titularPseContrato(f, errores)
 
   let fechaInicio: string | null = null
   let fechaFin: string | null = null
@@ -718,6 +735,9 @@ export function validarSolicitud(
       anticipoPorcentaje,
       requierePoliza: polizaObligatoria(f.tipo) || f.requierePoliza,
       formaPago: f.formaPago.trim(),
+      metodoPago: f.metodoPago,
+      pagoObservaciones: pagoObs,
+      pseTitularNombre: pseTitular,
       plazoTipo: f.plazoTipo,
       fechaInicio,
       fechaFin,
@@ -810,6 +830,41 @@ export const pesosEnLetras = (n: number) => `${numeroALetrasCOP(n)} (${pesos(n)}
 export const anticipoEnLetras = (porcentaje: number, valor: number) =>
   `${porcentajeEnLetras(porcentaje)} del valor del contrato, es decir ${pesosEnLetras(aCentavos((valor * porcentaje) / 100))}`
 
+// ---------------------------------------------------------------- método de pago
+// Cómo se pagan las actas del contrato (20261220000000): Transferencia, a la
+// cuenta del contratista en Terceros; PSE, sin cuenta y con la información para
+// pagar escrita en observaciones (obligatoria). La base lo vuelve a validar
+// (_fijar_pago_contrato).
+export type MetodoPagoContrato = "transferencia" | "pse"
+
+export const ETIQUETA_METODO_PAGO_CONTRATO: Record<MetodoPagoContrato, string> = {
+  transferencia: "Transferencia",
+  pse: "PSE",
+}
+
+// Observaciones de PSE ya limpias (null en transferencia); anota el error si faltan.
+export function errorPagoContrato(
+  f: { metodoPago: MetodoPagoContrato; pagoObservaciones: string },
+  errores: { pagoObservaciones?: string }
+): string | null {
+  if (f.metodoPago !== "pse") return null
+  const obs = f.pagoObservaciones.trim()
+  if (!obs) errores.pagoObservaciones = "Escribe la información para pagar por PSE."
+  return obs || null
+}
+
+// PSE con la casilla "El titular tiene otro nombre": el nombre (null = el
+// contratista); anota el error si falta.
+export function titularPseContrato(
+  f: { metodoPago: MetodoPagoContrato; pseTitularDistinto: boolean; pseTitularNombre: string },
+  errores: { pseTitularNombre?: string }
+): string | null {
+  if (f.metodoPago !== "pse" || !f.pseTitularDistinto) return null
+  const nombre = f.pseTitularNombre.trim().replace(/\s+/g, " ")
+  if (nombre.length < 3) errores.pseTitularNombre = "Escribe el nombre del titular."
+  return nombre || null
+}
+
 // ---------------------------------------------------------------- contrato general
 // Formulario del contrato general (como el "Contrato General" de Sinco): valor
 // global, fechas, forma de pago, retenciones, referencia, descripción y
@@ -824,6 +879,10 @@ export type ContratoGeneralForm = {
   fechaInicio: string
   fechaFin: string
   formaPago: string
+  metodoPago: MetodoPagoContrato
+  pagoObservaciones: string
+  pseTitularDistinto: boolean
+  pseTitularNombre: string
   retencionGarantiaPct: string
   retencionAnticipoPct: string
   retencionFicPct: string
@@ -844,6 +903,10 @@ export const CONTRATO_GENERAL_VACIO: ContratoGeneralForm = {
   fechaInicio: "",
   fechaFin: "",
   formaPago: "",
+  metodoPago: "transferencia",
+  pagoObservaciones: "",
+  pseTitularDistinto: false,
+  pseTitularNombre: "",
   retencionGarantiaPct: "0",
   retencionAnticipoPct: "0",
   retencionFicPct: "0",
@@ -862,6 +925,9 @@ export type ContratoGeneralValido = {
   fechaInicio: string
   fechaFin: string
   formaPago: string
+  metodoPago: MetodoPagoContrato
+  pagoObservaciones: string | null
+  pseTitularNombre: string | null
   retencionGarantiaPct: number
   retencionAnticipoPct: number
   retencionFicPct: number
@@ -892,6 +958,8 @@ export function validarContratoGeneral(
   if (!f.fechaInicio || !f.fechaFin) errores.plazo = "Escribe las fechas de inicio y de terminación."
   else if (f.fechaFin < f.fechaInicio) errores.plazo = "La fecha de terminación es anterior a la de inicio."
   if (!f.formaPago.trim()) errores.formaPago = "Escribe la forma de pago."
+  const pagoObs = errorPagoContrato(f, errores)
+  const pseTitular = titularPseContrato(f, errores)
   const garantia = leerPorcentaje(f.retencionGarantiaPct)
   const anticipo = leerPorcentaje(f.retencionAnticipoPct)
   const fic = leerPorcentaje(f.retencionFicPct)
@@ -912,6 +980,9 @@ export function validarContratoGeneral(
       fechaInicio: f.fechaInicio,
       fechaFin: f.fechaFin,
       formaPago: f.formaPago.trim(),
+      metodoPago: f.metodoPago,
+      pagoObservaciones: pagoObs,
+      pseTitularNombre: pseTitular,
       retencionGarantiaPct: garantia!,
       retencionAnticipoPct: anticipo!,
       retencionFicPct: fic!,
@@ -936,6 +1007,10 @@ export function contratoGeneralDesde(d: SolicitudContratoDetalle): ContratoGener
     fechaInicio: d.fechaInicio ?? "",
     fechaFin: d.fechaFin ?? "",
     formaPago: d.formaPago,
+    metodoPago: d.metodoPago ?? "transferencia",
+    pagoObservaciones: d.pagoObservaciones ?? "",
+    pseTitularDistinto: Boolean(d.pseTitularNombre),
+    pseTitularNombre: d.pseTitularNombre ?? "",
     retencionGarantiaPct: pctTexto(d.retencionGarantiaPct),
     retencionAnticipoPct: pctTexto(d.retencionAnticipoPct),
     retencionFicPct: pctTexto(d.retencionFicPct),

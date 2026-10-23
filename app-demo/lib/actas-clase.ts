@@ -1,6 +1,6 @@
 // Actas por grupos (contratos por grupos, pestaña contratos.cortes) y Actas
 // generales (contratos generales, pestaña contratos.actas_generales;
-// 20261221000000_actas_generales.sql). Mismas tablas, funciones y pantalla:
+// 20261225000000_actas_generales.sql). Mismas tablas, funciones y pantalla:
 // solo cambia qué contratos se buscan y qué pestaña se pide.
 
 export type ClaseActas = "grupo" | "general"

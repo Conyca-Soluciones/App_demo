@@ -211,6 +211,10 @@ export function SalidasRegistradasView() {
       setError(leida.ok ? "La cantidad debe ser mayor que cero. Para deshacer la salida, anúlala." : leida.error)
       return
     }
+    if (!edRetira.trim()) {
+      setError("Escribe quién retira el material.")
+      return
+    }
     setProcesando(true)
     setError(null)
     try {
@@ -414,7 +418,7 @@ export function SalidasRegistradasView() {
                 onChange={(e) => setEdCantidad(e.target.value)}
               />
             </div>
-            <Input placeholder="¿Quién retira? (opcional)" value={edRetira} onChange={(e) => setEdRetira(e.target.value)} />
+            <Input placeholder="¿Quién retira?" value={edRetira} onChange={(e) => setEdRetira(e.target.value)} />
             <Textarea
               placeholder="Observaciones (opcional)"
               value={edObservaciones}

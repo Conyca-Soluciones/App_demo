@@ -473,7 +473,49 @@ select * from (
          exists (select 1 from pg_proc where proname = 'conteo_etapas_consolidado' and prosrc like '%''dispersado''%'
                     and pg_get_function_identity_arguments(oid) like '%p_creado_desde%')
   union all
-  select '20261221000000_actas_generales',
+  select '20261217000000_oc_no_cancelar_con_pago_aprobado',
+         exists (select 1 from pg_proc where proname = '_cancelar_orden_compra_sin_proyecto'
+                    and prosrc like '%ya fue aprobado en Aprobación de pagos%')
+  union all
+  select '20261218000000_salida_quien_retira_obligatorio',
+         exists (select 1 from pg_proc where proname = 'registrar_salida_almacen'
+                    and prosrc like '%quién retira%')
+         and exists (select 1 from pg_proc where proname = 'editar_salida_almacen'
+                        and prosrc like '%quién retira%')
+  union all
+  select '20261219000000_oc_metodo_pago_pse',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ordenes_compra' and column_name = 'metodo_pago')
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
+                        and pg_get_function_identity_arguments(oid) like '%p_pago%')
+         and exists (select 1 from pg_proc where proname = '_pago_novedad' and prosrc like '%oc.metodo_pago%')
+  union all
+  select '20261220000000_contrato_metodo_pago_pse',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'metodo_pago')
+         and exists (select 1 from pg_proc where proname = 'crear_solicitud_contrato' and prosrc like '%_fijar_pago_contrato%')
+         and exists (select 1 from pg_proc where proname = '_pago_de_acta' and prosrc like '%c.metodo_pago%')
+  union all
+  select '20261221000000_terceros_crear_para_todos',
+         exists (select 1 from pg_proc where proname = 'crear_tercero')
+         and exists (select 1 from pg_proc where proname = 'tercero_por_documento')
+  union all
+  select '20261222000000_contratistas_tercero',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratistas' and column_name = 'tercero_id')
+         and not exists (select 1 from information_schema.columns
+                          where table_schema = 'public' and table_name = 'contratistas' and column_name = 'banco')
+  union all
+  select '20261223000000_proveedores_tercero',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'proveedores' and column_name = 'tercero_id')
+         and to_regclass('public.informacion_bancaria') is null
+  union all
+  select '20261224000000_contrato_pse_titular',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'pse_titular_nombre')
+  union all
+  select '20261225000000_actas_generales',
          exists (select 1 from pg_proc where proname = 'buscar_contratos_para_acta'
                     and pg_get_function_identity_arguments(oid) like '%p_clase%')
          and exists (select 1 from pg_proc where proname = 'puede_ver_actas' and prosrc like '%actas_generales%')

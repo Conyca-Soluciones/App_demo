@@ -310,6 +310,11 @@ function Contenido({
             )}
           </div>
           {pago.novedad && <p className="mt-1 text-xs text-amber-700">{pago.novedad}</p>}
+          {pago.pagoObservaciones && (
+            <p className="mt-1 whitespace-pre-line text-xs text-muted-foreground">
+              Observaciones del pago: {pago.pagoObservaciones}
+            </p>
+          )}
         </div>
       </div>
 

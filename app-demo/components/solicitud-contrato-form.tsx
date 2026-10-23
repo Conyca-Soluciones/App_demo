@@ -45,6 +45,8 @@ import {
   type DocumentoContratoSubido,
 } from "@/app/(app)/contratos/solicitar/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { MetodoPagoContrato } from "@/components/metodo-pago-contrato"
+import { CuentasTercero } from "@/components/cuentas-tercero"
 
 // ---------------------------------------------------------------------------
 // Formulario de solicitud de contrato. El director elige el tipo (eso define
@@ -66,6 +68,10 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   anticipoPorcentaje: "",
   requierePoliza: true,
   formaPago: "",
+  metodoPago: "transferencia",
+  pagoObservaciones: "",
+  pseTitularDistinto: false,
+  pseTitularNombre: "",
   plazoTipo: "fechas",
   fechaInicio: "",
   fechaFin: "",
@@ -108,6 +114,10 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     requierePoliza: d.requierePoliza !== false,
     anticipoPorcentaje: d.anticipoPorcentaje !== null ? numero(d.anticipoPorcentaje) : "",
     formaPago: d.formaPago,
+    metodoPago: d.metodoPago ?? "transferencia",
+    pagoObservaciones: d.pagoObservaciones ?? "",
+    pseTitularDistinto: Boolean(d.pseTitularNombre),
+    pseTitularNombre: d.pseTitularNombre ?? "",
     plazoTipo: d.plazoTipo,
     fechaInicio: d.fechaInicio ?? "",
     fechaFin: d.fechaFin ?? "",
@@ -584,14 +594,12 @@ export function SolicitudContratoForm({
                   {contratista.direccion}, {contratista.ciudad}
                 </dd>
               </div>
-              {contratista.datosBancariosVisibles && (
-                <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">Cuenta</dt>
-                  <dd>
-                    {contratista.banco} · {contratista.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} {contratista.numeroCuenta}
-                  </dd>
-                </div>
-              )}
+              <div className="min-w-0 sm:col-span-2">
+                <dt className="text-xs text-muted-foreground">Cuenta (en Terceros)</dt>
+                <dd>
+                  <CuentasTercero terceroId={contratista.terceroId} />
+                </dd>
+              </div>
             </dl>
             <div className="flex flex-wrap gap-1.5">
               {DOCUMENTOS_POR_PERSONA[contratista.tipoPersona].map((d) => {
@@ -990,6 +998,24 @@ export function SolicitudContratoForm({
             />
             <MensajeError texto={errores.formaPago} />
           </div>
+          <MetodoPagoContrato
+            metodo={f.metodoPago}
+            observaciones={f.pagoObservaciones}
+            error={errores.pagoObservaciones}
+            disabled={enviando}
+            claseTexto={claseArea(Boolean(errores.pagoObservaciones))}
+            onMetodo={(m) => cambiar("metodoPago", m, "pagoObservaciones")}
+            onObservaciones={(t) => cambiar("pagoObservaciones", t)}
+            titularDistinto={f.pseTitularDistinto}
+            titularNombre={f.pseTitularNombre}
+            errorTitular={errores.pseTitularNombre}
+            claseTitular={claseCampo(Boolean(errores.pseTitularNombre))}
+            onTitularDistinto={(v) => {
+              cambiar("pseTitularDistinto", v, "pseTitularNombre")
+              if (!v) cambiar("pseTitularNombre", "")
+            }}
+            onTitularNombre={(t) => cambiar("pseTitularNombre", t)}
+          />
         </div>
       </Seccion>
 

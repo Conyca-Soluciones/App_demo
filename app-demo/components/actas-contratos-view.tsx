@@ -628,7 +628,8 @@ function FormularioActa({
       setError("Adjunta el soporte de pago (factura o cuenta de cobro del contratista): el acta con pago lo exige.")
       return
     }
-    const t = titularParaGuardar(sinPago ? null : titular)
+    // Contrato por PSE: sin cuenta ni titular aparte.
+    const t = titularParaGuardar(sinPago || info?.metodoPago === "pse" ? null : titular)
     if (!t.ok) {
       setError(t.error)
       return
@@ -884,11 +885,17 @@ function FormularioActa({
           </div>
 
           {/* Cuenta donde se paga: la del contratista u otro tercero. */}
-          {!sinPago && (
-            <div className="rounded-md border p-3">
-              <CampoTitularCuenta valor={titular} onCambiar={setTitular} quienFactura={contrato.contratistaNombre} />
-            </div>
-          )}
+          {!sinPago &&
+            (info?.metodoPago === "pse" ? (
+              <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                El contrato se paga por PSE: el pago llega a A&amp;F sin cuenta bancaria, con la información para pagar
+                del contrato.
+              </p>
+            ) : (
+              <div className="rounded-md border p-3">
+                <CampoTitularCuenta valor={titular} onCambiar={setTitular} quienFactura={contrato.contratistaNombre} />
+              </div>
+            ))}
 
           {/* Observaciones */}
           <div className="space-y-1">

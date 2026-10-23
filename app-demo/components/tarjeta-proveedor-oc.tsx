@@ -14,19 +14,18 @@ import { ETIQUETA_CAMPO, validarCampo, type CampoEditable } from "@/lib/proveedo
 // `editar_proveedores` (o es Administrador), permite completarlos/corregirlos
 // ahí mismo. Guardar escribe en la tabla `proveedores` (queda para todas las
 // órdenes futuras) y actualiza la tarjeta, de donde la orden que se está
-// generando toma teléfono, ciudad y correo. Los datos bancarios son de solo
-// lectura (viven en otra tabla).
+// generando toma teléfono, ciudad y correo. La cuenta bancaria no va aquí:
+// sale de Terceros, en el bloque "¿Cómo se paga?" (components/metodo-pago-oc.tsx).
 // ---------------------------------------------------------------------------
 
-// Campos editables, en el orden en que se muestran.
+// Campos editables, en el orden en que se muestran. El nombre y el documento
+// salen del tercero (20261223000000): se corrigen en Terceros (A&F).
 const CAMPOS: CampoEditable[] = [
   "nombreContacto",
   "telefono",
   "correo",
   "ciudad",
   "direccion",
-  "numeroDocumento",
-  "digitoVerificacion",
 ]
 
 function valorTexto(d: ProveedorDetalle, campo: CampoEditable): string {

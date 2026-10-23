@@ -11,7 +11,7 @@ import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { TerceroDialogo, NuevoTerceroDialogo } from "@/components/tercero-dialogo"
-import { listarBancos, listarTerceros } from "@/app/(app)/ayf/terceros/actions"
+import { listarBancos, listarTerceros, obtenerTercero } from "@/app/(app)/ayf/terceros/actions"
 import { puedeBuscar } from "@/lib/busqueda"
 import {
   CLASE_ESTADO_CUENTA,
@@ -224,14 +224,13 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
         </PanelFiltros>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-          {puedeEditar && (
-            <div className="flex justify-end">
-              <Button onClick={() => setCreando(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Nuevo tercero
-              </Button>
-            </div>
-          )}
+          {/* Crear un tercero lo puede cualquiera (20261221000000); editar, solo A&F. */}
+          <div className="flex justify-end">
+            <Button onClick={() => setCreando(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Nuevo tercero
+            </Button>
+          </div>
 
           {error && (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
@@ -291,9 +290,20 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
         abierto={creando}
         bancos={bancos}
         onCerrar={() => setCreando(false)}
+        // Documento repetido: abre el que ya existe.
+        onExistente={(t) => {
+          setCreando(false)
+          obtenerTercero(t.id)
+            .then((completo: Tercero) => setAbierto(completo))
+            .catch((e) => setError(e instanceof Error ? e.message : "No se pudo abrir el tercero."))
+        }}
+        textoExistente="Abrir ese tercero"
         onCreado={(t) => {
           setCreando(false)
-          setAbierto(t)
+          // crear_tercero devuelve lo básico; el detalle completo se lee aparte.
+          obtenerTercero(t.id)
+            .then((completo: Tercero) => setAbierto(completo))
+            .catch((e) => setError(e instanceof Error ? e.message : "El tercero se creó, pero no se pudo abrir."))
         }}
       />
     </div>

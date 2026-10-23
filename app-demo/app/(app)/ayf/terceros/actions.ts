@@ -14,6 +14,7 @@ import {
   type DatosTercero,
   type FiltrosTerceros,
   type Tercero,
+  type TerceroBasico,
 } from "@/lib/terceros"
 
 const PESTANA = "ayf.terceros"
@@ -68,8 +69,9 @@ function mensajeError(error: { code?: string; message: string }): string {
   return error.message
 }
 
+// Abierta a cualquier usuario con sesión (la tabla bancos se lee sin
+// restricción): la usa el formulario "Nuevo tercero" desde otras pantallas.
 export async function listarBancos(): Promise<Banco[]> {
-  await requerirPestana(PESTANA)
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("bancos")
@@ -131,12 +133,32 @@ export async function obtenerTercero(id: string): Promise<Tercero> {
   return mapTercero(data)
 }
 
+const mapBasico = (t: any): TerceroBasico => ({
+  id: String(t.id),
+  razonSocial: String(t.razon_social),
+  tipoDocumento: String(t.tipo_documento),
+  numeroDocumento: String(t.numero_documento),
+  dv: t.dv ?? null,
+})
+
+// Tercero con ese documento exacto (cédula o NIT; "901.097.443-4" vale), o null.
+// Se busca por documento y no por nombre para no crear el mismo dos veces.
+// Cualquier usuario con sesión (tercero_por_documento).
+export async function buscarTerceroPorDocumento(documento: string): Promise<TerceroBasico | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("tercero_por_documento", { p_documento: documento })
+  if (error) throw new Error(error.message)
+  return data ? mapBasico(data) : null
+}
+
+// Crear un tercero lo puede cualquier usuario con sesión, desde A&F o desde su
+// propia pantalla (Contratistas...); editarlo y verificar sus cuentas sigue
+// siendo de A&F (20261221000000). crear_tercero crea el tercero y su cuenta
+// (PENDIENTE) en una transacción y vuelve a validar todo.
 export async function crearTercero(
   crudo: DatosTercero,
   cuentaCruda: DatosCuenta | null
-): Promise<Tercero> {
-  await requerirAccion("editar_terceros")
-
+): Promise<TerceroBasico> {
   const r = validarTercero(crudo)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del tercero.")
   const d = r.datos
@@ -149,42 +171,29 @@ export async function crearTercero(
   }
 
   const supabase = await createClient()
-  const { data: nuevo, error } = await supabase
-    .from("terceros")
-    .insert({
+  const { data, error } = await supabase.rpc("crear_tercero", {
+    p_datos: {
       tipo_documento: d.tipoDocumento,
       numero_documento: d.numeroDocumento,
-      dv: d.dv,
+      dv: d.dv ?? "",
       razon_social: d.razonSocial,
-      nombre_banco: d.nombreBanco,
-      nombres: d.nombres,
-      apellidos: d.apellidos,
-      observaciones: d.observaciones,
-    })
-    .select("id")
-    .single()
-  if (error) {
-    if (error.code === "23505") throw new Error(`Ya existe un tercero con el documento ${d.numeroDocumento}.`)
-    throw new Error(error.message)
-  }
-
-  if (cuenta) {
-    const { error: errorCuenta } = await supabase.from("terceros_cuentas").insert({
-      tercero_id: nuevo.id,
-      banco_id: cuenta.bancoId,
-      tipo_cuenta: cuenta.tipoCuenta,
-      numero_cuenta: cuenta.numeroCuenta,
-      etiqueta: cuenta.etiqueta,
-      observaciones: cuenta.observaciones,
-    })
-    if (errorCuenta) {
-      throw new Error(
-        `El tercero se creó, pero la cuenta no se pudo guardar: ${mensajeError(errorCuenta)} ` +
-          `Ábrelo y agrégala de nuevo.`
-      )
-    }
-  }
-  return await obtenerTercero(nuevo.id)
+      nombre_banco: d.nombreBanco ?? "",
+      nombres: d.nombres ?? "",
+      apellidos: d.apellidos ?? "",
+      observaciones: d.observaciones ?? "",
+    },
+    p_cuenta: cuenta
+      ? {
+          banco_id: cuenta.bancoId,
+          tipo_cuenta: cuenta.tipoCuenta,
+          numero_cuenta: cuenta.numeroCuenta,
+          etiqueta: cuenta.etiqueta ?? "",
+          observaciones: cuenta.observaciones ?? "",
+        }
+      : null,
+  })
+  if (error) throw new Error(error.message)
+  return mapBasico(data)
 }
 
 // El documento (tipo, número y DV) no se edita: identifica al tercero en todos

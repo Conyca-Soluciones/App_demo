@@ -53,6 +53,17 @@ export type CuentaTercero = {
   observaciones: string | null
 }
 
+// Lo básico de un tercero (crear_tercero y tercero_por_documento,
+// 20261221000000): quien lo crea o lo busca desde otra pantalla (Contratistas,
+// Proveedores...) no lee la tabla Terceros.
+export type TerceroBasico = {
+  id: string
+  razonSocial: string
+  tipoDocumento: string
+  numeroDocumento: string
+  dv: string | null
+}
+
 export type Tercero = {
   id: string
   tipoDocumento: TipoDocumentoTercero

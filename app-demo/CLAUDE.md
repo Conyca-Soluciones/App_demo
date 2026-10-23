@@ -808,7 +808,7 @@ filtran/ordenan en el cliente) con edición en línea por celda
   `actualizarDatosProveedor`: varios campos en un UPDATE, valida todo antes
   de escribir). Guarda en `proveedores` y actualiza la tarjeta, de donde la
   orden en curso toma teléfono/ciudad/correo; el PDF lee NIT, dirección y
-  contacto de `proveedores`. Datos bancarios: solo lectura.
+  contacto de `proveedores`. La cuenta bancaria vive en Terceros (20261223000000).
 - Sin borrado de proveedores.
 - Ojo con los datos: hay nombres con tildes/eñes mal codificados en la base
   (ej. `FERRETERÃA`, `ACUÃ‘A`) -- vienen así de la carga original.
@@ -1299,7 +1299,7 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   Administrador; además, quien tiene Registro de OC, Aprobación de OC o Control
   del proyecto lee SOLO los proveedores de las órdenes que ya puede ver
   (`proveedores_select_de_ordenes`, subconsulta sobre ordenes_compra con su
-  RLS). Sin sesión, nada. `informacion_bancaria` sigue solo Compras/Administrador.
+  RLS). Sin sesión, nada. (`informacion_bancaria` se borró en 20261223000000.)
 - **Ningún permiso se salta los proyectos** (`20261118500000_permisos_por_proyecto.sql`,
   E3; va después de las de la auditoría de RLS 20261118400000-430000): Comprar,
   aprobar/rechazar/desaprobar/cancelar OC, Aprobar requisiciones y Aprobar
@@ -1323,7 +1323,9 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   Quien puede verificar y cambia el número la deja ACTIVA (verificada por él);
   quien no, la devuelve a PENDIENTE.
 - **Contratistas -> Terceros** (`20261118700000_contratistas_a_terceros.sql`,
-  E5; decisiones del usuario 2026-10-21): el banco del contratista es una lista
+  E5; decisiones del usuario 2026-10-21; **reemplazado por 20261222000000**: el
+  contratista ya no tiene datos bancarios, se enlaza al tercero con
+  `tercero_id`; lo que sigue sobre banco y cuenta del contratista es historia): el banco del contratista es una lista
   (tabla `bancos`, la misma de Terceros; `trg_contratista_validar_banco` lo
   exige al crear o al cambiarlo) y el documento es solo números (DV aparte).
   Tipo de cuenta: "CUENTA CORRIENTE" / "CUENTA AHORROS" en pantalla
@@ -1508,6 +1510,120 @@ requisición administrativa ya la tenía en su ítem. Requisiciones de obra no
   La migración va ANTES que el código. `Pago.cuentaTitular`: el Consolidado lo
   muestra debajo de la cuenta ("Titular: …"), Aprobación de pagos y el detalle
   dicen "cuenta de …".
+
+## Órdenes de compra: Transferencia o PSE (2026-10-23)
+
+`20261219000000_oc_metodo_pago_pse.sql` (decisiones del usuario). En Generar OC,
+después del proveedor, "¿Cómo se paga?" (`components/metodo-pago-oc.tsx`,
+`lib/metodo-pago-oc.ts`):
+- **Transferencia**: la cuenta sale de **Terceros** (la que verifica Financiera),
+  ya no de `informacion_bancaria` (el pago nunca la usó; la tarjeta del proveedor
+  ya no la muestra). `cuentas_proveedor_oc` (Compras no lee Terceros por RLS):
+  con una cuenta se elige sola, con varias se escoge. Sin ninguna (o sin
+  tercero) la orden se crea igual (decisión del usuario): el pago llega a A&F
+  sin cuenta; cuando A&F inscribe al proveedor en Terceros el pago queda a su
+  nombre, y cuando registra y verifica la cuenta el pago la recibe
+  (`_enlazar_pagos_tercero`, que antes solo lo hacía con actas). La casilla del titular
+  aparte (20261214000000) sigue igual. La cuenta elegida queda en
+  `ordenes_compra.cuenta_tercero_id` también sin titular (se relajó
+  `ordenes_compra_titular_cuenta_check`) y `_crear_pagos_orden` la usa.
+- **PSE**: sin cuenta. Observaciones (`pago_observaciones`) y, con la casilla
+  "El titular no es <proveedor>", nombre, tipo (CC, NIT, PPT, CE) y documento
+  (`pse_titular_*`; vacío = el proveedor). El pago queda a nombre del proveedor,
+  sin cuenta y sin novedad de cuenta (`_pago_novedad`); `_enlazar_pagos_tercero`
+  no le pone cuenta después.
+- Lo valida `_fijar_pago_orden` (parámetro `p_pago` de
+  `crear_orden_compra_con_soporte`; null = código anterior, sin cambios).
+- **Pagos**: `mapPago` lee el método de la OC: origen "OC N · PSE", cuenta
+  "PSE", el titular PSE en `cuentaTitular` y `pagoObservaciones`
+  (`textoCuentaPago`). El detalle de la OC muestra "Forma de pago".
+- La migración pasó a Terceros como PENDIENTE las cuentas que solo estaban en
+  `informacion_bancaria` (31; se omitió un fondo de Alianza Fiduciaria).
+  Estado de las cuentas de proveedores al 2026-10-23:
+  `docs/estado-cuentas-proveedores.xlsx` (local, no está en git).
+
+## Contratos: Transferencia o PSE (2026-10-23)
+
+`20261220000000_contrato_metodo_pago_pse.sql` (va después de 20261219000000;
+decisión del usuario). En "Forma de pago" de la solicitud (por grupos y
+general), "¿Cómo se paga?" (`components/metodo-pago-contrato.tsx`):
+Transferencia (cuenta del contratista en Terceros: al crear el contratista ya
+se inscribe con la cuenta PENDIENTE, 20261118700000) o PSE, con la información
+para pagar en observaciones (obligatoria). `contratos.metodo_pago` /
+`pago_observaciones`, guardados por `_fijar_pago_contrato` (en los cuatro
+crear/reenviar, como `_fijar_requiere_poliza`; sin `metodo_pago` en p_datos no
+cambia nada). Las actas de un contrato PSE: el formulario no ofrece titular
+aparte (`contrato_para_acta.metodo_pago`), `_pago_de_acta` crea el pago sin
+cuenta ni titular, `_pago_novedad` no pide cuenta y `_enlazar_pagos_tercero`
+no le pone cuenta. En Pagos: origen "Acta N · CJ-… · PSE", cuenta "PSE" y las
+observaciones del contrato (`mapPago`). El detalle del contrato dice "Se paga por".
+Con PSE, la casilla "El titular tiene otro nombre" pide el nombre
+(`contratos.pse_titular_nombre`, `20261224000000`; null = el contratista):
+lo valida `_fijar_pago_contrato` y A&F lo ve en el pago de cada acta (`cuentaTitular`).
+
+## Terceros: el centro de a quién se le paga (2026-10-23)
+
+Decisión del usuario (diseño): `terceros` es TODO aquel a quien CONYCA le
+paga (proveedores, contratistas, después empleados). Identidad y cuentas
+bancarias viven solo ahí (`terceros_cuentas`, verificadas por A&F); cada rol
+tiene su tabla con `tercero_id` y lo propio del rol (contratistas: representante,
+contacto, documentos; proveedores: id_prov, tipo, estado; empleados: datos
+laborales). Una persona con varios roles es un tercero con una fila en cada
+tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
+contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 4) empleados.
+- **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
+  `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
+  lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una
+  transacción (la cuenta PENDIENTE) y avisa si el documento ya existe
+  (`terceros_documento_key`). La RLS no cambió: leer y editar Terceros sigue
+  siendo de A&F; el INSERT directo sigue exigiendo `editar_terceros`.
+  La acción `crearTercero` usa esa función y devuelve `TerceroCreado` (lo
+  básico). El formulario es UNO: `NuevoTerceroDialogo`
+  (`components/tercero-dialogo.tsx`), el de A&F, que se reutiliza tal cual en
+  otras pantallas; `listarBancos` ya no exige la pestaña de Terceros.
+- **Se busca por documento, no por nombre** (decisión del usuario, para no crear
+  el mismo dos veces): `tercero_por_documento` (cualquier sesión; acepta
+  "901.097.443-4") / `buscarTerceroPorDocumento`. "Nuevo tercero" compara el
+  documento mientras se escribe: si ya existe, avisa con el nombre y no deja
+  crearlo (`onExistente` agrega "Usar este tercero"; en A&F, "Abrir ese tercero").
+  La búsqueda de tercero en Crear contratista (punto 2) también va por documento.
+- **Contratistas enlazados** (`20261222000000_contratistas_tercero.sql`):
+  `contratistas.tercero_id` (obligatorio, único). Crear contratista empieza por
+  "Cédula o NIT" → `buscarTerceroPorDocumento`; si no existe, "Crear tercero" abre
+  `NuevoTerceroDialogo` con el documento ya escrito. El tipo de persona sale del
+  tercero (NIT = jurídica, `tipoPersonaDeTercero`); TI y RC no sirven
+  (`esDocumentoContratista`). Ya NO hay banco, tipo ni número de cuenta en
+  `contratistas` (se borraron con `_contratista_a_tercero`,
+  `_contratista_validar_banco` y `datos_bancarios_contratistas`): la cuenta se
+  ve con `CuentasTercero` (`components/cuentas-tercero.tsx`, números
+  enmascarados) en el detalle, el formulario y la solicitud de contrato.
+  `ver_datos_bancarios` solo decide si se ve la certificación bancaria.
+  Nombre, documento, DV y tipo de persona son una COPIA del tercero que pone
+  `contratistas_desde_tercero` (BEFORE INSERT/UPDATE; nadie la edita a mano) y
+  que `trg_tercero_a_contratista` actualiza cuando A&F corrige el tercero: las
+  funciones y pantallas que leen `contratistas.nombre` / `numero_documento`
+  siguen igual. Editar contratista ya no cambia identidad ni cuenta.
+  `_pago_de_acta` toma el tercero de `tercero_id`; `certificacion_bancaria_tercero`
+  y `listar_bancos_admin` también van por `tercero_id`; `guardar_banco` ya no toca
+  contratistas. Los contratistas de prueba se enlazaron (o se les creó el tercero,
+  sin cuenta).
+- **Proveedores enlazados** (`20261223000000_proveedores_tercero.sql`):
+  `proveedores.tercero_id` (único; 393 de 394 enlazados por documento; EQUINORTE
+  PV0318 sin documento queda sin tercero). Nuevo proveedor = `SelectorTercero`
+  (`components/selector-tercero.tsx`, el mismo de Contratistas) + datos propios.
+  Decisiones del usuario: Terceros manda en NOMBRE y NÚMERO (copia que pone
+  `proveedores_desde_tercero` y actualiza `trg_tercero_a_proveedor`; los nombres
+  pasaron al formato de Terceros, "SAS"); el TIPO que muestra la OC lo decide el
+  proveedor (una persona natural que en Terceros es CC puede salir como NIT) y el
+  DV se calcula (`dv_nit`) si es NIT. En Proveedores y en la tarjeta de Generar
+  OC, nombre, número y DV ya no se editan (`esCampoDeTercero`). Dos documentos
+  repetidos sin OC (PV034/PV0235, PV021/PV0266): se enlazó el de más datos y el
+  otro quedó INACTIVO sin tercero. `informacion_bancaria` se borró (copia en
+  `respaldo_informacion_bancaria_20261023`, sin acceso por la API) con
+  `crear_terceros_desde_proveedores`. `_crear_pagos_orden`, `cuentas_proveedor_oc`,
+  `_fijar_pago_orden`, `_fijar_titular_orden` y `_enlazar_pagos_tercero` buscan
+  por `proveedores.tercero_id`. La ventana del proveedor muestra sus cuentas de
+  Terceros.
 
 ## Liquidación en el Consolidado (2026-10-23)
 
@@ -3333,9 +3449,9 @@ liquidación; contrato vencido = sin actas de avance + aviso.
 
 ## Actas generales `/contratos/actas-generales` (2026-10-23)
 
-`20261221000000_actas_generales.sql` (decisión del usuario: "igual que actas
+`20261225000000_actas_generales.sql` (decisión del usuario: "igual que actas
 por grupos pero para contratos generales", por % de ejecución también el
-pago). Va después de `20261220000000` (rama de Sofia, método de pago).
+pago). Va después de las de la rama de Sofia (`20261217000000`-`20261224000000`, todas en main).
 - **La misma pantalla y las mismas funciones** que Actas por grupos:
   `ActasContratosView` con `clase="general"` (`lib/actas-clase.ts`:
   `PESTANA_ACTAS`, `RUTA_ACTAS`, `TITULO_ACTAS`). Las acciones de
@@ -3507,8 +3623,16 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
 `20261217000000` dispersores (Realizar Pagos) ·
 `20261218000000` pestaña Dispersados del Consolidado y filtro por semana de creación ·
-`20261220000000` método de pago de los contratos (rama de Sofia) ·
-`20261221000000` actas generales.
+(mismos números, otra rama:) 
+`20261217000000` una OC con el pago aprobado no se cancela ·
+`20261218000000` quién retira obligatorio en salidas ·
+`20261219000000` OC por transferencia (cuenta de Terceros) o PSE ·
+`20261220000000` contratos por transferencia o PSE (después de la anterior) ·
+`20261221000000` crear terceros abierto a todos (editar sigue en A&F) ·
+`20261222000000` contratistas enlazados al tercero (sin datos bancarios propios) ·
+`20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria) ·
+`20261224000000` contrato por PSE: titular con otro nombre ·
+`20261225000000` actas generales (después de las de la otra rama).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
