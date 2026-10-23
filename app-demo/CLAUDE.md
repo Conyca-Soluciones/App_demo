@@ -1544,6 +1544,29 @@ cuenta ni titular, `_pago_novedad` no pide cuenta y `_enlazar_pagos_tercero`
 no le pone cuenta. En Pagos: origen "Acta N · CJ-… · PSE", cuenta "PSE" y las
 observaciones del contrato (`mapPago`). El detalle del contrato dice "Se paga por".
 
+## Terceros: el centro de a quién se le paga (2026-10-23)
+
+Decisión del usuario (diseño): `terceros` es TODO aquel a quien CONYCA le
+paga (proveedores, contratistas, después empleados). Identidad y cuentas
+bancarias viven solo ahí (`terceros_cuentas`, verificadas por A&F); cada rol
+tiene su tabla con `tercero_id` y lo propio del rol (contratistas: representante,
+contacto, documentos; proveedores: id_prov, tipo, estado; empleados: datos
+laborales). Una persona con varios roles es un tercero con una fila en cada
+tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
+contratistas con `tercero_id` (sin datos bancarios propios; nombre y documento
+como copia que se actualiza sola desde Terceros mientras se migran las lecturas),
+3) proveedores con `tercero_id` (retirar `informacion_bancaria`), 4) empleados.
+- **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
+  `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
+  lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una
+  transacción (la cuenta PENDIENTE) y avisa si el documento ya existe
+  (`terceros_documento_key`). La RLS no cambió: leer y editar Terceros sigue
+  siendo de A&F; el INSERT directo sigue exigiendo `editar_terceros`.
+  La acción `crearTercero` usa esa función y devuelve `TerceroCreado` (lo
+  básico). El formulario es UNO: `NuevoTerceroDialogo`
+  (`components/tercero-dialogo.tsx`), el de A&F, que se reutiliza tal cual en
+  otras pantallas; `listarBancos` ya no exige la pestaña de Terceros.
+
 ## Liquidación en el Consolidado (2026-10-23)
 
 `20261215000000_liquidacion_consolidado.sql` (decisiones del usuario: ~300 pagos
@@ -3473,7 +3496,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261217000000` una OC con el pago aprobado no se cancela ·
 `20261218000000` quién retira obligatorio en salidas ·
 `20261219000000` OC por transferencia (cuenta de Terceros) o PSE ·
-`20261220000000` contratos por transferencia o PSE (después de la anterior).
+`20261220000000` contratos por transferencia o PSE (después de la anterior) ·
+`20261221000000` crear terceros abierto a todos (editar sigue en A&F).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

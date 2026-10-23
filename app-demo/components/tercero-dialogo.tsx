@@ -32,6 +32,7 @@ import {
   type CuentaTercero,
   type DatosCuenta,
   type Tercero,
+  type TerceroCreado,
 } from "@/lib/terceros"
 
 const CUENTA_VACIA: DatosCuenta = { bancoId: "", tipoCuenta: "", numeroCuenta: "", etiqueta: "", observaciones: "" }
@@ -543,6 +544,8 @@ const TERCERO_VACIO = {
   observaciones: "",
 }
 
+// El mismo formulario en A&F y en las pantallas que crean su tercero
+// (Contratistas...): crear lo puede cualquiera, editar solo A&F.
 export function NuevoTerceroDialogo({
   abierto,
   bancos,
@@ -552,7 +555,7 @@ export function NuevoTerceroDialogo({
   abierto: boolean
   bancos: Banco[]
   onCerrar: () => void
-  onCreado: (t: Tercero) => void
+  onCreado: (t: TerceroCreado) => void
 }) {
   const [datos, setDatos] = useState(TERCERO_VACIO)
   const [conCuenta, setConCuenta] = useState(true)

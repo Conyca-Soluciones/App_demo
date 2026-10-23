@@ -53,6 +53,16 @@ export type CuentaTercero = {
   observaciones: string | null
 }
 
+// Lo que devuelve crear_tercero (20261221000000): solo lo básico, porque quien
+// lo crea desde otra pantalla (Contratistas, Proveedores...) no lee Terceros.
+export type TerceroCreado = {
+  id: string
+  razonSocial: string
+  tipoDocumento: string
+  numeroDocumento: string
+  dv: string | null
+}
+
 export type Tercero = {
   id: string
   tipoDocumento: TipoDocumentoTercero

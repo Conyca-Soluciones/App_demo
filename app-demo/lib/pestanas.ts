@@ -168,7 +168,7 @@ export const ACCIONES: Accion[] = [
   { clave: "aprobar_pagos", titulo: "Aprobar pagos", descripcion: "Aprobar o rechazar los pagos pendientes (por ahora, los saldos de órdenes de compra con anticipo).", seccion: "A&F" },
   { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, generar los pagos de una orden ya aprobada, enviar pagos a liquidar y responder lo que Contabilidad observa.", seccion: "A&F" },
   { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
-  { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Crear terceros y agregar o corregir sus cuentas bancarias (las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
+  { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Corregir terceros y agregar o corregir sus cuentas bancarias (crear un tercero lo puede cualquiera; las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]
 

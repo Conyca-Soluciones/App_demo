@@ -485,5 +485,8 @@ select * from (
                   where table_schema = 'public' and table_name = 'contratos' and column_name = 'metodo_pago')
          and exists (select 1 from pg_proc where proname = 'crear_solicitud_contrato' and prosrc like '%_fijar_pago_contrato%')
          and exists (select 1 from pg_proc where proname = '_pago_de_acta' and prosrc like '%c.metodo_pago%')
+  union all
+  select '20261221000000_terceros_crear_para_todos',
+         exists (select 1 from pg_proc where proname = 'crear_tercero')
 ) t
 order by 1;
