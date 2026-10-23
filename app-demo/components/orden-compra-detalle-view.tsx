@@ -28,6 +28,7 @@ import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calcul
 import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
   obtenerOrdenCompraDetalle,
@@ -38,6 +39,7 @@ import {
   cancelarOrdenCompra,
   type OrdenCompraDetalle,
   type PermisosOrdenCompra,
+  type RequisicionDeOrden,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
 const formatoFecha = (iso: string) =>
@@ -65,6 +67,8 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [motivoAccion, setMotivoAccion] = useState("")
 
   const [soportes, setSoportes] = useState<SoporteGuardado[]>([])
+  // Requisición abierta en un diálogo encima de la orden.
+  const [requisicionAbierta, setRequisicionAbierta] = useState<string | null>(null)
 
   function cargar() {
     Promise.all([obtenerOrdenCompraDetalle(ordenId), obtenerPermisosOrdenCompra(), listarSoportesOrden(ordenId)])
@@ -126,6 +130,11 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   // siempre el mismo número.
   const totales = calcularTotalesOrden(orden.lineas)
   const totalOrden = totales.total
+
+  // Requisiciones de la orden, sin repetir, en orden de número.
+  const porId = new Map<string, RequisicionDeOrden>()
+  for (const l of orden.lineas) if (l.requisicion) porId.set(l.requisicion.id, l.requisicion)
+  const requisiciones = [...porId.values()].sort((a, b) => a.numero - b.numero)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -209,6 +218,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               <TableRow>
                 <TableHead>Cod</TableHead>
                 <TableHead>Insumo</TableHead>
+                <TableHead>Requisición</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Cantidad</TableHead>
                 <TableHead className="text-right">Precio unit.</TableHead>
@@ -222,6 +232,19 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   <TableRow key={linea.id}>
                     <TableCell className="text-muted-foreground">{linea.insumoCodigo}</TableCell>
                     <TableCell>{linea.insumoDescripcion}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {linea.requisicion ? (
+                        <button
+                          type="button"
+                          className="text-primary underline-offset-2 hover:underline"
+                          onClick={() => setRequisicionAbierta(linea.requisicion!.id)}
+                        >
+                          N° {linea.requisicion.numero}
+                        </button>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell>{linea.presentacion ? linea.presentacion.umCompra : (linea.um ?? "—")}</TableCell>
                     <TableCell className="text-right">
                       {(linea.presentacion ? linea.presentacion.cantidadCompra : linea.cantidad).toLocaleString("es-CO")}
@@ -248,7 +271,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={4} className="text-right text-muted-foreground">
+                <TableCell colSpan={5} className="text-right text-muted-foreground">
                   Subtotal
                 </TableCell>
                 <TableCell colSpan={2} className="text-right text-muted-foreground">
@@ -256,7 +279,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={4} className="text-right text-muted-foreground">
+                <TableCell colSpan={5} className="text-right text-muted-foreground">
                   Descuento
                 </TableCell>
                 <TableCell colSpan={2} className="text-right text-muted-foreground">
@@ -264,7 +287,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={4} className="text-right text-muted-foreground">
+                <TableCell colSpan={5} className="text-right text-muted-foreground">
                   IVA
                 </TableCell>
                 <TableCell colSpan={2} className="text-right text-muted-foreground">
@@ -272,7 +295,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={4} className="text-right font-medium">
+                <TableCell colSpan={5} className="text-right font-medium">
                   Total orden
                 </TableCell>
                 <TableCell colSpan={2} className="text-right font-semibold">
@@ -289,6 +312,24 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <p>
               {orden.proyectoCodigo ?? "—"} {orden.proyectoNombre ? `· ${orden.proyectoNombre}` : ""}
             </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground">{requisiciones.length === 1 ? "Requisición" : "Requisiciones"}</p>
+            {requisiciones.length === 0 ? (
+              <p>—</p>
+            ) : (
+              requisiciones.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className="block text-left text-primary underline-offset-2 hover:underline"
+                  onClick={() => setRequisicionAbierta(r.id)}
+                >
+                  N° {r.numero}
+                  <span className="text-muted-foreground"> · solicitada por {r.solicitante ?? "—"}</span>
+                </button>
+              ))
+            )}
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Proveedor</p>
@@ -464,6 +505,14 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         </DialogContent>
       </Dialog>
 
+      <Dialog open={requisicionAbierta !== null} onOpenChange={(open) => !open && setRequisicionAbierta(null)}>
+        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+          <DialogTitle className="sr-only">Detalle de la requisición</DialogTitle>
+          {requisicionAbierta && (
+            <RequisicionDetalleView requisicionId={requisicionAbierta} onCerrar={() => setRequisicionAbierta(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

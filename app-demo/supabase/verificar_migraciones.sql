@@ -453,5 +453,9 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
                         and pg_get_function_identity_arguments(oid) like '%p_titular%')
          and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%_fijar_titular_acta%')
+  union all
+  select '20261215000000_oc_no_cancelar_con_pago_aprobado',
+         exists (select 1 from pg_proc where proname = '_cancelar_orden_compra_sin_proyecto'
+                    and prosrc like '%ya fue aprobado en Aprobación de pagos%')
 ) t
 order by 1;

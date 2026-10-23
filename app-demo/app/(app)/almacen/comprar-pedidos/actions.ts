@@ -635,7 +635,11 @@ export type LineaOrdenCompraDetalle = {
   // comprado de verdad; cantidad y precioUnitario siguen en la unidad del
   // insumo (de ahí cuelgan Entradas, inventario y precios promedio).
   presentacion: PresentacionLinea | null
+  // Requisición de donde salió la línea (null si quien consulta no la puede ver).
+  requisicion: RequisicionDeOrden | null
 }
+
+export type RequisicionDeOrden = { id: string; numero: number; solicitante: string | null }
 
 export type OrdenCompraDetalle = {
   id: string
@@ -704,7 +708,10 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
         um_compra, conversion_compra, cantidad_compra, precio_compra,
         pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(
           unidad,
-          insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m)
+          insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m),
+          requisicion:requisiciones!pedidos_insumos_requisicion_fkey(
+            id, numero, solicitante:perfiles!requisiciones_solicitado_por_fkey(nombre)
+          )
         )
       )
     `
@@ -774,6 +781,13 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
             cantidadCompra: Number(l.cantidad_compra),
             precioCompra: Number(l.precio_compra),
             unidadConversion: l.pedido?.unidad ?? l.pedido?.insumo?.u_m ?? null,
+          }
+        : null,
+      requisicion: l.pedido?.requisicion
+        ? {
+            id: l.pedido.requisicion.id,
+            numero: l.pedido.requisicion.numero,
+            solicitante: l.pedido.requisicion.solicitante?.nombre ?? null,
           }
         : null,
     })),

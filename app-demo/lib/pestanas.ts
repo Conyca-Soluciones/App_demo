@@ -157,7 +157,7 @@ export const ACCIONES: Accion[] = [
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente: su pago vuelve a Aprobación de pagos.", seccion: "Compras" },
-  { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Cancelar órdenes aprobadas que todavía no tienen entregas.", seccion: "Compras" },
+  { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Retirar órdenes pendientes de otros (una aprobada ya no se cancela: su pago ya fue aprobado).", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato y de otrosí de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso. También arma el otrosí y lo envía a Subgerencia, lo devuelve o lo rechaza.", seccion: "Contratos" },
