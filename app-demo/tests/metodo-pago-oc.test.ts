@@ -27,9 +27,10 @@ describe("Transferencia en la OC", () => {
     expect(validarPagoOC(pago({ cuentaId: "c2" }), dos, false)).toBeNull()
     expect(pagoOCParaGuardar(pago({ cuentaId: "c2" }), dos, false).cuenta_id).toBe("c2")
   })
-  it("sin cuenta o sin tercero no deja generar", () => {
-    expect(validarPagoOC(pago(), info([]), false)).toMatch(/no tiene cuenta/)
-    expect(validarPagoOC(pago(), info([], null), false)).toMatch(/no está inscrito/)
+  it("sin cuenta o sin tercero se genera igual, sin cuenta (A&F la registra)", () => {
+    expect(validarPagoOC(pago(), info([]), false)).toBeNull()
+    expect(validarPagoOC(pago(), info([], null), false)).toBeNull()
+    expect(pagoOCParaGuardar(pago(), info([]), false).cuenta_id).toBeNull()
   })
   it("con titular aparte no mira las cuentas del proveedor", () => {
     expect(validarPagoOC(pago(), info([]), true)).toBeNull()

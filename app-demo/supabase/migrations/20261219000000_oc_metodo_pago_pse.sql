@@ -4,15 +4,20 @@
 -- Transferencia: la cuenta sale de Terceros (la que verifica Financiera), ya no
 -- de proveedores / informacion_bancaria (que el pago nunca usó). Generar OC
 -- muestra las cuentas del proveedor en Terceros: con una se elige sola, con
--- varias se escoge, y sin ninguna no deja generar la orden por transferencia
--- (se puede pagar por PSE o pedir a A&F que registre la cuenta). La cuenta de
--- un titular aparte (20261214000000) sigue igual.
+-- varias se escoge. Sin ninguna (o sin tercero) la orden se crea igual y el
+-- pago llega a A&F sin cuenta: A&F la registra en Terceros y, al verificarla,
+-- _enlazar_pagos_tercero se la pone al pago (decisión del usuario). La cuenta
+-- de un titular aparte (20261214000000) sigue igual.
 -- PSE: sin cuenta bancaria. Observaciones para A&F y, si el titular no es el
 -- proveedor, su nombre, tipo (CC, NIT, PPT, CE) y número de documento. El pago
 -- queda a nombre del proveedor, sin cuenta y sin la novedad "falta cuenta".
 --
 -- Además: las cuentas que estaban solo en informacion_bancaria se pasan a
 -- Terceros como PENDIENTE para que Financiera las verifique.
+--
+-- Cuando A&F inscribe al proveedor en Terceros, el pago de la OC queda a su
+-- nombre; cuando registra y verifica su cuenta, el pago la recibe
+-- (_enlazar_pagos_tercero, como ya pasaba con las actas).
 --
 -- Funciones vivas parchadas (texto exacto; falla si no lo encuentra el número
 -- de veces esperado): _crear_pagos_orden, _pago_novedad, _enlazar_pagos_tercero
@@ -160,7 +165,7 @@ begin
     return;  -- se paga en la cuenta del titular aparte, ya validada
   end if;
   if v_oc.tercero_id is null then
-    raise exception 'El proveedor no está inscrito en Terceros: pídele a A&F que lo inscriba con su cuenta, o paga por PSE.';
+    return;  -- A&F inscribe al proveedor en Terceros y le asigna el pago
   end if;
 
   v_cuenta := nullif(p_pago ->> 'cuenta_id', '')::uuid;
@@ -177,7 +182,7 @@ begin
     select count(*) into v_n from public.terceros_cuentas c
      where c.tercero_id = v_oc.tercero_id and c.estado <> 'INACTIVO';
     if v_n = 0 then
-      raise exception 'El proveedor no tiene cuenta bancaria en Terceros: pídele a A&F que la registre, o paga por PSE.';
+      return;  -- A&F registra la cuenta en Terceros antes de pagar
     end if;
     if v_n > 1 then
       raise exception 'El proveedor tiene varias cuentas en Terceros: elige en cuál se paga.';
@@ -213,6 +218,26 @@ declare
     ['_pago_novedad',
      'case when r.metodo = ''pse'' then null',
      'case when r.metodo = ''pse'' or oc.metodo_pago = ''pse'' then null',
+     '1'],
+    -- Pagos de OC sin tercero (el proveedor no estaba en Terceros): al
+    -- inscribirlo A&F, el pago queda a su nombre, como ya pasaba con las actas.
+    ['_enlazar_pagos_tercero',
+     '  if v_cuenta is not null then',
+     E'  -- Pagos de OC creados sin tercero (proveedor que no estaba en Terceros).\n'
+       || E'  for v_pago in\n'
+       || E'    update public.pagos pg\n'
+       || E'       set tercero_id = p_tercero_id\n'
+       || E'     where pg.tercero_id is null\n'
+       || E'       and pg.fuente = ''orden_compra''\n'
+       || E'       and pg.estado in (''programado'', ''solicitado'', ''aprobado'', ''liquidado'')\n'
+       || E'       and exists (select 1 from public.ordenes_compra o\n'
+       || E'                     join public.proveedores pr on pr.unique_id = o.proveedor_id\n'
+       || E'                    where o.id = pg.orden_compra_id and pr.numero_documento::text = v_documento)\n'
+       || E'    returning pg.id\n'
+       || E'  loop\n'
+       || E'    perform public._pago_actualizar_novedad(v_pago);\n'
+       || E'  end loop;\n\n'
+       || E'  if v_cuenta is not null then',
      '1'],
     -- Un pago PSE no recibe cuenta cuando el proveedor registra una después.
     ['_enlazar_pagos_tercero',

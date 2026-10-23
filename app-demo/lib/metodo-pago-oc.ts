@@ -1,9 +1,10 @@
 // Método de pago de una orden de compra (20261219000000): Transferencia o PSE,
 // como en las requisiciones administrativas.
 // - Transferencia: la cuenta del proveedor sale de Terceros (la que verifica
-//   Financiera). Con una se elige sola, con varias se escoge, sin ninguna no
-//   se genera la orden por transferencia. O la cuenta de un titular aparte
-//   (casilla "El titular de la cuenta es otro tercero").
+//   Financiera). Con una se elige sola, con varias se escoge. Sin ninguna (o
+//   sin tercero) la orden se crea igual: A&F registra la cuenta en Terceros
+//   antes de pagar. O la cuenta de un titular aparte (casilla "El titular de
+//   la cuenta es otro tercero").
 // - PSE: sin cuenta. Observaciones para A&F y, si el titular no es el
 //   proveedor, su nombre, tipo y número de documento.
 // La base vuelve a validar todo (_fijar_pago_orden). Archivo plano: lo usan la
@@ -82,10 +83,8 @@ export function validarPagoOC(
   }
   if (conTitularAparte) return null
   if (!info) return "Espera a que carguen las cuentas del proveedor."
-  if (!info.terceroId)
-    return "El proveedor no está inscrito en Terceros: pídele a A&F que lo inscriba con su cuenta, o paga por PSE."
-  if (info.cuentas.length === 0)
-    return "El proveedor no tiene cuenta bancaria en Terceros: pídele a A&F que la registre, o paga por PSE."
+  // Sin tercero o sin cuentas: se genera igual y A&F registra la cuenta.
+  if (!info.terceroId || info.cuentas.length === 0) return null
   if (!cuentaProveedorElegida(p, info)) return "Elige en cuál cuenta del proveedor se paga."
   return null
 }

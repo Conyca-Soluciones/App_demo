@@ -82,12 +82,13 @@ export function MetodoPagoOC({
                 </p>
               ) : !info.terceroId ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
-                  El proveedor no está inscrito en Terceros. Pídele a A&amp;F que lo inscriba con su cuenta, o paga por PSE.
+                  Falta la información bancaria: el proveedor no está inscrito en Terceros. La orden se puede generar;
+                  A&amp;F lo inscribe con su cuenta antes de pagar.
                 </p>
               ) : info.cuentas.length === 0 ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800">
-                  Falta la información bancaria: el proveedor no tiene cuenta registrada en Terceros. Pídele a A&amp;F
-                  que la registre, o paga por PSE.
+                  Falta la información bancaria: el proveedor no tiene cuenta registrada en Terceros. La orden se
+                  puede generar; A&amp;F registra la cuenta antes de pagar.
                 </p>
               ) : info.cuentas.length === 1 ? (
                 <p className="rounded-md border bg-muted/40 px-3 py-2">{textoCuentaProveedor(info.cuentas[0])}</p>

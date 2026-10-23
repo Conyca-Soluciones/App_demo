@@ -1505,8 +1505,11 @@ después del proveedor, "¿Cómo se paga?" (`components/metodo-pago-oc.tsx`,
 - **Transferencia**: la cuenta sale de **Terceros** (la que verifica Financiera),
   ya no de `informacion_bancaria` (el pago nunca la usó; la tarjeta del proveedor
   ya no la muestra). `cuentas_proveedor_oc` (Compras no lee Terceros por RLS):
-  con una cuenta se elige sola, con varias se escoge, sin ninguna (o sin
-  tercero) no se genera la orden por transferencia. La casilla del titular
+  con una cuenta se elige sola, con varias se escoge. Sin ninguna (o sin
+  tercero) la orden se crea igual (decisión del usuario): el pago llega a A&F
+  sin cuenta; cuando A&F inscribe al proveedor en Terceros el pago queda a su
+  nombre, y cuando registra y verifica la cuenta el pago la recibe
+  (`_enlazar_pagos_tercero`, que antes solo lo hacía con actas). La casilla del titular
   aparte (20261214000000) sigue igual. La cuenta elegida queda en
   `ordenes_compra.cuenta_tercero_id` también sin titular (se relajó
   `ordenes_compra_titular_cuenta_check`) y `_crear_pagos_orden` la usa.
