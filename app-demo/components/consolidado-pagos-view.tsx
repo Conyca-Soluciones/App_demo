@@ -217,12 +217,20 @@ export function ConsolidadoPagosView({ clave, puedeGestionar }: { clave: ClaveCo
       clave: "cuenta",
       titulo: "Cuenta",
       ancho: 230,
-      texto: (p) => p.cuentaTexto ?? "",
+      texto: (p) => (p.cuentaTexto ? `${p.cuentaTitular ? `Titular: ${p.cuentaTitular} · ` : ""}${p.cuentaTexto}` : ""),
       celda: (p) => (
-        <span className={`truncate ${p.cuentaTexto && !p.cuentaVerificada ? "text-amber-700" : ""}`} title={p.cuentaTexto ?? undefined}>
-          {p.cuentaTexto ?? <span className="text-muted-foreground/60">—</span>}
-          {p.cuentaTexto && !p.cuentaVerificada && " (sin verificar)"}
-        </span>
+        <div className="min-w-0">
+          <div className={`truncate ${p.cuentaTexto && !p.cuentaVerificada ? "text-amber-700" : ""}`} title={p.cuentaTexto ?? undefined}>
+            {p.cuentaTexto ?? <span className="text-muted-foreground/60">—</span>}
+            {p.cuentaTexto && !p.cuentaVerificada && " (sin verificar)"}
+          </div>
+          {/* La cuenta es de otro tercero (quien factura es el de la columna Tercero). */}
+          {p.cuentaTitular && (
+            <div className="truncate text-xs text-muted-foreground" title={`Titular de la cuenta: ${p.cuentaTitular}`}>
+              Titular: {p.cuentaTitular}
+            </div>
+          )}
+        </div>
       ),
     },
     { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen },

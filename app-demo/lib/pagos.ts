@@ -85,6 +85,9 @@ export type Pago = {
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
+  // Dueño de la cuenta cuando no es el tercero que factura (20261214000000):
+  // el pago es del tercero, se consigna en la cuenta de este titular.
+  cuentaTitular: string | null
   numeroFactura: string | null
   solicitadoPorNombre: string | null
   // Desglose de origen (como el cuadro de pagos), guardado al crear el pago:

@@ -51,8 +51,11 @@ import {
   listarActasDeContrato,
   obtenerActa,
   obtenerContratoParaActa,
+  titularDeActa,
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
+import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
+import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
@@ -546,6 +549,18 @@ function FormularioActa({
   const [tipoNuevoOtro, setTipoNuevoOtro] = useState<TipoSoporte>("memoria")
   const [guardando, setGuardando] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Cuenta de otro tercero (quien factura es el contratista). Al corregir, la guardada.
+  const [titular, setTitular] = useState<TitularCuenta | null>(null)
+  useEffect(() => {
+    if (!edicion) return
+    let activo = true
+    titularDeActa(edicion.id)
+      .then((t: TitularCuenta | null) => activo && setTitular(t))
+      .catch((e) => activo && setError(mensaje(e, "No se pudo cargar el titular de la cuenta.")))
+    return () => {
+      activo = false
+    }
+  }, [edicion])
 
   const cambiar = (c: Partial<FormActa>) => setForm((f) => ({ ...f, ...c }))
   const r = info ? calcularActa(info, form) : null
@@ -594,6 +609,12 @@ function FormularioActa({
       setError("Adjunta el soporte de pago (factura o cuenta de cobro del contratista): el acta con pago lo exige.")
       return
     }
+    const t = titularParaGuardar(sinPago ? null : titular)
+    if (!t.ok) {
+      setError(t.error)
+      return
+    }
+    const datos = { ...v.datos, titular: t.titular }
     const actaId = edicion?.id ?? crypto.randomUUID()
     const supabase = createClient()
     const subidos: SoporteSubido[] = []
@@ -612,11 +633,11 @@ function FormularioActa({
       )
       setGuardando("Guardando acta…")
       if (edicion) {
-        const res = await editarActa(edicion.id, v.datos, subidos, [...quitarSoportes])
+        const res = await editarActa(edicion.id, datos, subidos, [...quitarSoportes])
         if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
         onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. ${despues}`)
       } else {
-        const res = await guardarActa(actaId, contrato.id, v.datos, subidos)
+        const res = await guardarActa(actaId, contrato.id, datos, subidos)
         onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. ${despues}`)
       }
     } catch (e) {
@@ -842,6 +863,13 @@ function FormularioActa({
               </tbody>
             </table>
           </div>
+
+          {/* Cuenta donde se paga: la del contratista u otro tercero. */}
+          {!sinPago && (
+            <div className="rounded-md border p-3">
+              <CampoTitularCuenta valor={titular} onCambiar={setTitular} quienFactura={contrato.contratistaNombre} />
+            </div>
+          )}
 
           {/* Observaciones */}
           <div className="space-y-1">

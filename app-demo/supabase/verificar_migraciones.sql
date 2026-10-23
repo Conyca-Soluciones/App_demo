@@ -446,5 +446,12 @@ select * from (
   select '20261213000000_soporte_req_admin_obligatorio',
          exists (select 1 from pg_proc where proname = '_validar_soporte_req_admin'
                     and prosrc like '%adjunta el soporte%')
+  union all
+  select '20261214000000_titular_cuenta_pagos',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'pagos' and column_name = 'titular_tercero_id')
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
+                        and pg_get_function_identity_arguments(oid) like '%p_titular%')
+         and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%_fijar_titular_acta%')
 ) t
 order by 1;
