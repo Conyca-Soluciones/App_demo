@@ -1359,6 +1359,18 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   en `listarConsolidado`; las semanas valen en cada año elegido. Selector
   `SelectorNumeros` (`components/selector-numeros.tsx`); por omisión la semana
   actual. La tabla tiene columna Semana junto al ITEM.
+- **Semana de aprobación y semana de creación** (decisión del usuario
+  2026-10-23): `pagos.anio` / `semana` son la semana en que se APROBÓ el pago
+  (la del ITEM, `_pago_asignar_item` usa `aprobado_en`), no la de creación. Los
+  consolidados y el Consolidado Gerencia tienen los dos filtros
+  (`components/filtro-semanas.tsx`): "Semana de aprobación (ITEM)" (por omisión
+  la actual) y "Semana de creación" (`creado_en`, por omisión todas;
+  `FiltroCreacion.aniosCreacion` / `semanasCreacion`). La de creación se filtra
+  con rangos lunes a lunes en hora de Colombia (`rangosSemanasIso` en
+  `lib/pagos.ts`, con pruebas; `filtrarSemanaCreacion` en `lib/pagos-db.ts`, un
+  solo `.or`) y el conteo de pestañas los recibe en
+  `conteo_etapas_consolidado(..., p_creado_desde, p_creado_hasta)`
+  (`20261218000000`; solo se mandan si se eligió el filtro).
 - **Mis pendientes** (T1, `/pendientes`, `20261127000000_mis_pendientes.sql`;
   decisiones del usuario 2026-10-21): bandeja POR PERSONA, no por rol; le sale a
   todos los que pueden resolverlo y el primero que lo resuelve lo quita de la
@@ -1661,6 +1673,53 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
 - **Pendiente**: avisar en Mis pendientes (observados a Financiera, por liquidar
   a Contabilidad: hay que recrear `_pendientes_de`); dispersores y PSE (fecha de
   pago, cuenta a debitar y soporte del dispersor).
+
+## Realizar Pagos: dispersores `/ayf/realizar-pagos` (2026-10-23)
+
+`20261217000000_dispersores.sql`. Decisiones del usuario: TODA la consola de
+dispersores de Python (`Generar Dispersores/`: servidor.py + nucleo/) dentro de
+la app, con los formatos EXACTOS (posiciones, anchos, rellenos, latin-1 + CRLF,
+mismos nombres de archivo); una persona (Financiera, acción
+`generar_dispersores`, pestaña `ayf.realizar_pagos`) dispersa los pagos de los
+tres consolidados.
+- **Port exacto** en `lib/dispersores/`: `textos.ts`, `catalogos.ts`,
+  `generador.ts` (Bogotá 250, Bancolombia PAB 264, Itaú y Davivienda en Excel).
+  Probado: plano de Bogotá byte a byte contra un archivo real
+  (`tests/dispersores-regresion.test.ts`, el archivo vive en
+  `referencias/dispersores/oro/`, fuera de git) y 1.500 tandas contra el Python
+  original (`tests/dispersores-python.test.ts`, `comparacion_python.json`).
+  **No cambiar posiciones, anchos ni rellenos.** Soporte PDF:
+  `components/soporte-dispersor-pdf.tsx` (copia de `nucleo/soporte.py`).
+- **Entran los pagos liquidados** (`liquidacion_estado = 'liquidado'`, aprobados)
+  con el valor a pagar truncado al peso. **La cuenta del beneficiario es siempre
+  la del pago** (la del titular si se eligió otro): no hay cruce contra
+  BASE_TERCEROS. Estados (`conEstado`, `lib/dispersores/pagos-dispersor.ts`):
+  Por asignar, Asignados, Confirmar cuenta (cuenta PENDIENTE o que cambió;
+  cambiar la cuenta del pago borra la confirmación, `trg_pago_cuenta_sin_confirmar`),
+  Bloqueados (sin tercero, sin cuenta, cuenta inactiva), No van por dispersor
+  (PSE y lo sacado a mano: pestaña "Otros pagos pendientes") y Ya dispersados.
+- **Pasos**: 1 Preparar (confirmar, sacar, devolver), 2 Asignar (banco y cuenta
+  a debitar, `cuentas_empresa`; varias por empresa), 3 Confirmar y generar
+  (tarjeta por dispersor con total y avisos). Un dispersor = cuenta a debitar +
+  año + semana (+ nómina aparte: etiqueta `NOM` en `pagos.etiquetas`, archivo
+  `_NOM`). Clase de pago siempre PROVEEDORES (la consola nunca la cambiaba).
+- **Generar** (`generarDispersores`, todo o nada como `api_generar`): arma todo
+  en memoria, sube a `dispersores/<id>/` (archivos y soporte grupal
+  `<base>_soporte_Ronda<N>.pdf`) y `dispersores/<id>/items/` (soporte
+  individual `<base>_ITEM<n>_soporte.pdf` de cada pago), y
+  `registrar_dispersiones` revisa todo otra vez (pagos, valor, asignación,
+  archivos, secuencia `A<n>` por cuenta/año/semana y ronda por nombre/año) y
+  deja los pagos `dispersado` (no hay estado "pagado", decisión del usuario).
+  Si falla, se borra lo subido. Tablas `dispersiones` y `dispersion_pagos`
+  (soporte individual de cada pago). Pestaña "Dispersores generados" con los
+  archivos (enlace firmado de 2 min).
+- **Consolidado › Dispersados** (`20261218000000`, decisión del usuario): pestaña
+  con los pagos `dispersado` (Liquidados sigue con los aprobados) y la columna
+  "Dispersor" junto al Soporte: el soporte individual por el enlace fijo
+  `/ayf/soporte-dispersor/<pago>` (route handler; RLS de `dispersion_pagos` y
+  del bucket). El estado `dispersado` se muestra "Dispersado" (antes "Pagado").
+- **Pendiente**: soporte de los pagos por PSE; el soporte del dispersor en la
+  ventana del pago.
 
 ## Liquidación de pagos: se quitó (2026-10-22)
 
@@ -3539,6 +3598,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261214000000` titular de la cuenta en OC, actas y pagos ·
 `20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
 `20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
+`20261217000000` dispersores (Realizar Pagos) ·
+`20261218000000` pestaña Dispersados del Consolidado y filtro por semana de creación ·
+(mismos números, otra rama:) 
 `20261217000000` una OC con el pago aprobado no se cancela ·
 `20261218000000` quién retira obligatorio en salidas ·
 `20261219000000` OC por transferencia (cuenta de Terceros) o PSE ·

@@ -111,15 +111,17 @@ export const PESTANAS: Pestana[] = [
   { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion", "/contratos/otrosi-pdf"] },
 
   // A&F (Administrativo y Financiero)
-  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
   // lleva a la primera que tenga.
-  { clave: "ayf.consolidado_bogota", titulo: "Consolidado", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
-  { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
-  { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_bogota", titulo: "Consolidado", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
+  { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
+  { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Los pagos de los tres consolidados, para control de Gerencia (20261212000000).
-  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
+  // Dispersores (20261217000000): los pagos liquidados de los tres consolidados.
+  { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 
@@ -168,6 +170,7 @@ export const ACCIONES: Accion[] = [
   { clave: "aprobar_pagos", titulo: "Aprobar pagos", descripcion: "Aprobar o rechazar los pagos pendientes (por ahora, los saldos de órdenes de compra con anticipo).", seccion: "A&F" },
   { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, generar los pagos de una orden ya aprobada, enviar pagos a liquidar y responder lo que Contabilidad observa.", seccion: "A&F" },
   { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
+  { clave: "generar_dispersores", titulo: "Generar dispersores", descripcion: "En Realizar Pagos: asignar la cuenta a debitar, confirmar cuentas, sacar pagos del dispersor y generar los archivos del banco (los pagos quedan dispersados).", seccion: "A&F" },
   { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Corregir terceros y agregar o corregir sus cuentas bancarias (crear un tercero lo puede cualquiera; las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]

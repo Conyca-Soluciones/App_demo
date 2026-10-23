@@ -20,7 +20,7 @@ export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
   aprobado: "Aprobado",
   liquidado: "Liquidado",
   en_dispersion: "En dispersión",
-  dispersado: "Pagado",
+  dispersado: "Dispersado",
   rechazado: "Rechazado",
   anulado: "Anulado",
 }
@@ -124,12 +124,14 @@ export type Pago = {
 // ---------------------------------------------------------------------------
 export type EtapaLiquidacion = "por_liquidar" | "observado" | "liquidado"
 // Pestañas del Consolidado: preparación = sin etapa (Financiera).
-export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "todos"
+// Dispersados = ya salieron en un dispersor (Realizar Pagos, 20261217000000).
+export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "dispersado" | "todos"
 export const ETAPAS_CONSOLIDADO: { clave: EtapaConsolidado; titulo: string }[] = [
   { clave: "preparacion", titulo: "Preparación" },
   { clave: "por_liquidar", titulo: "Por liquidar" },
   { clave: "observado", titulo: "Observados" },
   { clave: "liquidado", titulo: "Liquidados" },
+  { clave: "dispersado", titulo: "Dispersados" },
   { clave: "todos", titulo: "Todos" },
 ]
 export type ConteoEtapas = Record<EtapaConsolidado, number>
@@ -211,6 +213,8 @@ export type RequisicionAdminDePago = {
 // El archivo original del pago se abre en /ayf/soporte-pago/<id> (enlace fijo:
 // pide la sesión y redirige a un enlace firmado). Lo usan la pantalla y el Excel.
 export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
+// El soporte individual del dispersor en que salió el pago.
+export const rutaSoporteDispersor = (pagoId: string) => `/ayf/soporte-dispersor/${pagoId}`
 
 // Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
 export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`
@@ -227,7 +231,7 @@ export function esClaveConsolidado(c: string): c is ClaveConsolidado {
 
 // Consolidado Gerencia (20261212000000): los pagos de los tres consolidados.
 export const PESTANA_CONSOLIDADO_GERENCIA = "ayf.consolidado_gerencia"
-export type FiltrosConsolidadoGerencia = {
+export type FiltrosConsolidadoGerencia = FiltroCreacion & {
   // Vacíos = todos. Las semanas valen en cada año elegido.
   anios?: number[]
   semanas?: number[]
@@ -254,7 +258,14 @@ export type FiltrosAprobacionPagos = {
   tercero?: string
 }
 
-export type FiltrosConsolidado = {
+// Semana de CREACIÓN del pago (pagos.creado_en), aparte de la de aprobación
+// (anio / semana: la del ITEM, que la base da al aprobar). Vacíos = todas.
+export type FiltroCreacion = {
+  aniosCreacion?: number[]
+  semanasCreacion?: number[]
+}
+
+export type FiltrosConsolidado = FiltroCreacion & {
   // El consolidado es el de la pestaña. Vacíos o sin enviar = todos. Las semanas valen en cada año elegido.
   anios?: number[]
   semanas?: number[]
@@ -288,6 +299,33 @@ export function fechasSemanaIso(anio: number, semana: number): string {
   domingo.setUTCDate(lunes.getUTCDate() + 6)
   const f = (d: Date) => d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
   return `${f(lunes)} al ${f(domingo)}`
+}
+
+// Lunes 00:00 (hora de Colombia, UTC-5 sin horario de verano) de la semana ISO.
+function lunesIso(anio: number, semana: number): number {
+  const enero4 = Date.UTC(anio, 0, 4)
+  const diaSemana = new Date(enero4).getUTCDay() || 7
+  return enero4 + ((semana - 1) * 7 - (diaSemana - 1)) * 86400000 + 5 * 3600000
+}
+
+// Los rangos [desde, hasta) de las semanas elegidas (valen en cada año), en
+// orden y juntando los seguidos. Sin años elegidos: `aniosPorDefecto`; sin
+// semanas: el año completo. Nada elegido = sin filtro ([]).
+export function rangosSemanasIso(anios: number[], semanas: number[], aniosPorDefecto: number[]): { desde: string; hasta: string }[] {
+  if (anios.length === 0 && semanas.length === 0) return []
+  const tramos: [number, number][] = []
+  for (const a of [...new Set(anios.length > 0 ? anios : aniosPorDefecto)].sort((x, y) => x - y)) {
+    const total = semanasDelAnio(a)
+    const lista = semanas.length > 0 ? [...new Set(semanas)].filter((s) => s <= total).sort((x, y) => x - y) : [1]
+    for (const s of lista) {
+      const desde = lunesIso(a, s)
+      const hasta = semanas.length > 0 ? desde + 7 * 86400000 : lunesIso(a + 1, 1)
+      const ultimo = tramos.at(-1)
+      if (ultimo && ultimo[1] === desde) ultimo[1] = hasta
+      else tramos.push([desde, hasta])
+    }
+  }
+  return tramos.map(([d, h]) => ({ desde: new Date(d).toISOString(), hasta: new Date(h).toISOString() }))
 }
 
 // Semanas que tiene el año ISO (52 o 53): la del 28 de diciembre.

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Download, Loader2, Paperclip, Send, Upload } from "lucide-react"
+import { Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
 import * as XLSX from "xlsx"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
-import { SelectorNumeros } from "@/components/selector-numeros"
+import { FiltroSemanas } from "@/components/filtro-semanas"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
@@ -41,10 +41,9 @@ import {
   ETIQUETA_ESTADO_PAGO,
   anticiposOrigen,
   formatoMoneda,
-  fechasSemanaIso,
+  rutaSoporteDispersor,
   rutaSoportePago,
   semanaIso,
-  semanasDelAnio,
   type ClaveConsolidado,
   type ConteoEtapas,
   type EstadoPago,
@@ -112,6 +111,8 @@ export function ConsolidadoPagosView({
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [pagos, setPagos] = useState<Pago[] | null>(null)
   const [soportes, setSoportes] = useState<Record<string, SoportePago>>({})
+  // pago dispersado -> nombre del soporte individual de su dispersor
+  const [dispersores, setDispersores] = useState<Record<string, string>>({})
   const [conteo, setConteo] = useState<ConteoEtapas | null>(null)
   const [cargando, setCargando] = useState(false)
   const [pagina, setPagina] = useState(0)
@@ -125,6 +126,9 @@ export function ConsolidadoPagosView({
   const actual = semanaIso()
   const [anios, setAnios] = useState<number[]>([actual.anio])
   const [semanas, setSemanas] = useState<number[]>([actual.semana])
+  // Semana de creación del pago: vacía = todas (la de aprobación es la del ITEM).
+  const [aniosCreacion, setAniosCreacion] = useState<number[]>([])
+  const [semanasCreacion, setSemanasCreacion] = useState<number[]>([])
   const [estado, setEstado] = useState<EstadoPago | "todos">("todos")
   const [tercero, setTercero] = useState("")
   const [soloConNovedad, setSoloConNovedad] = useState(false)
@@ -156,8 +160,6 @@ export function ConsolidadoPagosView({
     for (let y = actual.anio; y >= Math.min(2026, actual.anio); y--) lista.push(y)
     return lista
   }, [actual.anio])
-  const totalSemanas = anios.length === 1 ? semanasDelAnio(anios[0]) : 53
-  const opcionesSemanas = useMemo(() => Array.from({ length: totalSemanas }, (_, i) => i + 1), [totalSemanas])
 
   function cargar(filtros: FiltrosConsolidado, pag: number, conConteo = true) {
     setUltimosFiltros(filtros)
@@ -165,9 +167,10 @@ export function ConsolidadoPagosView({
     setError(null)
     setSeleccion(new Set())
     listarConsolidado(clave, filtros, pag)
-      .then((r: { pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago> }) => {
+      .then((r: { pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago>; dispersores: Record<string, string> }) => {
         setPagos(r.pagos)
         setSoportes(r.soportes)
+        setDispersores(r.dispersores)
         setPagina(pag)
         setHayMas(r.hayMas)
       })
@@ -184,6 +187,8 @@ export function ConsolidadoPagosView({
     return {
       anios: anios.length === 0 ? undefined : anios,
       semanas: semanas.length === 0 ? undefined : semanas,
+      aniosCreacion: aniosCreacion.length === 0 ? undefined : aniosCreacion,
+      semanasCreacion: semanasCreacion.length === 0 ? undefined : semanasCreacion,
       estado: estado === "todos" ? undefined : estado,
       tercero: tercero.trim() || undefined,
       soloConNovedad: soloConNovedad || undefined,
@@ -209,6 +214,8 @@ export function ConsolidadoPagosView({
   function limpiar() {
     setAnios([actual.anio])
     setSemanas([actual.semana])
+    setAniosCreacion([])
+    setSemanasCreacion([])
     setEstado("todos")
     setTercero("")
     setSoloConNovedad(false)
@@ -432,7 +439,7 @@ export function ConsolidadoPagosView({
   const colOrigen: ColumnaExcel<Pago> = { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen }
   const colProyecto: ColumnaExcel<Pago> = { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" }
   const colDocumento = columnaPesos("documento", "Valor documento", (p) => p.valorDocumento ?? p.valor)
-  const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" ? p.valorAPagar : valorAPagarDe(p)), true)
+  const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" || etapa === "dispersado" ? p.valorAPagar : valorAPagarDe(p)), true)
   const colEtapa: ColumnaExcel<Pago> = {
     clave: "etapa",
     titulo: "Etapa",
@@ -481,6 +488,27 @@ export function ConsolidadoPagosView({
         <span className="text-muted-foreground/60">—</span>
       ),
   }
+  const colDispersor: ColumnaExcel<Pago> = {
+    clave: "dispersor",
+    titulo: "Dispersor",
+    ancho: 100,
+    ordenable: false,
+    texto: (p) => dispersores[p.id] ?? "",
+    celda: (p) =>
+      dispersores[p.id] ? (
+        <a
+          href={rutaSoporteDispersor(p.id)}
+          target="_blank"
+          rel="noreferrer"
+          title={dispersores[p.id]}
+          className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
+        >
+          <FileText className="h-4 w-4" /> Ver
+        </a>
+      ) : (
+        <span className="text-muted-foreground/60">—</span>
+      ),
+  }
   const colsLiquidacion: ColumnaExcel<Pago>[] = [
     columnaPesos("base", "Base", (p) => p.liqBase ?? p.baseGravable),
     columnaPesos("iva", "IVA", (p) => p.liqIva ?? p.iva),
@@ -501,6 +529,8 @@ export function ConsolidadoPagosView({
         ? [...base, colDocumento, colSolicita, ...colsLiquidacion, colValorAPagar, colComentarios, colSoporte]
         : etapa === "liquidado"
           ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte]
+          : etapa === "dispersado"
+            ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte, colDispersor]
           : [...base, colCuenta, colOrigen, colProyecto, colSolicita, colDocumento, colValorAPagar, colEtapa, colSoporte]),
   ]
   const camposTarjeta = columnas.map((c) => c.clave).filter((c) => !["sel", "item", "semana", "empresa", "tercero"].includes(c))
@@ -513,34 +543,26 @@ export function ConsolidadoPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Por omisión: la semana actual. Se pueden elegir varios años y varias semanas (las semanas valen en cada año elegido). El ITEM se numera por consolidado y semana."
+          ayuda="Semana de aprobación: la del ITEM (se numera por consolidado y semana al aprobar el pago); por omisión, la actual. Semana de creación: cuando se creó el pago; por omisión, todas. Las semanas valen en cada año elegido."
         >
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="anio-pagos">Años</Label>
-              <SelectorNumeros
-                id="anio-pagos"
-                opciones={opcionesAnios}
-                seleccion={anios}
-                onChange={setAnios}
-                textoTodas="Todos"
-                plural="años"
-                columnas={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="semana-pagos">Semanas</Label>
-              <SelectorNumeros
-                id="semana-pagos"
-                opciones={opcionesSemanas}
-                seleccion={semanas}
-                onChange={setSemanas}
-                textoTodas="Todas"
-                plural="semanas"
-                ayuda={anios.length === 1 ? (n) => fechasSemanaIso(anios[0], n) : undefined}
-              />
-            </div>
-          </div>
+          <FiltroSemanas
+            id="aprobacion-pagos"
+            titulo="Semana de aprobación (ITEM)"
+            opcionesAnios={opcionesAnios}
+            anios={anios}
+            semanas={semanas}
+            onAnios={setAnios}
+            onSemanas={setSemanas}
+          />
+          <FiltroSemanas
+            id="creacion-pagos"
+            titulo="Semana de creación"
+            opcionesAnios={opcionesAnios}
+            anios={aniosCreacion}
+            semanas={semanasCreacion}
+            onAnios={setAniosCreacion}
+            onSemanas={setSemanasCreacion}
+          />
 
           <div className="space-y-1.5">
             <Label>Estado</Label>

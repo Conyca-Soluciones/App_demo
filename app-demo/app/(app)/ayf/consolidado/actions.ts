@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR, limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, filtrarSemanaCreacion, mapPago, rangosCreacion } from "@/lib/pagos-db"
 import { documentoFormateado, soloDigitos } from "@/lib/terceros"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { buscarSoportesDePagos } from "@/lib/soportes-pagos-db"
@@ -55,11 +55,13 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
   if (anios.length > 0) query = query.in("anio", anios)
   if (semanas.length > 0) query = query.in("semana", semanas)
+  query = filtrarSemanaCreacion(query, filtros)
   if (filtros.estado) query = query.eq("estado", filtros.estado)
   if (filtros.soloConNovedad) query = query.not("novedad", "is", null)
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
   // Las etapas son de los pagos aprobados (los anulados o en dispersión, en "Todos").
   if (filtros.etapa === "preparacion") query = query.eq("estado", "aprobado").is("liquidacion_estado", null)
+  else if (filtros.etapa === "dispersado") query = query.eq("estado", "dispersado")
   else if (filtros.etapa && filtros.etapa !== "todos") query = query.eq("estado", "aprobado").eq("liquidacion_estado", filtros.etapa)
 
   return query
@@ -74,25 +76,37 @@ export async function listarConsolidado(
   clave: string,
   filtros: FiltrosConsolidado = {},
   pagina = 0
-): Promise<{ pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago> }> {
+): Promise<{ pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago>; dispersores: Record<string, string> }> {
   const consolidadoId = await idConsolidado(clave)
   const supabase = await createClient()
   const { data, error } = await consultaConsolidado(supabase, consolidadoId, filtros).range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
   const { filas, hayMas } = cortarPagina((data ?? []) as any[])
   const pagos = filas.map(mapPago)
-  const soportes = await buscarSoportesDePagos(supabase, pagos)
-  return { pagos, hayMas, soportes }
+  const dispersados = pagos.filter((p) => p.estado === "dispersado").map((p) => p.id)
+  const [soportes, dispersores] = await Promise.all([buscarSoportesDePagos(supabase, pagos), soportesDispersor(supabase, dispersados)])
+  return { pagos, hayMas, soportes, dispersores }
+}
+
+// El soporte individual del dispersor de cada pago dispersado: pago -> nombre del PDF.
+async function soportesDispersor(supabase: any, ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return {}
+  const { data, error } = await supabase.from("dispersion_pagos").select("pago_id, soporte_nombre").in("pago_id", ids)
+  if (error) throw new Error(error.message)
+  return Object.fromEntries(((data ?? []) as any[]).map((d) => [d.pago_id, d.soporte_nombre]))
 }
 
 // Cuántos pagos hay en cada pestaña con los años y semanas elegidos.
 export async function conteoEtapasConsolidado(clave: string, filtros: FiltrosConsolidado = {}): Promise<ConteoEtapas> {
   const consolidadoId = await idConsolidado(clave)
   const supabase = await createClient()
+  // La semana de creación solo se manda si se eligió (20261219000000).
+  const rangos = rangosCreacion(filtros)
   const { data, error } = await supabase.rpc("conteo_etapas_consolidado", {
     p_consolidado_id: consolidadoId,
     p_anios: enteros(filtros.anios, 2020, 2100, "un año no válido"),
     p_semanas: enteros(filtros.semanas, 1, 53, "una semana no válida"),
+    ...(rangos.length > 0 ? { p_creado_desde: rangos.map((r) => r.desde), p_creado_hasta: rangos.map((r) => r.hasta) } : {}),
   })
   if (error) throw new Error(error.message)
   const c = (data ?? {}) as Record<string, number>
@@ -101,6 +115,7 @@ export async function conteoEtapasConsolidado(clave: string, filtros: FiltrosCon
     por_liquidar: Number(c.por_liquidar ?? 0),
     observado: Number(c.observado ?? 0),
     liquidado: Number(c.liquidado ?? 0),
+    dispersado: Number(c.dispersado ?? 0),
     todos: Number(c.todos ?? 0),
   }
 }

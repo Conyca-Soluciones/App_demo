@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
-import { SelectorNumeros } from "@/components/selector-numeros"
+import { FiltroSemanas } from "@/components/filtro-semanas"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
@@ -18,11 +18,9 @@ import {
   soportesDePagos,
 } from "@/app/(app)/ayf/consolidado-gerencia/actions"
 import {
-  fechasSemanaIso,
   formatoMoneda,
   rutaSoportePago,
   semanaIso,
-  semanasDelAnio,
   type FiltrosConsolidadoGerencia,
   type OpcionesConsolidadoGerencia,
   type Pago,
@@ -47,6 +45,9 @@ export function ConsolidadoGerenciaView() {
   const actual = semanaIso()
   const [anios, setAnios] = useState<number[]>([actual.anio])
   const [semanas, setSemanas] = useState<number[]>([actual.semana])
+  // Semana de creación del pago: vacía = todas (la de aprobación es la del ITEM).
+  const [aniosCreacion, setAniosCreacion] = useState<number[]>([])
+  const [semanasCreacion, setSemanasCreacion] = useState<number[]>([])
   const [empresaId, setEmpresaId] = useState(TODOS)
   const [proyectoId, setProyectoId] = useState(TODOS)
   const [solicitanteId, setSolicitanteId] = useState(TODOS)
@@ -63,8 +64,6 @@ export function ConsolidadoGerenciaView() {
     for (let y = actual.anio; y >= Math.min(2026, actual.anio); y--) lista.push(y)
     return lista
   }, [actual.anio])
-  const totalSemanas = anios.length === 1 ? semanasDelAnio(anios[0]) : 53
-  const opcionesSemanas = useMemo(() => Array.from({ length: totalSemanas }, (_, i) => i + 1), [totalSemanas])
 
   function cargar(filtros: FiltrosConsolidadoGerencia = ultimos, pag: number = pagina) {
     setUltimos(filtros)
@@ -97,6 +96,8 @@ export function ConsolidadoGerenciaView() {
       {
         anios: anios.length === 0 ? undefined : anios,
         semanas: semanas.length === 0 ? undefined : semanas,
+        aniosCreacion: aniosCreacion.length === 0 ? undefined : aniosCreacion,
+        semanasCreacion: semanasCreacion.length === 0 ? undefined : semanasCreacion,
         empresaId: empresaId === TODOS ? undefined : empresaId,
         proyectoId: proyectoId === TODOS ? undefined : proyectoId,
         solicitanteId: solicitanteId === TODOS ? undefined : solicitanteId,
@@ -110,6 +111,8 @@ export function ConsolidadoGerenciaView() {
   function limpiar() {
     setAnios([actual.anio])
     setSemanas([actual.semana])
+    setAniosCreacion([])
+    setSemanasCreacion([])
     setEmpresaId(TODOS)
     setProyectoId(TODOS)
     setSolicitanteId(TODOS)
@@ -213,34 +216,26 @@ export function ConsolidadoGerenciaView() {
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Los pagos aprobados de todos los consolidados. Por omisión, la semana actual. El ITEM se numera por consolidado y semana."
+          ayuda="Los pagos aprobados de todos los consolidados. Semana de aprobación: la del ITEM (por omisión, la actual). Semana de creación: cuando se creó el pago (por omisión, todas). El ITEM se numera por consolidado y semana."
         >
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="anio-gerencia">Años</Label>
-              <SelectorNumeros
-                id="anio-gerencia"
-                opciones={opcionesAnios}
-                seleccion={anios}
-                onChange={setAnios}
-                textoTodas="Todos"
-                plural="años"
-                columnas={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="semana-gerencia">Semanas</Label>
-              <SelectorNumeros
-                id="semana-gerencia"
-                opciones={opcionesSemanas}
-                seleccion={semanas}
-                onChange={setSemanas}
-                textoTodas="Todas"
-                plural="semanas"
-                ayuda={anios.length === 1 ? (n) => fechasSemanaIso(anios[0], n) : undefined}
-              />
-            </div>
-          </div>
+          <FiltroSemanas
+            id="aprobacion-gerencia"
+            titulo="Semana de aprobación (ITEM)"
+            opcionesAnios={opcionesAnios}
+            anios={anios}
+            semanas={semanas}
+            onAnios={setAnios}
+            onSemanas={setSemanas}
+          />
+          <FiltroSemanas
+            id="creacion-gerencia"
+            titulo="Semana de creación"
+            opcionesAnios={opcionesAnios}
+            anios={aniosCreacion}
+            semanas={semanasCreacion}
+            onAnios={setAniosCreacion}
+            onSemanas={setSemanasCreacion}
+          />
           {selector("Grupo empresarial", empresaId, setEmpresaId, (opciones?.empresas ?? []).map((e) => ({ id: e.id, texto: e.nombre })))}
           <div className="space-y-1.5">
             <Label htmlFor="tercero-gerencia">Tercero</Label>

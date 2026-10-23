@@ -2,7 +2,7 @@
 // pagos y del Consolidado). Archivo plano: no es una Server Action.
 
 import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
-import type { Pago } from "@/lib/pagos"
+import { rangosSemanasIso, semanaIso, type FiltroCreacion, type Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
 // hacia la misma tabla (perfiles; terceros: el que factura y el titular de la
@@ -32,6 +32,26 @@ export const CAMPOS_PAGO = `
 // Igual, pero con el join !inner al tercero (para filtrar por su nombre en la
 // misma consulta, sin traer ids para mandarlos en un IN).
 export const CAMPOS_PAGO_TERCERO_INNER = CAMPOS_PAGO.replace("tercero:terceros!pagos_tercero_id_fkey(", "tercero:terceros!pagos_tercero_id_fkey!inner(")
+
+// Semana de creación (creado_en): rangos lunes a lunes en hora de Colombia,
+// todos en un solo OR. Sin años elegidos valen los de la app (2026 al actual).
+export function rangosCreacion(filtros: FiltroCreacion): { desde: string; hasta: string }[] {
+  const lista = (l: number[] | undefined, min: number, max: number) => {
+    const u = [...new Set(l ?? [])]
+    if (u.length > 53 || u.some((n) => !Number.isInteger(n) || n < min || n > max)) throw new Error("El filtro de semana de creación no es válido.")
+    return u
+  }
+  const actual = semanaIso().anio
+  const porDefecto: number[] = []
+  for (let a = Math.min(2026, actual); a <= actual; a++) porDefecto.push(a)
+  return rangosSemanasIso(lista(filtros.aniosCreacion, 2020, 2100), lista(filtros.semanasCreacion, 1, 53), porDefecto)
+}
+
+export function filtrarSemanaCreacion(query: any, filtros: FiltroCreacion) {
+  const rangos = rangosCreacion(filtros)
+  if (rangos.length === 0) return query
+  return query.or(rangos.map((r) => `and(creado_en.gte.${r.desde},creado_en.lt.${r.hasta})`).join(","))
+}
 
 const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
