@@ -457,5 +457,11 @@ select * from (
   select '20261215000000_oc_no_cancelar_con_pago_aprobado',
          exists (select 1 from pg_proc where proname = '_cancelar_orden_compra_sin_proyecto'
                     and prosrc like '%ya fue aprobado en Aprobación de pagos%')
+  union all
+  select '20261216000000_salida_quien_retira_obligatorio',
+         exists (select 1 from pg_proc where proname = 'registrar_salida_almacen'
+                    and prosrc like '%quién retira%')
+         and exists (select 1 from pg_proc where proname = 'editar_salida_almacen'
+                        and prosrc like '%quién retira%')
 ) t
 order by 1;

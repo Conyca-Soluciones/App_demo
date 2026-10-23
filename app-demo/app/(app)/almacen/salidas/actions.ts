@@ -87,7 +87,7 @@ export async function listarSalidasRegistradas(
 
 export type DatosSalida = {
   proyectoId: string
-  retira?: string | null
+  retira: string
   observaciones?: string | null
   lineas: { insumoId: string; cantidad: number }[]
 }
@@ -100,6 +100,7 @@ export async function registrarSalida(datos: DatosSalida): Promise<number> {
   if (lineas.length === 0) {
     throw new Error("Ingresa la cantidad a sacar de al menos un insumo.")
   }
+  if (!datos.retira?.trim()) throw new Error("Escribe quién retira el material.")
   // Solo enteros (decisión del usuario; la pantalla ya lo valida).
   if (!lineas.every((l) => esCantidadEnteraPositiva(l.cantidad))) throw new Error("Las cantidades deben ser números enteros mayores que cero.")
 
@@ -107,7 +108,7 @@ export async function registrarSalida(datos: DatosSalida): Promise<number> {
   const { data, error } = await supabase.rpc("registrar_salida_almacen", {
     p_proyecto_id: datos.proyectoId,
     p_lineas: lineas.map((l) => ({ insumo_id: l.insumoId, cantidad: l.cantidad })),
-    p_retira: datos.retira ?? null,
+    p_retira: datos.retira.trim(),
     p_observaciones: datos.observaciones ?? null,
   })
   if (error) throw new Error(error.message)
@@ -129,7 +130,7 @@ export async function anularSalida(salidaId: string, motivo: string): Promise<vo
 export type DatosEdicionSalida = {
   salidaId: string
   cantidad: number
-  retira?: string | null
+  retira: string
   observaciones?: string | null
 }
 
@@ -138,12 +139,13 @@ export type DatosEdicionSalida = {
 export async function editarSalida(datos: DatosEdicionSalida): Promise<void> {
   await requerirAccion("gestionar_almacen")
   if (!esCantidadEnteraPositiva(datos.cantidad)) throw new Error("La cantidad debe ser un número entero mayor que cero.")
+  if (!datos.retira?.trim()) throw new Error("Escribe quién retira el material.")
 
   const supabase = await createClient()
   const { error } = await supabase.rpc("editar_salida_almacen", {
     p_salida_id: datos.salidaId,
     p_cantidad: datos.cantidad,
-    p_retira: datos.retira ?? null,
+    p_retira: datos.retira.trim(),
     p_observaciones: datos.observaciones ?? null,
   })
   if (error) throw new Error(error.message)

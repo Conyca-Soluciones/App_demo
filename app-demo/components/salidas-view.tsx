@@ -162,6 +162,10 @@ function SalidasDeProyecto({ proyectoId }: { proyectoId: string | null }) {
       setError("Agrega al menos un insumo y la cantidad a sacar.")
       return
     }
+    if (!retira.trim()) {
+      setError("Escribe quién retira el material.")
+      return
+    }
 
     setGuardando(true)
     try {
@@ -278,7 +282,7 @@ function SalidasDeProyecto({ proyectoId }: { proyectoId: string | null }) {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
-                placeholder="¿Quién retira el material? (opcional)"
+                placeholder="¿Quién retira el material?"
                 value={retira}
                 onChange={(e) => setRetira(e.target.value)}
               />
