@@ -1546,6 +1546,49 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   a Contabilidad: hay que recrear `_pendientes_de`); dispersores y PSE (fecha de
   pago, cuenta a debitar y soporte del dispersor).
 
+## Realizar Pagos: dispersores `/ayf/realizar-pagos` (2026-10-23)
+
+`20261217000000_dispersores.sql`. Decisiones del usuario: TODA la consola de
+dispersores de Python (`Generar Dispersores/`: servidor.py + nucleo/) dentro de
+la app, con los formatos EXACTOS (posiciones, anchos, rellenos, latin-1 + CRLF,
+mismos nombres de archivo); una persona (Financiera, acción
+`generar_dispersores`, pestaña `ayf.realizar_pagos`) dispersa los pagos de los
+tres consolidados.
+- **Port exacto** en `lib/dispersores/`: `textos.ts`, `catalogos.ts`,
+  `generador.ts` (Bogotá 250, Bancolombia PAB 264, Itaú y Davivienda en Excel).
+  Probado: plano de Bogotá byte a byte contra un archivo real
+  (`tests/dispersores-regresion.test.ts`, el archivo vive en
+  `referencias/dispersores/oro/`, fuera de git) y 1.500 tandas contra el Python
+  original (`tests/dispersores-python.test.ts`, `comparacion_python.json`).
+  **No cambiar posiciones, anchos ni rellenos.** Soporte PDF:
+  `components/soporte-dispersor-pdf.tsx` (copia de `nucleo/soporte.py`).
+- **Entran los pagos liquidados** (`liquidacion_estado = 'liquidado'`, aprobados)
+  con el valor a pagar truncado al peso. **La cuenta del beneficiario es siempre
+  la del pago** (la del titular si se eligió otro): no hay cruce contra
+  BASE_TERCEROS. Estados (`conEstado`, `lib/dispersores/pagos-dispersor.ts`):
+  Por asignar, Asignados, Confirmar cuenta (cuenta PENDIENTE o que cambió;
+  cambiar la cuenta del pago borra la confirmación, `trg_pago_cuenta_sin_confirmar`),
+  Bloqueados (sin tercero, sin cuenta, cuenta inactiva), No van por dispersor
+  (PSE y lo sacado a mano: pestaña "Otros pagos pendientes") y Ya dispersados.
+- **Pasos**: 1 Preparar (confirmar, sacar, devolver), 2 Asignar (banco y cuenta
+  a debitar, `cuentas_empresa`; varias por empresa), 3 Confirmar y generar
+  (tarjeta por dispersor con total y avisos). Un dispersor = cuenta a debitar +
+  año + semana (+ nómina aparte: etiqueta `NOM` en `pagos.etiquetas`, archivo
+  `_NOM`). Clase de pago siempre PROVEEDORES (la consola nunca la cambiaba).
+- **Generar** (`generarDispersores`, todo o nada como `api_generar`): arma todo
+  en memoria, sube a `dispersores/<id>/` (archivos y soporte grupal
+  `<base>_soporte_Ronda<N>.pdf`) y `dispersores/<id>/items/` (soporte
+  individual `<base>_ITEM<n>_soporte.pdf` de cada pago), y
+  `registrar_dispersiones` revisa todo otra vez (pagos, valor, asignación,
+  archivos, secuencia `A<n>` por cuenta/año/semana y ronda por nombre/año) y
+  deja los pagos `dispersado` (no hay estado "pagado", decisión del usuario).
+  Si falla, se borra lo subido. Tablas `dispersiones` y `dispersion_pagos`
+  (soporte individual de cada pago). Pestaña "Dispersores generados" con los
+  archivos (enlace firmado de 2 min).
+- **Pendiente**: soporte de los pagos por PSE; mostrar el soporte del
+  dispersor en la ventana del pago del Consolidado; los dispersados salen solo
+  en "Todos" del Consolidado.
+
 ## Liquidación de pagos: se quitó (2026-10-22)
 
 Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,
@@ -3422,7 +3465,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261213000000` soporte obligatorio en requisiciones administrativas ·
 `20261214000000` titular de la cuenta en OC, actas y pagos ·
 `20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
-`20261216000000` el Consolidado Bogotá se llama "Consolidado".
+`20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
+`20261217000000` dispersores (Realizar Pagos).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

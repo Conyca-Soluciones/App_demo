@@ -462,5 +462,11 @@ select * from (
   union all
   select '20261216000000_consolidado_nombre',
          exists (select 1 from public.consolidados where clave = 'bogota' and nombre = 'Consolidado')
+  union all
+  select '20261217000000_dispersores',
+         exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'dispersion_pagos')
+         and exists (select 1 from pg_proc where proname = 'registrar_dispersiones')
+         and exists (select 1 from storage.buckets where id = 'dispersores')
+         and exists (select 1 from pg_trigger where tgname = 'trg_pago_cuenta_sin_confirmar')
 ) t
 order by 1;
