@@ -500,5 +500,9 @@ select * from (
          exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'proveedores' and column_name = 'tercero_id')
          and to_regclass('public.informacion_bancaria') is null
+  union all
+  select '20261224000000_contrato_pse_titular',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratos' and column_name = 'pse_titular_nombre')
 ) t
 order by 1;

@@ -16,7 +16,7 @@ export const CAMPOS_PAGO = `
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
   orden:ordenes_compra(numero, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
-  acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones)),
+  acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
@@ -110,7 +110,7 @@ export function mapPago(f: any): Pago {
         ? `${f.orden.pse_titular_nombre} (${f.orden.pse_titular_tipo_documento ?? ""} ${f.orden.pse_titular_documento ?? ""})`.replace(" ( )", "")
         : null
       : actaPse
-        ? null
+        ? (f.acta?.contrato?.pse_titular_nombre ?? null)
         : f.titular_tercero_id
           ? (f.titular?.razon_social ?? "otro tercero")
           : null,

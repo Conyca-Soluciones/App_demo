@@ -1,6 +1,7 @@
 "use client"
 
 import { ArrowRightLeft, Globe } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import type { MetodoPagoContrato } from "@/lib/contratos"
 
 const METODOS: { valor: MetodoPagoContrato; titulo: string; descripcion: string; icono: typeof Globe }[] = [
@@ -9,8 +10,10 @@ const METODOS: { valor: MetodoPagoContrato; titulo: string; descripcion: string;
 ]
 
 // Transferencia o PSE en "Forma de pago" de la solicitud de contrato (por
-// grupos y general). Con PSE, la información para pagar va en observaciones.
-// claseTexto: la clase del campo de texto de cada formulario (con su error).
+// grupos y general). Con PSE, la información para pagar va en observaciones y,
+// con la casilla "El titular tiene otro nombre", el nombre del titular
+// (20261224000000; sin ella, el titular es el contratista).
+// claseTexto / claseTitular: la clase de cada campo del formulario (con su error).
 export function MetodoPagoContrato({
   metodo,
   observaciones,
@@ -19,6 +22,12 @@ export function MetodoPagoContrato({
   claseTexto,
   onMetodo,
   onObservaciones,
+  titularDistinto,
+  titularNombre,
+  errorTitular,
+  claseTitular,
+  onTitularDistinto,
+  onTitularNombre,
 }: {
   metodo: MetodoPagoContrato
   observaciones: string
@@ -27,6 +36,12 @@ export function MetodoPagoContrato({
   claseTexto: string
   onMetodo: (m: MetodoPagoContrato) => void
   onObservaciones: (texto: string) => void
+  titularDistinto: boolean
+  titularNombre: string
+  errorTitular?: string
+  claseTitular: string
+  onTitularDistinto: (v: boolean) => void
+  onTitularNombre: (texto: string) => void
 }) {
   return (
     <div className="space-y-2" data-error={Boolean(error)}>
@@ -69,6 +84,25 @@ export function MetodoPagoContrato({
             className={claseTexto}
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
+          <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm">
+            <Checkbox checked={titularDistinto} onCheckedChange={(v) => onTitularDistinto(v === true)} disabled={disabled} />
+            El titular tiene otro nombre
+          </label>
+          {titularDistinto && (
+            <div className="space-y-1">
+              <label htmlFor="contrato-pse-titular" className="text-xs font-medium text-muted-foreground">
+                Nombre del titular *
+              </label>
+              <input
+                id="contrato-pse-titular"
+                value={titularNombre}
+                onChange={(e) => onTitularNombre(e.target.value)}
+                disabled={disabled}
+                className={claseTitular}
+              />
+              {errorTitular && <p className="text-xs text-destructive">{errorTitular}</p>}
+            </div>
+          )}
         </div>
       )}
     </div>

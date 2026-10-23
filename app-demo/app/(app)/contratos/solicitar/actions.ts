@@ -107,6 +107,8 @@ async function guardarSolicitud(
       forma_pago: d.formaPago,
       metodo_pago: d.metodoPago,
       pago_observaciones: d.pagoObservaciones ?? "",
+      pse_titular_distinto: d.pseTitularNombre !== null,
+      pse_titular_nombre: d.pseTitularNombre ?? "",
       plazo_tipo: d.plazoTipo,
       fecha_inicio: d.fechaInicio ?? "",
       fecha_fin: d.fechaFin ?? "",

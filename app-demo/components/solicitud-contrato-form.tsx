@@ -70,6 +70,8 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   formaPago: "",
   metodoPago: "transferencia",
   pagoObservaciones: "",
+  pseTitularDistinto: false,
+  pseTitularNombre: "",
   plazoTipo: "fechas",
   fechaInicio: "",
   fechaFin: "",
@@ -114,6 +116,8 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     formaPago: d.formaPago,
     metodoPago: d.metodoPago ?? "transferencia",
     pagoObservaciones: d.pagoObservaciones ?? "",
+    pseTitularDistinto: Boolean(d.pseTitularNombre),
+    pseTitularNombre: d.pseTitularNombre ?? "",
     plazoTipo: d.plazoTipo,
     fechaInicio: d.fechaInicio ?? "",
     fechaFin: d.fechaFin ?? "",
@@ -1002,6 +1006,15 @@ export function SolicitudContratoForm({
             claseTexto={claseArea(Boolean(errores.pagoObservaciones))}
             onMetodo={(m) => cambiar("metodoPago", m, "pagoObservaciones")}
             onObservaciones={(t) => cambiar("pagoObservaciones", t)}
+            titularDistinto={f.pseTitularDistinto}
+            titularNombre={f.pseTitularNombre}
+            errorTitular={errores.pseTitularNombre}
+            claseTitular={claseCampo(Boolean(errores.pseTitularNombre))}
+            onTitularDistinto={(v) => {
+              cambiar("pseTitularDistinto", v, "pseTitularNombre")
+              if (!v) cambiar("pseTitularNombre", "")
+            }}
+            onTitularNombre={(t) => cambiar("pseTitularNombre", t)}
           />
         </div>
       </Seccion>

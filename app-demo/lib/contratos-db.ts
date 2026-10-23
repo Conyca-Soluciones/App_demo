@@ -82,7 +82,7 @@ export async function cargarDetalleContrato(
     .from("contratos")
     .select(`
       ${SELECT_FILA_CONTRATO},
-      anexo_tipo, valor_mensual, tiene_anticipo, anticipo_porcentaje, forma_pago, metodo_pago, pago_observaciones,
+      anexo_tipo, valor_mensual, tiene_anticipo, anticipo_porcentaje, forma_pago, metodo_pago, pago_observaciones, pse_titular_nombre,
       correo_notificacion, observaciones,
       domicilio_departamento, datos_tipo, requiere_poliza,
       contratista_completo:contratistas!contratos_contratista_id_fkey(
@@ -119,6 +119,7 @@ export async function cargarDetalleContrato(
     formaPago: x.forma_pago,
     metodoPago: x.metodo_pago === "pse" ? "pse" : "transferencia",
     pagoObservaciones: x.pago_observaciones ?? null,
+    pseTitularNombre: x.pse_titular_nombre ?? null,
     correoNotificacion: x.correo_notificacion,
     observaciones: x.observaciones,
     domicilioDepartamento: x.domicilio_departamento ?? null,

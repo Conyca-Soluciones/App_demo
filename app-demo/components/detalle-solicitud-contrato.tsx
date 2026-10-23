@@ -233,7 +233,9 @@ export function DetalleSolicitudContrato({
                   [
                     "Se paga por",
                     detalle.metodoPago === "pse"
-                      ? `PSE${detalle.pagoObservaciones ? ` · ${detalle.pagoObservaciones}` : ""}`
+                      ? `PSE${detalle.pseTitularNombre ? ` · titular: ${detalle.pseTitularNombre}` : ""}${
+                          detalle.pagoObservaciones ? ` · ${detalle.pagoObservaciones}` : ""
+                        }`
                       : "Transferencia",
                   ],
                   ["Póliza", detalle.requierePoliza === false ? "No requiere póliza" : "Requiere póliza"],

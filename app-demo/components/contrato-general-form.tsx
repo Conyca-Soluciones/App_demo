@@ -352,6 +352,15 @@ export function ContratoGeneralFormulario({
           claseTexto={claseArea(Boolean(errores.pagoObservaciones))}
           onMetodo={(m) => cambiar("metodoPago", m, "pagoObservaciones")}
           onObservaciones={(t) => cambiar("pagoObservaciones", t)}
+          titularDistinto={f.pseTitularDistinto}
+          titularNombre={f.pseTitularNombre}
+          errorTitular={errores.pseTitularNombre}
+          claseTitular={claseCampo(Boolean(errores.pseTitularNombre))}
+          onTitularDistinto={(v) => {
+            cambiar("pseTitularDistinto", v, "pseTitularNombre")
+            if (!v) cambiar("pseTitularNombre", "")
+          }}
+          onTitularNombre={(t) => cambiar("pseTitularNombre", t)}
         />
       </Seccion>
 

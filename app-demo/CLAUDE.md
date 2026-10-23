@@ -1545,6 +1545,9 @@ aparte (`contrato_para_acta.metodo_pago`), `_pago_de_acta` crea el pago sin
 cuenta ni titular, `_pago_novedad` no pide cuenta y `_enlazar_pagos_tercero`
 no le pone cuenta. En Pagos: origen "Acta N · CJ-… · PSE", cuenta "PSE" y las
 observaciones del contrato (`mapPago`). El detalle del contrato dice "Se paga por".
+Con PSE, la casilla "El titular tiene otro nombre" pide el nombre
+(`contratos.pse_titular_nombre`, `20261224000000`; null = el contratista):
+lo valida `_fijar_pago_contrato` y A&F lo ve en el pago de cada acta (`cuentaTitular`).
 
 ## Terceros: el centro de a quién se le paga (2026-10-23)
 
@@ -3542,7 +3545,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261220000000` contratos por transferencia o PSE (después de la anterior) ·
 `20261221000000` crear terceros abierto a todos (editar sigue en A&F) ·
 `20261222000000` contratistas enlazados al tercero (sin datos bancarios propios) ·
-`20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria).
+`20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria) ·
+`20261224000000` contrato por PSE: titular con otro nombre.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
