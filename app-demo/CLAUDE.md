@@ -1323,7 +1323,9 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   Quien puede verificar y cambia el número la deja ACTIVA (verificada por él);
   quien no, la devuelve a PENDIENTE.
 - **Contratistas -> Terceros** (`20261118700000_contratistas_a_terceros.sql`,
-  E5; decisiones del usuario 2026-10-21): el banco del contratista es una lista
+  E5; decisiones del usuario 2026-10-21; **reemplazado por 20261222000000**: el
+  contratista ya no tiene datos bancarios, se enlaza al tercero con
+  `tercero_id`; lo que sigue sobre banco y cuenta del contratista es historia): el banco del contratista es una lista
   (tabla `bancos`, la misma de Terceros; `trg_contratista_validar_banco` lo
   exige al crear o al cambiarlo) y el documento es solo números (DV aparte).
   Tipo de cuenta: "CUENTA CORRIENTE" / "CUENTA AHORROS" en pantalla
@@ -1553,9 +1555,7 @@ tiene su tabla con `tercero_id` y lo propio del rol (contratistas: representante
 contacto, documentos; proveedores: id_prov, tipo, estado; empleados: datos
 laborales). Una persona con varios roles es un tercero con una fila en cada
 tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
-contratistas con `tercero_id` (sin datos bancarios propios; nombre y documento
-como copia que se actualiza sola desde Terceros mientras se migran las lecturas),
-3) proveedores con `tercero_id` (retirar `informacion_bancaria`), 4) empleados.
+contratistas con `tercero_id` (hecho, ver abajo), 3) proveedores con `tercero_id` (retirar `informacion_bancaria`), 4) empleados.
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una
@@ -1572,6 +1572,26 @@ como copia que se actualiza sola desde Terceros mientras se migran las lecturas)
   documento mientras se escribe: si ya existe, avisa con el nombre y no deja
   crearlo (`onExistente` agrega "Usar este tercero"; en A&F, "Abrir ese tercero").
   La búsqueda de tercero en Crear contratista (punto 2) también va por documento.
+- **Contratistas enlazados** (`20261222000000_contratistas_tercero.sql`):
+  `contratistas.tercero_id` (obligatorio, único). Crear contratista empieza por
+  "Cédula o NIT" → `buscarTerceroPorDocumento`; si no existe, "Crear tercero" abre
+  `NuevoTerceroDialogo` con el documento ya escrito. El tipo de persona sale del
+  tercero (NIT = jurídica, `tipoPersonaDeTercero`); TI y RC no sirven
+  (`esDocumentoContratista`). Ya NO hay banco, tipo ni número de cuenta en
+  `contratistas` (se borraron con `_contratista_a_tercero`,
+  `_contratista_validar_banco` y `datos_bancarios_contratistas`): la cuenta se
+  ve con `CuentasTercero` (`components/cuentas-tercero.tsx`, números
+  enmascarados) en el detalle, el formulario y la solicitud de contrato.
+  `ver_datos_bancarios` solo decide si se ve la certificación bancaria.
+  Nombre, documento, DV y tipo de persona son una COPIA del tercero que pone
+  `contratistas_desde_tercero` (BEFORE INSERT/UPDATE; nadie la edita a mano) y
+  que `trg_tercero_a_contratista` actualiza cuando A&F corrige el tercero: las
+  funciones y pantallas que leen `contratistas.nombre` / `numero_documento`
+  siguen igual. Editar contratista ya no cambia identidad ni cuenta.
+  `_pago_de_acta` toma el tercero de `tercero_id`; `certificacion_bancaria_tercero`
+  y `listar_bancos_admin` también van por `tercero_id`; `guardar_banco` ya no toca
+  contratistas. Los contratistas de prueba se enlazaron (o se les creó el tercero,
+  sin cuenta).
 
 ## Liquidación en el Consolidado (2026-10-23)
 
@@ -3503,7 +3523,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261218000000` quién retira obligatorio en salidas ·
 `20261219000000` OC por transferencia (cuenta de Terceros) o PSE ·
 `20261220000000` contratos por transferencia o PSE (después de la anterior) ·
-`20261221000000` crear terceros abierto a todos (editar sigue en A&F).
+`20261221000000` crear terceros abierto a todos (editar sigue en A&F) ·
+`20261222000000` contratistas enlazados al tercero (sin datos bancarios propios).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

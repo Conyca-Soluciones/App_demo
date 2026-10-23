@@ -557,6 +557,7 @@ export function NuevoTerceroDialogo({
   onCreado,
   onExistente,
   textoExistente = "Usar este tercero",
+  documentoInicial,
 }: {
   abierto: boolean
   bancos: Banco[]
@@ -564,8 +565,13 @@ export function NuevoTerceroDialogo({
   onCreado: (t: TerceroBasico) => void
   onExistente?: (t: TerceroBasico) => void
   textoExistente?: string
+  // El documento que se buscó antes de abrir (Contratistas): llega escrito.
+  documentoInicial?: string
 }) {
-  const [datos, setDatos] = useState(TERCERO_VACIO)
+  const [datos, setDatos] = useState(() => ({
+    ...TERCERO_VACIO,
+    numeroDocumento: soloDigitos((documentoInicial ?? "").split("-")[0]),
+  }))
   // Resultado de comparar el documento escrito con Terceros; "comprobando"
   // mientras no corresponda al documento actual.
   const [revision, setRevision] = useState<{ numero: string; tercero: TerceroBasico | null } | null>(null)

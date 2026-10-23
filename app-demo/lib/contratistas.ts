@@ -68,6 +68,9 @@ export const TAMANO_MAXIMO = 10 * 1024 * 1024 // 10 MB
 
 export type Contratista = {
   id: string
+  // El tercero (20261222000000): nombre, documento y tipo de persona son una
+  // copia del tercero; la cuenta bancaria vive solo en Terceros.
+  terceroId: string
   tipoPersona: TipoPersona
   tipoDocumento: TipoDocumento
   numeroDocumento: string
@@ -82,11 +85,8 @@ export type Contratista = {
   telefono: string
   direccion: string
   ciudad: string
-  banco: string
-  tipoCuenta: TipoCuenta
-  numeroCuenta: string
-  // Banco, cuenta y certificación bancaria solo los ve quien tiene la acción
-  // ver_datos_bancarios (20261115100000); si no, llegan vacíos.
+  // La certificación bancaria solo la ve quien tiene la acción
+  // ver_datos_bancarios (20261115100000).
   datosBancariosVisibles: boolean
   creadoPorNombre: string | null
   createdAt: string
@@ -104,13 +104,12 @@ export type DocumentoContratista = {
   subidoAt: string
 }
 
-// Lo que llena el formulario (todo como texto, igual que los inputs).
+// Lo que llena el formulario (todo como texto, igual que los inputs). El nombre
+// y el documento salen del tercero elegido (terceroId); el tipo de persona
+// también (NIT = jurídica, tipoPersonaDeTercero).
 export type DatosContratista = {
+  terceroId: string
   tipoPersona: TipoPersona
-  tipoDocumento: TipoDocumento
-  numeroDocumento: string
-  digitoVerificacion: string
-  nombre: string
   representanteNombre: string
   representanteTipoDocumento: TipoDocumentoPersona | ""
   representanteNumeroDocumento: string
@@ -119,12 +118,16 @@ export type DatosContratista = {
   telefono: string
   direccion: string
   ciudad: string
-  banco: string
-  tipoCuenta: TipoCuenta | ""
-  numeroCuenta: string
 }
 
 export type CampoContratista = keyof DatosContratista
+
+// Tipos de documento con que se identifica un contratista (los de Terceros
+// también incluyen TI y RC, que no sirven aquí).
+export const esDocumentoContratista = (tipo: string): tipo is TipoDocumento =>
+  tipo === "NIT" || TIPOS_DOCUMENTO_PERSONA.some((t) => t.valor === tipo)
+
+export const tipoPersonaDeTercero = (tipoDocumento: string): TipoPersona => (tipoDocumento === "NIT" ? "juridica" : "natural")
 
 // Dígito de verificación del NIT (algoritmo de la DIAN, módulo 11).
 const PESOS_DV = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71]
@@ -139,24 +142,18 @@ export function calcularDvNit(nit: string): number {
 // Documento sin puntos, espacios ni guiones, en mayúsculas ("1.020.304" -> "1020304").
 const limpiarDocumento = (v: string) => v.replace(/[\s.\-]/g, "").toUpperCase()
 const limpiarTelefono = (v: string) => v.replace(/[\s\-()]/g, "")
-const limpiarCuenta = (v: string) => v.replace(/[\s\-]/g, "")
 
 export type ResultadoValidacion =
   | { ok: true; datos: DatosContratista }
   | { ok: false; errores: Partial<Record<CampoContratista, string>> }
 
 // Valida y normaliza. Devuelve los datos listos para guardar o un error por campo.
-// `sinDatosBancarios`: al editar sin la acción ver_datos_bancarios no se piden
-// (la base los deja como estaban).
-export function validarContratista(crudo: DatosContratista, opciones?: { sinDatosBancarios?: boolean }): ResultadoValidacion {
+// El nombre y el documento no se validan aquí: vienen del tercero.
+export function validarContratista(crudo: DatosContratista): ResultadoValidacion {
   const errores: Partial<Record<CampoContratista, string>> = {}
   const juridica = crudo.tipoPersona === "juridica"
   const datos: DatosContratista = {
     ...crudo,
-    tipoDocumento: juridica ? "NIT" : crudo.tipoDocumento,
-    numeroDocumento: limpiarDocumento(crudo.numeroDocumento),
-    digitoVerificacion: crudo.digitoVerificacion.trim(),
-    nombre: crudo.nombre.trim().replace(/\s+/g, " "),
     representanteNombre: juridica ? crudo.representanteNombre.trim().replace(/\s+/g, " ") : "",
     representanteTipoDocumento: juridica ? crudo.representanteTipoDocumento : "",
     representanteNumeroDocumento: juridica ? limpiarDocumento(crudo.representanteNumeroDocumento) : "",
@@ -165,45 +162,19 @@ export function validarContratista(crudo: DatosContratista, opciones?: { sinDato
     telefono: limpiarTelefono(crudo.telefono),
     direccion: crudo.direccion.trim(),
     ciudad: crudo.ciudad.trim(),
-    banco: crudo.banco.trim(),
-    numeroCuenta: limpiarCuenta(crudo.numeroCuenta),
   }
 
+  if (!crudo.terceroId) errores.terceroId = "Busca el tercero por su documento (o créalo)."
   if (crudo.tipoPersona !== "natural" && crudo.tipoPersona !== "juridica") {
-    errores.tipoPersona = "Elige si es persona natural o jurídica."
+    errores.tipoPersona = "El tipo de persona sale del tercero."
   }
-  if (datos.nombre.length < 3) {
-    errores.nombre = juridica ? "Escribe la razón social." : "Escribe el nombre completo."
-  }
-
   if (juridica) {
-    if (!/^[0-9]{5,15}$/.test(datos.numeroDocumento)) {
-      errores.numeroDocumento = "El NIT debe tener solo números (sin el dígito de verificación)."
-    } else if (!/^[0-9]$/.test(datos.digitoVerificacion)) {
-      errores.digitoVerificacion = "Escribe el dígito de verificación (un número)."
-    } else if (Number(datos.digitoVerificacion) !== calcularDvNit(datos.numeroDocumento)) {
-      errores.digitoVerificacion = "El dígito de verificación no corresponde a este NIT. Revisa el NIT y el DV."
-    }
     if (datos.representanteNombre.length < 3) errores.representanteNombre = "Escribe el nombre del representante legal."
     if (!datos.representanteTipoDocumento) errores.representanteTipoDocumento = "Elige el tipo de documento."
     if (!/^[0-9A-Z]{3,20}$/.test(datos.representanteNumeroDocumento)) {
       errores.representanteNumeroDocumento = "Escribe el número de documento del representante."
     }
-  } else {
-    if (!TIPOS_DOCUMENTO_PERSONA.some((t) => t.valor === datos.tipoDocumento)) {
-      errores.tipoDocumento = "Elige el tipo de documento."
-    }
-    // Solo números en todos los tipos (decisión del usuario 2026-10-21: el
-    // tercero de A&F que se crea desde el contratista exige solo números).
-    const esCedula = datos.tipoDocumento === "CC"
-    if (esCedula ? !/^[0-9]{5,15}$/.test(datos.numeroDocumento) : !/^[0-9]{3,20}$/.test(datos.numeroDocumento)) {
-      errores.numeroDocumento = esCedula
-        ? "La cédula debe tener solo números."
-        : "El número de documento debe tener solo números."
-    }
-    datos.digitoVerificacion = ""
   }
-
   if (!datos.cedulaExpedidaEn) {
     errores.cedulaExpedidaEn = juridica ? "Escribe dónde se expidió la cédula del representante." : "Escribe dónde se expidió la cédula."
   }
@@ -211,11 +182,6 @@ export function validarContratista(crudo: DatosContratista, opciones?: { sinDato
   if (!/^\+?[0-9]{7,15}$/.test(datos.telefono)) errores.telefono = "Escribe un teléfono de 7 a 15 números."
   if (!datos.direccion) errores.direccion = "Escribe la dirección."
   if (!datos.ciudad) errores.ciudad = "Escribe la ciudad."
-  if (!opciones?.sinDatosBancarios) {
-    if (!datos.banco) errores.banco = "Elige el banco."
-    if (datos.tipoCuenta !== "ahorros" && datos.tipoCuenta !== "corriente") errores.tipoCuenta = "Elige el tipo de cuenta."
-    if (!/^[0-9]{4,20}$/.test(datos.numeroCuenta)) errores.numeroCuenta = "El número de cuenta debe tener solo números."
-  }
 
   return Object.keys(errores).length > 0 ? { ok: false, errores } : { ok: true, datos }
 }

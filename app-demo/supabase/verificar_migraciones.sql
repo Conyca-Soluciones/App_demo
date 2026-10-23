@@ -489,5 +489,11 @@ select * from (
   select '20261221000000_terceros_crear_para_todos',
          exists (select 1 from pg_proc where proname = 'crear_tercero')
          and exists (select 1 from pg_proc where proname = 'tercero_por_documento')
+  union all
+  select '20261222000000_contratistas_tercero',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contratistas' and column_name = 'tercero_id')
+         and not exists (select 1 from information_schema.columns
+                          where table_schema = 'public' and table_name = 'contratistas' and column_name = 'banco')
 ) t
 order by 1;

@@ -46,6 +46,7 @@ import {
 } from "@/app/(app)/contratos/solicitar/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { MetodoPagoContrato } from "@/components/metodo-pago-contrato"
+import { CuentasTercero } from "@/components/cuentas-tercero"
 
 // ---------------------------------------------------------------------------
 // Formulario de solicitud de contrato. El director elige el tipo (eso define
@@ -589,14 +590,12 @@ export function SolicitudContratoForm({
                   {contratista.direccion}, {contratista.ciudad}
                 </dd>
               </div>
-              {contratista.datosBancariosVisibles && (
-                <div className="min-w-0">
-                  <dt className="text-xs text-muted-foreground">Cuenta</dt>
-                  <dd>
-                    {contratista.banco} · {contratista.tipoCuenta === "ahorros" ? "Ahorros" : "Corriente"} {contratista.numeroCuenta}
-                  </dd>
-                </div>
-              )}
+              <div className="min-w-0 sm:col-span-2">
+                <dt className="text-xs text-muted-foreground">Cuenta (en Terceros)</dt>
+                <dd>
+                  <CuentasTercero terceroId={contratista.terceroId} />
+                </dd>
+              </div>
             </dl>
             <div className="flex flex-wrap gap-1.5">
               {DOCUMENTOS_POR_PERSONA[contratista.tipoPersona].map((d) => {
