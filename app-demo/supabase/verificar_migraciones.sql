@@ -472,5 +472,10 @@ select * from (
   select '20261218000000_consolidado_dispersados',
          exists (select 1 from pg_proc where proname = 'conteo_etapas_consolidado' and prosrc like '%''dispersado''%'
                     and pg_get_function_identity_arguments(oid) like '%p_creado_desde%')
+  union all
+  select '20261221000000_actas_generales',
+         exists (select 1 from pg_proc where proname = 'buscar_contratos_para_acta'
+                    and pg_get_function_identity_arguments(oid) like '%p_clase%')
+         and exists (select 1 from pg_proc where proname = 'puede_ver_actas' and prosrc like '%actas_generales%')
 ) t
 order by 1;

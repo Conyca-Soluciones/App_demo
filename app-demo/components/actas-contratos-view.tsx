@@ -59,6 +59,7 @@ import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
+import { RUTA_ACTAS, TITULO_ACTAS, type ClaseActas } from "@/lib/actas-clase"
 
 // Actas por grupos: se busca el contrato o el contratista (con un solo
 // contrato se escoge solo; con varios, se elige en la lista). Del contrato se
@@ -68,10 +69,20 @@ import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
 // se ejecutaron (o el % de avance si es a valor global). Las que no están
 // aprobadas las puede editar quien las creó (una rechazada vuelve a aprobación).
 // ?ver=<id> (aviso de la campanita) abre el contrato del acta con el acta abierta.
+// La misma pantalla sirve para Actas generales (clase "general": contratos
+// generales, siempre de valor global, por % de ejecución).
 
 const mensaje = (e: unknown, otro: string) => (e instanceof Error ? e.message : otro)
 
-export function ActasContratosView({ puedeElaborar, verInicial }: { puedeElaborar: boolean; verInicial: string | null }) {
+export function ActasContratosView({
+  puedeElaborar,
+  verInicial,
+  clase = "grupo",
+}: {
+  puedeElaborar: boolean
+  verInicial: string | null
+  clase?: ClaseActas
+}) {
   const router = useRouter()
   const [contratista, setContratista] = useState<OpcionBuscador | null>(null)
   // Contratos aprobados del contratista elegido (null = no se ha elegido o se buscó por contrato y aún carga).
@@ -85,29 +96,29 @@ export function ActasContratosView({ puedeElaborar, verInicial }: { puedeElabora
   const [actaInicial, setActaInicial] = useState<{ id: string; contratoId: string } | null>(null)
 
   const buscarContratistas = useCallback(async (t: string): Promise<OpcionBuscador[]> => {
-    const lista = await buscarContratistasParaActa(t)
+    const lista = await buscarContratistasParaActa(t, clase)
     return lista.map((k) => ({
       id: k.id,
       etiqueta: k.nombre,
       subetiqueta: `${k.documento} · ${k.contratos} ${k.contratos === 1 ? "contrato" : "contratos"}`,
     }))
-  }, [])
+  }, [clase])
 
   const buscarContratos = useCallback(async (t: string): Promise<OpcionBuscador[]> => {
-    const lista = await buscarContratosParaActa(t)
+    const lista = await buscarContratosParaActa(t, clase)
     ultimosContratos.current = new Map(lista.map((c) => [c.id, c]))
     return lista.map((c) => ({
       id: c.id,
       etiqueta: `${c.numeroContrato} · ${c.contratistaNombre}`,
       subetiqueta: `${c.proyectoCodigo} · ${c.objeto}`,
     }))
-  }, [])
+  }, [clase])
 
   // elegirId: el contrato a escoger cuando se llega desde un aviso.
   function cargarContratosDe(contratistaId: string, elegido: ContratoParaActa | null, elegirId?: string) {
     setCargandoContratos(true)
     setError(null)
-    contratosDeContratista(contratistaId)
+    contratosDeContratista(contratistaId, clase)
       .then((lista) => {
         setContratosContratista(lista)
         if (elegirId) {
@@ -153,7 +164,15 @@ export function ActasContratosView({ puedeElaborar, verInicial }: { puedeElabora
   const variosContratos = contratosContratista != null && contratosContratista.length > 1
 
   return (
-    <MarcoPagina titulo="Actas por grupos" subtitulo="Busca el contrato o el contratista y crea sus actas." scroll>
+    <MarcoPagina
+      titulo={TITULO_ACTAS[clase]}
+      subtitulo={
+        clase === "general"
+          ? "Busca el contrato general o el contratista y crea sus actas por % de ejecución."
+          : "Busca el contrato o el contratista y crea sus actas."
+      }
+      scroll
+    >
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
         <section className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -218,7 +237,7 @@ export function ActasContratosView({ puedeElaborar, verInicial }: { puedeElabora
             verActaInicial={actaInicial?.contratoId === contrato.id ? actaInicial.id : null}
             onCerrarActaInicial={() => {
               setActaInicial(null)
-              if (verInicial) router.replace("/contratos/actas")
+              if (verInicial) router.replace(RUTA_ACTAS[clase])
             }}
           />
         )}

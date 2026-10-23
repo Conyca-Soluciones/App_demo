@@ -104,7 +104,8 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.solicitar_otrosi", titulo: "Solicitud de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/otrosi", rutas: ["/contratos/otrosi", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_otrosi", titulo: "Aprobación de otrosí", seccion: "Contratos", subseccion: "Otrosí", url: "/contratos/aprobacion-otrosi", rutas: ["/contratos/aprobacion-otrosi", "/contratos/otrosi-pdf"] },
   { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
-  { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/", rutas: [], nota: "Todavía sin página." },
+  // Las actas de los contratos generales, por % de ejecución (20261221000000).
+  { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas-generales", rutas: ["/contratos/actas-generales", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.aprobar_actas", titulo: "Aprobación de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 

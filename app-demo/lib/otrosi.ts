@@ -21,6 +21,7 @@ export const PESTANAS_VER_OTROSI = [
   "contratos.preaprobacion",
   "contratos.aprobar_minutas",
   "contratos.cortes",
+  "contratos.actas_generales",
   "contratos.aprobar_actas",
   "admin.visualizacion",
   "contratos.polizas",

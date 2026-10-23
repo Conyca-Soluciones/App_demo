@@ -1,7 +1,8 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
+import { PESTANA_ACTAS, PESTANAS_ELABORAR_ACTAS, esClaseActas, type ClaseActas } from "@/lib/actas-clase"
 import { puedeBuscar } from "@/lib/busqueda"
 import { esEstadoPolizaContrato } from "@/lib/polizas"
 import { mapTitularCuenta, type TitularCuenta } from "@/lib/titular-cuenta"
@@ -40,28 +41,34 @@ const mapContrato = (f: any): ContratoParaActa => ({
 
 const num = (x: unknown) => (x == null ? null : Number(x))
 
-export async function buscarContratosParaActa(texto: string): Promise<ContratoParaActa[]> {
-  await requerirPestana("contratos.cortes")
+// Cada clase (por grupos o generales) busca sus contratos con su pestaña.
+async function exigirClase(clase: ClaseActas) {
+  if (!esClaseActas(clase)) throw new Error("Clase de contrato no válida.")
+  await requerirPestana(PESTANA_ACTAS[clase])
+}
+
+export async function buscarContratosParaActa(texto: string, clase: ClaseActas = "grupo"): Promise<ContratoParaActa[]> {
+  await exigirClase(clase)
   if (!puedeBuscar(texto)) return []
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("buscar_contratos_para_acta", { p_texto: texto.trim() })
+  const { data, error } = await supabase.rpc("buscar_contratos_para_acta", { p_texto: texto.trim(), p_clase: clase })
   if (error) throw new Error(error.message)
   return (data ?? []).map(mapContrato)
 }
 
-export async function contratosDeContratista(contratistaId: string): Promise<ContratoParaActa[]> {
-  await requerirPestana("contratos.cortes")
+export async function contratosDeContratista(contratistaId: string, clase: ClaseActas = "grupo"): Promise<ContratoParaActa[]> {
+  await exigirClase(clase)
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("buscar_contratos_para_acta", { p_texto: null, p_contratista_id: contratistaId })
+  const { data, error } = await supabase.rpc("buscar_contratos_para_acta", { p_texto: null, p_contratista_id: contratistaId, p_clase: clase })
   if (error) throw new Error(error.message)
   return (data ?? []).map(mapContrato)
 }
 
-export async function buscarContratistasParaActa(texto: string): Promise<ContratistaParaActa[]> {
-  await requerirPestana("contratos.cortes")
+export async function buscarContratistasParaActa(texto: string, clase: ClaseActas = "grupo"): Promise<ContratistaParaActa[]> {
+  await exigirClase(clase)
   if (!puedeBuscar(texto)) return []
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("buscar_contratistas_para_acta", { p_texto: texto.trim() })
+  const { data, error } = await supabase.rpc("buscar_contratistas_para_acta", { p_texto: texto.trim(), p_clase: clase })
   if (error) throw new Error(error.message)
   return (data ?? []).map((f: any) => ({
     id: f.contratista_id,
@@ -72,7 +79,7 @@ export async function buscarContratistasParaActa(texto: string): Promise<Contrat
 }
 
 export async function listarActasDeContrato(contratoId: string): Promise<ActaResumen[]> {
-  await requerirPestana("contratos.cortes")
+  await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("actas_de_contrato", { p_contrato_id: contratoId })
   if (error) throw new Error(error.message)
@@ -94,7 +101,7 @@ export async function listarActasDeContrato(contratoId: string): Promise<ActaRes
 // El contrato con sus actividades y acumulados, para llenar o editar un acta
 // (excluirActa: la que se edita no cuenta contra sí misma).
 export async function obtenerContratoParaActa(contratoId: string, excluirActa?: string): Promise<InfoContratoActa> {
-  await requerirPestana("contratos.cortes")
+  await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
   const supabase = await createClient()
   const { data: d, error } = await supabase.rpc("contrato_para_acta", {
     p_contrato_id: contratoId,
@@ -139,7 +146,7 @@ export async function obtenerActa(id: string): Promise<ActaDetalle> {
   const ok =
     permisos?.esAdministrador ||
     (!permisos?.sinRol &&
-      (permisos?.pestanas.includes("contratos.cortes") ||
+      (PESTANAS_ELABORAR_ACTAS.some((p) => permisos?.pestanas.includes(p)) ||
         permisos?.pestanas.includes("contratos.aprobar_actas") ||
         // Desde su pago (A&F): detalle_acta solo deja ver el acta si se ve el pago.
         permisos?.pestanas.includes("ayf.aprobacion_pagos") ||
@@ -313,7 +320,7 @@ export async function subirActaFirmadaContratista(actaId: string, archivo: Omit<
 // Titular de la cuenta guardado en el acta (para corregirla). null = la cuenta
 // es la del contratista.
 export async function titularDeActa(actaId: string): Promise<TitularCuenta | null> {
-  await requerirPestana("contratos.cortes")
+  await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("titular_de_acta", { p_acta_id: actaId })
   if (error) throw new Error(error.message)

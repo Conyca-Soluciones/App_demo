@@ -2722,8 +2722,7 @@ hoja PDF (no minuta larga); actas generales después.
 - Contratos por grupos solo lista 'grupo'; Actas por grupos solo busca 'grupo'
   (`buscar_*_para_acta`).
 - **Pendiente**: la tabla `empresas` no tiene dirección ni teléfono (la hoja
-  muestra razón social, NIT y la ciudad del proyecto); actas de contratos
-  generales; la campanita lleva al director a Contratos por grupos aunque el
+  muestra razón social, NIT y la ciudad del proyecto); la campanita lleva al director a Contratos por grupos aunque el
   contrato sea general (el detalle abre bien, pero "Corregir" está en
   Contratos generales).
 
@@ -3110,7 +3109,7 @@ de contratos = `contratos.aprobar_minutas` (Subgerencia), Pólizas =
 **Otrosí** (Solicitud de otrosí = `contratos.solicitar_otrosi`, Aprobación de
 otrosí = `contratos.aprobar_otrosi`, 2026-10-20); subgrupo
 **Actas** (Actas por grupos = `contratos.cortes`, Actas generales =
-`contratos.actas_generales` sin página, Aprobación de actas =
+`contratos.actas_generales` (`/contratos/actas-generales`), Aprobación de actas =
 `contratos.aprobar_actas`); e **Informes** (`contratos.informes`, sin página).
 Los subgrupos son `subseccion` en `PESTANAS` (encabezado en la tercera columna
 del menú y "Subgrupo › Pestaña" en la matriz de roles). Las claves y las rutas
@@ -3332,6 +3331,30 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
 
+## Actas generales `/contratos/actas-generales` (2026-10-23)
+
+`20261221000000_actas_generales.sql` (decisión del usuario: "igual que actas
+por grupos pero para contratos generales", por % de ejecución también el
+pago). Va después de `20261220000000` (rama de Sofia, método de pago).
+- **La misma pantalla y las mismas funciones** que Actas por grupos:
+  `ActasContratosView` con `clase="general"` (`lib/actas-clase.ts`:
+  `PESTANA_ACTAS`, `RUTA_ACTAS`, `TITULO_ACTAS`). Las acciones de
+  `contratos/actas/actions.ts` reciben la clase; `buscar_contratos_para_acta` y
+  `buscar_contratistas_para_acta` tienen `p_clase` ('grupo' por omisión) y cada
+  clase pide su pestaña. Lo demás (contrato_para_acta, crear/editar, pago en
+  A&F con `_pago_de_acta`, PDF, historial, soportes, firmas, Aprobación de
+  actas) no cambió: vale para las dos con cualquiera de las dos pestañas
+  (`puede_ver_actas`, `actas_select`, `_puede_ver_otrosis`, ruta del PDF,
+  `PESTANAS_ELABORAR_ACTAS`).
+- Los contratos generales son de valor global: el acta es por **% de
+  ejecución** (acumulado <= 100 %) y su pago es el neto. Retención en garantía
+  = `contratos.retencion_garantia_pct` del general (0 = sin retención,
+  `_retencion_porcentaje_contrato`); sin anticipo. `retencion_anticipo_pct` y
+  `retencion_fic_pct` NO se descuentan solos (van como "otros descuentos").
+- La pestaña se dio a los roles que tenían Actas por grupos. Los avisos y Mis
+  pendientes siguen llevando a `/contratos/actas?ver=`: esa página redirige a
+  Actas generales cuando el acta es de un contrato general.
+
 ---
 
 # TRASPASO DE SESIÓN (2026-10-02) — leer esto primero
@@ -3483,7 +3506,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
 `20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
 `20261217000000` dispersores (Realizar Pagos) ·
-`20261218000000` pestaña Dispersados del Consolidado y filtro por semana de creación.
+`20261218000000` pestaña Dispersados del Consolidado y filtro por semana de creación ·
+`20261220000000` método de pago de los contratos (rama de Sofia) ·
+`20261221000000` actas generales.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
