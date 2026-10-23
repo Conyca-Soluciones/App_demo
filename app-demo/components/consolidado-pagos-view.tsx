@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { PaginacionSimple } from "@/components/paginacion-simple"
-import { SelectorNumeros } from "@/components/selector-numeros"
+import { FiltroSemanas } from "@/components/filtro-semanas"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
@@ -41,11 +41,9 @@ import {
   ETIQUETA_ESTADO_PAGO,
   anticiposOrigen,
   formatoMoneda,
-  fechasSemanaIso,
   rutaSoporteDispersor,
   rutaSoportePago,
   semanaIso,
-  semanasDelAnio,
   type ClaveConsolidado,
   type ConteoEtapas,
   type EstadoPago,
@@ -128,6 +126,9 @@ export function ConsolidadoPagosView({
   const actual = semanaIso()
   const [anios, setAnios] = useState<number[]>([actual.anio])
   const [semanas, setSemanas] = useState<number[]>([actual.semana])
+  // Semana de creación del pago: vacía = todas (la de aprobación es la del ITEM).
+  const [aniosCreacion, setAniosCreacion] = useState<number[]>([])
+  const [semanasCreacion, setSemanasCreacion] = useState<number[]>([])
   const [estado, setEstado] = useState<EstadoPago | "todos">("todos")
   const [tercero, setTercero] = useState("")
   const [soloConNovedad, setSoloConNovedad] = useState(false)
@@ -159,8 +160,6 @@ export function ConsolidadoPagosView({
     for (let y = actual.anio; y >= Math.min(2026, actual.anio); y--) lista.push(y)
     return lista
   }, [actual.anio])
-  const totalSemanas = anios.length === 1 ? semanasDelAnio(anios[0]) : 53
-  const opcionesSemanas = useMemo(() => Array.from({ length: totalSemanas }, (_, i) => i + 1), [totalSemanas])
 
   function cargar(filtros: FiltrosConsolidado, pag: number, conConteo = true) {
     setUltimosFiltros(filtros)
@@ -188,6 +187,8 @@ export function ConsolidadoPagosView({
     return {
       anios: anios.length === 0 ? undefined : anios,
       semanas: semanas.length === 0 ? undefined : semanas,
+      aniosCreacion: aniosCreacion.length === 0 ? undefined : aniosCreacion,
+      semanasCreacion: semanasCreacion.length === 0 ? undefined : semanasCreacion,
       estado: estado === "todos" ? undefined : estado,
       tercero: tercero.trim() || undefined,
       soloConNovedad: soloConNovedad || undefined,
@@ -213,6 +214,8 @@ export function ConsolidadoPagosView({
   function limpiar() {
     setAnios([actual.anio])
     setSemanas([actual.semana])
+    setAniosCreacion([])
+    setSemanasCreacion([])
     setEstado("todos")
     setTercero("")
     setSoloConNovedad(false)
@@ -540,34 +543,26 @@ export function ConsolidadoPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Por omisión: la semana actual. Se pueden elegir varios años y varias semanas (las semanas valen en cada año elegido). El ITEM se numera por consolidado y semana."
+          ayuda="Semana de aprobación: la del ITEM (se numera por consolidado y semana al aprobar el pago); por omisión, la actual. Semana de creación: cuando se creó el pago; por omisión, todas. Las semanas valen en cada año elegido."
         >
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="anio-pagos">Años</Label>
-              <SelectorNumeros
-                id="anio-pagos"
-                opciones={opcionesAnios}
-                seleccion={anios}
-                onChange={setAnios}
-                textoTodas="Todos"
-                plural="años"
-                columnas={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="semana-pagos">Semanas</Label>
-              <SelectorNumeros
-                id="semana-pagos"
-                opciones={opcionesSemanas}
-                seleccion={semanas}
-                onChange={setSemanas}
-                textoTodas="Todas"
-                plural="semanas"
-                ayuda={anios.length === 1 ? (n) => fechasSemanaIso(anios[0], n) : undefined}
-              />
-            </div>
-          </div>
+          <FiltroSemanas
+            id="aprobacion-pagos"
+            titulo="Semana de aprobación (ITEM)"
+            opcionesAnios={opcionesAnios}
+            anios={anios}
+            semanas={semanas}
+            onAnios={setAnios}
+            onSemanas={setSemanas}
+          />
+          <FiltroSemanas
+            id="creacion-pagos"
+            titulo="Semana de creación"
+            opcionesAnios={opcionesAnios}
+            anios={aniosCreacion}
+            semanas={semanasCreacion}
+            onAnios={setAniosCreacion}
+            onSemanas={setSemanasCreacion}
+          />
 
           <div className="space-y-1.5">
             <Label>Estado</Label>

@@ -470,6 +470,7 @@ select * from (
          and exists (select 1 from pg_trigger where tgname = 'trg_pago_cuenta_sin_confirmar')
   union all
   select '20261218000000_consolidado_dispersados',
-         exists (select 1 from pg_proc where proname = 'conteo_etapas_consolidado' and prosrc like '%''dispersado''%')
+         exists (select 1 from pg_proc where proname = 'conteo_etapas_consolidado' and prosrc like '%''dispersado''%'
+                    and pg_get_function_identity_arguments(oid) like '%p_creado_desde%')
 ) t
 order by 1;

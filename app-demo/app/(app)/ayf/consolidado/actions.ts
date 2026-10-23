@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR, limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, filtrarSemanaCreacion, mapPago, rangosCreacion } from "@/lib/pagos-db"
 import { documentoFormateado, soloDigitos } from "@/lib/terceros"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { buscarSoportesDePagos } from "@/lib/soportes-pagos-db"
@@ -55,6 +55,7 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
   if (anios.length > 0) query = query.in("anio", anios)
   if (semanas.length > 0) query = query.in("semana", semanas)
+  query = filtrarSemanaCreacion(query, filtros)
   if (filtros.estado) query = query.eq("estado", filtros.estado)
   if (filtros.soloConNovedad) query = query.not("novedad", "is", null)
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
@@ -99,10 +100,13 @@ async function soportesDispersor(supabase: any, ids: string[]): Promise<Record<s
 export async function conteoEtapasConsolidado(clave: string, filtros: FiltrosConsolidado = {}): Promise<ConteoEtapas> {
   const consolidadoId = await idConsolidado(clave)
   const supabase = await createClient()
+  // La semana de creación solo se manda si se eligió (20261219000000).
+  const rangos = rangosCreacion(filtros)
   const { data, error } = await supabase.rpc("conteo_etapas_consolidado", {
     p_consolidado_id: consolidadoId,
     p_anios: enteros(filtros.anios, 2020, 2100, "un año no válido"),
     p_semanas: enteros(filtros.semanas, 1, 53, "una semana no válida"),
+    ...(rangos.length > 0 ? { p_creado_desde: rangos.map((r) => r.desde), p_creado_hasta: rangos.map((r) => r.hasta) } : {}),
   })
   if (error) throw new Error(error.message)
   const c = (data ?? {}) as Record<string, number>

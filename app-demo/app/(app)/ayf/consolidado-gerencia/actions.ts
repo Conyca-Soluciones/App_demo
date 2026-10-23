@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago, filtrarSemanaCreacion } from "@/lib/pagos-db"
 import { buscarSoportesDePagos, type PagoParaSoporte } from "@/lib/soportes-pagos-db"
 import {
   PESTANA_CONSOLIDADO_GERENCIA,
@@ -58,6 +58,7 @@ export async function listarConsolidadoGerencia(
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
   if (anios.length > 0) query = query.in("anio", anios)
   if (semanas.length > 0) query = query.in("semana", semanas)
+  query = filtrarSemanaCreacion(query, filtros)
   for (const [valor, columna] of [
     [filtros.empresaId, "empresa_id"],
     [filtros.proyectoId, "proyecto_id"],

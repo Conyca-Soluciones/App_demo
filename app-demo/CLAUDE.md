@@ -1357,6 +1357,18 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   en `listarConsolidado`; las semanas valen en cada año elegido. Selector
   `SelectorNumeros` (`components/selector-numeros.tsx`); por omisión la semana
   actual. La tabla tiene columna Semana junto al ITEM.
+- **Semana de aprobación y semana de creación** (decisión del usuario
+  2026-10-23): `pagos.anio` / `semana` son la semana en que se APROBÓ el pago
+  (la del ITEM, `_pago_asignar_item` usa `aprobado_en`), no la de creación. Los
+  consolidados y el Consolidado Gerencia tienen los dos filtros
+  (`components/filtro-semanas.tsx`): "Semana de aprobación (ITEM)" (por omisión
+  la actual) y "Semana de creación" (`creado_en`, por omisión todas;
+  `FiltroCreacion.aniosCreacion` / `semanasCreacion`). La de creación se filtra
+  con rangos lunes a lunes en hora de Colombia (`rangosSemanasIso` en
+  `lib/pagos.ts`, con pruebas; `filtrarSemanaCreacion` en `lib/pagos-db.ts`, un
+  solo `.or`) y el conteo de pestañas los recibe en
+  `conteo_etapas_consolidado(..., p_creado_desde, p_creado_hasta)`
+  (`20261218000000`; solo se mandan si se eligió el filtro).
 - **Mis pendientes** (T1, `/pendientes`, `20261127000000_mis_pendientes.sql`;
   decisiones del usuario 2026-10-21): bandeja POR PERSONA, no por rol; le sale a
   todos los que pueden resolverlo y el primero que lo resuelve lo quita de la
@@ -3471,7 +3483,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
 `20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
 `20261217000000` dispersores (Realizar Pagos) ·
-`20261218000000` pestaña Dispersados del Consolidado.
+`20261218000000` pestaña Dispersados del Consolidado y filtro por semana de creación.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
