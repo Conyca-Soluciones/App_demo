@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
 import { esEstadoPolizaContrato } from "@/lib/polizas"
+import { mapTitularCuenta, type TitularCuenta } from "@/lib/titular-cuenta"
 import type {
   ActaDetalle,
   ActaResumen,
@@ -307,4 +308,14 @@ export async function subirActaFirmadaContratista(actaId: string, archivo: Omit<
   })
   if (error) throw new Error(error.message)
   return { rutaAnterior: (data?.ruta_anterior as string | null) ?? null }
+}
+
+// Titular de la cuenta guardado en el acta (para corregirla). null = la cuenta
+// es la del contratista.
+export async function titularDeActa(actaId: string): Promise<TitularCuenta | null> {
+  await requerirPestana("contratos.cortes")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("titular_de_acta", { p_acta_id: actaId })
+  if (error) throw new Error(error.message)
+  return mapTitularCuenta(data)
 }

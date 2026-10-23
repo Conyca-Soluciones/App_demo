@@ -451,6 +451,9 @@ export type DatosOrdenCompra = {
   anticipoPorcentaje?: number | null
   saldoModo?: "entrega" | "fecha" | null
   saldoFecha?: string | null // YYYY-MM-DD
+  // Titular de la cuenta cuando no es el proveedor (20261214000000): el pago
+  // se consigna en esa cuenta. null = la del proveedor.
+  titular?: { tercero_id: string; cuenta_id: string } | null
   lineas: LineaOrdenCompra[]
 }
 
@@ -530,6 +533,8 @@ export async function crearOrdenCompra(
       mime: soporte.mime,
     },
     ...(anticipo ?? {}),
+    // Solo se manda si hay titular aparte (igual que el anticipo).
+    ...(datos.titular ? { p_titular: datos.titular } : {}),
     p_lineas: datos.lineas.map((l) =>
       l.presentacion
         ? {

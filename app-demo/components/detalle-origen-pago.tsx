@@ -53,7 +53,9 @@ export function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: 
         <EtiquetaEstadoPago estado={pago.estado} />
         <span className="min-w-0 truncate text-muted-foreground" title={pago.cuentaTexto ?? undefined}>
           {pago.terceroNombre ?? "Sin tercero"}
-          {pago.cuentaTexto ? ` · ${pago.cuentaTexto}${pago.cuentaVerificada ? "" : " (sin verificar)"}` : ""}
+          {pago.cuentaTexto
+            ? ` · ${pago.cuentaTitular ? `cuenta de ${pago.cuentaTitular}: ` : ""}${pago.cuentaTexto}${pago.cuentaVerificada ? "" : " (sin verificar)"}`
+            : ""}
         </span>
         {pago.novedad && (
           <span className="flex items-center gap-1 text-amber-700">

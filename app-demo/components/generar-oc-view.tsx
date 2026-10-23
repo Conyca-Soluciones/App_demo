@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/table"
 import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
 import { TarjetaProveedorOC } from "./tarjeta-proveedor-oc"
+import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
+import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import {
   obtenerPedidosPorId,
@@ -148,6 +150,8 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   // Soporte obligatorio de la orden (cotización, cuenta de cobro o factura).
   const [tipoSoporte, setTipoSoporte] = useState<TipoSoporteOrden>("cotizacion")
   const [archivoSoporte, setArchivoSoporte] = useState<File | null>(null)
+  // Cuenta de otro tercero (quien factura es el proveedor).
+  const [titular, setTitular] = useState<TitularCuenta | null>(null)
   // Anticipo (A&F): % del total y cuándo se paga el saldo.
   const [conAnticipo, setConAnticipo] = useState(false)
   const [anticipoPct, setAnticipoPct] = useState("")
@@ -340,6 +344,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
       setError("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
       return
     }
+    const t = titularParaGuardar(titular)
+    if (!t.ok) {
+      setError(t.error)
+      return
+    }
     setGenerando(true)
     setError(null)
     // El soporte se sube primero; si la orden no se crea, se borra.
@@ -363,6 +372,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         email: detalleProveedor?.correo ?? null,
         condicionesPago: condicionesPago.trim() || null,
         observaciones: observaciones.trim() || null,
+        titular: t.titular,
         ...(conAnticipo
           ? { anticipoPorcentaje: pctNumero, saldoModo, saldoFecha: saldoModo === "fecha" ? saldoFecha : null }
           : {}),
@@ -687,6 +697,10 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                 )}
               </div>
             </div>
+          )}
+
+          {detalleProveedor && !cargandoProveedor && (
+            <CampoTitularCuenta valor={titular} onCambiar={setTitular} quienFactura={detalleProveedor.nombre} />
           )}
 
           <div className="space-y-1.5">

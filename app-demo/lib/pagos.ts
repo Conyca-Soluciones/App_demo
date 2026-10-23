@@ -85,6 +85,9 @@ export type Pago = {
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
+  // Dueño de la cuenta cuando no es el tercero que factura (20261214000000):
+  // el pago es del tercero, se consigna en la cuenta de este titular.
+  cuentaTitular: string | null
   numeroFactura: string | null
   solicitadoPorNombre: string | null
   // Desglose de origen (como el cuadro de pagos), guardado al crear el pago:
@@ -136,6 +139,30 @@ export type ClaveConsolidado = (typeof CONSOLIDADOS)[number]["clave"]
 export function esClaveConsolidado(c: string): c is ClaveConsolidado {
   return CONSOLIDADOS.some((x) => x.clave === c)
 }
+
+// Consolidado Gerencia (20261212000000): los pagos de los tres consolidados.
+export const PESTANA_CONSOLIDADO_GERENCIA = "ayf.consolidado_gerencia"
+export type FiltrosConsolidadoGerencia = {
+  // Vacíos = todos. Las semanas valen en cada año elegido.
+  anios?: number[]
+  semanas?: number[]
+  empresaId?: string
+  proyectoId?: string
+  solicitanteId?: string
+  tercero?: string
+}
+export type OpcionesConsolidadoGerencia = {
+  empresas: { id: string; nombre: string }[]
+  proyectos: { id: string; codigo: string | null; nombre: string }[]
+  solicitantes: { id: string; nombre: string }[]
+}
+// El archivo original del pago: factura / cuenta de cobro de la OC (o su
+// cotización), soporte de pago del acta, o el del ítem de la requisición
+// administrativa.
+export type SoportePago =
+  | { origen: "orden_compra"; id: string; nombre: string; tipo: string }
+  | { origen: "acta"; ruta: string; nombre: string; tipo: string }
+  | { origen: "requisicion_admin"; ruta: string; nombre: string; tipo: string }
 
 export type FiltrosAprobacionPagos = {
   estado?: EstadoPago

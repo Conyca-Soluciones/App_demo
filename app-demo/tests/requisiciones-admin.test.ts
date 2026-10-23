@@ -33,6 +33,7 @@ const transferencia = (p: Partial<ItemFormReqAdmin> = {}): ItemFormReqAdmin => (
   concepto: "Papelería",
   proyectoId: "p1",
   valor: "1.250.000,50",
+  soporte: { ruta: "u1/item-1.pdf", nombre: "factura.pdf", mime: "application/pdf", tamano: 1000, tipo: "factura" },
   ...p,
 })
 
@@ -47,6 +48,7 @@ const pse = (p: Partial<ItemFormReqAdmin> = {}): ItemFormReqAdmin => ({
   concepto: "Predial",
   proyectoId: "p1",
   valor: "50000",
+  soporte: { ruta: "u1/item-1.pdf", nombre: "factura.pdf", mime: "application/pdf", tamano: 1000, tipo: "factura" },
   ...p,
 })
 
@@ -70,6 +72,8 @@ describe("validación de ítems", () => {
     expect(validarItemReqAdmin(pse({ proyectoId: "" }), "pse")).toMatch(/proyecto/)
     expect(validarItemReqAdmin(pse({ valor: "0" }), "pse")).toMatch(/mayor que cero/)
     expect(validarItemReqAdmin(pse({ valor: "abc" }), "pse")).toMatch(/mayor que cero/)
+    expect(validarItemReqAdmin(pse({ soporte: null }), "pse")).toMatch(/soporte/)
+    expect(validarItemReqAdmin(pse({ soporte: null, archivoSoporte: new File(["x"], "f.pdf") }), "pse")).toBeNull()
   })
 
   it("requisición: al menos uno y como mucho 50; errores por ítem", () => {
@@ -105,6 +109,7 @@ describe("valores y lo que se guarda", () => {
       tercero_factura_id: "t1",
       titular_tercero_id: "t1",
       cuenta_tercero_id: "c1",
+      soporte: { ruta: "u1/item-1.pdf", nombre: "factura.pdf", mime: "application/pdf", tamano: 1000, tipo: "factura" },
     })
     expect(itemParaGuardar(transferencia({ titularTerceroId: "t2" }), "transferencia")).toMatchObject({ titular_tercero_id: "t2" })
   })
@@ -164,6 +169,7 @@ describe("detalle", () => {
         proyecto_nombre: "Estuario",
         valor: 150000.5,
         observaciones: null,
+        soporte: { ruta: "u1/item-1.pdf", nombre: "factura.pdf", mime: "application/pdf", tamano: 1000, tipo: "factura" },
       },
     ],
   }
@@ -219,7 +225,8 @@ describe("plantilla PSE", () => {
       observaciones: "obs",
     })
     expect(r.items[1]).toMatchObject({ empresaId: "e2", proyectoId: "p2", valor: "1250000" })
-    for (const it of r.items) expect(validarItemReqAdmin(it, "pse")).toBeNull()
+    // Del Excel no viene el soporte: se adjunta en cada ítem.
+    for (const it of r.items) expect(validarItemReqAdmin(it, "pse")).toMatch(/soporte/)
     expect(r.errores.map((e) => e.fila)).toEqual([7, 8, 9, 10])
     expect(r.errores[0].mensaje).toMatch(/grupo empresarial/)
     expect(r.errores[1].mensaje).toMatch(/tipo de documento/)

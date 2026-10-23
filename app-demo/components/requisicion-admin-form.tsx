@@ -22,6 +22,8 @@ import {
   type OpcionesReqAdmin,
 } from "@/lib/requisiciones-admin"
 import { crearRequisicionAdmin, modificarRequisicionAdmin } from "@/app/(app)/ayf/requisiciones-administrativas/actions"
+import { createClient } from "@/lib/supabase/client"
+import { rutaSoporte } from "@/lib/soportes"
 
 export type EdicionReqAdmin = {
   id: string
@@ -145,18 +147,53 @@ export function RequisicionAdminForm({
     }
   }
 
+  // Sube los soportes elegidos (bucket privado requisiciones_admin, carpeta del
+  // usuario) y devuelve los ítems listos para el servidor (sin el File).
+  async function itemsConSoportes(subidas: string[]): Promise<ItemFormReqAdmin[]> {
+    const pendientes = items.filter((it) => it.archivoSoporte)
+    let uid: string | null = null
+    if (pendientes.length > 0) {
+      const { data } = await createClient().auth.getUser()
+      uid = data.user?.id ?? null
+      if (!uid) throw new Error("Inicia sesión otra vez para subir los soportes.")
+    }
+    const salida: ItemFormReqAdmin[] = []
+    for (let i = 0; i < items.length; i++) {
+      const { archivoSoporte, ...it } = items[i]
+      if (archivoSoporte && uid) {
+        const ruta = rutaSoporte(uid, `item-${i + 1}`, archivoSoporte)
+        const { error: e } = await createClient().storage
+          .from("requisiciones_admin")
+          .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
+        if (e) throw new Error(`Ítem ${i + 1}: no se pudo subir el soporte (${e.message}).`)
+        subidas.push(ruta)
+        salida.push({
+          ...it,
+          soporte: { ruta, nombre: archivoSoporte.name, mime: archivoSoporte.type, tamano: archivoSoporte.size, tipo: it.tipoSoporte },
+        })
+      } else {
+        salida.push(it)
+      }
+    }
+    return salida
+  }
+
   async function enviar() {
     if (!metodo) return
     setEnviando(true)
     setError(null)
+    const subidas: string[] = []
     try {
+      const listos = await itemsConSoportes(subidas)
       if (edicion) {
-        await modificarRequisicionAdmin(edicion.id, metodo, items)
+        await modificarRequisicionAdmin(edicion.id, metodo, listos)
         onEnviada(edicion.id)
       } else {
-        onEnviada(await crearRequisicionAdmin(metodo, items))
+        onEnviada(await crearRequisicionAdmin(metodo, listos))
       }
     } catch (e) {
+      // Lo que se alcanzó a subir no quedó en ningún ítem: se borra.
+      if (subidas.length > 0) await createClient().storage.from("requisiciones_admin").remove(subidas)
       setError(e instanceof Error ? e.message : "No se pudo enviar la requisición.")
     } finally {
       setEnviando(false)
@@ -184,6 +221,7 @@ export function RequisicionAdminForm({
             proyecto: proyectoPorId.get(it.proyectoId) ?? "",
             valor: valorItem(it),
             observaciones: it.observaciones || null,
+            soporte: it.archivoSoporte ? { nombre: it.archivoSoporte.name } : it.soporte ? { nombre: it.soporte.nombre } : null,
           }
         }),
         {

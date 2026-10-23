@@ -272,6 +272,8 @@ export type DatosActa = {
   actividades: { anexo_item_id: string; cantidad: number }[]
   porcentaje_avance: number | null
   descuentos: { concepto: string; valor: number }[]
+  // Cuenta de otro tercero (20261214000000); null o sin enviar = la del contratista.
+  titular?: { tercero_id: string; cuenta_id: string } | null
 }
 
 export function validarActa(info: InfoContratoActa, f: FormActa): { ok: true; datos: DatosActa } | { ok: false; error: string } {

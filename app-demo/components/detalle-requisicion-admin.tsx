@@ -1,6 +1,9 @@
 "use client"
 
+import { Paperclip } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { createClient } from "@/lib/supabase/client"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { CLASE_ESTADO_PAGO, ETIQUETA_ESTADO_PAGO, formatoMoneda, type EstadoPago } from "@/lib/pagos"
@@ -45,6 +48,8 @@ export function columnasItemsReqAdmin<T>(
     proyecto: string
     valor: number | null
     observaciones: string | null
+    // Factura o cuenta de cobro del ítem; con `ver`, se abre.
+    soporte?: { nombre: string; ver?: () => void } | null
   }
 ): ColumnaExcel<T>[] {
   const columnas: ColumnaExcel<T>[] = [
@@ -104,6 +109,28 @@ export function columnasItemsReqAdmin<T>(
       ancho: 200,
       texto: (f) => leer(f).observaciones ?? "",
       celda: (f) => leer(f).observaciones || vacio,
+    },
+    {
+      clave: "soporte",
+      titulo: "Soporte",
+      ancho: 180,
+      ordenable: false,
+      texto: (f) => leer(f).soporte?.nombre ?? "",
+      celda: (f) => {
+        const sop = leer(f).soporte
+        if (!sop) return vacio
+        return sop.ver ? (
+          <Button size="sm" variant="ghost" className="h-7 max-w-full gap-1 px-2" title={sop.nombre} onClick={sop.ver}>
+            <Paperclip className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Ver</span>
+          </Button>
+        ) : (
+          <span className="flex min-w-0 items-center gap-1" title={sop.nombre}>
+            <Paperclip className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{sop.nombre}</span>
+          </span>
+        )
+      },
     }
   )
   return columnas
@@ -125,7 +152,22 @@ const leerItem = (i: ItemReqAdmin) => ({
   proyecto: i.proyectoCodigo ?? i.proyectoNombre,
   valor: i.valor,
   observaciones: i.observaciones,
+  soporte: i.soporte ? { nombre: i.soporte.nombre, ver: () => verSoporteReqAdmin(i.soporte!.ruta) } : null,
 })
+
+// Enlace firmado de 2 minutos (la base solo lo da si se ve el ítem). La pestaña
+// se abre antes de pedirlo: si no, el navegador la bloquea.
+export async function verSoporteReqAdmin(ruta: string) {
+  const ventana = window.open("", "_blank")
+  const { data, error } = await createClient().storage.from("requisiciones_admin").createSignedUrl(ruta, 120)
+  if (error || !data) {
+    ventana?.close()
+    window.alert("No se pudo abrir el soporte.")
+    return
+  }
+  if (ventana) ventana.location.href = data.signedUrl
+  else window.location.href = data.signedUrl
+}
 
 function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (

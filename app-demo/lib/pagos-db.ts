@@ -5,10 +5,11 @@ import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
 import type { Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
-// hacia la misma tabla (perfiles).
+// hacia la misma tabla (perfiles; terceros: el que factura y el titular de la
+// cuenta, 20261214000000).
 export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
-  solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id,
+  solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id, titular_tercero_id,
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
@@ -18,7 +19,8 @@ export const CAMPOS_PAGO = `
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
-  tercero:terceros(razon_social, tipo_documento, numero_documento, dv),
+  tercero:terceros!pagos_tercero_id_fkey(razon_social, tipo_documento, numero_documento, dv),
+  titular:terceros!pagos_titular_tercero_id_fkey(razon_social),
   cuenta:terceros_cuentas(numero_cuenta, tipo_cuenta, estado, banco:bancos(nombre)),
   aprobador:perfiles!pagos_aprobado_por_fkey(nombre),
   rechazador:perfiles!pagos_rechazado_por_fkey(nombre),
@@ -27,7 +29,7 @@ export const CAMPOS_PAGO = `
 
 // Igual, pero con el join !inner al tercero (para filtrar por su nombre en la
 // misma consulta, sin traer ids para mandarlos en un IN).
-export const CAMPOS_PAGO_TERCERO_INNER = CAMPOS_PAGO.replace("tercero:terceros(", "tercero:terceros!inner(")
+export const CAMPOS_PAGO_TERCERO_INNER = CAMPOS_PAGO.replace("tercero:terceros!pagos_tercero_id_fkey(", "tercero:terceros!pagos_tercero_id_fkey!inner(")
 
 const num = (v: unknown): number | null => (v == null ? null : Number(v))
 
@@ -94,6 +96,7 @@ export function mapPago(f: any): Pago {
       ? `${f.cuenta.banco?.nombre ?? ""} · ${ETIQUETA_TIPO_CUENTA[f.cuenta.tipo_cuenta as keyof typeof ETIQUETA_TIPO_CUENTA] ?? f.cuenta.tipo_cuenta} · ${f.cuenta.numero_cuenta}`
       : null,
     cuentaVerificada: f.cuenta?.estado === "ACTIVO",
+    cuentaTitular: f.titular_tercero_id ? (f.titular?.razon_social ?? "otro tercero") : null,
     numeroFactura: f.numero_factura ?? null,
     solicitadoPorNombre: f.solicitante?.nombre ?? null,
     valorDocumento: num(f.valor_documento),

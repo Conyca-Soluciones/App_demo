@@ -1437,6 +1437,63 @@ que existen; el otro maneja los tres.
   los botones de la fila abajo (`BarraPago`). `obtenerActa` acepta también esas
   pestañas (la base decide por el pago).
 
+## Consolidado Gerencia `/ayf/consolidado-gerencia` (2026-10-22)
+
+`20261212000000_consolidado_gerencia.sql` (decisión del usuario: control de
+Gerencia, junta los tres consolidados; se le agregarán columnas).
+- Pestaña `ayf.consolidado_gerencia` (rol Gerencia): `_consolidados_visibles`
+  devuelve TODOS los consolidados con ella, así que RLS, embeds y detalles
+  funcionan igual que en cada consolidado. Solo consulta.
+- Filtros: años / semanas (`SelectorNumeros`), grupo empresarial, tercero
+  (texto), proyecto y solicitante (`opciones_consolidado_gerencia()`, solo los
+  que tienen pagos con consolidado). Columnas: ITEM, semana/año, grupo
+  empresarial, tercero, proyecto, solicitante, valor a pagar y soporte. El ITEM
+  se repite entre consolidados (es por consolidado y semana).
+- **Soporte** (`soportesDePagos`, tres consultas por página): OC = soporte de
+  la orden (factura / cuenta de cobro antes que cotización); acta = su factura
+  o cuenta de cobro; requisición administrativa = el del ítem.
+- **Soporte de los ítems de requisiciones administrativas** (no existía):
+  `requisicion_admin_items.soporte_*` (factura o cuenta de cobro; OBLIGATORIO
+  desde `20261213000000`, decisión del usuario: los ítems del Excel de PSE lo
+  piden uno por uno),
+  bucket privado `requisiciones_admin` (`<uid>/...`). El navegador sube y
+  `_guardar_requisicion_admin` lo valida (`_validar_soporte_req_admin`) y lo
+  copia al ítem (se conserva al modificar porque viaja en el ítem). Se ve en el
+  detalle (`verSoporteReqAdmin`).
+- `_pago_desglose_origen` llena ahora `solicitado_por` (quien hizo la
+  requisición) y `valor_documento` de los pagos de requisiciones administrativas.
+- Parcha sobre la versión VIVA `_guardar_requisicion_admin`,
+  `detalle_requisicion_admin` y `_pago_desglose_origen` (texto exacto).
+
+## Titular de la cuenta distinto de quien factura (2026-10-23)
+
+`20261214000000_titular_cuenta_pagos.sql` (decisión del usuario; caso:
+CONSTRUCCIÓN SAS factura y la cuenta es de Luis Carlos Pérez). Casilla "El
+titular de la cuenta es otro tercero" (`components/campo-titular-cuenta.tsx`,
+`lib/titular-cuenta.ts`) en Generar OC y en el formulario del acta; la
+requisición administrativa ya la tenía en su ítem. Requisiciones de obra no
+(no eligen proveedor).
+- El pago sigue siendo DE quien factura (`pagos.tercero_id`: proveedor,
+  contratista o quien factura la requisición administrativa; ahí van las
+  retenciones) y se consigna en `cuenta_tercero_id`, que es del
+  `pagos.titular_tercero_id` (null = del mismo tercero). La requisición
+  administrativa antes ponía el titular como tercero: ahora igual que las demás.
+- `ordenes_compra` / `actas` guardan `titular_tercero_id` + `cuenta_tercero_id`
+  (los dos o ninguno). `crear_orden_compra_con_soporte` tiene `p_titular`
+  (`{tercero_id, cuenta_id}`, solo se manda si hay); el acta lo manda en
+  `p_datos.titular` (`_fijar_titular_acta` en crear/editar). `_titular_valido`:
+  titular en Terceros, cuenta suya y no inactiva; titular = quien factura se
+  guarda como sin titular. `_crear_pagos_orden`, `_pago_de_acta`,
+  `resolicitar_pago`, `_crear_pagos_requisicion_admin`, `_enlazar_pagos_tercero`
+  (no le pone la cuenta del tercero a un pago con titular) y
+  `asignar_tercero_pago` (acepta una cuenta del titular y lo conserva) parchados
+  sobre su versión viva.
+- **pagos tiene dos llaves hacia terceros**: todo embed nombra la llave
+  (`terceros!pagos_tercero_id_fkey`, `titular:terceros!pagos_titular_tercero_id_fkey`).
+  La migración va ANTES que el código. `Pago.cuentaTitular`: el Consolidado lo
+  muestra debajo de la cuenta ("Titular: …"), Aprobación de pagos y el detalle
+  dicen "cuenta de …".
+
 ## Liquidación de pagos: se quitó (2026-10-22)
 
 Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,
@@ -3308,7 +3365,10 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261207000000` APU: escribir solo en los proyectos de cada quien (opción B) ·
 `20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
 `20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
-`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario).
+`20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario) ·
+`20261212000000` Consolidado Gerencia y soporte de requisiciones administrativas ·
+`20261213000000` soporte obligatorio en requisiciones administrativas ·
+`20261214000000` titular de la cuenta en OC, actas y pagos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
