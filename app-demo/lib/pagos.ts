@@ -20,7 +20,7 @@ export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
   aprobado: "Aprobado",
   liquidado: "Liquidado",
   en_dispersion: "En dispersión",
-  dispersado: "Pagado",
+  dispersado: "Dispersado",
   rechazado: "Rechazado",
   anulado: "Anulado",
 }
@@ -117,12 +117,14 @@ export type Pago = {
 // ---------------------------------------------------------------------------
 export type EtapaLiquidacion = "por_liquidar" | "observado" | "liquidado"
 // Pestañas del Consolidado: preparación = sin etapa (Financiera).
-export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "todos"
+// Dispersados = ya salieron en un dispersor (Realizar Pagos, 20261217000000).
+export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "dispersado" | "todos"
 export const ETAPAS_CONSOLIDADO: { clave: EtapaConsolidado; titulo: string }[] = [
   { clave: "preparacion", titulo: "Preparación" },
   { clave: "por_liquidar", titulo: "Por liquidar" },
   { clave: "observado", titulo: "Observados" },
   { clave: "liquidado", titulo: "Liquidados" },
+  { clave: "dispersado", titulo: "Dispersados" },
   { clave: "todos", titulo: "Todos" },
 ]
 export type ConteoEtapas = Record<EtapaConsolidado, number>
@@ -204,6 +206,8 @@ export type RequisicionAdminDePago = {
 // El archivo original del pago se abre en /ayf/soporte-pago/<id> (enlace fijo:
 // pide la sesión y redirige a un enlace firmado). Lo usan la pantalla y el Excel.
 export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
+// El soporte individual del dispersor en que salió el pago.
+export const rutaSoporteDispersor = (pagoId: string) => `/ayf/soporte-dispersor/${pagoId}`
 
 // Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
 export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`

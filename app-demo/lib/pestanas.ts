@@ -111,17 +111,17 @@ export const PESTANAS: Pestana[] = [
   { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion", "/contratos/otrosi-pdf"] },
 
   // A&F (Administrativo y Financiero)
-  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
   // lleva a la primera que tenga.
-  { clave: "ayf.consolidado_bogota", titulo: "Consolidado", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
-  { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
-  { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_bogota", titulo: "Consolidado", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
+  { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
+  { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Los pagos de los tres consolidados, para control de Gerencia (20261212000000).
-  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Dispersores (20261217000000): los pagos liquidados de los tres consolidados.
-  { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago"] },
+  { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 

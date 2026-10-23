@@ -1585,9 +1585,13 @@ tres consolidados.
   Si falla, se borra lo subido. Tablas `dispersiones` y `dispersion_pagos`
   (soporte individual de cada pago). Pestaña "Dispersores generados" con los
   archivos (enlace firmado de 2 min).
-- **Pendiente**: soporte de los pagos por PSE; mostrar el soporte del
-  dispersor en la ventana del pago del Consolidado; los dispersados salen solo
-  en "Todos" del Consolidado.
+- **Consolidado › Dispersados** (`20261218000000`, decisión del usuario): pestaña
+  con los pagos `dispersado` (Liquidados sigue con los aprobados) y la columna
+  "Dispersor" junto al Soporte: el soporte individual por el enlace fijo
+  `/ayf/soporte-dispersor/<pago>` (route handler; RLS de `dispersion_pagos` y
+  del bucket). El estado `dispersado` se muestra "Dispersado" (antes "Pagado").
+- **Pendiente**: soporte de los pagos por PSE; el soporte del dispersor en la
+  ventana del pago.
 
 ## Liquidación de pagos: se quitó (2026-10-22)
 
@@ -3466,7 +3470,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261214000000` titular de la cuenta en OC, actas y pagos ·
 `20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
 `20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
-`20261217000000` dispersores (Realizar Pagos).
+`20261217000000` dispersores (Realizar Pagos) ·
+`20261218000000` pestaña Dispersados del Consolidado.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Download, Loader2, Paperclip, Send, Upload } from "lucide-react"
+import { Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
 import * as XLSX from "xlsx"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -42,6 +42,7 @@ import {
   anticiposOrigen,
   formatoMoneda,
   fechasSemanaIso,
+  rutaSoporteDispersor,
   rutaSoportePago,
   semanaIso,
   semanasDelAnio,
@@ -112,6 +113,8 @@ export function ConsolidadoPagosView({
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [pagos, setPagos] = useState<Pago[] | null>(null)
   const [soportes, setSoportes] = useState<Record<string, SoportePago>>({})
+  // pago dispersado -> nombre del soporte individual de su dispersor
+  const [dispersores, setDispersores] = useState<Record<string, string>>({})
   const [conteo, setConteo] = useState<ConteoEtapas | null>(null)
   const [cargando, setCargando] = useState(false)
   const [pagina, setPagina] = useState(0)
@@ -165,9 +168,10 @@ export function ConsolidadoPagosView({
     setError(null)
     setSeleccion(new Set())
     listarConsolidado(clave, filtros, pag)
-      .then((r: { pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago> }) => {
+      .then((r: { pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago>; dispersores: Record<string, string> }) => {
         setPagos(r.pagos)
         setSoportes(r.soportes)
+        setDispersores(r.dispersores)
         setPagina(pag)
         setHayMas(r.hayMas)
       })
@@ -432,7 +436,7 @@ export function ConsolidadoPagosView({
   const colOrigen: ColumnaExcel<Pago> = { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen }
   const colProyecto: ColumnaExcel<Pago> = { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" }
   const colDocumento = columnaPesos("documento", "Valor documento", (p) => p.valorDocumento ?? p.valor)
-  const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" ? p.valorAPagar : valorAPagarDe(p)), true)
+  const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" || etapa === "dispersado" ? p.valorAPagar : valorAPagarDe(p)), true)
   const colEtapa: ColumnaExcel<Pago> = {
     clave: "etapa",
     titulo: "Etapa",
@@ -481,6 +485,27 @@ export function ConsolidadoPagosView({
         <span className="text-muted-foreground/60">—</span>
       ),
   }
+  const colDispersor: ColumnaExcel<Pago> = {
+    clave: "dispersor",
+    titulo: "Dispersor",
+    ancho: 100,
+    ordenable: false,
+    texto: (p) => dispersores[p.id] ?? "",
+    celda: (p) =>
+      dispersores[p.id] ? (
+        <a
+          href={rutaSoporteDispersor(p.id)}
+          target="_blank"
+          rel="noreferrer"
+          title={dispersores[p.id]}
+          className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
+        >
+          <FileText className="h-4 w-4" /> Ver
+        </a>
+      ) : (
+        <span className="text-muted-foreground/60">—</span>
+      ),
+  }
   const colsLiquidacion: ColumnaExcel<Pago>[] = [
     columnaPesos("base", "Base", (p) => p.liqBase ?? p.baseGravable),
     columnaPesos("iva", "IVA", (p) => p.liqIva ?? p.iva),
@@ -501,6 +526,8 @@ export function ConsolidadoPagosView({
         ? [...base, colDocumento, colSolicita, ...colsLiquidacion, colValorAPagar, colComentarios, colSoporte]
         : etapa === "liquidado"
           ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte]
+          : etapa === "dispersado"
+            ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte, colDispersor]
           : [...base, colCuenta, colOrigen, colProyecto, colSolicita, colDocumento, colValorAPagar, colEtapa, colSoporte]),
   ]
   const camposTarjeta = columnas.map((c) => c.clave).filter((c) => !["sel", "item", "semana", "empresa", "tercero"].includes(c))
