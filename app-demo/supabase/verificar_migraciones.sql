@@ -488,5 +488,6 @@ select * from (
   union all
   select '20261221000000_terceros_crear_para_todos',
          exists (select 1 from pg_proc where proname = 'crear_tercero')
+         and exists (select 1 from pg_proc where proname = 'tercero_por_documento')
 ) t
 order by 1;

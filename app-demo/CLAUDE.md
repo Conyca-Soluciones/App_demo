@@ -1566,6 +1566,12 @@ como copia que se actualiza sola desde Terceros mientras se migran las lecturas)
   básico). El formulario es UNO: `NuevoTerceroDialogo`
   (`components/tercero-dialogo.tsx`), el de A&F, que se reutiliza tal cual en
   otras pantallas; `listarBancos` ya no exige la pestaña de Terceros.
+- **Se busca por documento, no por nombre** (decisión del usuario, para no crear
+  el mismo dos veces): `tercero_por_documento` (cualquier sesión; acepta
+  "901.097.443-4") / `buscarTerceroPorDocumento`. "Nuevo tercero" compara el
+  documento mientras se escribe: si ya existe, avisa con el nombre y no deja
+  crearlo (`onExistente` agrega "Usar este tercero"; en A&F, "Abrir ese tercero").
+  La búsqueda de tercero en Crear contratista (punto 2) también va por documento.
 
 ## Liquidación en el Consolidado (2026-10-23)
 

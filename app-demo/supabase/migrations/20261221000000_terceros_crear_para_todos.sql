@@ -105,3 +105,36 @@ end;
 $$;
 revoke all on function public.crear_tercero(jsonb, jsonb) from public, anon;
 grant execute on function public.crear_tercero(jsonb, jsonb) to authenticated;
+
+-- Buscar un tercero por DOCUMENTO exacto (cédula o NIT), no por nombre: así no
+-- se crea dos veces (decisión del usuario). Acepta "901.097.443-4" (lo que va
+-- después del guion es el DV y no cuenta). Cualquier sesión; devuelve solo lo
+-- básico, o null si no existe. La usan el formulario "Nuevo tercero" (avisa
+-- antes de crear) y la búsqueda de tercero de Contratistas.
+create or replace function public.tercero_por_documento(p_documento text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_numero text := regexp_replace(split_part(coalesce(p_documento, ''), '-', 1), '\D', '', 'g');
+  v jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Inicia sesión.';
+  end if;
+  if v_numero = '' then
+    return null;
+  end if;
+  select jsonb_build_object('id', t.id, 'razon_social', t.razon_social, 'tipo_documento', t.tipo_documento,
+                            'numero_documento', t.numero_documento, 'dv', t.dv)
+    into v
+    from public.terceros t
+   where t.numero_documento = v_numero;
+  return v;
+end;
+$$;
+revoke all on function public.tercero_por_documento(text) from public, anon;
+grant execute on function public.tercero_por_documento(text) to authenticated;

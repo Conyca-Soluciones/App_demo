@@ -14,7 +14,7 @@ import {
   type DatosTercero,
   type FiltrosTerceros,
   type Tercero,
-  type TerceroCreado,
+  type TerceroBasico,
 } from "@/lib/terceros"
 
 const PESTANA = "ayf.terceros"
@@ -133,6 +133,24 @@ export async function obtenerTercero(id: string): Promise<Tercero> {
   return mapTercero(data)
 }
 
+const mapBasico = (t: any): TerceroBasico => ({
+  id: String(t.id),
+  razonSocial: String(t.razon_social),
+  tipoDocumento: String(t.tipo_documento),
+  numeroDocumento: String(t.numero_documento),
+  dv: t.dv ?? null,
+})
+
+// Tercero con ese documento exacto (cédula o NIT; "901.097.443-4" vale), o null.
+// Se busca por documento y no por nombre para no crear el mismo dos veces.
+// Cualquier usuario con sesión (tercero_por_documento).
+export async function buscarTerceroPorDocumento(documento: string): Promise<TerceroBasico | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("tercero_por_documento", { p_documento: documento })
+  if (error) throw new Error(error.message)
+  return data ? mapBasico(data) : null
+}
+
 // Crear un tercero lo puede cualquier usuario con sesión, desde A&F o desde su
 // propia pantalla (Contratistas...); editarlo y verificar sus cuentas sigue
 // siendo de A&F (20261221000000). crear_tercero crea el tercero y su cuenta
@@ -140,7 +158,7 @@ export async function obtenerTercero(id: string): Promise<Tercero> {
 export async function crearTercero(
   crudo: DatosTercero,
   cuentaCruda: DatosCuenta | null
-): Promise<TerceroCreado> {
+): Promise<TerceroBasico> {
   const r = validarTercero(crudo)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del tercero.")
   const d = r.datos
@@ -175,14 +193,7 @@ export async function crearTercero(
       : null,
   })
   if (error) throw new Error(error.message)
-  const t = data as any
-  return {
-    id: String(t.id),
-    razonSocial: String(t.razon_social),
-    tipoDocumento: String(t.tipo_documento),
-    numeroDocumento: String(t.numero_documento),
-    dv: t.dv ?? null,
-  }
+  return mapBasico(data)
 }
 
 // El documento (tipo, número y DV) no se edita: identifica al tercero en todos

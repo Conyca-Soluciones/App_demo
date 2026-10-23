@@ -290,6 +290,14 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
         abierto={creando}
         bancos={bancos}
         onCerrar={() => setCreando(false)}
+        // Documento repetido: abre el que ya existe.
+        onExistente={(t) => {
+          setCreando(false)
+          obtenerTercero(t.id)
+            .then((completo: Tercero) => setAbierto(completo))
+            .catch((e) => setError(e instanceof Error ? e.message : "No se pudo abrir el tercero."))
+        }}
+        textoExistente="Abrir ese tercero"
         onCreado={(t) => {
           setCreando(false)
           // crear_tercero devuelve lo básico; el detalle completo se lee aparte.

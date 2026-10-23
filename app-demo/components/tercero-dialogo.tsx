@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,7 @@ import {
   actualizarCuenta,
   actualizarTercero,
   agregarCuenta,
+  buscarTerceroPorDocumento,
   crearTercero,
   enlaceCertificacionTercero,
   inactivarCuenta,
@@ -32,7 +33,7 @@ import {
   type CuentaTercero,
   type DatosCuenta,
   type Tercero,
-  type TerceroCreado,
+  type TerceroBasico,
 } from "@/lib/terceros"
 
 const CUENTA_VACIA: DatosCuenta = { bancoId: "", tipoCuenta: "", numeroCuenta: "", etiqueta: "", observaciones: "" }
@@ -546,18 +547,47 @@ const TERCERO_VACIO = {
 
 // El mismo formulario en A&F y en las pantallas que crean su tercero
 // (Contratistas...): crear lo puede cualquiera, editar solo A&F.
+// Al escribir el documento se compara con Terceros (tercero_por_documento): si
+// ya existe, avisa y no deja crearlo. onExistente (opcional) agrega el botón
+// para usar o abrir ese tercero.
 export function NuevoTerceroDialogo({
   abierto,
   bancos,
   onCerrar,
   onCreado,
+  onExistente,
+  textoExistente = "Usar este tercero",
 }: {
   abierto: boolean
   bancos: Banco[]
   onCerrar: () => void
-  onCreado: (t: TerceroCreado) => void
+  onCreado: (t: TerceroBasico) => void
+  onExistente?: (t: TerceroBasico) => void
+  textoExistente?: string
 }) {
   const [datos, setDatos] = useState(TERCERO_VACIO)
+  // Resultado de comparar el documento escrito con Terceros; "comprobando"
+  // mientras no corresponda al documento actual.
+  const [revision, setRevision] = useState<{ numero: string; tercero: TerceroBasico | null } | null>(null)
+  const numero = datos.numeroDocumento
+  const revisable = numero.length >= 3
+  const comprobando = revisable && revision?.numero !== numero
+  const existente = revisable && revision?.numero === numero ? revision.tercero : null
+
+  useEffect(() => {
+    if (!abierto || numero.length < 3) return
+    let vigente = true
+    const t = setTimeout(() => {
+      buscarTerceroPorDocumento(numero)
+        .then((encontrado: TerceroBasico | null) => vigente && setRevision({ numero, tercero: encontrado }))
+        // Si la consulta falla no se bloquea: la base igual rechaza el repetido.
+        .catch(() => vigente && setRevision({ numero, tercero: null }))
+    }, 350)
+    return () => {
+      vigente = false
+      clearTimeout(t)
+    }
+  }, [abierto, numero])
   const [conCuenta, setConCuenta] = useState(true)
   const [cuenta, setCuenta] = useState<DatosCuenta>(CUENTA_VACIA)
   const [ocupado, setOcupado] = useState(false)
@@ -577,6 +607,7 @@ export function NuevoTerceroDialogo({
     setCuenta(CUENTA_VACIA)
     setConCuenta(true)
     setError(null)
+    setRevision(null)
     onCerrar()
   }
 
@@ -643,6 +674,28 @@ export function NuevoTerceroDialogo({
               />
             </div>
           )}
+          {existente && (
+            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-3">
+              <p>
+                Ya existe un tercero con este documento: <span className="font-medium">{existente.razonSocial}</span> (
+                {existente.tipoDocumento} {existente.numeroDocumento}
+                {existente.dv ? `-${existente.dv}` : ""}). No lo crees de nuevo.
+              </p>
+              {onExistente && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const t = existente
+                    cerrar()
+                    onExistente(t)
+                  }}
+                >
+                  {textoExistente}
+                </Button>
+              )}
+            </div>
+          )}
           <div className="space-y-1.5 sm:col-span-3">
             <Label>{esNit ? "Razón social" : "Nombre completo"}</Label>
             <Input value={datos.razonSocial} onChange={(e) => setDatos({ ...datos, razonSocial: e.target.value })} />
@@ -686,7 +739,7 @@ export function NuevoTerceroDialogo({
           <Button variant="outline" disabled={ocupado} onClick={cerrar}>
             Cancelar
           </Button>
-          <Button disabled={ocupado} onClick={guardar}>
+          <Button disabled={ocupado || comprobando || existente !== null} onClick={guardar}>
             {ocupado ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...
