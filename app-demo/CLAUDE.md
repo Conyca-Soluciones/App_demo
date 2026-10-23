@@ -1497,6 +1497,34 @@ requisición administrativa ya la tenía en su ítem. Requisiciones de obra no
   muestra debajo de la cuenta ("Titular: …"), Aprobación de pagos y el detalle
   dicen "cuenta de …".
 
+## Órdenes de compra: Transferencia o PSE (2026-10-23)
+
+`20261219000000_oc_metodo_pago_pse.sql` (decisiones del usuario). En Generar OC,
+después del proveedor, "¿Cómo se paga?" (`components/metodo-pago-oc.tsx`,
+`lib/metodo-pago-oc.ts`):
+- **Transferencia**: la cuenta sale de **Terceros** (la que verifica Financiera),
+  ya no de `informacion_bancaria` (el pago nunca la usó; la tarjeta del proveedor
+  ya no la muestra). `cuentas_proveedor_oc` (Compras no lee Terceros por RLS):
+  con una cuenta se elige sola, con varias se escoge, sin ninguna (o sin
+  tercero) no se genera la orden por transferencia. La casilla del titular
+  aparte (20261214000000) sigue igual. La cuenta elegida queda en
+  `ordenes_compra.cuenta_tercero_id` también sin titular (se relajó
+  `ordenes_compra_titular_cuenta_check`) y `_crear_pagos_orden` la usa.
+- **PSE**: sin cuenta. Observaciones (`pago_observaciones`) y, con la casilla
+  "El titular no es <proveedor>", nombre, tipo (CC, NIT, PPT, CE) y documento
+  (`pse_titular_*`; vacío = el proveedor). El pago queda a nombre del proveedor,
+  sin cuenta y sin novedad de cuenta (`_pago_novedad`); `_enlazar_pagos_tercero`
+  no le pone cuenta después.
+- Lo valida `_fijar_pago_orden` (parámetro `p_pago` de
+  `crear_orden_compra_con_soporte`; null = código anterior, sin cambios).
+- **Pagos**: `mapPago` lee el método de la OC: origen "OC N · PSE", cuenta
+  "PSE", el titular PSE en `cuentaTitular` y `pagoObservaciones`
+  (`textoCuentaPago`). El detalle de la OC muestra "Forma de pago".
+- La migración pasó a Terceros como PENDIENTE las cuentas que solo estaban en
+  `informacion_bancaria` (31; se omitió un fondo de Alianza Fiduciaria).
+  Estado de las cuentas de proveedores al 2026-10-23:
+  `docs/estado-cuentas-proveedores.xlsx` (local, no está en git).
+
 ## Liquidación en el Consolidado (2026-10-23)
 
 `20261215000000_liquidacion_consolidado.sql` (decisiones del usuario: ~300 pagos
@@ -3422,7 +3450,10 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261213000000` soporte obligatorio en requisiciones administrativas ·
 `20261214000000` titular de la cuenta en OC, actas y pagos ·
 `20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel) ·
-`20261216000000` el Consolidado Bogotá se llama "Consolidado".
+`20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
+`20261217000000` una OC con el pago aprobado no se cancela ·
+`20261218000000` quién retira obligatorio en salidas ·
+`20261219000000` OC por transferencia (cuenta de Terceros) o PSE.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

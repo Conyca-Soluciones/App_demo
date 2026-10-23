@@ -22,11 +22,20 @@ import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
 import { TarjetaProveedorOC } from "./tarjeta-proveedor-oc"
 import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
 import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
+import { MetodoPagoOC } from "@/components/metodo-pago-oc"
+import {
+  pagoOCParaGuardar,
+  pagoOCVacio,
+  validarPagoOC,
+  type CuentasProveedorOC,
+  type PagoOCForm,
+} from "@/lib/metodo-pago-oc"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import {
   obtenerPedidosPorId,
   buscarProveedores,
   obtenerProveedorDetalle,
+  cuentasProveedorOC,
   crearOrdenCompra,
   type PedidoParaComprar,
   type ProveedorDetalle,
@@ -152,6 +161,14 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const [archivoSoporte, setArchivoSoporte] = useState<File | null>(null)
   // Cuenta de otro tercero (quien factura es el proveedor).
   const [titular, setTitular] = useState<TitularCuenta | null>(null)
+  // Transferencia o PSE (lib/metodo-pago-oc.ts).
+  const [pago, setPago] = useState<PagoOCForm>(pagoOCVacio)
+  // Cuentas del proveedor en Terceros, por proveedor + documento (si se
+  // corrige el documento en la tarjeta, el tercero puede ser otro).
+  const claveCuentas = proveedor && detalleProveedor ? `${proveedor.id}|${detalleProveedor.numeroDocumento ?? ""}` : null
+  const [cargaCuentas, setCargaCuentas] = useState<{ clave: string; info: CuentasProveedorOC | null; error: string | null } | null>(null)
+  const infoCuentas = cargaCuentas && cargaCuentas.clave === claveCuentas ? cargaCuentas.info : null
+  const errorCuentas = cargaCuentas && cargaCuentas.clave === claveCuentas ? cargaCuentas.error : null
   // Anticipo (A&F): % del total y cuándo se paga el saldo.
   const [conAnticipo, setConAnticipo] = useState(false)
   const [anticipoPct, setAnticipoPct] = useState("")
@@ -202,6 +219,25 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
       activo = false
     }
   }, [proveedor])
+
+  useEffect(() => {
+    if (!proveedor || !claveCuentas) return
+    let activo = true
+    cuentasProveedorOC(proveedor.id)
+      .then((info: CuentasProveedorOC) => activo && setCargaCuentas({ clave: claveCuentas, info, error: null }))
+      .catch(
+        (e) =>
+          activo &&
+          setCargaCuentas({
+            clave: claveCuentas,
+            info: null,
+            error: e instanceof Error ? e.message : "No se pudieron cargar las cuentas del proveedor.",
+          })
+      )
+    return () => {
+      activo = false
+    }
+  }, [proveedor, claveCuentas])
 
   function actualizarLinea(pedidoId: string, campo: keyof LineaForm, valor: string) {
     setLineas((prev) => ({ ...prev, [pedidoId]: { ...prev[pedidoId], [campo]: valor } }))
@@ -344,7 +380,13 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
       setError("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
       return
     }
-    const t = titularParaGuardar(titular)
+    const conTitularAparte = pago.metodo === "transferencia" && titular !== null
+    const errorPago = validarPagoOC(pago, infoCuentas, conTitularAparte)
+    if (errorPago) {
+      setError(errorPago)
+      return
+    }
+    const t = titularParaGuardar(conTitularAparte ? titular : null)
     if (!t.ok) {
       setError(t.error)
       return
@@ -373,6 +415,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         condicionesPago: condicionesPago.trim() || null,
         observaciones: observaciones.trim() || null,
         titular: t.titular,
+        pago: pagoOCParaGuardar(pago, infoCuentas, conTitularAparte),
         ...(conAnticipo
           ? { anticipoPorcentaje: pctNumero, saldoModo, saldoFecha: saldoModo === "fecha" ? saldoFecha : null }
           : {}),
@@ -652,7 +695,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             <BuscadorAsync
               placeholder="Buscar proveedor"
               valorSeleccionado={proveedor}
-              onSeleccionar={setProveedor}
+              onSeleccionar={(o) => {
+                setProveedor(o)
+                // La cuenta escogida era del proveedor anterior.
+                setPago((p) => ({ ...p, cuentaId: null }))
+              }}
               buscar={buscarProveedoresAdaptado}
             />
           </div>
@@ -671,36 +718,16 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
           )}
 
           {detalleProveedor && !cargandoProveedor && (
-            <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
-              <div>
-                {detalleProveedor.informacionBancaria ? (
-                  <>
-                    <p>
-                      <span className="text-muted-foreground">Banco: </span>
-                      {detalleProveedor.informacionBancaria.entidadBancaria ?? "—"}
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">Cuenta: </span>
-                      {detalleProveedor.informacionBancaria.tipoCuenta ?? "—"}{" "}
-                      {detalleProveedor.informacionBancaria.noCuenta ?? ""}
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">Titular: </span>
-                      {detalleProveedor.informacionBancaria.titular ?? "—"}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-amber-600">
-                    Este proveedor no tiene datos bancarios registrados. Se puede generar la orden
-                    igual — tocará completarlos manualmente en la página de la orden de compra.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {detalleProveedor && !cargandoProveedor && (
-            <CampoTitularCuenta valor={titular} onCambiar={setTitular} quienFactura={detalleProveedor.nombre} />
+            <MetodoPagoOC
+              valor={pago}
+              onCambiar={setPago}
+              info={infoCuentas}
+              errorCuentas={errorCuentas}
+              proveedorNombre={detalleProveedor.nombre}
+              conTitularAparte={titular !== null}
+            >
+              <CampoTitularCuenta valor={titular} onCambiar={setTitular} />
+            </MetodoPagoOC>
           )}
 
           <div className="space-y-1.5">

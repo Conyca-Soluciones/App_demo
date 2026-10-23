@@ -28,6 +28,7 @@ import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calcul
 import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { ETIQUETA_METODO_PAGO_OC, textoTitularPse } from "@/lib/metodo-pago-oc"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
@@ -334,6 +335,18 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           <div className="space-y-1">
             <p className="text-muted-foreground">Proveedor</p>
             <p>{orden.proveedorNombre}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground">Forma de pago</p>
+            <p>{ETIQUETA_METODO_PAGO_OC[orden.metodoPago]}</p>
+            {orden.metodoPago === "pse" && (
+              <p className="text-xs text-muted-foreground">
+                Titular: {textoTitularPse(orden.pseTitular, orden.proveedorNombre)}
+              </p>
+            )}
+            {orden.pagoObservaciones && (
+              <p className="whitespace-pre-line text-xs text-muted-foreground">{orden.pagoObservaciones}</p>
+            )}
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Sitio de entrega</p>

@@ -88,6 +88,12 @@ export type Pago = {
   // Dueño de la cuenta cuando no es el tercero que factura (20261214000000):
   // el pago es del tercero, se consigna en la cuenta de este titular.
   cuentaTitular: string | null
+  // PSE (orden de compra o requisición administrativa): sin cuenta bancaria;
+  // cuentaTexto dice "PSE" y cuentaTitular es el titular escrito, si no es el
+  // mismo tercero (20261219000000).
+  metodoPago: "transferencia" | "pse"
+  // Observaciones del pago escritas en Generar OC.
+  pagoObservaciones: string | null
   numeroFactura: string | null
   solicitadoPorNombre: string | null
   // Desglose de origen (como el cuadro de pagos), guardado al crear el pago:
@@ -299,4 +305,11 @@ export function semanaIso(fecha: Date = new Date()): { anio: number; semana: num
   const inicioAnio = Date.UTC(f.getUTCFullYear(), 0, 1)
   const semana = Math.ceil(((f.getTime() - inicioAnio) / 86400000 + 1) / 7)
   return { anio: f.getUTCFullYear(), semana }
+}
+
+// Cuenta del pago en una línea: "PSE · titular: …" o "cuenta de …: banco · tipo · número".
+export function textoCuentaPago(p: Pick<Pago, "metodoPago" | "cuentaTexto" | "cuentaTitular" | "cuentaVerificada">): string | null {
+  if (p.metodoPago === "pse") return `PSE${p.cuentaTitular ? ` · titular: ${p.cuentaTitular}` : ""}`
+  if (!p.cuentaTexto) return null
+  return `${p.cuentaTitular ? `cuenta de ${p.cuentaTitular}: ` : ""}${p.cuentaTexto}${p.cuentaVerificada ? "" : " (sin verificar)"}`
 }

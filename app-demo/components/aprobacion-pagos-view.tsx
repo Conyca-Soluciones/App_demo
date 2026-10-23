@@ -35,6 +35,7 @@ import {
   type EstadoPago,
   type FiltrosAprobacionPagos,
   type Pago,
+  textoCuentaPago,
 } from "@/lib/pagos"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
@@ -84,10 +85,13 @@ function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: React.R
         <EtiquetaEstado estado={pago.estado} />
         <span className="min-w-0 truncate text-muted-foreground" title={pago.cuentaTexto ?? undefined}>
           {terceroFila(pago) ?? "Sin tercero"}
-          {!pago.requisicionAdminLote && pago.cuentaTexto
-            ? ` · ${pago.cuentaTitular ? `cuenta de ${pago.cuentaTitular}: ` : ""}${pago.cuentaTexto}${pago.cuentaVerificada ? "" : " (sin verificar)"}`
-            : ""}
+          {!pago.requisicionAdminLote && textoCuentaPago(pago) ? ` · ${textoCuentaPago(pago)}` : ""}
         </span>
+        {pago.pagoObservaciones && (
+          <span className="min-w-0 basis-full truncate text-muted-foreground" title={pago.pagoObservaciones}>
+            Observaciones: {pago.pagoObservaciones}
+          </span>
+        )}
         {pago.novedad && (
           <span className="flex items-center gap-1 text-amber-700">
             <AlertTriangle className="h-4 w-4" /> {pago.novedad}
@@ -274,6 +278,11 @@ export function AprobacionPagosView({
             {terceroFila(p) ?? <span className="text-muted-foreground/60">Sin tercero</span>}
           </div>
           {p.terceroDocumento && <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>}
+          {p.metodoPago === "pse" && p.cuentaTitular && (
+            <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular}>
+              Titular PSE: {p.cuentaTitular}
+            </div>
+          )}
         </div>
       ),
     },

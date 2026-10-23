@@ -5,6 +5,7 @@ import { conversionValida, type PresentacionLinea } from "@/lib/presentacion-com
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { calcularLinea } from "@/lib/ordenes-compra-calculos"
 import type { SoporteGuardado, SoporteSubidoArchivo, TipoSoporteOrden } from "@/lib/soportes"
+import type { CuentasProveedorOC, MetodoPagoOC } from "@/lib/metodo-pago-oc"
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -356,13 +357,6 @@ export async function buscarProveedores(termino: string): Promise<ProveedorSuger
   }))
 }
 
-export type InformacionBancariaProveedor = {
-  titular: string | null
-  entidadBancaria: string | null
-  tipoCuenta: string | null
-  noCuenta: string | null
-}
-
 export type ProveedorDetalle = {
   id: string
   nombre: string
@@ -374,7 +368,6 @@ export type ProveedorDetalle = {
   tipoDocumento: string | null
   numeroDocumento: number | null
   digitoVerificacion: number | null
-  informacionBancaria: InformacionBancariaProveedor | null
 }
 
 export async function obtenerProveedorDetalle(proveedorId: string): Promise<ProveedorDetalle> {
@@ -386,8 +379,7 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
     .select(
       `
       unique_id, nombre, nombre_contacto, telefono, correo, ciudad, direccion,
-      tipo_documento, numero_documento, digito_verificacion,
-      informacion_bancaria!informacion_bancaria_id_fkey(titular, entidad_bancaria, tipo_cuenta, no_cuenta)
+      tipo_documento, numero_documento, digito_verificacion
     `
     )
     .eq("unique_id", proveedorId)
@@ -396,7 +388,6 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
   if (error) throw new Error(error.message)
 
   const d = data as any
-  const banco = Array.isArray(d.informacion_bancaria) ? d.informacion_bancaria[0] : d.informacion_bancaria
 
   return {
     id: d.unique_id,
@@ -409,14 +400,28 @@ export async function obtenerProveedorDetalle(proveedorId: string): Promise<Prov
     tipoDocumento: d.tipo_documento,
     numeroDocumento: d.numero_documento,
     digitoVerificacion: d.digito_verificacion,
-    informacionBancaria: banco
-      ? {
-          titular: banco.titular,
-          entidadBancaria: banco.entidad_bancaria,
-          tipoCuenta: banco.tipo_cuenta,
-          noCuenta: banco.no_cuenta,
-        }
-      : null,
+  }
+}
+
+// Cuentas del proveedor en Terceros para pagarle por transferencia (las que
+// verifica Financiera; números enmascarados). Compras no lee Terceros por RLS:
+// cuentas_proveedor_oc le da solo esto.
+export async function cuentasProveedorOC(proveedorId: string): Promise<CuentasProveedorOC> {
+  await requerirScope("rol_compras")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("cuentas_proveedor_oc", { p_proveedor_id: proveedorId })
+  if (error) throw new Error(error.message)
+  const d = (data ?? {}) as any
+  return {
+    terceroId: d.tercero_id ?? null,
+    razonSocial: d.razon_social ?? null,
+    cuentas: ((d.cuentas ?? []) as any[]).map((c) => ({
+      id: String(c.id),
+      banco: String(c.banco ?? ""),
+      tipoCuenta: String(c.tipo_cuenta ?? ""),
+      numero: String(c.numero ?? ""),
+      verificada: Boolean(c.verificada),
+    })),
   }
 }
 
@@ -454,6 +459,8 @@ export type DatosOrdenCompra = {
   // Titular de la cuenta cuando no es el proveedor (20261214000000): el pago
   // se consigna en esa cuenta. null = la del proveedor.
   titular?: { tercero_id: string; cuenta_id: string } | null
+  // Método de pago (pagoOCParaGuardar en lib/metodo-pago-oc.ts).
+  pago: { metodo: MetodoPagoOC } & Record<string, unknown>
   lineas: LineaOrdenCompra[]
 }
 
@@ -466,6 +473,9 @@ export async function crearOrdenCompra(
 ): Promise<string> {
   await requerirScope("rol_compras")
   if (!soporte?.ruta) throw new Error("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
+  if (datos.pago?.metodo !== "transferencia" && datos.pago?.metodo !== "pse") {
+    throw new Error("Elige cómo se paga la orden: Transferencia o PSE.")
+  }
 
   if (datos.lineas.length === 0) {
     throw new Error("Selecciona al menos un insumo para la orden de compra.")
@@ -535,6 +545,7 @@ export async function crearOrdenCompra(
     ...(anticipo ?? {}),
     // Solo se manda si hay titular aparte (igual que el anticipo).
     ...(datos.titular ? { p_titular: datos.titular } : {}),
+    p_pago: datos.pago,
     p_lineas: datos.lineas.map((l) =>
       l.presentacion
         ? {
@@ -681,6 +692,10 @@ export type OrdenCompraDetalle = {
   anticipoPorcentaje: number | null
   saldoModo: "entrega" | "fecha" | null
   saldoFecha: string | null
+  // Cómo se paga (20261219000000). pseTitular null = el proveedor.
+  metodoPago: MetodoPagoOC
+  pagoObservaciones: string | null
+  pseTitular: { nombre: string; tipoDocumento: string; documento: string } | null
   lineas: LineaOrdenCompraDetalle[]
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
@@ -696,6 +711,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       condiciones_pago, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
+      metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
@@ -765,6 +781,11 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     anticipoPorcentaje: d.anticipo_porcentaje != null ? Number(d.anticipo_porcentaje) : null,
     saldoModo: d.saldo_modo ?? null,
     saldoFecha: d.saldo_fecha ?? null,
+    metodoPago: d.metodo_pago === "pse" ? "pse" : "transferencia",
+    pagoObservaciones: d.pago_observaciones ?? null,
+    pseTitular: d.pse_titular_nombre
+      ? { nombre: d.pse_titular_nombre, tipoDocumento: d.pse_titular_tipo_documento ?? "", documento: d.pse_titular_documento ?? "" }
+      : null,
     lineas: (d.lineas ?? []).map((l: any) => ({
       id: l.id,
       insumoCodigo: l.pedido?.insumo?.codigo,

@@ -472,5 +472,12 @@ select * from (
                     and prosrc like '%quién retira%')
          and exists (select 1 from pg_proc where proname = 'editar_salida_almacen'
                         and prosrc like '%quién retira%')
+  union all
+  select '20261219000000_oc_metodo_pago_pse',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ordenes_compra' and column_name = 'metodo_pago')
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
+                        and pg_get_function_identity_arguments(oid) like '%p_pago%')
+         and exists (select 1 from pg_proc where proname = '_pago_novedad' and prosrc like '%oc.metodo_pago%')
 ) t
 order by 1;
