@@ -134,6 +134,8 @@ export type InfoContratoActa = {
   listoParaActas: boolean
   // Póliza del contrato (20261126000000): sin aprobar no hay actas.
   polizaEstado: EstadoPolizaContrato | null
+  // Contrato por PSE (20261220000000): sin cuenta ni titular aparte.
+  metodoPago: "transferencia" | "pse"
   tieneFinal: boolean
   tieneLiquidacion: boolean
   actasPorAprobar: number

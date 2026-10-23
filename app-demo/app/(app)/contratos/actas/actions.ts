@@ -112,6 +112,7 @@ export async function obtenerContratoParaActa(contratoId: string, excluirActa?: 
     liquidado: Boolean(d.liquidado),
     listoParaActas: Boolean(d.listo_para_actas),
     polizaEstado: esEstadoPolizaContrato(d.poliza_estado) ? d.poliza_estado : null,
+    metodoPago: d.metodo_pago === "pse" ? "pse" : "transferencia",
     tieneFinal: Boolean(d.tiene_final),
     tieneLiquidacion: Boolean(d.tiene_liquidacion),
     actasPorAprobar: Number(d.actas_por_aprobar),

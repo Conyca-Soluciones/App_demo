@@ -54,6 +54,8 @@ async function guardar(
       fecha_inicio: d.fechaInicio,
       fecha_fin: d.fechaFin,
       forma_pago: d.formaPago,
+      metodo_pago: d.metodoPago,
+      pago_observaciones: d.pagoObservaciones ?? "",
       retencion_garantia_pct: d.retencionGarantiaPct,
       retencion_anticipo_pct: d.retencionAnticipoPct,
       retencion_fic_pct: d.retencionFicPct,

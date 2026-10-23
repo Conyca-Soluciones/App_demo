@@ -27,6 +27,8 @@ const base: SolicitudContratoForm = {
   anticipoPorcentaje: "",
   requierePoliza: true,
   formaPago: "Actas quincenales",
+  metodoPago: "transferencia",
+  pagoObservaciones: "",
   plazoTipo: "fechas",
   fechaInicio: "2026-10-01",
   fechaFin: "2026-12-31",
@@ -83,6 +85,15 @@ describe("validarSolicitud", () => {
     expect(r.datos.correoNotificacion).toBe("obras@contratista.co")
     expect(r.datos.valorMensual).toBeNull()
     expect(r.datos.observaciones).toBeNull()
+  })
+
+  it("PSE exige la información para pagar en observaciones", () => {
+    expect(errores({ metodoPago: "pse", pagoObservaciones: "  " }).pagoObservaciones).toMatch(/PSE/)
+    const r = validarSolicitud({ ...base, metodoPago: "pse", pagoObservaciones: " Pagar por el portal del banco " })
+    expect(r.ok && r.datos.pagoObservaciones).toBe("Pagar por el portal del banco")
+    // En transferencia no se guardan observaciones de pago.
+    const t = validarSolicitud({ ...base, pagoObservaciones: "algo" })
+    expect(t.ok && t.datos.pagoObservaciones).toBeNull()
   })
 
   it("el objeto debe empezar con un verbo en infinitivo", () => {

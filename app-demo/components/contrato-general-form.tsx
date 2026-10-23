@@ -19,6 +19,7 @@ import {
 import { listarContratistas } from "@/app/(app)/contratos/contratistas/actions"
 import { crearContratoGeneral, reenviarContratoGeneral } from "@/app/(app)/contratos/generales/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { MetodoPagoContrato } from "@/components/metodo-pago-contrato"
 
 // ---------------------------------------------------------------------------
 // Formulario del contrato general (como el "Contrato General" de Sinco): es
@@ -343,6 +344,15 @@ export function ContratoGeneralFormulario({
             className={claseCampo(Boolean(errores.formaPago))}
           />
         </Campo>
+        <MetodoPagoContrato
+          metodo={f.metodoPago}
+          observaciones={f.pagoObservaciones}
+          error={errores.pagoObservaciones}
+          disabled={enviando}
+          claseTexto={claseArea(Boolean(errores.pagoObservaciones))}
+          onMetodo={(m) => cambiar("metodoPago", m, "pagoObservaciones")}
+          onObservaciones={(t) => cambiar("pagoObservaciones", t)}
+        />
       </Seccion>
 
       <Seccion titulo="Retenciones y referencia" ayuda="Porcentajes del valor de cada pago. Vacío = 0 %.">

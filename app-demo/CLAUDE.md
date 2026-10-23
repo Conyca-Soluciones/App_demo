@@ -1528,6 +1528,22 @@ después del proveedor, "¿Cómo se paga?" (`components/metodo-pago-oc.tsx`,
   Estado de las cuentas de proveedores al 2026-10-23:
   `docs/estado-cuentas-proveedores.xlsx` (local, no está en git).
 
+## Contratos: Transferencia o PSE (2026-10-23)
+
+`20261220000000_contrato_metodo_pago_pse.sql` (va después de 20261219000000;
+decisión del usuario). En "Forma de pago" de la solicitud (por grupos y
+general), "¿Cómo se paga?" (`components/metodo-pago-contrato.tsx`):
+Transferencia (cuenta del contratista en Terceros: al crear el contratista ya
+se inscribe con la cuenta PENDIENTE, 20261118700000) o PSE, con la información
+para pagar en observaciones (obligatoria). `contratos.metodo_pago` /
+`pago_observaciones`, guardados por `_fijar_pago_contrato` (en los cuatro
+crear/reenviar, como `_fijar_requiere_poliza`; sin `metodo_pago` en p_datos no
+cambia nada). Las actas de un contrato PSE: el formulario no ofrece titular
+aparte (`contrato_para_acta.metodo_pago`), `_pago_de_acta` crea el pago sin
+cuenta ni titular, `_pago_novedad` no pide cuenta y `_enlazar_pagos_tercero`
+no le pone cuenta. En Pagos: origen "Acta N · CJ-… · PSE", cuenta "PSE" y las
+observaciones del contrato (`mapPago`). El detalle del contrato dice "Se paga por".
+
 ## Liquidación en el Consolidado (2026-10-23)
 
 `20261215000000_liquidacion_consolidado.sql` (decisiones del usuario: ~300 pagos
@@ -3456,7 +3472,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261216000000` el Consolidado Bogotá se llama "Consolidado" ·
 `20261217000000` una OC con el pago aprobado no se cancela ·
 `20261218000000` quién retira obligatorio en salidas ·
-`20261219000000` OC por transferencia (cuenta de Terceros) o PSE.
+`20261219000000` OC por transferencia (cuenta de Terceros) o PSE ·
+`20261220000000` contratos por transferencia o PSE (después de la anterior).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

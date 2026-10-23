@@ -16,7 +16,7 @@ export const CAMPOS_PAGO = `
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
   orden:ordenes_compra(numero, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
-  acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
+  acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
@@ -39,7 +39,9 @@ export function mapPago(f: any): Pago {
   const t = f.tercero
   // Orden de compra pagada por PSE: sin cuenta; el titular, si no es el proveedor.
   const ocPse = f.orden?.metodo_pago === "pse"
-  const pse = ocPse || f.req?.metodo === "pse"
+  // Acta de un contrato por PSE (20261220000000): igual, sin cuenta.
+  const actaPse = f.acta?.contrato?.metodo_pago === "pse"
+  const pse = ocPse || actaPse || f.req?.metodo === "pse"
   return {
     id: f.id,
     tipo: f.tipo,
@@ -71,7 +73,7 @@ export function mapPago(f: any): Pago {
     origen: f.orden?.numero != null
       ? `OC ${f.orden.numero}${ocPse ? " · PSE" : ""}`
       : f.acta
-        ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}`
+        ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
         : f.fuente === "acta"
           ? "Acta"
           : f.fuente === "requisicion_admin"
@@ -97,21 +99,23 @@ export function mapPago(f: any): Pago {
         ? `${f.req_item.titular_tipo_documento} ${f.req_item.titular_documento}`
         : null,
     cuentaId: f.cuenta_tercero_id,
-    cuentaTexto: ocPse
+    cuentaTexto: ocPse || actaPse
       ? "PSE"
       : f.cuenta
       ? `${f.cuenta.banco?.nombre ?? ""} · ${ETIQUETA_TIPO_CUENTA[f.cuenta.tipo_cuenta as keyof typeof ETIQUETA_TIPO_CUENTA] ?? f.cuenta.tipo_cuenta} · ${f.cuenta.numero_cuenta}`
       : null,
-    cuentaVerificada: ocPse || f.cuenta?.estado === "ACTIVO",
+    cuentaVerificada: ocPse || actaPse || f.cuenta?.estado === "ACTIVO",
     cuentaTitular: ocPse
       ? f.orden.pse_titular_nombre
         ? `${f.orden.pse_titular_nombre} (${f.orden.pse_titular_tipo_documento ?? ""} ${f.orden.pse_titular_documento ?? ""})`.replace(" ( )", "")
         : null
-      : f.titular_tercero_id
-        ? (f.titular?.razon_social ?? "otro tercero")
-        : null,
+      : actaPse
+        ? null
+        : f.titular_tercero_id
+          ? (f.titular?.razon_social ?? "otro tercero")
+          : null,
     metodoPago: pse ? "pse" : "transferencia",
-    pagoObservaciones: f.orden?.pago_observaciones ?? null,
+    pagoObservaciones: f.orden?.pago_observaciones ?? f.acta?.contrato?.pago_observaciones ?? null,
     numeroFactura: f.numero_factura ?? null,
     solicitadoPorNombre: f.solicitante?.nombre ?? null,
     valorDocumento: num(f.valor_documento),

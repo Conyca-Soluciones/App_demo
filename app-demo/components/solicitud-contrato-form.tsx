@@ -45,6 +45,7 @@ import {
   type DocumentoContratoSubido,
 } from "@/app/(app)/contratos/solicitar/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+import { MetodoPagoContrato } from "@/components/metodo-pago-contrato"
 
 // ---------------------------------------------------------------------------
 // Formulario de solicitud de contrato. El director elige el tipo (eso define
@@ -66,6 +67,8 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   anticipoPorcentaje: "",
   requierePoliza: true,
   formaPago: "",
+  metodoPago: "transferencia",
+  pagoObservaciones: "",
   plazoTipo: "fechas",
   fechaInicio: "",
   fechaFin: "",
@@ -108,6 +111,8 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     requierePoliza: d.requierePoliza !== false,
     anticipoPorcentaje: d.anticipoPorcentaje !== null ? numero(d.anticipoPorcentaje) : "",
     formaPago: d.formaPago,
+    metodoPago: d.metodoPago ?? "transferencia",
+    pagoObservaciones: d.pagoObservaciones ?? "",
     plazoTipo: d.plazoTipo,
     fechaInicio: d.fechaInicio ?? "",
     fechaFin: d.fechaFin ?? "",
@@ -990,6 +995,15 @@ export function SolicitudContratoForm({
             />
             <MensajeError texto={errores.formaPago} />
           </div>
+          <MetodoPagoContrato
+            metodo={f.metodoPago}
+            observaciones={f.pagoObservaciones}
+            error={errores.pagoObservaciones}
+            disabled={enviando}
+            claseTexto={claseArea(Boolean(errores.pagoObservaciones))}
+            onMetodo={(m) => cambiar("metodoPago", m, "pagoObservaciones")}
+            onObservaciones={(t) => cambiar("pagoObservaciones", t)}
+          />
         </div>
       </Seccion>
 

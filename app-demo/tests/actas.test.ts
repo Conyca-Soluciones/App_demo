@@ -24,6 +24,7 @@ const info = (cambios: Partial<InfoContratoActa> = {}): InfoContratoActa => ({
   liquidado: false,
   listoParaActas: true,
   polizaEstado: "aprobada",
+  metodoPago: "transferencia",
   tieneFinal: false,
   tieneLiquidacion: false,
   actasPorAprobar: 0,

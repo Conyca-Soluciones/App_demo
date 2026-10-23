@@ -92,7 +92,8 @@ export type Pago = {
   // cuentaTexto dice "PSE" y cuentaTitular es el titular escrito, si no es el
   // mismo tercero (20261219000000).
   metodoPago: "transferencia" | "pse"
-  // Observaciones del pago escritas en Generar OC.
+  // Observaciones del pago: las de Generar OC o, en un acta de un contrato por
+  // PSE, la información para pagar del contrato.
   pagoObservaciones: string | null
   numeroFactura: string | null
   solicitadoPorNombre: string | null
