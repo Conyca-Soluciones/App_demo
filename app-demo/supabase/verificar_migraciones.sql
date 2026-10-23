@@ -453,5 +453,11 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
                         and pg_get_function_identity_arguments(oid) like '%p_titular%')
          and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%_fijar_titular_acta%')
+  union all
+  select '20261215000000_liquidacion_consolidado',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'pagos' and column_name = 'liquidacion_estado')
+         and exists (select 1 from pg_proc where proname = 'liquidar_pagos_lote')
+         and exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pago_comentarios')
 ) t
 order by 1;

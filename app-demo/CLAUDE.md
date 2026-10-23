@@ -1494,6 +1494,54 @@ requisición administrativa ya la tenía en su ítem. Requisiciones de obra no
   muestra debajo de la cuenta ("Titular: …"), Aprobación de pagos y el detalle
   dicen "cuenta de …".
 
+## Liquidación en el Consolidado (2026-10-23)
+
+`20261215000000_liquidacion_consolidado.sql` (decisiones del usuario: ~300 pagos
+por semana, máxima facilidad de uso; pago por pago; en los tres consolidados;
+la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
+- **Etapas** (`pagos.liquidacion_estado`, solo pagos `aprobado`; el estado del
+  pago NO cambia, así no se disparan los seguidores de OC y actas): null =
+  preparación (Financiera) → `por_liquidar` → `observado` (Contabilidad comentó
+  algo que falta) → `liquidado`. Pestañas del Consolidado con su conteo
+  (`conteo_etapas_consolidado`) y sus columnas: Preparación (grupo empresarial,
+  quién factura y documento, valor documento, solicitante, origen, comentarios,
+  soporte), Por liquidar / Observados (+ base, IVA, Retefuente, ReteIVA,
+  ReteICA, asumidas, liquidaciones, anticipos y/o descuentos, valor a pagar),
+  Liquidados (titular y cuenta, valor a pagar, comentarios, soporte) y Todos.
+  Sin columnas de Novedad ni Acciones (decisión del usuario): la novedad, el
+  historial y "Tercero y cuenta" están en la ventana del pago; Soporte al final.
+- **Acciones**: `gestionar_pagos` (Financiera, Gerencia) = enviar a liquidar
+  (elegidos o todos los filtrados, `enviar_pagos_a_liquidar`) y responder
+  ("Responder y devolver a Contabilidad"); `liquidar_pagos` (nueva: Contabilidad
+  Bogotá y Barranquilla) = liquidar y observar.
+- **Liquidar**: `liquidar_pagos_lote(filas)` para la pantalla y el Excel. Con
+  comentario nuevo = observado (los valores quedan de borrador); "Liquidar sin
+  retenciones" = retenciones en 0 y valor a pagar = valor del pago; con valor
+  a pagar = liquidado (vacío = 0); si no, sin cambios. Error por fila sin
+  deshacer las demás. Valor a pagar > 0 y ≤ valor documento. Control que NO
+  bloquea (`cuadreLiquidacion`): documento − retenciones + asumidas −
+  liquidaciones − anticipos/descuentos; "no cuadra" en rojo.
+- **Ventana del pago** (doble clic, `components/ventana-pago-liquidacion.tsx`):
+  datos, Ver soporte, ver OC/acta, historial, tercero y cuenta, enviar a
+  liquidar, la liquidación (Guardar y siguiente, Liquidar sin retenciones) y
+  los comentarios (`pago_comentarios`, `comentar_pago`: comentario /
+  observación / respuesta), con Anterior / Siguiente por la página.
+- **Excel de ida y vuelta** (`lib/excel-liquidacion.ts`): baja todos los pagos
+  ya enviados a liquidar de los filtros (`pagosParaExcelLiquidacion`), hoja
+  protegida (clave `CONYCA-AYF`, solo contra errores) con las columnas de
+  Contabilidad abiertas en amarillo, "Liquidar sin retenciones" (lista Sí),
+  "Comentario para Financiera", "Último comentario", la diferencia de control
+  en fórmula y el ID oculto. Al subir solo se leen el ID y esas columnas.
+- **Soporte con enlace fijo**: `/ayf/soporte-pago/<id>` (route handler; pide la
+  sesión, la RLS decide, redirige a un enlace firmado de 5 min). Lo usan la
+  tabla, la ventana, el Excel y el Consolidado Gerencia. La ruta está en las
+  pestañas de los consolidados, Gerencia y Aprobación de pagos.
+  `lib/soportes-pagos-db.ts` busca el soporte de cada pago (tres consultas por
+  lote).
+- **Pendiente**: avisar en Mis pendientes (observados a Financiera, por liquidar
+  a Contabilidad: hay que recrear `_pendientes_de`); dispersores y PSE (fecha de
+  pago, cuenta a debitar y soporte del dispersor).
+
 ## Liquidación de pagos: se quitó (2026-10-22)
 
 Decisión del usuario: liquidar 200+ pagos por semana es más rápido en Excel,
@@ -3368,7 +3416,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario) ·
 `20261212000000` Consolidado Gerencia y soporte de requisiciones administrativas ·
 `20261213000000` soporte obligatorio en requisiciones administrativas ·
-`20261214000000` titular de la cuenta en OC, actas y pagos.
+`20261214000000` titular de la cuenta en OC, actas y pagos ·
+`20261215000000` liquidación en el Consolidado (etapas, comentarios, Excel).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

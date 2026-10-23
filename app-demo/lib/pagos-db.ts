@@ -12,6 +12,8 @@ export const CAMPOS_PAGO = `
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id, titular_tercero_id,
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
+  liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
+  liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
   orden:ordenes_compra(numero),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato)),
@@ -105,5 +107,24 @@ export function mapPago(f: any): Pago {
     descuentoAnticipos: Number(f.descuento_anticipos ?? 0),
     retencionGarantia: Number(f.retencion_garantia ?? 0),
     otrosDescuentos: Number(f.otros_descuentos ?? 0),
+    liquidacionEstado: f.liquidacion_estado ?? null,
+    liqBase: num(f.liq_base),
+    liqIva: num(f.liq_iva),
+    retefuente: num(f.retefuente),
+    reteiva: num(f.reteiva),
+    reteica: num(f.reteica),
+    asumidas: num(f.asumidas),
+    liquidaciones: num(f.liquidaciones),
+    liqAnticiposDescuentos: num(f.liq_anticipos_descuentos),
+    valorAPagar: num(f.valor_a_pagar),
+    ultimoComentario: f.comentario?.texto
+      ? {
+          texto: String(f.comentario.texto),
+          tipo: f.comentario.tipo,
+          autor: f.comentario.autor ?? null,
+          creadoEn: f.comentario.creado_en,
+          total: Number(f.comentario.total ?? 1),
+        }
+      : null,
   }
 }
