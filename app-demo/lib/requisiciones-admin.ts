@@ -197,6 +197,7 @@ export function validarItemReqAdmin(item: ItemFormReqAdmin, metodo: MetodoReqAdm
   if (!item.proyectoId) return "Elige el código de proyecto."
   const valor = valorItem(item)
   if (valor == null || valor <= 0) return "El valor debe ser mayor que cero."
+  if (!item.soporte && !item.archivoSoporte) return "Adjunta el soporte (factura o cuenta de cobro)."
   return null
 }
 

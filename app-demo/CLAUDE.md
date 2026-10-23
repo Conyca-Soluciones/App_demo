@@ -1453,7 +1453,9 @@ Gerencia, junta los tres consolidados; se le agregarán columnas).
   la orden (factura / cuenta de cobro antes que cotización); acta = su factura
   o cuenta de cobro; requisición administrativa = el del ítem.
 - **Soporte de los ítems de requisiciones administrativas** (no existía):
-  `requisicion_admin_items.soporte_*` (factura o cuenta de cobro, opcional),
+  `requisicion_admin_items.soporte_*` (factura o cuenta de cobro; OBLIGATORIO
+  desde `20261213000000`, decisión del usuario: los ítems del Excel de PSE lo
+  piden uno por uno),
   bucket privado `requisiciones_admin` (`<uid>/...`). El navegador sube y
   `_guardar_requisicion_admin` lo valida (`_validar_soporte_req_admin`) y lo
   copia al ítem (se conserva al modificar porque viaja en el ítem). Se ve en el
@@ -3335,7 +3337,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261208000000` póliza según la solicitud (obra y mano de obra siempre) ·
 `20261209000000` crear requisición exige la pestaña Elaboración de requisiciones ·
 `20261209100000` CJ-10 y CJ-1 pasan a "sin póliza" (datos, decisión del usuario) ·
-`20261212000000` Consolidado Gerencia y soporte de requisiciones administrativas.
+`20261212000000` Consolidado Gerencia y soporte de requisiciones administrativas ·
+`20261213000000` soporte obligatorio en requisiciones administrativas.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

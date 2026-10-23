@@ -347,6 +347,7 @@ export function ItemRequisicionAdminDialog({
         {/* El archivo se sube al enviar la requisición. */}
         <CampoSoporte
           etiqueta="Soporte (factura o cuenta de cobro)"
+          obligatorio
           tipos={ETIQUETA_SOPORTE_REQ_ADMIN}
           tipo={item.tipoSoporte}
           onTipo={(t) => cambiar({ tipoSoporte: t })}

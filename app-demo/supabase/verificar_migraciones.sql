@@ -442,5 +442,9 @@ select * from (
          and exists (select 1 from information_schema.columns
                       where table_schema = 'public' and table_name = 'requisicion_admin_items' and column_name = 'soporte_ruta')
          and exists (select 1 from storage.buckets where id = 'requisiciones_admin')
+  union all
+  select '20261213000000_soporte_req_admin_obligatorio',
+         exists (select 1 from pg_proc where proname = '_validar_soporte_req_admin'
+                    and prosrc like '%adjunta el soporte%')
 ) t
 order by 1;
