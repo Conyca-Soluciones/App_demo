@@ -454,11 +454,20 @@ select * from (
                         and pg_get_function_identity_arguments(oid) like '%p_titular%')
          and exists (select 1 from pg_proc where proname = 'crear_acta' and prosrc like '%_fijar_titular_acta%')
   union all
-  select '20261215000000_oc_no_cancelar_con_pago_aprobado',
+  select '20261215000000_liquidacion_consolidado',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'pagos' and column_name = 'liquidacion_estado')
+         and exists (select 1 from pg_proc where proname = 'liquidar_pagos_lote')
+         and exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'pago_comentarios')
+  union all
+  select '20261216000000_consolidado_nombre',
+         exists (select 1 from public.consolidados where clave = 'bogota' and nombre = 'Consolidado')
+  union all
+  select '20261217000000_oc_no_cancelar_con_pago_aprobado',
          exists (select 1 from pg_proc where proname = '_cancelar_orden_compra_sin_proyecto'
                     and prosrc like '%ya fue aprobado en Aprobación de pagos%')
   union all
-  select '20261216000000_salida_quien_retira_obligatorio',
+  select '20261218000000_salida_quien_retira_obligatorio',
          exists (select 1 from pg_proc where proname = 'registrar_salida_almacen'
                     and prosrc like '%quién retira%')
          and exists (select 1 from pg_proc where proname = 'editar_salida_almacen'

@@ -98,6 +98,80 @@ export type Pago = {
   descuentoAnticipos: number
   retencionGarantia: number
   otrosDescuentos: number
+  // Liquidación (Contabilidad, 20261215000000). null = no se ha escrito.
+  liquidacionEstado: EtapaLiquidacion | null
+  liqBase: number | null
+  liqIva: number | null
+  retefuente: number | null
+  reteiva: number | null
+  reteica: number | null
+  asumidas: number | null
+  liquidaciones: number | null
+  liqAnticiposDescuentos: number | null
+  valorAPagar: number | null
+  ultimoComentario: { texto: string; tipo: TipoComentarioPago; autor: string | null; creadoEn: string; total: number } | null
+}
+
+// ---------------------------------------------------------------------------
+// Liquidación en el Consolidado: etapas de cada pago aprobado.
+// ---------------------------------------------------------------------------
+export type EtapaLiquidacion = "por_liquidar" | "observado" | "liquidado"
+// Pestañas del Consolidado: preparación = sin etapa (Financiera).
+export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "todos"
+export const ETAPAS_CONSOLIDADO: { clave: EtapaConsolidado; titulo: string }[] = [
+  { clave: "preparacion", titulo: "Preparación" },
+  { clave: "por_liquidar", titulo: "Por liquidar" },
+  { clave: "observado", titulo: "Observados" },
+  { clave: "liquidado", titulo: "Liquidados" },
+  { clave: "todos", titulo: "Todos" },
+]
+export type ConteoEtapas = Record<EtapaConsolidado, number>
+export type TipoComentarioPago = "comentario" | "observacion" | "respuesta"
+export type ComentarioPago = { id: string; texto: string; tipo: TipoComentarioPago; autor: string | null; creadoEn: string }
+
+export const etiquetaEtapa = (p: Pick<Pago, "estado" | "liquidacionEstado">): string =>
+  p.estado !== "aprobado"
+    ? ETIQUETA_ESTADO_PAGO[p.estado]
+    : p.liquidacionEstado === "por_liquidar"
+      ? "Por liquidar"
+      : p.liquidacionEstado === "observado"
+        ? "Observado"
+        : p.liquidacionEstado === "liquidado"
+          ? "Liquidado"
+          : "En preparación"
+
+// Lo que ya se descontó en el origen (anticipos, retención en garantía y
+// otros): con eso el valor del pago = valor documento − esto.
+export const anticiposOrigen = (p: Pick<Pago, "descuentoAnticipos" | "retencionGarantia" | "otrosDescuentos">) =>
+  p.descuentoAnticipos + p.retencionGarantia + p.otrosDescuentos
+
+// Una fila de liquidación (pantalla o Excel), como la recibe liquidar_pagos_lote.
+export type FilaLiquidacion = {
+  pagoId: string
+  base: number | null
+  iva: number | null
+  retefuente: number | null
+  reteiva: number | null
+  reteica: number | null
+  asumidas: number | null
+  liquidaciones: number | null
+  anticiposDescuentos: number | null
+  valorAPagar: number | null
+  sinRetenciones: boolean
+  comentario: string | null
+}
+export type ResultadoLiquidacion = { pagoId: string; resultado: "liquidado" | "observado" | "sin_cambios" | "error"; mensaje: string | null }
+
+// Control (no bloquea): valor documento − retenciones + asumidas −
+// liquidaciones − anticipos y/o descuentos. Diferencia = valor a pagar − eso.
+export function cuadreLiquidacion(
+  valorDocumento: number,
+  f: Pick<FilaLiquidacion, "retefuente" | "reteiva" | "reteica" | "asumidas" | "liquidaciones" | "anticiposDescuentos" | "valorAPagar">
+): { esperado: number; diferencia: number | null } {
+  const n = (v: number | null) => v ?? 0
+  const esperado =
+    Math.round((valorDocumento - n(f.retefuente) - n(f.reteiva) - n(f.reteica) + n(f.asumidas) - n(f.liquidaciones) - n(f.anticiposDescuentos)) * 100) / 100
+  return { esperado, diferencia: f.valorAPagar == null ? null : Math.round((f.valorAPagar - esperado) * 100) / 100 }
 }
 
 // Columna "Anticipos y/o descuentos" del cuadro: anticipos ya girados (o
@@ -127,10 +201,14 @@ export type RequisicionAdminDePago = {
   observaciones: string | null
 }
 
+// El archivo original del pago se abre en /ayf/soporte-pago/<id> (enlace fijo:
+// pide la sesión y redirige a un enlace firmado). Lo usan la pantalla y el Excel.
+export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
+
 // Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
 export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`
 export const CONSOLIDADOS = [
-  { clave: "bogota", titulo: "Consolidado Bogotá" },
+  { clave: "bogota", titulo: "Consolidado" },
   { clave: "vanur", titulo: "Consolidado Vanur" },
   { clave: "otros", titulo: "Consolidado Otros" },
 ] as const
@@ -160,7 +238,7 @@ export type OpcionesConsolidadoGerencia = {
 // cotización), soporte de pago del acta, o el del ítem de la requisición
 // administrativa.
 export type SoportePago =
-  | { origen: "orden_compra"; id: string; nombre: string; tipo: string }
+  | { origen: "orden_compra"; id: string; ruta: string; nombre: string; tipo: string }
   | { origen: "acta"; ruta: string; nombre: string; tipo: string }
   | { origen: "requisicion_admin"; ruta: string; nombre: string; tipo: string }
 
@@ -176,6 +254,8 @@ export type FiltrosConsolidado = {
   estado?: EstadoPago
   tercero?: string
   soloConNovedad?: boolean
+  // Pestaña de la etapa (sin enviar = todas).
+  etapa?: EtapaConsolidado
 }
 
 export const formatoMoneda = (n: number) =>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, Paperclip } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,17 +12,15 @@ import { SelectorNumeros } from "@/components/selector-numeros"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
-import { verSoporteReqAdmin } from "@/components/detalle-requisicion-admin"
 import {
   listarConsolidadoGerencia,
   opcionesConsolidadoGerencia,
   soportesDePagos,
 } from "@/app/(app)/ayf/consolidado-gerencia/actions"
-import { enlaceSoporteOrden } from "@/app/(app)/almacen/comprar-pedidos/actions"
-import { enlaceSoporteActa } from "@/app/(app)/contratos/actas/actions"
 import {
   fechasSemanaIso,
   formatoMoneda,
+  rutaSoportePago,
   semanaIso,
   semanasDelAnio,
   type FiltrosConsolidadoGerencia,
@@ -32,21 +30,6 @@ import {
 } from "@/lib/pagos"
 
 const TODOS = "todos"
-
-// Abre el soporte en otra pestaña (la pestaña se abre antes de pedir el enlace:
-// si no, el navegador la bloquea).
-async function abrirSoporte(s: SoportePago) {
-  if (s.origen === "requisicion_admin") return verSoporteReqAdmin(s.ruta)
-  const ventana = window.open("", "_blank")
-  try {
-    const url = s.origen === "orden_compra" ? await enlaceSoporteOrden(s.id) : await enlaceSoporteActa(s.ruta)
-    if (ventana) ventana.location.href = url
-    else window.location.href = url
-  } catch {
-    ventana?.close()
-    window.alert("No se pudo abrir el soporte.")
-  }
-}
 
 // Consolidado Gerencia: los pagos de los tres consolidados, para control. Solo
 // consulta; doble clic abre el documento de donde sale el pago.
@@ -185,9 +168,15 @@ export function ConsolidadoGerenciaView() {
         const s = soportes[p.id]
         if (!s) return <span className="text-muted-foreground/60">—</span>
         return (
-          <Button size="sm" variant="ghost" className="h-8 gap-1 px-2" title={s.nombre} onClick={() => abrirSoporte(s)}>
+          <a
+            href={rutaSoportePago(p.id)}
+            target="_blank"
+            rel="noreferrer"
+            title={s.nombre}
+            className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
+          >
             <Paperclip className="h-4 w-4" /> Ver
-          </Button>
+          </a>
         )
       },
     },

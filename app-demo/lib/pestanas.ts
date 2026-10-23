@@ -111,15 +111,15 @@ export const PESTANAS: Pestana[] = [
   { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion", "/contratos/otrosi-pdf"] },
 
   // A&F (Administrativo y Financiero)
-  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf"] },
+  { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
   // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
   // lleva a la primera que tenga.
-  { clave: "ayf.consolidado_bogota", titulo: "Consolidado Bogotá", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf"] },
-  { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf"] },
-  { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf"] },
+  { clave: "ayf.consolidado_bogota", titulo: "Consolidado", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/bogota", rutas: ["/ayf/consolidado", "/ayf/consolidado/bogota", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_vanur", titulo: "Consolidado Vanur", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/vanur", rutas: ["/ayf/consolidado", "/ayf/consolidado/vanur", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
+  { clave: "ayf.consolidado_otros", titulo: "Consolidado Otros", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado/otros", rutas: ["/ayf/consolidado", "/ayf/consolidado/otros", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
   // Los pagos de los tres consolidados, para control de Gerencia (20261212000000).
-  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf"] },
+  { clave: "ayf.consolidado_gerencia", titulo: "Consolidado Gerencia", modulo: "ayf", seccion: "Pagos", url: "/ayf/consolidado-gerencia", rutas: ["/ayf/consolidado-gerencia", "/contratos/acta-pdf", "/ayf/soporte-pago"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
 ]
 
@@ -166,7 +166,8 @@ export const ACCIONES: Accion[] = [
   { clave: "ver_datos_bancarios", titulo: "Ver datos bancarios de contratistas", descripcion: "Ver el banco, la cuenta y la certificación bancaria de los contratistas. Sin esta acción se ven como \"Restringido\".", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
   { clave: "aprobar_pagos", titulo: "Aprobar pagos", descripcion: "Aprobar o rechazar los pagos pendientes (por ahora, los saldos de órdenes de compra con anticipo).", seccion: "A&F" },
-  { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, y generar los pagos de una orden ya aprobada.", seccion: "A&F" },
+  { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, generar los pagos de una orden ya aprobada, enviar pagos a liquidar y responder lo que Contabilidad observa.", seccion: "A&F" },
+  { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
   { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Crear terceros y agregar o corregir sus cuentas bancarias (las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]
