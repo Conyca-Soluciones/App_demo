@@ -2,7 +2,8 @@
 
 import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle, Download, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PanelFiltros } from "@/components/panel-filtros"
@@ -14,6 +15,7 @@ import {
 } from "@/app/(app)/almacen/inventario/actions"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
+import { descargarExcelInventario } from "@/lib/exportar-inventario"
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 })
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
@@ -25,17 +27,31 @@ const formatoMoneda = new Intl.NumberFormat("es-CO", {
 export function InventarioView() {
   // Proyecto escogido en /inicio o en la barra de arriba (ver
   // lib/proyecto-actual.ts). key: al cambiar de proyecto se empieza de cero.
-  const proyectoId = useProyectoActual().proyecto?.id ?? null
-  return <InventarioDeProyecto key={proyectoId ?? "ninguno"} proyectoId={proyectoId} />
+  const proyecto = useProyectoActual().proyecto
+  const proyectoId = proyecto?.id ?? null
+  return (
+    <InventarioDeProyecto
+      key={proyectoId ?? "ninguno"}
+      proyectoId={proyectoId}
+      proyecto={proyecto ? { codigo: proyecto.codigo, nombre: proyecto.nombre } : null}
+    />
+  )
 }
 
-function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
+function InventarioDeProyecto({
+  proyectoId,
+  proyecto,
+}: {
+  proyectoId: string | null
+  proyecto: { codigo: string | null; nombre: string } | null
+}) {
   const [inventario, setInventario] = useState<InsumoInventario[] | null>(null)
   // Filtro por insumo: el elegido en el panel y el ya aplicado (al Consultar).
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [insumoAplicado, setInsumoAplicado] = useState<OpcionBuscador | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viendo, setViendo] = useState<InsumoInventario | null>(null)
+  const [descargando, setDescargando] = useState(false)
 
   useEffect(() => {
     if (!proyectoId) return
@@ -102,6 +118,20 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
   const { ordenadas, orden, ordenar } = useOrdenExcel(filtrado, columnas)
   const hayNegativos = (inventario ?? []).some((i) => i.cantidadDisponible < 0)
 
+  // Baja lo que se ve: el filtro aplicado y el orden de la tabla.
+  async function descargar() {
+    if (!proyecto) return
+    setDescargando(true)
+    setError(null)
+    try {
+      await descargarExcelInventario(ordenadas, proyecto)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descargar el Excel.")
+    } finally {
+      setDescargando(false)
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 gap-4">
       {proyectoId && inventario && (
@@ -154,6 +184,21 @@ function InventarioDeProyecto({ proyectoId }: { proyectoId: string | null }) {
         </div>
       ) : (
         <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              {filtrado.length} {filtrado.length === 1 ? "insumo" : "insumos"}. Doble clic en uno para ver su detalle.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={descargar}
+              disabled={descargando}
+              title="Descarga los insumos que se ven (con el filtro aplicado), en el orden de la tabla."
+            >
+              {descargando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Descargar Excel
+            </Button>
+          </div>
           <TablaExcel
             filas={ordenadas}
             columnas={columnas}
