@@ -64,7 +64,9 @@ $$;
 
 -- 4. Buscar contratos y contratistas de la clase de la pantalla (por omisión
 -- 'grupo', como antes). Cada clase pide su pestaña.
+-- Se puede correr dos veces: se quitan la firma vieja y la nueva.
 drop function if exists public.buscar_contratistas_para_acta(text);
+drop function if exists public.buscar_contratistas_para_acta(text, text);
 create function public.buscar_contratistas_para_acta(p_texto text, p_clase text default 'grupo')
 returns table(contratista_id uuid, nombre text, documento text, contratos integer)
 language plpgsql
@@ -102,6 +104,7 @@ end;
 $$;
 
 drop function if exists public.buscar_contratos_para_acta(text, uuid);
+drop function if exists public.buscar_contratos_para_acta(text, uuid, text);
 create function public.buscar_contratos_para_acta(p_texto text default null, p_contratista_id uuid default null, p_clase text default 'grupo')
 returns table(contrato_id uuid, numero_contrato text, numero bigint, tipo text, objeto text, valor numeric,
               proyecto_codigo text, proyecto_nombre text, contratista_id uuid, contratista_nombre text,
