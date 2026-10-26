@@ -66,6 +66,8 @@ export type PagoDispersor = {
   cuentaDebitarId: string | null
   // soporte individual del pago en esa tanda (bucket dispersores)
   dispersion: { apodo: string; nombreBase: string; generadoEn: string; soporte: { nombre: string; ruta: string } | null } | null
+  // el último intento que rebotó en el banco (vuelve a dispersión con el mismo ITEM)
+  rebote: { fecha: string; motivo: string } | null
 }
 
 export type PagoConEstado = PagoDispersor & { estado: EstadoDispersor; alertas: Alerta[] }
@@ -107,6 +109,9 @@ export function conEstado(p: PagoDispersor): PagoConEstado {
     })
   } else {
     estado = p.cuentaDebitarId ? "asignado" : "listo"
+  }
+  if (p.rebote && estado !== "dispersado") {
+    alertas.push({ nivel: "AVISO", mensaje: "rebotó en el banco", detalle: p.rebote.motivo })
   }
   return { ...p, estado, alertas }
 }

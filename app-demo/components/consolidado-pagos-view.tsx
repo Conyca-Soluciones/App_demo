@@ -54,7 +54,7 @@ import {
   type SoportePago,
 } from "@/lib/pagos"
 
-const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "en_dispersion", "dispersado", "anulado"]
+const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "dispersado", "anulado"]
 
 async function buscarTercerosAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const r = await buscarTercerosParaPago(termino)

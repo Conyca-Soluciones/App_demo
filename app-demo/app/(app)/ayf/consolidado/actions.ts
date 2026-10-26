@@ -61,7 +61,7 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
   // Las etapas son de los pagos aprobados (los anulados o en dispersión, en "Todos").
   if (filtros.etapa === "preparacion") query = query.eq("estado", "aprobado").is("liquidacion_estado", null)
-  else if (filtros.etapa === "dispersado") query = query.eq("estado", "dispersado")
+  else if (filtros.etapa === "dispersado") query = query.eq("estado", "dispersado").eq("liquidacion_estado", "liquidado")
   else if (filtros.etapa && filtros.etapa !== "todos") query = query.eq("estado", "aprobado").eq("liquidacion_estado", filtros.etapa)
 
   return query
@@ -91,7 +91,7 @@ export async function listarConsolidado(
 // El soporte individual del dispersor de cada pago dispersado: pago -> nombre del PDF.
 async function soportesDispersor(supabase: any, ids: string[]): Promise<Record<string, string>> {
   if (ids.length === 0) return {}
-  const { data, error } = await supabase.from("dispersion_pagos").select("pago_id, soporte_nombre").in("pago_id", ids)
+  const { data, error } = await supabase.from("dispersion_pagos").select("pago_id, soporte_nombre").in("pago_id", ids).is("rebotado_en", null)
   if (error) throw new Error(error.message)
   return Object.fromEntries(((data ?? []) as any[]).map((d) => [d.pago_id, d.soporte_nombre]))
 }

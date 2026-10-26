@@ -519,5 +519,11 @@ select * from (
          exists (select 1 from pg_proc where proname = 'buscar_contratos_para_acta'
                     and pg_get_function_identity_arguments(oid) like '%p_clase%')
          and exists (select 1 from pg_proc where proname = 'puede_ver_actas' and prosrc like '%actas_generales%')
+  union all
+  select '20261226000000_redispersar_y_estados_pago',
+         exists (select 1 from pg_proc where proname = 'redispersar_pagos')
+         and exists (select 1 from pg_trigger where tgname = 'trg_pago_dispersado_fijo')
+         and exists (select 1 from pg_constraint where conname = 'pagos_dispersado_liquidado')
+         and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%en_dispersion%')
 ) t
 order by 1;

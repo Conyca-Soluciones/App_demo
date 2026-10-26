@@ -1718,6 +1718,23 @@ tres consolidados.
   "Dispersor" junto al Soporte: el soporte individual por el enlace fijo
   `/ayf/soporte-dispersor/<pago>` (route handler; RLS de `dispersion_pagos` y
   del bucket). El estado `dispersado` se muestra "Dispersado" (antes "Pagado").
+- **Dispersado = liquidado y fijo; "Rebotó en el banco"** (`20261226000000`,
+  decisiones del usuario 2026-10-26): CHECK `pagos_dispersado_liquidado` (un
+  dispersado siempre está liquidado; "Liquidar sin retenciones" también deja
+  liquidado). `trg_pago_dispersado_fijo` impide que un dispersado cambie de
+  estado (anular, cancelar la OC...), salvo `redispersar_pagos(ids, motivo)`
+  (acción `generar_dispersores`; botón "Rebotó en el banco" en el paso 2 de
+  Realizar Pagos, sobre los "Ya dispersados"): el pago vuelve a aprobado +
+  liquidado, Por asignar (sin cuenta a debitar), con el mismo ITEM; el intento
+  queda en `dispersion_pagos` con `rebotado_en/por` y `motivo_rebote` (ya no
+  hay `unique(pago_id)`: solo un intento vigente, índice parcial
+  `dispersion_pagos_pago_vigente`) y en el historial (evento `rebotado`, con
+  el motivo). La pantalla muestra "Rebotó: <motivo>" en el pago. El soporte del
+  dispersor (Consolidado y `/ayf/soporte-dispersor`) es el del intento vigente.
+- **Estados del pago** (misma migración): `programado`, `solicitado`,
+  `aprobado`, `dispersado`, `rechazado`, `anulado`. Se quitaron `en_dispersion`
+  y `liquidado` (nunca se usaron; la liquidación va en `liquidacion_estado`) del
+  CHECK, del código y de las funciones que los nombraban.
 - **Pendiente**: soporte de los pagos por PSE; el soporte del dispersor en la
   ventana del pago.
 
@@ -3632,7 +3649,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261222000000` contratistas enlazados al tercero (sin datos bancarios propios) ·
 `20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria) ·
 `20261224000000` contrato por PSE: titular con otro nombre ·
-`20261225000000` actas generales (después de las de la otra rama).
+`20261225000000` actas generales (después de las de la otra rama) ·
+`20261226000000` rebote del dispersor, dispersado fijo y estados del pago.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
