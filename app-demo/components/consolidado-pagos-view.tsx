@@ -27,6 +27,8 @@ import {
   cuentasDeTercero,
   enviarFiltradosALiquidar,
   enviarPagosALiquidar,
+  moverPagosSemana,
+  devolverPagosAPreparacion,
   liquidarPagos,
   listarConsolidado,
   obtenerAlertasConsolidado,
@@ -131,7 +133,7 @@ export function ConsolidadoPagosView({
   const actual = semanaIso()
   const [anios, setAnios] = useState<number[]>(etapaInicial ? [] : [actual.anio])
   const [semanas, setSemanas] = useState<number[]>(etapaInicial ? [] : [actual.semana])
-  // Semana de creación del pago: vacía = todas (la de aprobación es la del ITEM).
+  // Semana de creación del pago: vacía = todas (la de pago es la que se da al aprobar).
   const [aniosCreacion, setAniosCreacion] = useState<number[]>([])
   const [semanasCreacion, setSemanasCreacion] = useState<number[]>([])
   const [estado, setEstado] = useState<EstadoPago | "todos">("todos")
@@ -254,7 +256,7 @@ export function ConsolidadoPagosView({
     try {
       const r = await reintentarPagos()
       setAviso(
-        `Se resolvieron ${r.fallosResueltos} ${r.fallosResueltos === 1 ? "orden" : "órdenes"} y se asignó ITEM a ` +
+        `Se resolvieron ${r.fallosResueltos} ${r.fallosResueltos === 1 ? "orden" : "órdenes"} y se asignó semana a ` +
           `${r.itemsAsignados} ${r.itemsAsignados === 1 ? "pago" : "pagos"}.`
       )
       cargarAlertas()
@@ -288,6 +290,25 @@ export function ConsolidadoPagosView({
       const n = await enviarPagosALiquidar([...seleccion])
       recargar()
       return `${plural(n, "pago enviado", "pagos enviados")} a liquidar.`
+    })
+
+  const moverSeleccionados = (semanas: 1 | -1) =>
+    correr(semanas === 1 ? "siguiente" : "anterior", async () => {
+      const n = await moverPagosSemana([...seleccion], semanas)
+      recargar()
+      return `${plural(n, "pago pasado", "pagos pasados")} a la semana ${semanas === 1 ? "siguiente" : "anterior"}.`
+    })
+
+  const devolverSeleccionados = () =>
+    correr("devolver", async () => {
+      const motivo = window.prompt(
+        `¿Devolver ${plural(seleccion.size, "pago", "pagos")} a Preparación? Conservan su REF. Motivo (opcional):`,
+        ""
+      )
+      if (motivo === null) return null
+      const n = await devolverPagosAPreparacion([...seleccion], motivo.trim() || null)
+      recargar()
+      return `${plural(n, "pago devuelto", "pagos devueltos")} a Preparación.`
     })
 
   const enviarFiltrados = () =>
@@ -339,7 +360,7 @@ export function ConsolidadoPagosView({
       const hoja = libro.Sheets[libro.SheetNames[0]]
       const filas = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null })
       const leido = leerFilasLiquidacion(filas)
-      // ITEM y fila de cada pago, para el reporte.
+      // REF y fila de cada pago, para el reporte.
       const filaDe = new Map<string, number>()
       const itemDe = new Map<string, string>()
       const iId = (filas.find((f) => (f ?? []).some((c) => String(c ?? "").toLowerCase().startsWith("id interno"))) ?? []).findIndex((c) =>
@@ -375,7 +396,7 @@ export function ConsolidadoPagosView({
   // ------------------------------------------------------------ columnas
   const enPreparacion = etapa === "preparacion"
   const enLiquidacion = etapa === "por_liquidar" || etapa === "observado"
-  const conSeleccion = (enPreparacion && puedeGestionar) || (enLiquidacion && puedeLiquidar)
+  const conSeleccion = (enPreparacion && puedeGestionar) || (enLiquidacion && (puedeLiquidar || puedeGestionar))
   const seleccionables = (pagos ?? []).filter((p) =>
     enPreparacion ? p.estado === "aprobado" && p.liquidacionEstado == null : p.estado === "aprobado" && (p.liquidacionEstado === "por_liquidar" || p.liquidacionEstado === "observado")
   )
@@ -405,7 +426,7 @@ export function ConsolidadoPagosView({
         />
       ) : null,
   }
-  const colItem: ColumnaExcel<Pago> = { clave: "item", titulo: "ITEM", ancho: 70, fija: true, alinear: "center", texto: (p) => (p.item != null ? String(p.item) : "") }
+  const colItem: ColumnaExcel<Pago> = { clave: "item", titulo: "REF", ancho: 100, fija: true, alinear: "center", texto: (p) => p.referencia ?? "" }
   const colSemana: ColumnaExcel<Pago> = {
     clave: "semana",
     titulo: "Semana",
@@ -555,11 +576,11 @@ export function ConsolidadoPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Semana de aprobación: la del ITEM (se numera por consolidado y semana al aprobar el pago); por omisión, la actual. Semana de creación: cuando se creó el pago; por omisión, todas. Las semanas valen en cada año elegido."
+          ayuda="Semana de pago: la que el pago recibe al aprobarlo (en Preparación se puede pasar a la siguiente o devolver a la anterior); por omisión, la actual. La REF se da al enviar a liquidar. Semana de creación: cuando se creó el pago; por omisión, todas. Las semanas valen en cada año elegido."
         >
           <FiltroSemanas
             id="aprobacion-pagos"
-            titulo="Semana de aprobación (ITEM)"
+            titulo="Semana de pago"
             opcionesAnios={opcionesAnios}
             anios={anios}
             semanas={semanas}
@@ -675,7 +696,39 @@ export function ConsolidadoPagosView({
                     {ocupado === "enviar_todos" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                     Enviar todos los filtrados{conteo ? ` (${conteo.preparacion})` : ""}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={seleccion.size === 0 || ocupado !== null}
+                    onClick={() => moverSeleccionados(1)}
+                    title="Pasa los pagos elegidos a la semana siguiente (no han recibido REF)"
+                  >
+                    {ocupado === "siguiente" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                    Pasar a la semana siguiente{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={seleccion.size === 0 || ocupado !== null}
+                    onClick={() => moverSeleccionados(-1)}
+                    title="Devuelve los pagos elegidos a la semana anterior (nunca antes de la actual)"
+                  >
+                    {ocupado === "anterior" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                    Devolver a la semana anterior{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                  </Button>
                 </>
+              )}
+              {enLiquidacion && puedeGestionar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={seleccion.size === 0 || ocupado !== null}
+                  onClick={devolverSeleccionados}
+                  title="Los enviados a liquidar u observados (no liquidados) vuelven a Preparación con su misma REF"
+                >
+                  {ocupado === "devolver" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  Devolver a preparación{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                </Button>
               )}
               {enLiquidacion && puedeLiquidar && (
                 <Button size="sm" disabled={seleccion.size === 0 || ocupado !== null} onClick={sinRetencionesSeleccionados}>
@@ -741,7 +794,7 @@ export function ConsolidadoPagosView({
                 }
                 tarjeta={{
                   titulo: (p) => p.terceroNombre ?? "Sin tercero",
-                  subtitulo: (p) => `ITEM ${p.item ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
+                  subtitulo: (p) => `REF ${p.referencia ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
                   esquina: (p) => <EtiquetaEtapa pago={p} />,
                   campos: camposTarjeta,
                 }}
@@ -794,7 +847,7 @@ export function ConsolidadoPagosView({
         abierto={historialDe !== null}
         tipo="pago"
         id={historialDe?.id ?? null}
-        titulo={`Historial del pago${historialDe?.item != null ? ` · ITEM ${historialDe.item}` : ""}`}
+        titulo={`Historial del pago${historialDe?.referencia ? ` · REF ${historialDe.referencia}` : ""}`}
         onCerrar={() => setHistorialDe(null)}
       />
 
@@ -827,7 +880,7 @@ export function ConsolidadoPagosView({
                   {reporte.errores.map((e, i) => (
                     <p key={i}>
                       {e.fila != null ? `Fila ${e.fila}` : "Fila"}
-                      {e.item ? ` (ITEM ${e.item})` : ""}: {e.mensaje}
+                      {e.item ? ` (REF ${e.item})` : ""}: {e.mensaje}
                     </p>
                   ))}
                 </div>
@@ -838,7 +891,7 @@ export function ConsolidadoPagosView({
                   {reporte.avisos.map((e, i) => (
                     <p key={i}>
                       Fila {e.fila}
-                      {e.item ? ` (ITEM ${e.item})` : ""}: {e.mensaje}
+                      {e.item ? ` (REF ${e.item})` : ""}: {e.mensaje}
                     </p>
                   ))}
                 </div>
@@ -931,7 +984,7 @@ function ContenidoResolver({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Tercero y cuenta del pago {pago.item != null ? `· ITEM ${pago.item}` : ""}</DialogTitle>
+        <DialogTitle>Tercero y cuenta del pago {pago.referencia ? `· REF ${pago.referencia}` : ""}</DialogTitle>
       </DialogHeader>
       <p className="text-sm text-muted-foreground">
         {pago.concepto} · {formatoMoneda(pago.valor)}

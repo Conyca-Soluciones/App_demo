@@ -1405,7 +1405,29 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
     Se leen por `entradas_almacen_select` (`20261205000000`): pestaña Entradas en
     sus proyectos o quien ve la OC. Antes la tabla no tenía política y nadie las veía.
   - Componente `CampoSoporte` y ayudas en `lib/soportes.ts`.
-- **ITEM del consolidado**: consecutivo por consolidado y semana
+- **REF del pago** (reemplaza al ITEM, `20261231000000`, decisión del usuario
+  2026-11-05): al APROBAR el pago recibe solo su semana de pago
+  (`_pago_asignar_item`, mismo nombre); al ENVIAR A LIQUIDAR recibe
+  `pagos.referencia` = '<número del proyecto>-<consecutivo de 5>' ('001-00001',
+  `_pago_asignar_referencia`, contador `contadores_proyecto` tipo 'pago', en
+  orden de semana y aprobación), que ya no cambia nunca. Se muestra "REF
+  001-00001"; en el archivo del banco va "REF 001 00001" y el soporte del
+  dispersor tiene columna REF. En Preparación: "Pasar a la semana siguiente" y
+  "Devolver a la semana anterior" (`mover_pagos_semana`, nunca antes de la
+  semana actual). "Devolver a preparación" (`devolver_pagos_a_preparacion`):
+  enviados a liquidar u observados, no liquidados; CONSERVAN su REF. La columna
+  `pagos.item` y `pagos_contadores` quedan sin uso; "tiene semana" es lo que
+  antes era "tiene ITEM". El Excel de liquidación tiene columna REF (se
+  reconoce cada fila por el id interno).
+- **Códigos por proyecto** (`20261230000000`, decisión del usuario
+  2026-11-05): `proyectos.numero` (001-999, el siguiente libre al crearlo; se
+  cambia en Control administrativo mientras el proyecto no tenga órdenes,
+  contratos ni pagos con REF). `ordenes_compra.numero` y `contratos.numero` son
+  el consecutivo DEL PROYECTO y `codigo` guarda 'OC-001-0001' / 'CJ-001-0001'
+  (disparadores `trg_oc_codigo` y `_asignar_numero_contrato`). El número del
+  contrato aprobado (`numero_contrato`) es el mismo código, sin año; las
+  minutas imprimen "No. CJ-001-0001". Actas: "Acta 01" (`numeroActa`).
+- **ITEM del consolidado** (ANTES de `20261231000000`): consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
 
@@ -1669,6 +1691,30 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   pestañas de los consolidados, Gerencia y Aprobación de pagos.
   `lib/soportes-pagos-db.ts` busca el soporte de cada pago (tres consultas por
   lote).
+- **Tipo de pago de la OC** (`20261228400000`, `lib/tipo-pago-oc.ts`): al
+  generar la orden se elige De contado, Crédito o Fiducia (obligatorio); con
+  Crédito, la fecha futura en que se debe pagar. Es APARTE del método de pago
+  (Transferencia/PSE): columnas `ordenes_compra.tipo_pago` y
+  `fecha_pago_credito`, parámetros `p_tipo_pago` / `p_fecha_pago_credito` de
+  `crear_orden_compra_con_soporte`, que llama a `_fijar_tipo_pago_orden`
+  (valida otra vez). Es informativo: el pago va a Aprobación de pagos como
+  siempre. Se ve en el origen del pago ("OC 12 · Crédito · pagar el ..."), en
+  el detalle y en el PDF de la orden. Las OC de antes quedan sin tipo.
+- **Crédito en espera** (`20261229000000`, decisión del usuario 2026-11-05):
+  la OC a crédito va a Aprobación de pagos de una vez; al aprobarla, la orden
+  queda aprobada pero su pago queda `en_espera` ("Crédito en espera", sin ITEM,
+  fuera del Consolidado; disparador BEFORE `trg_pago_credito_en_espera`). El
+  LUNES de la semana de `fecha_pago_credito` pasa a `aprobado` con el ITEM de
+  esa semana (`_liberar_creditos`, desde la tarea de cada hora
+  `_liberar_pagos_programados`; `pagos.liberado_en` manda en
+  `_pago_asignar_item`; historial `en_espera` / `credito_liberado`). Si la
+  semana ya llegó al aprobar, pasa directo. Acción `cambiar_fecha_credito`
+  (Compras, Líder Compras, Financiera): "Cambiar fecha de pago" en el detalle
+  de la OC (`cambiar_fecha_credito_oc`, fecha >= hoy, solo mientras el pago no
+  esté aprobado/dispersado; evento `fecha_credito_cambiada` de la OC). Crédito
+  no lleva anticipo. `en_espera` cuenta como pago vivo en las listas
+  ('programado', 'solicitado', 'en_espera', 'aprobado') de las funciones de
+  terceros, cuentas, empresas y anulación con la OC.
 - **Mis pendientes** (`20261227000000`): "Pagos observados por Contabilidad"
   (`pago_observado`, acción `gestionar_pagos`, con la última observación) y
   "Pagos por liquidar" (`pago_por_liquidar`, acción `liquidar_pagos`), solo de
@@ -3714,7 +3760,12 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261228000000` crear requisición: todos los ítems de la versión vigente ·
 `20261228100000` otrosí: bajar cantidades (`cantidad_reducida`) ·
 `20261228200000` firma del representante legal en el otrosí ·
-`20261228300000` crear versión nueva del presupuesto en una transacción.
+`20261228300000` crear versión nueva del presupuesto en una transacción ·
+`20261228400000` tipo de pago de la OC (de contado, crédito con fecha, fiducia) ·
+`20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha ·
+`20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
+`20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
+`20261231100000` campanita: no leídas arriba y borrar notificaciones propias.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

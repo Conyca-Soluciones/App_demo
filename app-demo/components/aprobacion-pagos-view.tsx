@@ -38,12 +38,14 @@ import {
   textoCuentaPago,
 } from "@/lib/pagos"
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { lunesDeLaSemana } from "@/lib/tipo-pago-oc"
 import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
 import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "solicitado", etiqueta: "Por aprobar" },
   { valor: "programado", etiqueta: "Programados (esperan entrega o fecha)" },
+  { valor: "en_espera", etiqueta: "Crédito en espera" },
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
 ]
@@ -316,6 +318,8 @@ export function AprobacionPagosView({
       texto: (p) =>
         p.estado === "programado" && p.fechaProgramada
           ? `Desde ${formatearFechaSinHora(p.fechaProgramada)}`
+          : p.estado === "en_espera" && p.ordenFechaPagoCredito
+            ? `Pasa a pago el ${formatearFechaSinHora(lunesDeLaSemana(p.ordenFechaPagoCredito))}`
           : p.solicitadoEn
             ? formatoFechaHora(p.solicitadoEn)
             : "",

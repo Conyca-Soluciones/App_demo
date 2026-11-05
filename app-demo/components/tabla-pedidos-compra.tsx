@@ -90,6 +90,7 @@ export function TablaPedidosCompra({
       valorOrden: (p) => p.requisicionNumero,
       claseCelda: "font-medium tabular-nums",
     },
+    { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (p) => p.proyectoTexto ?? "", claseCelda: "tabular-nums" },
     { clave: "insumo", titulo: "Insumo", ancho: 280, flexible: true, texto: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}` },
     { clave: "um", titulo: "UM", ancho: 120, texto: (p) => p.um ?? "" },
     {
@@ -218,9 +219,9 @@ export function TablaPedidosCompra({
         fondoFila={(p) => (p.urgente ? "bg-amber-50" : undefined)}
         tarjeta={{
           titulo: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
-          subtitulo: (p) => `Requisición # ${p.requisicionNumero ?? "—"} · ${p.solicitadoPorNombre ?? "—"}`,
+          subtitulo: (p) => `Requisición # ${p.requisicionNumero ?? "—"}`,
           esquina: (p) => columnas.find((c) => c.clave === "comprar")!.celda!(p),
-          campos: ["um", "cantidad", "valor", "requerida", "urgente", "rechazar"],
+          campos: ["proyecto", "solicitante", "um", "cantidad", "valor", "requerida", "urgente", "rechazar"],
         }}
       />
 
@@ -245,6 +246,7 @@ export function TablaPedidosCompra({
                   etiqueta: "Vr. unit. proyectado",
                   valor: viendo.valorUnitarioProyectado != null ? formatoMoneda.format(viendo.valorUnitarioProyectado) : "",
                 },
+                { etiqueta: "Proyecto", valor: viendo.proyectoTexto ?? "" },
                 { etiqueta: "Solicitante", valor: viendo.solicitadoPorNombre ?? "" },
                 { etiqueta: "Fecha de la requisición", valor: formatoFecha(viendo.fechaPedido) },
                 { etiqueta: "Fecha requerida", valor: formatearFechaSinHora(viendo.fechaRequerida) },

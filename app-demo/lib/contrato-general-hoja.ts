@@ -9,7 +9,7 @@ import type { HojaContratoGeneral } from "@/components/contrato-general-pdf"
 // ---------------------------------------------------------------------------
 
 export const SELECT_HOJA_CONTRATO_GENERAL = `
-  numero, numero_contrato, tipo, tipo_detalle, estado, minuta_estado, valor, fecha_inicio, fecha_fin, forma_pago,
+  numero, codigo, numero_contrato, tipo, tipo_detalle, estado, minuta_estado, valor, fecha_inicio, fecha_fin, forma_pago,
   retencion_garantia_pct, retencion_anticipo_pct, retencion_fic_pct, referencia, objeto, observaciones,
   enviado_at, resuelto_at, minuta_resuelta_at,
   solicitante:perfiles!contratos_solicitado_por_fkey(nombre),
@@ -24,6 +24,7 @@ type Nombre = { nombre: string | null } | null
 export type FilaHojaContratoGeneral = {
   numero: number
   numero_contrato: string | null
+  codigo?: string | null
   tipo: string
   tipo_detalle: string | null
   estado: EstadoContrato
@@ -79,7 +80,7 @@ export function armarHojaContratoGeneral(f: FilaHojaContratoGeneral, ahora: Date
   const preaprobada = f.estado === "aprobada"
   const aprobada = preaprobada && f.minuta_estado === "aprobada"
   return {
-    numero: f.numero_contrato ?? `Solicitud N° ${f.numero}`,
+    numero: f.numero_contrato ?? f.codigo ?? `N° ${f.numero}`,
     empresaNombre: f.proyecto?.empresa?.razon_social ?? "",
     empresaNit: f.proyecto?.empresa?.nit ?? "",
     ciudad: f.proyecto?.ciudad ?? "",

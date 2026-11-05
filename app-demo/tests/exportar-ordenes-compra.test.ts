@@ -18,7 +18,7 @@ const linea = (codigo: number, total: number) => ({
 })
 
 const orden = (cambios: Partial<OrdenExcel> = {}): OrdenExcel => ({
-  numero: 45,
+  codigo: "OC-001-0045",
   estadoVisible: "aprobada",
   proyectoCodigo: "P-01",
   proyectoNombre: "Obra",
@@ -32,29 +32,29 @@ const orden = (cambios: Partial<OrdenExcel> = {}): OrdenExcel => ({
 
 describe("Excel de órdenes de compra", () => {
   it("resumida: una fila por orden con su valor total al final", () => {
-    const filas = filasExcelOrdenes([orden(), orden({ numero: 44, valorTotal: 50, lineas: [] })], "resumida")
+    const filas = filasExcelOrdenes([orden(), orden({ codigo: "OC-001-0044", valorTotal: 50, lineas: [] })], "resumida")
     expect(filas).toHaveLength(2)
     expect(filas[0]).toHaveLength(COLUMNAS_EXCEL_RESUMIDA.length)
-    expect(filas[0].slice(0, 4)).toEqual([45, "P-01 — Obra", "Ferretería", "Aprobada"])
+    expect(filas[0].slice(0, 4)).toEqual(["OC-001-0045", "P-01 — Obra", "Ferretería", "Aprobada"])
     expect(filas[0].at(-1)).toBe(300)
     expect(filas[1].at(-1)).toBe(50)
   })
 
   it("detallada: una fila por insumo, con los datos de su orden en cada una", () => {
-    const filas = filasExcelOrdenes([orden(), orden({ numero: 46, estadoVisible: "cancelada", lineas: [linea(3, 10)] })], "detallada")
+    const filas = filasExcelOrdenes([orden(), orden({ codigo: "OC-001-0046", estadoVisible: "cancelada", lineas: [linea(3, 10)] })], "detallada")
     expect(filas).toHaveLength(3)
     for (const f of filas) expect(f).toHaveLength(COLUMNAS_EXCEL_DETALLADA.length)
     expect(filas.map((f) => [f[0], f[6], f.at(-1)])).toEqual([
-      [45, "1 - INSUMO 1", 100],
-      [45, "2 - INSUMO 2", 200],
-      [46, "3 - INSUMO 3", 10],
+      ["OC-001-0045", "1 - INSUMO 1", 100],
+      ["OC-001-0045", "2 - INSUMO 2", 200],
+      ["OC-001-0046", "3 - INSUMO 3", 10],
     ])
     expect(filas[2][3]).toBe("Cancelada")
   })
 
   it("detallada: una orden sin insumos sale una vez, sin datos de insumo", () => {
     const [f] = filasExcelOrdenes([orden({ lineas: [] })], "detallada")
-    expect(f.slice(0, 1)).toEqual([45])
+    expect(f.slice(0, 1)).toEqual(["OC-001-0045"])
     expect(f.slice(6)).toEqual([null, null, null, null, null, null, null])
   })
 

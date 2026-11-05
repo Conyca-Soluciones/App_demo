@@ -230,7 +230,7 @@ function mapActaDetalle(d: any): ActaDetalle {
           valor: Number(d.pago.valor),
           anio: num(d.pago.anio),
           semana: num(d.pago.semana),
-          item: num(d.pago.item),
+          item: d.pago.item ?? null, // REF del pago
           novedad: d.pago.novedad ?? null,
         }
       : null,

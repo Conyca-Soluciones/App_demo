@@ -6,7 +6,7 @@ import { enLetras, pesos } from "@/lib/dispersores/textos"
 // ---------------------------------------------------------------------------
 // Port de nucleo/soporte.py (pdf_soporte) de la consola de dispersores: el PDF
 // que se aprueba y se archiva, el único rastro que conecta cada abono con su
-// ITEM, su empresa y su proyecto. Mismo diseño: carta, márgenes 16/14/16 mm,
+// REF, su empresa y su proyecto. Mismo diseño: carta, márgenes 16/14/16 mm,
 // paleta azul/blanco/negro, ficha de la cuenta debitada, tabla agrupada por
 // EMPRESA y dentro por PROYECTO, total en letras, cuentas confirmadas a mano y
 // pie. El grupal lleva todos los pagos de la tanda; el individual, uno solo.
@@ -22,7 +22,8 @@ const GRIS = "#5C6672"
 const GRIS_LINEA = "#D9DEE6"
 const SELLO = "#8C2F2A"
 
-const ANCHOS = [13, 64, 24, 30, 28, 25].map(mm)
+// La REF (001-00001) es más ancha que el ITEM de antes: 18 mm (sale del titular).
+const ANCHOS = [18, 59, 24, 30, 28, 25].map(mm)
 // SimpleDocTemplate de reportlab: márgenes 16/14/16 mm MÁS el relleno de 6 pt
 // del marco; las tablas que no ocupan el ancho van centradas en él.
 const RELLENO_MARCO = 6
@@ -109,7 +110,7 @@ export function nombreSoporteGrupal(t: Tanda, ronda: number) {
   return `${nombreBase(t)}_soporte_Ronda${ronda}.pdf`
 }
 export function nombreSoporteIndividual(t: Tanda, item: string) {
-  return `${nombreBase(t)}_ITEM${item}_soporte.pdf`
+  return `${nombreBase(t)}_REF${item}_soporte.pdf`
 }
 
 export function SoporteDispersorPDF({
@@ -174,7 +175,7 @@ export function SoporteDispersorPDF({
 
         {/* tabla de pagos */}
         <View style={[s.fila, { backgroundColor: NEGRO, marginLeft: centrada(ANCHO_TABLA), width: ANCHO_TABLA }]} wrap={false}>
-          {["Item", "Titular de la cuenta", "Documento", "Banco", "Cuenta", "Valor"].map((h, i) =>
+          {["REF", "Titular de la cuenta", "Documento", "Banco", "Cuenta", "Valor"].map((h, i) =>
             celda(i, <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: "#FFFFFF", lineHeight: 1.2, textAlign: i === 5 ? "right" : "left" }}>{h}</Text>)
           )}
         </View>
@@ -236,7 +237,7 @@ export function SoporteDispersorPDF({
         )}
 
         <View style={{ height: 6 }} />
-        <Text style={s.etq}>{`Generado el ${generadoEl(generado)} · la referencia de cada abono es ITEM (numero) SEMANA ${t.semana ?? "None"}`}</Text>
+        <Text style={s.etq}>{`Generado el ${generadoEl(generado)} · la referencia de cada abono es REF (proyecto consecutivo), p. ej. REF 001 00001`}</Text>
       </Page>
     </Document>
   )

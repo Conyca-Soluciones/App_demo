@@ -555,5 +555,36 @@ select * from (
   union all
   select '20261228300000_crear_nueva_version',
          exists (select 1 from pg_proc where proname = 'crear_nueva_version')
+  union all
+  select '20261228400000_oc_tipo_pago',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ordenes_compra' and column_name = 'tipo_pago')
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
+                      and prosrc like '%_fijar_tipo_pago_orden%')
+         and (select count(*) from pg_proc where proname = 'crear_orden_compra_con_soporte') = 1
+  union all
+  select '20261229000000_credito_en_espera',
+         exists (select 1 from pg_trigger where tgname = 'trg_pago_credito_en_espera')
+         and exists (select 1 from pg_proc where proname = '_liberar_pagos_programados' and prosrc like '%_liberar_creditos%')
+         and exists (select 1 from pg_proc where proname = '_pago_asignar_item' and prosrc like '%liberado_en%')
+         and exists (select 1 from pg_proc where proname = 'cambiar_fecha_credito_oc')
+         and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace
+                          and prosrc like '%''programado'', ''solicitado'', ''aprobado'')%')
+  union all
+  select '20261230000000_codigos_por_proyecto',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'proyectos' and column_name = 'numero')
+         and exists (select 1 from pg_trigger where tgname = 'trg_oc_codigo')
+         and exists (select 1 from pg_proc where proname = '_asignar_numero_contrato' and prosrc like '%new.codigo%')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%o.codigo%')
+  union all
+  select '20261231000000_referencia_pagos',
+         exists (select 1 from pg_proc where proname = 'mover_pagos_semana')
+         and exists (select 1 from pg_proc where proname = 'devolver_pagos_a_preparacion')
+         and exists (select 1 from pg_proc where proname = 'enviar_pagos_a_liquidar' and prosrc like '%_pago_asignar_referencia%')
+         and not exists (select 1 from pg_proc where proname = '_pago_asignar_item' and prosrc like '%pagos_contadores%')
+  union all
+  select '20261231100000_notificaciones_borrar',
+         exists (select 1 from pg_policy where polname = 'notificaciones_delete_propias')
 ) t
 order by 1;

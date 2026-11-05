@@ -30,7 +30,7 @@ export const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.
 
 export async function pdfMinutaContrato(
   tipo: string,
-  numero: number,
+  numero: string, // código del contrato (CJ-001-0001)
   datos: unknown,
   foco?: string,
   // Firma del representante legal de la empresa (minuta aprobada).

@@ -72,7 +72,7 @@ async function guardarSolicitud(
   proyectoId: string,
   form: SolicitudContratoForm,
   documentos: DocumentoContratoSubido[]
-): Promise<number> {
+): Promise<string> {
   await requerirAccion("solicitar_contratos")
 
   const r = validarSolicitud(form)
@@ -135,7 +135,9 @@ async function guardarSolicitud(
     })),
   })
   if (error) throw new Error(error.message)
-  return Number(data)
+  // Código del contrato (CJ-001-0001, 20261230000000) para el aviso.
+  const { data: fila } = await supabase.from("contratos").select("codigo").eq("id", id).maybeSingle()
+  return (fila as { codigo?: string } | null)?.codigo ?? `N° ${Number(data)}`
 }
 
 export async function crearSolicitudContrato(
@@ -143,7 +145,7 @@ export async function crearSolicitudContrato(
   proyectoId: string,
   form: SolicitudContratoForm,
   documentos: DocumentoContratoSubido[]
-): Promise<number> {
+): Promise<string> {
   return guardarSolicitud("crear", id, proyectoId, form, documentos)
 }
 
@@ -154,7 +156,7 @@ export async function reenviarSolicitudContrato(
   proyectoId: string,
   form: SolicitudContratoForm,
   documentos: DocumentoContratoSubido[]
-): Promise<number> {
+): Promise<string> {
   return guardarSolicitud("reenviar", id, proyectoId, form, documentos)
 }
 

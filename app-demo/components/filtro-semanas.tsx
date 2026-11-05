@@ -6,7 +6,7 @@ import { SelectorNumeros } from "@/components/selector-numeros"
 import { fechasSemanaIso, semanasDelAnio } from "@/lib/pagos"
 
 // Años y semanas ISO de los filtros de los consolidados, con su título:
-// "Semana de aprobación (ITEM)" (pagos.anio / semana) o "Semana de creación"
+// "Semana de pago" (pagos.anio / semana, se da al aprobar) o "Semana de creación"
 // (pagos.creado_en). Vacíos = todos; las semanas valen en cada año elegido.
 export function FiltroSemanas({
   id,

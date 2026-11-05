@@ -42,7 +42,7 @@ export function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: 
     <div className="flex w-full shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
         <span className="font-medium">
-          {pago.item != null ? `ITEM ${pago.item} · ` : ""}
+          {pago.referencia ? `REF ${pago.referencia} · ` : ""}
           {ETIQUETA_TIPO_PAGO[pago.tipo]}
         </span>
         <span className="tabular-nums">
@@ -192,7 +192,7 @@ function DetalleRequisicionAdmin({
       onCerrar={onCerrar}
       ancha
       titulo={req ? `Requisición administrativa${req.numero != null ? ` N° ${req.numero}` : ""}` : "Requisición administrativa"}
-      subtitulo={pago.item != null ? `ITEM ${pago.item} del consolidado` : undefined}
+      subtitulo={pago.referencia ? `REF ${pago.referencia}` : undefined}
       campos={campos}
     >
       {!req && !error && (

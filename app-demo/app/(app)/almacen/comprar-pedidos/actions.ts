@@ -6,6 +6,7 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { calcularLinea } from "@/lib/ordenes-compra-calculos"
 import type { SoporteGuardado, SoporteSubidoArchivo, TipoSoporteOrden } from "@/lib/soportes"
 import type { CuentasProveedorOC, MetodoPagoOC } from "@/lib/metodo-pago-oc"
+import type { TipoPagoOC } from "@/lib/tipo-pago-oc"
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -115,6 +116,8 @@ export type PedidoParaComprar = {
   observaciones: string | null
   soporteUrl: string | null
   solicitadoPorNombre: string | null
+  // Proyecto de la requisición: "001 · ZZ-PRUEBA" (número y código).
+  proyectoTexto: string | null
   resueltoAt: string | null
 }
 
@@ -123,6 +126,7 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
+  proyecto:proyectos!pedidos_insumos_proyecto_id_fkey(numero, codigo, nombre),
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
     cantidad,
     factor_unidad,
@@ -180,6 +184,11 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     observaciones: f.observaciones,
     soporteUrl: f.soporte_url,
     solicitadoPorNombre: f.solicitante?.nombre ?? null,
+    proyectoTexto: f.proyecto
+      ? [f.proyecto.numero != null ? String(f.proyecto.numero).padStart(3, "0") : null, f.proyecto.codigo ?? f.proyecto.nombre]
+          .filter(Boolean)
+          .join(" · ")
+      : null,
     resueltoAt: f.resuelto_at,
   }
 }
@@ -472,6 +481,9 @@ export type DatosOrdenCompra = {
   titular?: { tercero_id: string; cuenta_id: string } | null
   // Método de pago (pagoOCParaGuardar en lib/metodo-pago-oc.ts).
   pago: { metodo: MetodoPagoOC } & Record<string, unknown>
+  // Tipo de pago, aparte del método (20261228400000, lib/tipo-pago-oc.ts).
+  tipoPago: TipoPagoOC
+  fechaPagoCredito?: string | null // YYYY-MM-DD, solo con crédito
   lineas: LineaOrdenCompra[]
 }
 
@@ -557,6 +569,8 @@ export async function crearOrdenCompra(
     // Solo se manda si hay titular aparte (igual que el anticipo).
     ...(datos.titular ? { p_titular: datos.titular } : {}),
     p_pago: datos.pago,
+    p_tipo_pago: datos.tipoPago,
+    p_fecha_pago_credito: datos.tipoPago === "credito" ? (datos.fechaPagoCredito ?? null) : null,
     p_lineas: datos.lineas.map((l) =>
       l.presentacion
         ? {
@@ -623,6 +637,7 @@ export type PermisosOrdenCompra = {
   rolCompras: boolean
   puedeDesaprobar: boolean
   puedeCancelar: boolean
+  puedeCambiarFechaCredito: boolean
   // Para saber si la orden es propia (retirar una pendiente).
   usuarioId: string | null
 }
@@ -630,7 +645,7 @@ export type PermisosOrdenCompra = {
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
   const permisos = await obtenerPermisosRol()
   if (!permisos) {
-    return { rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, usuarioId: null }
+    return { rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, puedeCambiarFechaCredito: false, usuarioId: null }
   }
 
   const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
@@ -638,6 +653,7 @@ export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra>
     rolCompras: puede("comprar"),
     puedeDesaprobar: puede("desaprobar_oc"),
     puedeCancelar: puede("cancelar_oc"),
+    puedeCambiarFechaCredito: puede("cambiar_fecha_credito"),
     usuarioId: await obtenerUsuarioId(),
   }
 }
@@ -666,6 +682,7 @@ export type RequisicionDeOrden = { id: string; numero: number; solicitante: stri
 export type OrdenCompraDetalle = {
   id: string
   numero: number
+  codigo: string // OC-001-0001 (20261230000000)
   estado: OrdenCompraEstado
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
@@ -689,6 +706,8 @@ export type OrdenCompraDetalle = {
   ciudad: string | null
   email: string | null
   condicionesPago: string | null
+  tipoPago: string | null
+  fechaPagoCredito: string | null
   observaciones: string | null
   creadaPorNombre: string | null
   creadaPorId: string | null
@@ -718,8 +737,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
-      condiciones_pago, observaciones, created_at, aprobada_at, motivo_rechazo,
+      id, numero, codigo, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
+      condiciones_pago, tipo_pago, fecha_pago_credito, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
       metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
@@ -756,6 +775,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
   return {
     id: d.id,
     numero: d.numero,
+    codigo: d.codigo,
     estado: d.estado,
     estadoEntrega: d.estado_entrega,
     estadoVisible: calcularEstadoVisible(d.estado, d.estado_entrega),
@@ -779,6 +799,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     ciudad: d.ciudad,
     email: d.email,
     condicionesPago: d.condiciones_pago,
+    tipoPago: d.tipo_pago ?? null,
+    fechaPagoCredito: d.fecha_pago_credito ?? null,
     observaciones: d.observaciones,
     creadaPorNombre: d.creado_por?.nombre ?? null,
     creadaPorId: d.created_by ?? null,
@@ -840,6 +862,17 @@ export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Pr
   if (error) throw new Error(error.message)
 }
 
+// Mueve la fecha de pago de una OC a crédito (20261229000000). La base valida
+// que el pago no haya pasado a pago y, si la fecha nueva ya está en esta
+// semana, el pago en espera pasa de una vez.
+export async function cambiarFechaCreditoOC(ordenId: string, fecha: string): Promise<void> {
+  await requerirAccion("cambiar_fecha_credito")
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw new Error("Escribe la fecha de pago.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("cambiar_fecha_credito_oc", { p_orden_id: ordenId, p_fecha: fecha })
+  if (error) throw new Error(error.message)
+}
+
 // Cancela una orden aprobada. No se puede si tiene material recibido (entrega
 // parcial o entregada). Sus pedidos vuelven a la cola de "Comprar pedidos".
 // Aprobada: exige cancelar_oc. Pendiente: también quien la creó (retirarla).
@@ -873,6 +906,7 @@ export type LineaOrdenListado = {
 export type OrdenCompraListado = {
   id: string
   numero: number
+  codigo: string
   estado: OrdenCompraEstado
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
@@ -923,7 +957,7 @@ function consultaOrdenesCompra(supabase: Awaited<ReturnType<typeof createClient>
         .from("ordenes_compra")
         .select(
           `
-      id, numero, estado, estado_entrega, created_at, proyecto_id,
+      id, numero, codigo, estado, estado_entrega, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey!inner(nombre),
       created_by,
@@ -942,7 +976,7 @@ function consultaOrdenesCompra(supabase: Awaited<ReturnType<typeof createClient>
         .from("ordenes_compra")
         .select(
           `
-      id, numero, estado, estado_entrega, created_at, proyecto_id,
+      id, numero, codigo, estado, estado_entrega, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
       created_by,
@@ -1002,6 +1036,7 @@ function mapOrdenListado(o: any): Omit<OrdenCompraListado, "tieneSobrecostoPreci
   return {
     id: o.id,
     numero: o.numero,
+    codigo: o.codigo,
     estado: o.estado,
     estadoEntrega: o.estado_entrega,
     estadoVisible: calcularEstadoVisible(o.estado, o.estado_entrega),
@@ -1130,8 +1165,11 @@ export async function listarNotificaciones(): Promise<Notificacion[]> {
   const { data, error } = await supabase
     .from("notificaciones")
     .select("id, tipo, entidad_tipo, entidad_id, titulo, mensaje, leida, created_at")
+    // No leídas arriba, leídas al final; cada grupo de la más nueva a la más
+    // vieja (índice idx_notificaciones_usuario_leida_fecha, 20261231100000).
+    .order("leida", { ascending: true })
     .order("created_at", { ascending: false })
-    .limit(20)
+    .limit(30)
 
   if (error) throw new Error(error.message)
 
@@ -1151,6 +1189,22 @@ export async function listarNotificaciones(): Promise<Notificacion[]> {
 // notificaciones_update_propias (usuario_id = auth.uid()) ya impide que
 // alguien marque como leída una notificación que no es suya, aunque
 // adivine el id.
+// Borrar: una notificación o todas las leídas. La policy
+// notificaciones_delete_propias (20261231100000) solo deja borrar las propias.
+export async function borrarNotificacion(id: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from("notificaciones").delete().eq("id", id)
+  if (error) throw new Error(error.message)
+}
+
+export async function borrarNotificacionesLeidas(): Promise<void> {
+  const supabase = await createClient()
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
+  const { error } = await supabase.from("notificaciones").delete().eq("usuario_id", userId).eq("leida", true)
+  if (error) throw new Error(error.message)
+}
+
 export async function marcarNotificacionLeida(id: string): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from("notificaciones").update({ leida: true }).eq("id", id)

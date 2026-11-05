@@ -324,7 +324,7 @@ export function SolicitudContratoForm({
   // Solicitud DEVUELTA que se corrige y reenvía (mismo número). Sin esto, es nueva.
   edicion?: SolicitudContratoDetalle
   onCancelar: () => void
-  onEnviada: (numero: number) => void
+  onEnviada: (codigo: string) => void
 }) {
   const [f, setF] = useState<SolicitudContratoForm>(() => (edicion ? formularioDesde(edicion) : FORMULARIO_VACIO))
   // Documentos que ya tiene la solicitud devuelta: se conservan salvo que se
@@ -515,7 +515,7 @@ export function SolicitudContratoForm({
           <ArrowLeft className="size-4" /> Volver a las solicitudes
         </Button>
         <p className="text-sm text-muted-foreground">
-          {edicion ? `Corregir solicitud N° ${edicion.numero} de ` : "Nueva solicitud para "}
+          {edicion ? `Corregir la solicitud ${edicion.codigo} de ` : "Nueva solicitud para "}
           <span className="font-medium text-foreground">{proyectoNombre}</span>
         </p>
       </div>

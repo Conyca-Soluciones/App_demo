@@ -82,6 +82,7 @@ export type FiltrosEntradas = {
 export type OrdenEntradaFila = {
   id: string
   numero: number
+  codigo: string // OC-001-0001 (20261230000000)
   estadoEntrega: EstadoEntrega
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -121,6 +122,7 @@ export async function listarOrdenesEntradas(
     filas: filas.map((o) => ({
       id: o.id,
       numero: o.numero,
+      codigo: o.codigo ?? `N° ${o.numero}`,
       estadoEntrega: o.estado_entrega,
       proyectoCodigo: o.proyecto_codigo,
       proyectoNombre: o.proyecto_nombre,
@@ -172,6 +174,7 @@ export type EntradaRegistrada = {
 export type DetalleOrdenEntrada = {
   id: string
   numero: number
+  codigo: string
   estadoEntrega: EstadoEntrega
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -194,6 +197,7 @@ export async function obtenerDetalleOrdenParaEntrada(
   return {
     id: d.id,
     numero: d.numero,
+    codigo: d.codigo ?? `N° ${d.numero}`,
     estadoEntrega: d.estado_entrega,
     proyectoCodigo: d.proyecto_codigo,
     proyectoNombre: d.proyecto_nombre,

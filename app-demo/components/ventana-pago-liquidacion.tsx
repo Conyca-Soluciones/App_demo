@@ -266,7 +266,7 @@ function Contenido({
       <DialogHeader>
         <div className="flex flex-wrap items-center gap-2 pr-8">
           <DialogTitle className="mr-auto">
-            {pago.item != null ? `ITEM ${pago.item}` : "Pago"}
+            {pago.referencia ? `REF ${pago.referencia}` : "Pago"}
             {pago.semana != null ? ` · semana ${pago.semana} de ${pago.anio}` : ""}
           </DialogTitle>
           <EtiquetaEtapa pago={pago} />

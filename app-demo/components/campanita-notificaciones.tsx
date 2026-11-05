@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Bell } from "lucide-react"
+import { Bell, X } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
+  borrarNotificacion,
+  borrarNotificacionesLeidas,
   listarNotificaciones,
   marcarNotificacionLeida,
   type Notificacion,
@@ -94,7 +96,27 @@ export function CampanitaNotificaciones() {
     router.push(rutaDestino(n))
   }
 
+  // No leídas arriba y leídas al final (la base ya las manda así; esto lo
+  // mantiene al marcar una como leída sin recargar). Orden estable: O(n log n).
+  const ordenadas = notificaciones ? [...notificaciones].sort((a, b) => Number(a.leida) - Number(b.leida)) : null
   const noLeidas = notificaciones?.filter((n) => !n.leida).length ?? 0
+  const leidas = (notificaciones?.length ?? 0) - noLeidas
+
+  function handleBorrar(id: string) {
+    setNotificaciones((prev) => prev?.filter((x) => x.id !== id) ?? prev)
+    void borrarNotificacion(id).catch((e) => {
+      setError(e instanceof Error ? e.message : "No se pudo borrar la notificación.")
+      cargar()
+    })
+  }
+
+  function handleBorrarLeidas() {
+    setNotificaciones((prev) => prev?.filter((x) => !x.leida) ?? prev)
+    void borrarNotificacionesLeidas().catch((e) => {
+      setError(e instanceof Error ? e.message : "No se pudieron borrar las notificaciones.")
+      cargar()
+    })
+  }
 
   // Popover de Base UI: el panel va en un portal sobre toda la página (dentro
   // del menú lateral quedaba recortado y tapado por el contenido), se ubica
@@ -120,29 +142,51 @@ export function CampanitaNotificaciones() {
       </PopoverTrigger>
 
       <PopoverContent side="bottom" align="end" className="w-80 max-w-[calc(100vw-1rem)] gap-0 rounded-md p-1 shadow-lg">
-        <p className="px-2 pt-1.5 pb-1 text-xs font-semibold text-muted-foreground">Notificaciones</p>
+        <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1">
+          <p className="text-xs font-semibold text-muted-foreground">Notificaciones</p>
+          {leidas > 0 && (
+            <button
+              type="button"
+              onClick={handleBorrarLeidas}
+              className="rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              Borrar las leídas ({leidas})
+            </button>
+          )}
+        </div>
         <div className="max-h-96 overflow-auto">
           {error && <div className="px-2 py-3 text-sm text-destructive">{error}</div>}
           {!error && notificaciones === null && <div className="px-2 py-3 text-sm text-muted-foreground">Cargando...</div>}
           {!error && notificaciones?.length === 0 && (
             <div className="px-2 py-3 text-sm text-muted-foreground">No tienes notificaciones.</div>
           )}
-          {notificaciones?.map((n) => (
-            <button
+          {ordenadas?.map((n) => (
+            <div
               key={n.id}
-              type="button"
-              onClick={() => handleClicNotificacion(n)}
-              className={`flex w-full flex-col items-start gap-0.5 rounded-sm px-2 py-2 text-left text-sm hover:bg-accent ${
-                !n.leida ? "bg-accent/40" : ""
-              }`}
+              className={`group relative rounded-sm hover:bg-accent ${!n.leida ? "bg-accent/40" : ""}`}
             >
-              <div className="flex w-full items-center gap-1.5">
-                {!n.leida && <span className="size-1.5 shrink-0 rounded-full bg-destructive" />}
-                <span className="truncate font-medium">{n.titulo}</span>
-              </div>
-              <span className="line-clamp-2 text-xs text-muted-foreground">{n.mensaje}</span>
-              <span className="text-[10px] text-muted-foreground">{formatoFecha(n.createdAt)}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => handleClicNotificacion(n)}
+                className="flex w-full flex-col items-start gap-0.5 rounded-sm px-2 py-2 pr-8 text-left text-sm"
+              >
+                <div className="flex w-full items-center gap-1.5">
+                  {!n.leida && <span className="size-1.5 shrink-0 rounded-full bg-destructive" />}
+                  <span className={`truncate ${!n.leida ? "font-medium" : "text-muted-foreground"}`}>{n.titulo}</span>
+                </div>
+                <span className="line-clamp-2 text-xs text-muted-foreground">{n.mensaje}</span>
+                <span className="text-[10px] text-muted-foreground">{formatoFecha(n.createdAt)}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBorrar(n.id)}
+                aria-label={`Borrar la notificación ${n.titulo}`}
+                title="Borrar"
+                className="absolute right-1 top-1.5 flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-background hover:text-destructive"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
           ))}
         </div>
       </PopoverContent>

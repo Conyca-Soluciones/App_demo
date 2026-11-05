@@ -43,11 +43,13 @@ function TabProyectos({
   setProyectos: React.Dispatch<React.SetStateAction<Proyecto[]>>
   empresas: Empresa[]
 }) {
+  const [numeroNuevo, setNumeroNuevo] = useState("")
   const [codigoNuevo, setCodigoNuevo] = useState("")
   const [nombreNuevo, setNombreNuevo] = useState("")
   const [ciudadNuevo, setCiudadNuevo] = useState("")
   const [empresaIdNuevo, setEmpresaIdNuevo] = useState<string | null>(null)
   const [proyectoEditandoId, setProyectoEditandoId] = useState<string | null>(null)
+  const [numeroEditando, setNumeroEditando] = useState("")
   const [codigoEditando, setCodigoEditando] = useState("")
   const [nombreEditando, setNombreEditando] = useState("")
   const [ciudadEditando, setCiudadEditando] = useState("")
@@ -61,12 +63,14 @@ function TabProyectos({
     setError(null)
     try {
       const nuevo = await crearProyecto({
+        numero: numeroNuevo.trim() ? Number(numeroNuevo) : null,
         codigo: codigoNuevo || null,
         nombre: nombreNuevo.trim(),
         ciudad: ciudadNuevo || null,
         empresaId: empresaIdNuevo,
       })
-      setProyectos((prev) => [nuevo, ...prev])
+      setProyectos((prev) => [...prev, nuevo].sort((a, b) => a.numero - b.numero))
+      setNumeroNuevo("")
       setCodigoNuevo("")
       setNombreNuevo("")
       setCiudadNuevo("")
@@ -80,6 +84,7 @@ function TabProyectos({
 
   function empezarAEditar(p: Proyecto) {
     setProyectoEditandoId(p.id)
+    setNumeroEditando(String(p.numero))
     setCodigoEditando(p.codigo ?? "")
     setNombreEditando(p.nombre)
     setCiudadEditando(p.ciudad ?? "")
@@ -87,9 +92,10 @@ function TabProyectos({
   }
 
   async function handleGuardarEdicion(proyectoId: string) {
-    if (!nombreEditando.trim()) return
+    if (!nombreEditando.trim() || !Number(numeroEditando)) return
     try {
       await editarProyecto(proyectoId, {
+        numero: Number(numeroEditando),
         codigo: codigoEditando || null,
         nombre: nombreEditando.trim(),
         ciudad: ciudadEditando || null,
@@ -101,6 +107,7 @@ function TabProyectos({
           p.id === proyectoId
             ? {
                 ...p,
+                numero: Number(numeroEditando),
                 codigo: codigoEditando || null,
                 nombre: nombreEditando.trim(),
                 ciudad: ciudadEditando || null,
@@ -120,6 +127,16 @@ function TabProyectos({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/20 p-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground" title="Va en los códigos OC-001-0001, CJ-001-0001 y REF. Vacío = el siguiente libre.">Número</label>
+          <Input
+            value={numeroNuevo}
+            onChange={(e) => setNumeroNuevo(e.target.value.replace(/\D/g, "").slice(0, 3))}
+            className="h-9 w-20"
+            inputMode="numeric"
+            placeholder="Auto"
+          />
+        </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Código</label>
           <Input
@@ -177,6 +194,14 @@ function TabProyectos({
             {proyectoEditandoId === p.id ? (
               <>
                 <Input
+                  value={numeroEditando}
+                  onChange={(e) => setNumeroEditando(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  className="h-8 w-16"
+                  inputMode="numeric"
+                  placeholder="N°"
+                  title="Número del proyecto (001-999). No se cambia si ya tiene órdenes, contratos o pagos con REF."
+                />
+                <Input
                   value={codigoEditando}
                   onChange={(e) => setCodigoEditando(e.target.value)}
                   className="h-8 w-24"
@@ -220,6 +245,7 @@ function TabProyectos({
               </>
             ) : (
               <>
+                <span className="w-12 shrink-0 font-mono text-sm font-medium">{String(p.numero).padStart(3, "0")}</span>
                 <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">
                   {p.codigo ?? "—"}
                 </span>

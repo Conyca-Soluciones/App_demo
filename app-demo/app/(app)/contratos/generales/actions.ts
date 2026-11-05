@@ -37,7 +37,7 @@ async function guardar(
   proyectoId: string,
   form: ContratoGeneralForm,
   documentos: DocumentoContratoSubido[]
-): Promise<number> {
+): Promise<string> {
   await requerirAccion("solicitar_contratos")
   const r = validarContratoGeneral(form)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa el contrato.")
@@ -75,7 +75,9 @@ async function guardar(
     })),
   })
   if (error) throw new Error(error.message)
-  return Number(data)
+  // Código del contrato (CJ-001-0001, 20261230000000) para el aviso.
+  const { data: fila } = await supabase.from("contratos").select("codigo").eq("id", id).maybeSingle()
+  return (fila as { codigo?: string } | null)?.codigo ?? `N° ${Number(data)}`
 }
 
 export async function crearContratoGeneral(
@@ -83,7 +85,7 @@ export async function crearContratoGeneral(
   proyectoId: string,
   form: ContratoGeneralForm,
   documentos: DocumentoContratoSubido[]
-): Promise<number> {
+): Promise<string> {
   return guardar("crear", id, proyectoId, form, documentos)
 }
 
@@ -94,6 +96,6 @@ export async function reenviarContratoGeneral(
   proyectoId: string,
   form: ContratoGeneralForm,
   documentos: DocumentoContratoSubido[]
-): Promise<number> {
+): Promise<string> {
   return guardar("reenviar", id, proyectoId, form, documentos)
 }

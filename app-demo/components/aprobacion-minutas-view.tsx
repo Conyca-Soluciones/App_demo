@@ -95,19 +95,18 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
     () => [
       {
         clave: "numero",
-        titulo: "N°",
-        ancho: 70,
+        titulo: "Contrato",
+        ancho: 120,
         fija: true,
-        alinear: "right",
-        texto: (s) => String(s.numero),
+        texto: (s) => s.codigo,
         celda: (s) => (
           <button
             type="button"
             onClick={() => setDetalleId(s.id)}
-            title={`Revisar la minuta de la solicitud N° ${s.numero}`}
+            title={`Revisar la minuta del contrato ${s.codigo}`}
             className="cursor-pointer rounded-sm font-medium tabular-nums text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-primary"
           >
-            {s.numero}
+            {s.codigo}
           </button>
         ),
       },
@@ -189,8 +188,8 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
     setErrorAccion(null)
     try {
       await resolverMinutaContrato(accion.detalle.id, accion.tipo, motivo)
-      const n = accion.detalle.numero
-      setAviso(accion.tipo === "aprobar" ? `Minuta de la solicitud N° ${n} aprobada.` : `Minuta de la solicitud N° ${n} devuelta a Jurídica.`)
+      const n = accion.detalle.codigo
+      setAviso(accion.tipo === "aprobar" ? `Minuta del contrato ${n} aprobada.` : `Minuta del contrato ${n} devuelta a Jurídica.`)
       setAccion(null)
       setMotivo("")
       cerrarDetalle()
@@ -265,7 +264,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
               tarjeta={{
                 titulo: (s) => (
                   <button type="button" className="text-left hover:underline" onClick={() => setDetalleId(s.id)}>
-                    N° {s.numero} · {s.contratistaNombre}
+                    {s.codigo} · {s.contratistaNombre}
                   </button>
                 ),
                 subtitulo: (s) => `${tituloTipoContrato(s.tipo)} · ${s.proyectoCodigo ?? s.proyectoNombre ?? ""}`,
@@ -319,7 +318,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {TEXTO_ACCION[accion.tipo].titulo} · solicitud N° {accion.detalle.numero}
+                  {TEXTO_ACCION[accion.tipo].titulo} · {accion.detalle.codigo}
                 </DialogTitle>
               </DialogHeader>
               <p className="text-sm text-muted-foreground">

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const supabase = await createClient()
   const { data: contrato, error } = await supabase
     .from("contratos")
-    .select("numero, numero_contrato, tipo, clase, minuta_estado")
+    .select("numero, codigo, numero_contrato, tipo, clase, minuta_estado")
     .eq("id", id)
     .maybeSingle()
   if (error || !contrato) {
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ])
     const firmado = await pdfContratoFirmado(supabase, id, {
       numero: Number(contrato.numero),
+      codigo: contrato.codigo,
       numeroContrato: contrato.numero_contrato ?? null,
       tipo: contrato.tipo,
       clase: contrato.clase,
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // y se devuelve en qué página quedó para que el visor abra ahí.
   const focoCrudo = (cuerpo as { foco?: unknown })?.foco
   const foco = typeof focoCrudo === "string" && /^[A-Za-z]+(:\d{1,3})?$/.test(focoCrudo) ? focoCrudo : undefined
-  const numero = Number(contrato.numero)
+  const numero = contrato.codigo as string
 
   const pdfMinuta = await pdfMinutaContrato(contrato.tipo, numero, datos, foco)
   if (!pdfMinuta) {

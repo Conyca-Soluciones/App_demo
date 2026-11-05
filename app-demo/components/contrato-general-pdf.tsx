@@ -8,7 +8,7 @@ import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/render
 // ---------------------------------------------------------------------------
 
 export type HojaContratoGeneral = {
-  numero: string // CJ-<n>-<año> o "Solicitud N° <n>" si aún no está aprobado
+  numero: string // código del contrato (CJ-001-0001)
   empresaNombre: string
   empresaNit: string
   ciudad: string

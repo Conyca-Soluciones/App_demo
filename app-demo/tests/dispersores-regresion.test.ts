@@ -188,7 +188,7 @@ const CUENTAS: Record<string, CuentaDebitar> = {
 
 const renglon = (p: Partial<Renglon>): Renglon => ({
   item: "1", documento: "111", tipoDoc: "CC", dv: "", nombre: "ANA PEREZ", nombres: "", apellidos: "",
-  bancoDestino: "BANCOLOMBIA", tipoCuenta: "AHORROS", cuenta: "1", valor: 100000, referencia: "ITEM 1 SEMANA 43",
+  bancoDestino: "BANCOLOMBIA", tipoCuenta: "AHORROS", cuenta: "1", valor: 100000, referencia: "REF 001 00001",
   empresa: "CONSORCIO A", proyecto: "100-PP-UNO", ...p,
 })
 
@@ -243,7 +243,7 @@ describe("Excel de los bancos", () => {
     expect(ws.getCell(2, 1).value).toBe("01")
     expect(ws.getCell(2, 5).value).toBe("51")
     expect(ws.getCell(2, 6).value).toBe("DP")
-    expect(ws.getCell(2, 11).value).toBe("ITEM 1 SEMANA 43")
+    expect(ws.getCell(2, 11).value).toBe("REF 001 00001")
   })
   it("planilla de Bogotá y conversor de Bancolombia", () => {
     const b = planillaBogota(ExcelJS, tanda(BOGOTA, [renglon({})])).getWorksheet("PlantillaDispersion")!
@@ -268,6 +268,6 @@ describe("archivos de una tanda", () => {
   it("avisos de nombres recortados y bancos sin código", () => {
     const avisos = avisosDispersor(CUENTAS[ITAU], [renglon({ nombre: "A".repeat(30) }), renglon({ item: "2", bancoDestino: "DAVIPLATA" })])
     expect(avisos.some((a) => a.includes("se recortan a 22"))).toBe(true)
-    expect(avisos.some((a) => a.includes("item 2: no conozco el codigo de DAVIPLATA"))).toBe(true)
+    expect(avisos.some((a) => a.includes("REF 2: no conozco el codigo de DAVIPLATA"))).toBe(true)
   })
 })

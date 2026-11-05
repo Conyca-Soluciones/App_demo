@@ -184,7 +184,7 @@ export function TodasLasOrdenesView() {
               target="_blank"
               rel="noreferrer"
               className="inline-flex text-primary hover:underline"
-              aria-label={`Descargar PDF de la orden ${orden.numero}`}
+              aria-label={`Descargar PDF de la orden ${orden.codigo}`}
             >
               <Download className="h-4 w-4" />
             </a>
@@ -203,7 +203,7 @@ export function TodasLasOrdenesView() {
               variant="outline"
               className="h-8 w-20 shrink-0"
               onClick={() => setAbiertaId(orden.id)}
-              aria-label={`Ver orden ${orden.numero}`}
+              aria-label={`Ver orden ${orden.codigo}`}
             >
               <Eye className="mr-1.5 h-4 w-4" />
               Ver
@@ -218,7 +218,7 @@ export function TodasLasOrdenesView() {
                     setCancelando(orden)
                     setMotivo("")
                   }}
-                  aria-label={`Cancelar orden ${orden.numero}`}
+                  aria-label={`Cancelar orden ${orden.codigo}`}
                 >
                   <Ban className="mr-1.5 h-4 w-4" />
                   {orden.estado === "pendiente_aprobacion" ? "Retirar" : "Cancelar"}
@@ -230,7 +230,7 @@ export function TodasLasOrdenesView() {
   }
 
   const columnas: ColumnaExcel<OrdenCompraListado>[] = [
-    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (o) => String(o.numero), valorOrden: (o) => o.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "Orden", ancho: 120, fija: true, texto: (o) => o.codigo, valorOrden: (o) => o.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 170, texto: (o) => o.proyectoCodigo ?? o.proyectoNombre ?? "" },
     { clave: "proveedor", titulo: "Proveedor", ancho: 240, flexible: true, texto: (o) => o.proveedorNombre },
     {
@@ -265,7 +265,7 @@ export function TodasLasOrdenesView() {
   }
   const deOrden = (f: FilaDetalle, valor: string) => (f.primera ? valor : "")
   const columnasDetalle: ColumnaExcel<FilaDetalle>[] = [
-    { clave: "numero", titulo: "N°", ancho: 80, fija: true, ordenable: false, texto: (f) => deOrden(f, String(f.orden.numero)), claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "Orden", ancho: 120, fija: true, ordenable: false, texto: (f) => deOrden(f, f.orden.codigo), claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 150, ordenable: false, texto: (f) => deOrden(f, f.orden.proyectoCodigo ?? f.orden.proyectoNombre ?? "") },
     { clave: "proveedor", titulo: "Proveedor", ancho: 200, ordenable: false, texto: (f) => deOrden(f, f.orden.proveedorNombre) },
     {
@@ -290,13 +290,13 @@ export function TodasLasOrdenesView() {
       ordenable: false,
       texto: (f) =>
         f.tipo === "total"
-          ? `Total de la orden ${f.orden.numero}`
+          ? `Total de la orden ${f.orden.codigo}`
           : f.tipo === "vacia"
             ? "Sin insumos."
             : `${f.linea!.insumoCodigo != null ? `${f.linea!.insumoCodigo} - ` : ""}${f.linea!.insumoDescripcion}`,
       celda: (f) =>
         f.tipo === "total" ? (
-          <span className="w-full text-right text-xs font-medium text-muted-foreground">Total de la orden {f.orden.numero}</span>
+          <span className="w-full text-right text-xs font-medium text-muted-foreground">Total de la orden {f.orden.codigo}</span>
         ) : f.tipo === "vacia" ? (
           <span className="text-muted-foreground">Sin insumos.</span>
         ) : (
@@ -369,14 +369,14 @@ export function TodasLasOrdenesView() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="numero-oc">N°</Label>
+            <Label htmlFor="numero-oc">Consecutivo</Label>
             <Input
               id="numero-oc"
               type="number"
               min="1"
               step="1"
               inputMode="numeric"
-              placeholder="Ej. 34"
+              placeholder="Ej. 34 (de OC-001-0034)"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
@@ -512,7 +512,7 @@ export function TodasLasOrdenesView() {
             onDobleClickFila={(o) => setAbiertaId(o.id)}
             tituloFila={AYUDA_DOBLE_CLIC}
             tarjeta={{
-              titulo: (o) => `OC N° ${o.numero}`,
+              titulo: (o) => o.codigo,
               subtitulo: (o) => `${o.proyectoCodigo ?? o.proyectoNombre ?? "—"} · ${o.proveedorNombre}`,
               esquina: (o) => <Badge variant="outline" className={ESTADO_VISIBLE_BADGE[o.estadoVisible].clase}>{ESTADO_VISIBLE_BADGE[o.estadoVisible].label}</Badge>,
               campos: ["creadaPor", "fecha", "valor", "pdf", "acciones"],
@@ -530,7 +530,7 @@ export function TodasLasOrdenesView() {
             fondoFila={(f) => (f.tipo === "total" ? "bg-muted/40" : undefined)}
             vacioEnBlanco
             tarjeta={{
-              titulo: (f) => (f.tipo === "total" ? `Total de la orden ${f.orden.numero}` : `OC N° ${f.orden.numero}`),
+              titulo: (f) => (f.tipo === "total" ? `Total de la orden ${f.orden.codigo}` : f.orden.codigo),
               subtitulo: (f) => (f.linea ? `${f.linea.insumoCodigo != null ? `${f.linea.insumoCodigo} - ` : ""}${f.linea.insumoDescripcion}` : f.orden.proveedorNombre),
               campos: ["um", "cantidad", "precio", "valor"],
             }}
@@ -560,7 +560,7 @@ export function TodasLasOrdenesView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancelar orden de compra #{cancelando?.numero}</DialogTitle>
+            <DialogTitle>Cancelar orden de compra {cancelando?.codigo}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             La orden queda cancelada y sus requisiciones vuelven a &ldquo;Requisiciones por comprar&rdquo; para poder

@@ -16,6 +16,7 @@ import {
 const detalle = (cambios: Partial<SolicitudContratoDetalle> = {}): SolicitudContratoDetalle => ({
   id: "c1",
   numero: 21,
+  codigo: "CJ-001-0021",
   proyectoId: "p1",
   proyectoCodigo: "P-01",
   proyectoNombre: "Edificio Altos",

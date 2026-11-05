@@ -273,7 +273,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           },
         ]
       : []),
-    { clave: "item", titulo: "ITEM", ancho: 70, fija: true, alinear: "center", texto: (p) => p.item, valorOrden: (p) => Number(p.item) },
+    { clave: "item", titulo: "REF", ancho: 100, fija: true, alinear: "center", texto: (p) => p.item, valorOrden: (p) => p.item },
     {
       clave: "semana",
       titulo: "Semana",
@@ -405,7 +405,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
         </Label>
         <Input
           id="buscar-dispersor"
-          placeholder="ITEM, titular, documento, cuenta o proyecto"
+          placeholder="REF, titular, documento, cuenta o proyecto"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
         />
@@ -490,7 +490,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
             className="border-amber-300 text-amber-800 hover:bg-amber-50"
             disabled={ocupado !== null || rebotados().length === 0}
             onClick={() => setMotivoRebote("")}
-            title="Para pagos ya dispersados que el banco devolvió: vuelven a Por asignar con el mismo ITEM"
+            title="Para pagos ya dispersados que el banco devolvió: vuelven a Por asignar con la misma REF"
           >
             Rebotó en el banco
           </Button>
@@ -524,7 +524,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           claseAltoMax="max-h-[calc(100svh-26rem)]"
           tarjeta={{
             titulo: (p) => p.beneficiario?.razonSocial ?? p.factura ?? "Sin tercero",
-            subtitulo: (p) => `ITEM ${p.item} · semana ${p.semana ?? "—"} · ${p.grupo}`,
+            subtitulo: (p) => `REF ${p.item} · semana ${p.semana ?? "—"} · ${p.grupo}`,
             esquina: (p) => <Badge className={`h-6 px-3 text-xs ${COLOR_ESTADO[p.estado]}`}>{ETIQUETA_ESTADO_DISPERSOR[p.estado]}</Badge>,
             campos: ["cuenta", "valor", "debitar"],
           }}
@@ -764,7 +764,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {rebotados().length} {rebotados().length === 1 ? "pago dispersado vuelve" : "pagos dispersados vuelven"} a dispersión, en Por
-            asignar, con el mismo ITEM. Si la cuenta del tercero estaba mal, corrígela en Terceros antes de volver a generar. El dispersor
+            asignar, con la misma REF. Si la cuenta del tercero estaba mal, corrígela en Terceros antes de volver a generar. El dispersor
             anterior y su soporte quedan como registro.
           </p>
           <div className="space-y-1.5">

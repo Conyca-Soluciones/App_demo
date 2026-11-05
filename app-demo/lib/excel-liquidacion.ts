@@ -20,7 +20,7 @@ import {
 } from "@/lib/pagos"
 
 export const COLUMNAS_LIQUIDACION = {
-  item: "ITEM",
+  item: "REF",
   semana: "Semana",
   empresa: "Grupo empresarial",
   factura: "Empresa que factura",
@@ -227,7 +227,7 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
       ? `${p.ultimoComentario.autor ?? ""}${p.ultimoComentario.autor ? ": " : ""}${p.ultimoComentario.texto}`
       : ""
     const valores: Partial<Record<ClaveColumna, unknown>> = {
-      item: p.item,
+      item: p.referencia ?? "",
       semana: p.semana != null ? `${p.semana} · ${p.anio}` : "",
       empresa: p.empresaNombre ?? "",
       factura: p.terceroNombre ?? "",

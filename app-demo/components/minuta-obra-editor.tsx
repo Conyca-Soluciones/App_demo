@@ -412,7 +412,7 @@ export function MinutaObraEditor({ detalle, puedeEditar }: { detalle: SolicitudC
             {campo("domicilioDepartamento", "Domicilio: departamento de (décima novena)")}
             {campo("municipioEjecucion", mo ? "Departamento de ejecución (vigésima quinta)" : "Municipio de ejecución (vigésima quinta)")}
             {campo("departamentoFirma", mo ? "Se firma en (ciudad)" : "Se firma en el Departamento de")}
-            {campo("fechaFirma", "Fecha de firma", { tipo: "date", ayuda: "El año también va en el número: No. CJ-<número>-<año>." })}
+            {campo("fechaFirma", "Fecha de firma", { tipo: "date" })}
           </div>
         </Seccion>
 

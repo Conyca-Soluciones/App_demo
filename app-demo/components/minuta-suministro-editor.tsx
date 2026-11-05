@@ -368,7 +368,7 @@ export function MinutaSuministroEditor({ detalle, puedeEditar }: { detalle: Soli
         <Seccion titulo="Lugar y fecha de firma">
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("ciudadFirma", "Ciudad")}
-            {campo("fechaFirma", "Fecha", { tipo: "date", ayuda: "El año también va en el número: Nº CJ-<número>-<año>." })}
+            {campo("fechaFirma", "Fecha", { tipo: "date" })}
           </div>
         </Seccion>
       </div>

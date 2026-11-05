@@ -8,6 +8,7 @@ import { fechaIsoEnZona } from "@/lib/fechas"
 export type EstadoPago =
   | "programado"
   | "solicitado"
+  | "en_espera"
   | "aprobado"
   | "dispersado"
   | "rechazado"
@@ -16,6 +17,7 @@ export type EstadoPago =
 export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
   programado: "Programado",
   solicitado: "Por aprobar",
+  en_espera: "Crédito en espera",
   aprobado: "Aprobado",
   dispersado: "Dispersado",
   rechazado: "Rechazado",
@@ -27,6 +29,7 @@ export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
 export const CLASE_ESTADO_PAGO: Record<EstadoPago, string> = {
   programado: "border-gray-300 bg-gray-50 text-gray-600",
   solicitado: "border-amber-300 bg-amber-50 text-amber-700",
+  en_espera: "border-sky-300 bg-sky-50 text-sky-700",
   aprobado: "border-green-300 bg-green-50 text-green-700",
   dispersado: "border-emerald-300 bg-emerald-50 text-emerald-800",
   rechazado: "border-red-300 bg-red-50 text-red-700",
@@ -51,13 +54,18 @@ export type Pago = {
   fechaProgramada: string | null
   anio: number | null
   semana: number | null
-  item: number | null
+  // REF del pago ("001-00001"): se da al enviar a liquidar y no cambia (20261231000000).
+  referencia: string | null
   solicitadoEn: string | null
   aprobadoEn: string | null
   aprobadoPorNombre: string | null
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  ordenCodigo: string | null // OC-001-0001
+  // OC a crédito (20261229000000): fecha en que se debe pagar. El pago aprobado
+  // queda "en_espera" hasta el lunes de esa semana.
+  ordenFechaPagoCredito: string | null
   // Requisición administrativa de la que sale el pago (para ver su detalle).
   requisicionAdminId: string | null
   // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
@@ -254,7 +262,7 @@ export type FiltrosAprobacionPagos = {
 }
 
 // Semana de CREACIÓN del pago (pagos.creado_en), aparte de la de aprobación
-// (anio / semana: la del ITEM, que la base da al aprobar). Vacíos = todas.
+// (anio / semana: la semana de pago, que la base da al aprobar). Vacíos = todas.
 export type FiltroCreacion = {
   aniosCreacion?: number[]
   semanasCreacion?: number[]
@@ -283,7 +291,7 @@ export const formatoFechaHora = (iso: string) =>
   })
 
 // Año y semana ISO (lunes a domingo) de una fecha, en hora de Colombia: la
-// misma regla que usa la base para asignar el ITEM.
+// misma regla que usa la base para asignar la semana.
 // Lunes a domingo de la semana ISO: (2026, 42) -> "12/10/2026 al 18/10/2026".
 export function fechasSemanaIso(anio: number, semana: number): string {
   // El 4 de enero siempre cae en la semana 1.

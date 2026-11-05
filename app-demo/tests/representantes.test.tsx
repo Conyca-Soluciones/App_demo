@@ -70,13 +70,13 @@ describe("minuta con la firma del representante legal", () => {
   it("obra y mano de obra (versión 04)", async () => {
     for (const variante of ["obra", "mano_obra"] as const) {
       const m = { ...minutaObraVacia(), variante, contratanteRepresentante: "Carla", contratanteRepresentanteCedula: "999" }
-      const pdf = await renderToBuffer(<MinutaObraPDF minuta={m} numero={20} logo={LOGO} firmaContratante={firma} />)
+      const pdf = await renderToBuffer(<MinutaObraPDF minuta={m} numero="CJ-001-0020" logo={LOGO} firmaContratante={firma} />)
       expect(pdf.subarray(0, 4).toString()).toBe("%PDF")
     }
   })
   it("arrendamiento (la empresa es el arrendatario)", async () => {
     const m = { ...minutaArrendamientoVacia(), arrendatarioRepresentante: "Carla", arrendatarioCedula: "999" }
-    const pdf = await renderToBuffer(<MinutaArrendamientoPDF minuta={m} numero={22} logo={LOGO} firmaContratante={firma} />)
+    const pdf = await renderToBuffer(<MinutaArrendamientoPDF minuta={m} numero="CJ-001-0022" logo={LOGO} firmaContratante={firma} />)
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF")
   })
 })

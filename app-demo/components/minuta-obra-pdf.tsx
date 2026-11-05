@@ -23,7 +23,7 @@ const ENCABEZADO = {
 
 const numero = (i: number) => `${i + 1}.`
 
-export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, firmaContratante }: { minuta: MinutaObra; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
+export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, firmaContratante }: { minuta: MinutaObra; numero: string; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
@@ -35,7 +35,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, f
   const valor = leerNumero(m.valor)
   const anticipo = leerNumero(m.anticipo)
   const conAnticipo = Boolean(m.anticipoPorcentaje.trim() || m.anticipo.trim())
-  const consecutivo = `No. CJ-${numeroContrato}-${fecha ? fecha.anio : "20__"}`
+  const consecutivo = `No. ${numeroContrato}`
   const lugarFecha = fecha
     ? `a los ${cantidadEnLetras(fecha.dia)} ${fecha.dia === 1 ? "día" : "días"} del mes de ${fecha.mes} del año ${fecha.anio}`
     : "a los ____ días del mes de ________ del año ____"

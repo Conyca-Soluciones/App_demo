@@ -2,20 +2,22 @@
 // pagos y del Consolidado). Archivo plano: no es una Server Action.
 
 import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
+import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
+import { numeroActa } from "@/lib/actas"
 import { rangosSemanasIso, semanaIso, type FiltroCreacion, type Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
 // hacia la misma tabla (perfiles; terceros: el que factura y el titular de la
 // cuenta, 20261214000000).
 export const CAMPOS_PAGO = `
-  id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
+  id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, referencia,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id, titular_tercero_id,
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
-  orden:ordenes_compra(numero, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
+  orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
@@ -62,6 +64,8 @@ export function mapPago(f: any): Pago {
   // Acta de un contrato por PSE (20261220000000): igual, sin cuenta.
   const actaPse = f.acta?.contrato?.metodo_pago === "pse"
   const pse = ocPse || actaPse || f.req?.metodo === "pse"
+  // Tipo de pago de la OC (20261228400000): de contado, crédito con su fecha o fiducia.
+  const tipoOC = textoTipoPagoOC(f.orden?.tipo_pago, f.orden?.fecha_pago_credito)
   return {
     id: f.id,
     tipo: f.tipo,
@@ -72,13 +76,15 @@ export function mapPago(f: any): Pago {
     fechaProgramada: f.fecha_programada,
     anio: f.anio,
     semana: f.semana,
-    item: f.item,
+    referencia: f.referencia ?? null,
     solicitadoEn: f.solicitado_en,
     aprobadoEn: f.aprobado_en,
     aprobadoPorNombre: f.aprobador?.nombre ?? null,
     rechazadoPorNombre: f.rechazador?.nombre ?? null,
     motivoRechazo: f.motivo_rechazo,
     ordenNumero: f.orden?.numero ?? null,
+    ordenCodigo: f.orden?.codigo ?? null,
+    ordenFechaPagoCredito: f.orden?.tipo_pago === "credito" ? (f.orden?.fecha_pago_credito ?? null) : null,
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
     requisicionAdminItemId: f.requisicion_admin_item_id ?? null,
@@ -91,9 +97,9 @@ export function mapPago(f: any): Pago {
     // requisición administrativa. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null
-      ? `OC ${f.orden.numero}${ocPse ? " · PSE" : ""}`
+      ? `${f.orden.codigo ?? `OC ${f.orden.numero}`}${ocPse ? " · PSE" : ""}${tipoOC ? ` · ${tipoOC}` : ""}`
       : f.acta
-        ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
+        ? `Acta ${numeroActa(f.acta.numero)}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
         : f.fuente === "acta"
           ? "Acta"
           : f.fuente === "requisicion_admin"

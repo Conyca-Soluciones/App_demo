@@ -14,7 +14,7 @@ export type VistaOrdenes = "resumida" | "detallada"
 // Lo que el Excel necesita de cada orden (mismo contenido que OrdenCompraListado;
 // no se importa de actions.ts, ver CLAUDE.md "boundary cliente/servidor").
 export type OrdenExcel = {
-  numero: number
+  codigo: string // OC-001-0001
   estadoVisible: EstadoOrdenVisible
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -40,7 +40,7 @@ const MONEDA = '"$" #,##0;[Red]-"$" #,##0'
 const PORCENTAJE = '0.##"%"'
 
 const COLUMNAS_ORDEN: Columna[] = [
-  { titulo: "N° orden", ancho: 10 },
+  { titulo: "Orden", ancho: 14 },
   { titulo: "Proyecto", ancho: 34 },
   { titulo: "Proveedor", ancho: 36 },
   { titulo: "Estado", ancho: 12 },
@@ -69,7 +69,7 @@ function fechaExcel(iso: string): Date {
 
 function datosOrden(o: OrdenExcel): (string | number | Date)[] {
   return [
-    o.numero,
+    o.codigo,
     [o.proyectoCodigo, o.proyectoNombre].filter(Boolean).join(" — "),
     o.proveedorNombre,
     ESTADO_VISIBLE_BADGE[o.estadoVisible].label,

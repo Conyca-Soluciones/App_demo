@@ -187,7 +187,7 @@ export function Clausula({ titulo, children }: { titulo: string; children: React
 
 const ENCABEZADO = { formato: "FORMATO CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "01", fecha: "19/01/2023" }
 
-export function MinutaManoObraPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaManoObra; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
+export function MinutaManoObraPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaManoObra; numero: string; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)

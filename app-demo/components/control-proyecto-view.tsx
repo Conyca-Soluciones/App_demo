@@ -436,7 +436,7 @@ function Contratos({ datos }: { datos: ControlProyecto }) {
           return (
             <li key={c.id} className="px-3 py-2.5">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 font-medium">{c.numeroContrato ?? `Solicitud N° ${c.numero}`}</span>
+                <span className="min-w-0 font-medium">{c.numeroContrato ?? c.codigo}</span>
                 <span className="ml-auto shrink-0 tabular-nums">{pesosCortos(c.valor)}</span>
                 <Button size="sm" variant="outline" onClick={() => setViendo(c.id)}>
                   <Eye className="size-4" /> Ver
@@ -539,7 +539,7 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
                   <div className="px-3 py-2.5">
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="min-w-0 truncate font-medium">
-                        OC {o.numero} · {o.proveedor}
+                        {o.codigo} · {o.proveedor}
                       </span>
                       <span className={`ml-auto shrink-0 tabular-nums ${o.estado === "aprobada" ? "" : "text-muted-foreground"}`}>{pesos.format(o.total)}</span>
                       <Button size="sm" variant="outline" onClick={() => setAbierta(o.id)}>
