@@ -197,9 +197,9 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
           <Badge variant="outline" className={`h-6 shrink-0 px-2 text-xs ${CLASE_ESTADO_PAGO[estado] ?? ""}`}>
             {ETIQUETA_ESTADO_PAGO[estado] ?? i.pagoEstado}
           </Badge>
-          {i.pagoItem != null && (
+          {i.pagoSemana != null && (
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-              ITEM {i.pagoItem} · sem. {i.pagoSemana}
+              {i.pagoItem ? `REF ${i.pagoItem} · ` : ""}sem. {i.pagoSemana}
             </span>
           )}
           {estado === "rechazado" && i.pagoMotivoRechazo && (

@@ -36,7 +36,7 @@ export function blancos(valor: unknown, ancho: number): string {
 export function cabe(valor: unknown, ancho: number, campo: string, item = ""): string {
   const s = String(valor ?? "").replace(/\D/g, "")
   if (s.length > ancho) {
-    const donde = item ? `item ${item}: ` : ""
+    const donde = item ? `REF ${item}: ` : ""
     throw new ErrorGeneracion(
       `${donde}${campo} tiene ${s.length} digitos y el banco solo acepta ${ancho}. Valor: ${s}. ` +
         `Hay que corregirlo en la base, no lo puedo recortar sin cambiar a donde va la plata.`
@@ -147,11 +147,11 @@ export function planoBogota(t: Tanda): string {
   const lineas = [cab]
   for (const r of t.renglones) {
     const tid = de(TIPO_ID_BOGOTA, r.tipoDoc)
-    if (tid == null) throw new ErrorGeneracion(`item ${r.item}: Banco de Bogota no acepta el tipo de documento '${r.tipoDoc}'`)
+    if (tid == null) throw new ErrorGeneracion(`REF ${r.item}: Banco de Bogota no acepta el tipo de documento '${r.tipoDoc}'`)
     const cod = codigoDestino(BOGOTA, r.bancoDestino)
-    if (cod == null) throw new ErrorGeneracion(`item ${r.item}: no conozco el codigo de ${r.bancoDestino} para Banco de Bogota`)
+    if (cod == null) throw new ErrorGeneracion(`REF ${r.item}: no conozco el codigo de ${r.bancoDestino} para Banco de Bogota`)
     const [tt] = tipoTransaccion(BOGOTA, r.tipoCuenta, r.bancoDestino)
-    if (tt == null) throw new ErrorGeneracion(`item ${r.item}: no pude resolver el tipo de transaccion`)
+    if (tt == null) throw new ErrorGeneracion(`REF ${r.item}: no pude resolver el tipo de transaccion`)
     lineas.push(
       "2" +
         tid +
@@ -263,11 +263,11 @@ export function planoBancolombia(t: Tanda): string {
   const lineas = [cab]
   for (const r of t.renglones) {
     const cod = codigoDestino(BANCOLOMBIA, r.bancoDestino)
-    if (cod == null) throw new ErrorGeneracion(`item ${r.item}: no conozco el codigo de ${r.bancoDestino} para Bancolombia`)
+    if (cod == null) throw new ErrorGeneracion(`REF ${r.item}: no conozco el codigo de ${r.bancoDestino} para Bancolombia`)
     const [tt] = tipoTransaccion(BANCOLOMBIA, r.tipoCuenta, r.bancoDestino)
-    if (tt == null) throw new ErrorGeneracion(`item ${r.item}: no pude resolver el tipo de transaccion`)
+    if (tt == null) throw new ErrorGeneracion(`REF ${r.item}: no pude resolver el tipo de transaccion`)
     const tid = de(TIPO_ID_PAB, r.tipoDoc)
-    if (tid == null) throw new ErrorGeneracion(`item ${r.item}: Bancolombia no acepta el tipo de documento '${r.tipoDoc}'`)
+    if (tid == null) throw new ErrorGeneracion(`REF ${r.item}: Bancolombia no acepta el tipo de documento '${r.tipoDoc}'`)
     lineas.push(
       "6" +
         blancos(cabe(documentoDe(r, BANCOLOMBIA), 15, "el documento", r.item), 15) +
@@ -355,9 +355,9 @@ export function excelItau(E: ExcelJSModulo, t: Tanda): ExcelJS.Workbook {
   t.renglones.forEach((r, k) => {
     const j = k + 2
     const tid = de(TIPO_ID_ITAU, r.tipoDoc)
-    if (tid == null) throw new ErrorGeneracion(`item ${r.item}: Itau no acepta el tipo de documento '${r.tipoDoc}'`)
+    if (tid == null) throw new ErrorGeneracion(`REF ${r.item}: Itau no acepta el tipo de documento '${r.tipoDoc}'`)
     const cod = codigoDestino(ITAU, r.bancoDestino)
-    if (cod == null) throw new ErrorGeneracion(`item ${r.item}: no conozco el codigo de ${r.bancoDestino} para Itau`)
+    if (cod == null) throw new ErrorGeneracion(`REF ${r.item}: no conozco el codigo de ${r.bancoDestino} para Itau`)
     const [tt] = tipoTransaccion(ITAU, r.tipoCuenta, r.bancoDestino)
     const fila: (string | number | null)[] = [
       fecha, tid, documentoDe(r, ITAU), paraBanco(r.nombre).slice(0, 22), cod, tt,
@@ -388,7 +388,7 @@ const COLUMNAS_DAVIVIENDA = [
   "Rreferencia", "Correo Electronico", "Descripcion o Detalle",
 ]
 
-/** La referencia de Davivienda es numérica de 16: ITEM X SEMANA XX va en Descripción o Detalle. */
+/** La referencia de Davivienda es numérica de 16: REF 001 00001 va en Descripción o Detalle. */
 export function excelDavivienda(E: ExcelJSModulo, t: Tanda): ExcelJS.Workbook {
   const wb = new E.Workbook()
   const ws = wb.addWorksheet("Hoja1")
@@ -396,9 +396,9 @@ export function excelDavivienda(E: ExcelJSModulo, t: Tanda): ExcelJS.Workbook {
   t.renglones.forEach((r, k) => {
     const j = k + 2
     const tid = de(TIPO_ID_DAVI, r.tipoDoc)
-    if (tid == null) throw new ErrorGeneracion(`item ${r.item}: Davivienda no acepta el tipo de documento '${r.tipoDoc}'`)
+    if (tid == null) throw new ErrorGeneracion(`REF ${r.item}: Davivienda no acepta el tipo de documento '${r.tipoDoc}'`)
     const cod = codigoDestino(DAVIVIENDA, r.bancoDestino)
-    if (cod == null) throw new ErrorGeneracion(`item ${r.item}: no conozco el codigo de ${r.bancoDestino} para Davivienda`)
+    if (cod == null) throw new ErrorGeneracion(`REF ${r.item}: no conozco el codigo de ${r.bancoDestino} para Davivienda`)
     const [tt] = tipoTransaccion(DAVIVIENDA, r.tipoCuenta, r.bancoDestino)
     const nombres = r.nombres || paraBanco(r.nombre).slice(0, 40)
     const fila: (string | number | null)[] = [
@@ -487,10 +487,10 @@ export function avisosDispersor(cuenta: CuentaDebitar, renglones: Renglon[]): st
   }
   for (const r of renglones) {
     if (codigoDestino(cuenta.banco, r.bancoDestino) == null) {
-      avisos.push(`item ${r.item}: no conozco el codigo de ${r.bancoDestino} para pagar desde ${cuenta.banco}`)
+      avisos.push(`REF ${r.item}: no conozco el codigo de ${r.bancoDestino} para pagar desde ${cuenta.banco}`)
     }
     const [cod, motivo] = tipoTransaccion(cuenta.banco, r.tipoCuenta, r.bancoDestino)
-    if (cod == null && motivo) avisos.push(`item ${r.item}: ${motivo}`)
+    if (cod == null && motivo) avisos.push(`REF ${r.item}: ${motivo}`)
   }
   return avisos
 }

@@ -15,7 +15,7 @@ import {
 
 const pago = (p: Partial<PagoDispersor> = {}): PagoDispersor => ({
   id: "p1",
-  item: "1",
+  item: "001-00001",
   semana: 43,
   anio: 2026,
   consolidado: "Consolidado",
@@ -88,20 +88,20 @@ describe("estado de cada pago", () => {
 describe("tandas", () => {
   it("el renglón sale del beneficiario y la cuenta del pago", () => {
     const r = renglonDe(pago())
-    expect(r).toMatchObject({ documento: "1234", nombre: "JOSE PEREZ", cuenta: "0012", valor: 1000, referencia: "ITEM 1 SEMANA 43", empresa: "CONYCA S.A.S." })
+    expect(r).toMatchObject({ documento: "1234", nombre: "JOSE PEREZ", cuenta: "0012", valor: 1000, referencia: "REF 001 00001", empresa: "CONYCA S.A.S." })
   })
-  it("agrupa por cuenta, semana y nómina; ordena por ITEM", () => {
+  it("agrupa por cuenta, semana y nómina; ordena por REF", () => {
     const cuentas = new Map([["c1", cuenta]])
     const ps = [
-      pago({ id: "a", item: "10", cuentaDebitarId: "c1" }),
-      pago({ id: "b", item: "2", cuentaDebitarId: "c1" }),
-      pago({ id: "c", item: "3", cuentaDebitarId: "c1", esNomina: true }),
-      pago({ id: "d", item: "4" }),
+      pago({ id: "a", item: "001-00010", cuentaDebitarId: "c1" }),
+      pago({ id: "b", item: "001-00002", cuentaDebitarId: "c1" }),
+      pago({ id: "c", item: "001-00003", cuentaDebitarId: "c1", esNomina: true }),
+      pago({ id: "d", item: "001-00004" }),
     ].map(conEstado)
     const g = agruparAsignados(ps, cuentas)
     expect(g).toHaveLength(2)
     const normal = g.find((x) => !x.esNomina)!
-    expect(normal.pagos.map((p) => p.item)).toEqual(["2", "10"])
+    expect(normal.pagos.map((p) => p.item)).toEqual(["001-00002", "001-00010"])
     const t = tandaDe(normal, "20261023", "A1")
     expect(t.clasePago).toBe("PROVEEDORES")
     expect(t.truncado).toBe("1.00")
@@ -109,6 +109,6 @@ describe("tandas", () => {
   it("centavos perdidos y cuentas confirmadas a mano", () => {
     expect(truncadoDe([{ valorOriginal: 100, valor: 100 }])).toBe("")
     const g = agruparAsignados([conEstado(pago({ cuentaDebitarId: "c1", confirmada: true }))], new Map([["c1", cuenta]]))[0]
-    expect(cambiosManuales(g)).toEqual(["item 1 · JOSÉ PÉREZ · BANCOLOMBIA · ahorros · 001-2"])
+    expect(cambiosManuales(g)).toEqual(["REF 001-00001 · JOSÉ PÉREZ · BANCOLOMBIA · ahorros · 001-2"])
   })
 })

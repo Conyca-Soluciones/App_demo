@@ -50,7 +50,8 @@ function correr(fn: () => unknown): any {
   try {
     return { ok: fn() }
   } catch (e) {
-    if (e instanceof ErrorGeneracion) return { error: e.message }
+    // La app dice "REF <ref>:" donde Python decía "item <n>:" (20261231000000); el resto del mensaje es igual.
+    if (e instanceof ErrorGeneracion) return { error: e.message.replace(/^REF (\S+):/, "item $1:") }
     throw e
   }
 }

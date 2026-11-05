@@ -30,7 +30,7 @@ const tanda: Tanda = {
 describe("soporte PDF de los dispersores", () => {
   it("nombres del grupal y del individual como la consola", () => {
     expect(nombreSoporteGrupal(tanda, 2)).toBe("PRB_SEM99_soporte_Ronda2.pdf")
-    expect(nombreSoporteIndividual(tanda, "7")).toBe("PRB_SEM99_ITEM7_soporte.pdf")
+    expect(nombreSoporteIndividual(tanda, "7")).toBe("PRB_SEM99_REF7_soporte.pdf")
   })
 
   it("se genera con el título de la semana", async () => {

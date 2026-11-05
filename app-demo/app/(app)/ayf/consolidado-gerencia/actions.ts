@@ -39,7 +39,7 @@ function enteros(lista: number[] | undefined, min: number, max: number, nombre: 
   return unicos
 }
 
-// Una página (50), todo filtrado en la base. Solo pagos con ITEM (de un consolidado).
+// Una página (50), todo filtrado en la base. Solo pagos con semana (de un consolidado).
 export async function listarConsolidadoGerencia(
   filtros: FiltrosConsolidadoGerencia = {},
   pagina = 0
@@ -52,7 +52,7 @@ export async function listarConsolidadoGerencia(
     .from("pagos")
     .select(tercero ? CAMPOS_PAGO_TERCERO_INNER : CAMPOS_PAGO)
     .not("consolidado_id", "is", null)
-    .not("item", "is", null)
+    .not("semana", "is", null)
 
   const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
@@ -74,7 +74,8 @@ export async function listarConsolidadoGerencia(
     .order("anio", { ascending: false })
     .order("semana", { ascending: false })
     .order("consolidado_id", { ascending: true })
-    .order("item", { ascending: true })
+    .order("referencia", { ascending: true, nullsFirst: false })
+    .order("aprobado_en", { ascending: true })
     .order("id", { ascending: true })
 
   const { data, error } = await query.range(...rangoPagina(pagina))

@@ -291,7 +291,7 @@ export type ItemReqAdmin = {
   observaciones: string | null
   soporte: SoporteReqAdmin | null
   // Del pago, cuando ya se aprobó.
-  pagoItem: number | null
+  pagoItem: string | null // REF del pago
   pagoSemana: number | null
   pagoAnio: number | null
   pagoEstado: string | null
@@ -366,7 +366,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
             tipo: i.soporte.tipo === "cuenta_cobro" ? "cuenta_cobro" : "factura",
           }
         : null,
-      pagoItem: i.pago_item == null ? null : Number(i.pago_item),
+      pagoItem: i.pago_item ?? null,
       pagoSemana: i.pago_semana == null ? null : Number(i.pago_semana),
       pagoAnio: i.pago_anio == null ? null : Number(i.pago_anio),
       pagoEstado: i.pago_estado ?? null,

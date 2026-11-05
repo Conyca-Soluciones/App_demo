@@ -124,6 +124,8 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   rechazado: { etiqueta: "Pago rechazado", tono: "malo" },
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   enviado_liquidar: { etiqueta: "Enviado a liquidar", tono: "neutro" },
+  devuelto_preparacion: { etiqueta: "Devuelto a preparación (conserva su REF)", tono: "aviso" },
+  semana_cambiada: { etiqueta: "Semana de pago cambiada", tono: "aviso" },
   observado: { etiqueta: "Observado por Contabilidad", tono: "aviso" },
   devuelto_contabilidad: { etiqueta: "Corregido y devuelto a Contabilidad", tono: "neutro" },
   liquidado: { etiqueta: "Pago liquidado", tono: "ok" },
@@ -359,6 +361,8 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   if (tipo === "pago") {
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
+    if (e.evento === "enviado_liquidar" && d.referencia) return [`REF ${d.referencia}`]
+    if (e.evento === "semana_cambiada") return [`Semana ${d.de} de ${d.de_anio} → semana ${d.a} de ${d.a_anio}`]
     if (e.evento === "cuenta_modificada") return [`${formatoValor(d.cuenta_de)} → ${formatoValor(d.cuenta_a)}`]
     if (e.evento === "reliquidado" && d.neto != null) return [`Versión ${d.version}: neto ${pesosTexto(d.neto)}`]
     if (e.evento === "tercero_cambiado") {

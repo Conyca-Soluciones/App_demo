@@ -53,7 +53,7 @@ export const sePuedeRetirar = (o: OrdenParaReglas, esCreador: boolean, puedeCanc
 // ¿Se muestra el botón Retirar para esta orden? Una aprobada ya no se cancela:
 // una OC solo queda aprobada cuando A&F aprueba su pago, y con el pago aprobado
 // la base no la deja cancelar (cancelar_orden_compra; el pago anulado se quedaba
-// en el consolidado con su ITEM).
+// en el consolidado con su semana).
 export const muestraCancelar = (
   o: OrdenParaReglas & { creadaPorId: string | null },
   permisos: { puedeCancelar: boolean; usuarioId: string | null }

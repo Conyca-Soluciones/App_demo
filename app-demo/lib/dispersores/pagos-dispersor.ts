@@ -66,7 +66,7 @@ export type PagoDispersor = {
   cuentaDebitarId: string | null
   // soporte individual del pago en esa tanda (bucket dispersores)
   dispersion: { apodo: string; nombreBase: string; generadoEn: string; soporte: { nombre: string; ruta: string } | null } | null
-  // el último intento que rebotó en el banco (vuelve a dispersión con el mismo ITEM)
+  // el último intento que rebotó en el banco (vuelve a dispersión con la misma REF)
   rebote: { fecha: string; motivo: string } | null
 }
 
@@ -119,7 +119,8 @@ export function conEstado(p: PagoDispersor): PagoConEstado {
 /** Asignables: los que pueden recibir cuenta a debitar (Pago.asignable). */
 export const esAsignable = (p: PagoConEstado) => p.estado === "listo" || p.estado === "asignado"
 
-export const referencia = (p: Pick<PagoDispersor, "item" | "semana">) => (p.semana ? `ITEM ${p.item} SEMANA ${p.semana}` : "")
+// Referencia del abono en el banco: "REF 001 00001" (la REF sin guiones; decisión del usuario 2026-11-05).
+export const referencia = (p: Pick<PagoDispersor, "item" | "semana">) => (p.item ? `REF ${p.item.replace(/-/g, " ")}` : "")
 
 /** El registro del archivo (servidor.py, _tanda): todo sale de la cuenta del pago. */
 export function renglonDe(p: PagoDispersor): Renglon {
@@ -180,7 +181,8 @@ export function truncadoDe(pagos: Pick<PagoDispersor, "valorOriginal" | "valor">
   return perdido ? perdido.toFixed(2) : ""
 }
 
-export const ordenItem = (a: { item: string }, b: { item: string }) => Number(a.item) - Number(b.item) || a.item.localeCompare(b.item)
+// La REF tiene ancho fijo (001-00001): el orden de texto es el numérico.
+export const ordenItem = (a: { item: string }, b: { item: string }) => a.item.localeCompare(b.item)
 
 export type GrupoTanda = {
   clave: string
@@ -229,7 +231,7 @@ export function tandaDe(g: GrupoTanda, fecha: string, secuencia: string): Tanda 
 export function cambiosManuales(g: GrupoTanda): string[] {
   return g.pagos
     .filter((p) => p.confirmada && p.cuenta)
-    .map((p) => `item ${p.item} · ${texto(p.beneficiario?.razonSocial)} · ${descripcionCuenta(p.cuenta!)}`)
+    .map((p) => `REF ${p.item} · ${texto(p.beneficiario?.razonSocial)} · ${descripcionCuenta(p.cuenta!)}`)
 }
 
 export const nombreArchivoGrupo = (g: GrupoTanda) => nombreBase({ cuenta: g.cuenta, semana: g.semana, esNomina: g.esNomina })

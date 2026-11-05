@@ -419,7 +419,7 @@ export type ActaDetalle = {
   actividades: ActividadActa[]
   descuentos: { concepto: string; valor: number }[]
   soportes: SoporteActa[]
-  pago: { id: string; estado: string; valor: number; anio: number | null; semana: number | null; item: number | null; novedad: string | null } | null
+  pago: { id: string; estado: string; valor: number; anio: number | null; semana: number | null; item: string | null; novedad: string | null } | null
   lineasAnteriores: LineaActaAnterior[]
 }
 

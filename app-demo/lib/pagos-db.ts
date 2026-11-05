@@ -10,7 +10,7 @@ import { rangosSemanasIso, semanaIso, type FiltroCreacion, type Pago } from "@/l
 // hacia la misma tabla (perfiles; terceros: el que factura y el titular de la
 // cuenta, 20261214000000).
 export const CAMPOS_PAGO = `
-  id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, item,
+  id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, referencia,
   solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id, titular_tercero_id,
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
@@ -76,7 +76,7 @@ export function mapPago(f: any): Pago {
     fechaProgramada: f.fecha_programada,
     anio: f.anio,
     semana: f.semana,
-    item: f.item,
+    referencia: f.referencia ?? null,
     solicitadoEn: f.solicitado_en,
     aprobadoEn: f.aprobado_en,
     aprobadoPorNombre: f.aprobador?.nombre ?? null,

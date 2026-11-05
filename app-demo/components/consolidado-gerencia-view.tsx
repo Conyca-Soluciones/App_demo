@@ -45,7 +45,7 @@ export function ConsolidadoGerenciaView() {
   const actual = semanaIso()
   const [anios, setAnios] = useState<number[]>([actual.anio])
   const [semanas, setSemanas] = useState<number[]>([actual.semana])
-  // Semana de creación del pago: vacía = todas (la de aprobación es la del ITEM).
+  // Semana de creación del pago: vacía = todas (la de pago es la que se da al aprobar).
   const [aniosCreacion, setAniosCreacion] = useState<number[]>([])
   const [semanasCreacion, setSemanasCreacion] = useState<number[]>([])
   const [empresaId, setEmpresaId] = useState(TODOS)
@@ -123,7 +123,7 @@ export function ConsolidadoGerenciaView() {
   const totalPagina = pagosQueSuman.reduce((acc, p) => acc + p.valor, 0)
 
   const columnas: ColumnaExcel<Pago>[] = [
-    { clave: "item", titulo: "ITEM", ancho: 70, fija: true, alinear: "center", texto: (p) => (p.item != null ? String(p.item) : "") },
+    { clave: "item", titulo: "REF", ancho: 100, fija: true, alinear: "center", texto: (p) => p.referencia ?? "" },
     {
       clave: "semana",
       titulo: "Semana / año",
@@ -216,11 +216,11 @@ export function ConsolidadoGerenciaView() {
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Los pagos aprobados de todos los consolidados. Semana de aprobación: la del ITEM (por omisión, la actual). Semana de creación: cuando se creó el pago (por omisión, todas). El ITEM se numera por consolidado y semana."
+          ayuda="Los pagos aprobados de todos los consolidados. Semana de pago: la que el pago recibe al aprobarlo (por omisión, la actual). Semana de creación: cuando se creó el pago (por omisión, todas). La REF se da al enviar a liquidar."
         >
           <FiltroSemanas
             id="aprobacion-gerencia"
-            titulo="Semana de aprobación (ITEM)"
+            titulo="Semana de pago"
             opcionesAnios={opcionesAnios}
             anios={anios}
             semanas={semanas}
@@ -284,7 +284,7 @@ export function ConsolidadoGerenciaView() {
                 fondoFila={(p) => (p.estado === "anulado" || p.estado === "rechazado" ? "bg-muted/60 text-muted-foreground" : undefined)}
                 tarjeta={{
                   titulo: (p) => p.terceroNombre ?? "Sin tercero",
-                  subtitulo: (p) => `ITEM ${p.item ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
+                  subtitulo: (p) => `REF ${p.referencia ?? "—"}${p.semana != null ? ` · semana ${p.semana} de ${p.anio}` : ""} · ${p.empresaNombre ?? ""}`,
                   campos: ["proyecto", "solicita", "valor", "soporte"],
                 }}
               />

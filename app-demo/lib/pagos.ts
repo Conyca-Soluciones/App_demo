@@ -53,7 +53,8 @@ export type Pago = {
   fechaProgramada: string | null
   anio: number | null
   semana: number | null
-  item: number | null
+  // REF del pago ("001-00001"): se da al enviar a liquidar y no cambia (20261231000000).
+  referencia: string | null
   solicitadoEn: string | null
   aprobadoEn: string | null
   aprobadoPorNombre: string | null
@@ -260,7 +261,7 @@ export type FiltrosAprobacionPagos = {
 }
 
 // Semana de CREACIÓN del pago (pagos.creado_en), aparte de la de aprobación
-// (anio / semana: la del ITEM, que la base da al aprobar). Vacíos = todas.
+// (anio / semana: la semana de pago, que la base da al aprobar). Vacíos = todas.
 export type FiltroCreacion = {
   aniosCreacion?: number[]
   semanasCreacion?: number[]
@@ -289,7 +290,7 @@ export const formatoFechaHora = (iso: string) =>
   })
 
 // Año y semana ISO (lunes a domingo) de una fecha, en hora de Colombia: la
-// misma regla que usa la base para asignar el ITEM.
+// misma regla que usa la base para asignar la semana.
 // Lunes a domingo de la semana ISO: (2026, 42) -> "12/10/2026 al 18/10/2026".
 export function fechasSemanaIso(anio: number, semana: number): string {
   // El 4 de enero siempre cae en la semana 1.

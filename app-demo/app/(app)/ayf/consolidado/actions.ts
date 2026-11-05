@@ -50,7 +50,7 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   const tercero = filtros.tercero?.trim()
   let query: any = supabase.from("pagos").select(campos ?? (tercero ? CAMPOS_PAGO_TERCERO_INNER : CAMPOS_PAGO))
 
-  query = query.eq("consolidado_id", consolidadoId).not("item", "is", null)
+  query = query.eq("consolidado_id", consolidadoId).not("semana", "is", null)
   const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
   if (anios.length > 0) query = query.in("anio", anios)
@@ -67,7 +67,8 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   return query
     .order("anio", { ascending: false, nullsFirst: false })
     .order("semana", { ascending: false, nullsFirst: false })
-    .order("item", { ascending: true })
+    .order("referencia", { ascending: true, nullsFirst: false })
+    .order("aprobado_en", { ascending: true })
     .order("id", { ascending: true })
 }
 
@@ -137,6 +138,28 @@ export async function enviarPagosALiquidar(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("enviar_pagos_a_liquidar", { p_ids: ids })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
+}
+
+// Preparación: pasar a la semana siguiente (1) o devolver a la anterior (-1,
+// nunca antes de la actual). 20261231000000.
+export async function moverPagosSemana(ids: string[], semanas: 1 | -1): Promise<number> {
+  await requerirAccion("gestionar_pagos")
+  if (ids.length === 0) return 0
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("mover_pagos_semana", { p_ids: ids, p_semanas: semanas })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
+}
+
+// Enviados a liquidar u observados (no liquidados) vuelven a Preparación con
+// su misma REF.
+export async function devolverPagosAPreparacion(ids: string[], motivo: string | null): Promise<number> {
+  await requerirAccion("gestionar_pagos")
+  if (ids.length === 0) return 0
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("devolver_pagos_a_preparacion", { p_ids: ids, p_motivo: motivo })
   if (error) throw new Error(error.message)
   return Number(data ?? 0)
 }
@@ -231,7 +254,7 @@ export async function pagosParaExcelLiquidacion(clave: string, filtros: FiltrosC
 
 // Aviso de la pantalla: órdenes aprobadas cuyos pagos no se pudieron crear (la
 // base solo cuenta las de las empresas de los consolidados que se ven). Los
-// pagos sin ITEM (empresa sin consolidado) no son de ningún consolidado: los
+// pagos sin semana (empresa sin consolidado) no son de ningún consolidado: los
 // ve Aprobación de pagos.
 export type AlertasConsolidado = { fallos: number }
 

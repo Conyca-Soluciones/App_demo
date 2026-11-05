@@ -286,7 +286,7 @@ export function DetalleActa({
                 {v.pago.estado === "solicitado"
                   ? `Pago por ${pesos(v.pago.valor)} por aprobar en A&F (Aprobación de pagos). Al aprobarlo, el acta queda aprobada.`
                   : `Pago aprobado en A&F por ${pesos(v.pago.valor)}`}
-                {v.pago.item != null ? ` · ITEM ${v.pago.item} de la semana ${v.pago.semana} de ${v.pago.anio}` : ""}
+                {v.pago.semana != null ? `${v.pago.item ? ` · REF ${v.pago.item}` : ""} · semana ${v.pago.semana} de ${v.pago.anio}` : ""}
                 {v.pago.novedad ? ` · ${v.pago.novedad}` : ""}
               </p>
             )}

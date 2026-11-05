@@ -1405,7 +1405,29 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
     Se leen por `entradas_almacen_select` (`20261205000000`): pestaña Entradas en
     sus proyectos o quien ve la OC. Antes la tabla no tenía política y nadie las veía.
   - Componente `CampoSoporte` y ayudas en `lib/soportes.ts`.
-- **ITEM del consolidado**: consecutivo por consolidado y semana
+- **REF del pago** (reemplaza al ITEM, `20261231000000`, decisión del usuario
+  2026-11-05): al APROBAR el pago recibe solo su semana de pago
+  (`_pago_asignar_item`, mismo nombre); al ENVIAR A LIQUIDAR recibe
+  `pagos.referencia` = '<número del proyecto>-<consecutivo de 5>' ('001-00001',
+  `_pago_asignar_referencia`, contador `contadores_proyecto` tipo 'pago', en
+  orden de semana y aprobación), que ya no cambia nunca. Se muestra "REF
+  001-00001"; en el archivo del banco va "REF 001 00001" y el soporte del
+  dispersor tiene columna REF. En Preparación: "Pasar a la semana siguiente" y
+  "Devolver a la semana anterior" (`mover_pagos_semana`, nunca antes de la
+  semana actual). "Devolver a preparación" (`devolver_pagos_a_preparacion`):
+  enviados a liquidar u observados, no liquidados; CONSERVAN su REF. La columna
+  `pagos.item` y `pagos_contadores` quedan sin uso; "tiene semana" es lo que
+  antes era "tiene ITEM". El Excel de liquidación tiene columna REF (se
+  reconoce cada fila por el id interno).
+- **Códigos por proyecto** (`20261230000000`, decisión del usuario
+  2026-11-05): `proyectos.numero` (001-999, el siguiente libre al crearlo; se
+  cambia en Control administrativo mientras el proyecto no tenga órdenes,
+  contratos ni pagos con REF). `ordenes_compra.numero` y `contratos.numero` son
+  el consecutivo DEL PROYECTO y `codigo` guarda 'OC-001-0001' / 'CJ-001-0001'
+  (disparadores `trg_oc_codigo` y `_asignar_numero_contrato`). El número del
+  contrato aprobado (`numero_contrato`) es el mismo código, sin año; las
+  minutas imprimen "No. CJ-001-0001". Actas: "Acta 01" (`numeroActa`).
+- **ITEM del consolidado** (ANTES de `20261231000000`): consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
 
@@ -3740,7 +3762,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261228200000` firma del representante legal en el otrosí ·
 `20261228300000` crear versión nueva del presupuesto en una transacción ·
 `20261228400000` tipo de pago de la OC (de contado, crédito con fecha, fiducia) ·
-`20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha.
+`20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha ·
+`20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
+`20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

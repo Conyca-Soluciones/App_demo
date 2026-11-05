@@ -49,7 +49,7 @@ function enteros(lista: number[] | undefined, min: number, max: number, nombre: 
 
 const CAMPOS_TERCERO = "razon_social, tipo_documento, numero_documento, dv, nombre_banco, nombres, apellidos"
 const CAMPOS = `
-  id, item, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id, dispersion_id,
+  id, referencia, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id, dispersion_id,
   cuenta_confirmada_en, cuenta_modificada, etiquetas, tercero_id, titular_tercero_id,
   consolidado:consolidados!pagos_consolidado_id_fkey(nombre),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(metodo),
@@ -96,7 +96,7 @@ function mapPagoDispersor(f: any): PagoDispersor {
   const banco = f.cuenta?.banco?.nombre ?? ""
   return {
     id: f.id,
-    item: String(f.item ?? ""),
+    item: f.referencia ?? "", // REF del pago (001-00001)
     semana: f.semana ?? null,
     anio: f.anio ?? null,
     consolidado: f.consolidado?.nombre ?? "",
@@ -136,7 +136,7 @@ function consulta(supabase: any, filtros: FiltrosRealizarPagos) {
     .select(CAMPOS)
     .eq("liquidacion_estado", "liquidado")
     .in("estado", ["aprobado", "dispersado"])
-    .not("item", "is", null)
+    .not("referencia", "is", null)
   const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
   if (anios.length > 0) q = q.in("anio", anios)
@@ -144,7 +144,7 @@ function consulta(supabase: any, filtros: FiltrosRealizarPagos) {
   return q
     .order("anio", { ascending: false })
     .order("semana", { ascending: false })
-    .order("item", { ascending: true })
+    .order("referencia", { ascending: true })
     .order("id", { ascending: true })
 }
 
@@ -279,7 +279,7 @@ export async function generarDispersores(ids: string[]): Promise<TandaGenerada[]
   if (pagos.length !== unicos.length) throw new Error("Algún pago ya no existe o no tienes acceso: vuelve a consultar.")
   const cambiados = pagos.filter((p) => p.estado !== "asignado")
   if (cambiados.length > 0) {
-    throw new Error(`Estos pagos ya no están asignados: ITEM ${cambiados.slice(0, 10).map((p) => p.item).join(", ")}${cambiados.length > 10 ? "…" : ""}. Vuelve a consultar.`)
+    throw new Error(`Estos pagos ya no están asignados: REF ${cambiados.slice(0, 10).map((p) => p.item).join(", ")}${cambiados.length > 10 ? "…" : ""}. Vuelve a consultar.`)
   }
   const porId = new Map(cuentas.map((c) => [c.id, c]))
   const grupos = agruparAsignados(pagos, porId)
