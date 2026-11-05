@@ -770,7 +770,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tipo de pago</Label>
+            <Label>
+              Tipo de pago <span className="text-destructive">*</span>
+            </Label>
             <Select value={tipoPago ?? ""} onValueChange={(v) => setTipoPago((v || null) as TipoPagoOC | null)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Elige el tipo de pago" />
@@ -787,7 +789,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
           {tipoPago === "credito" && (
             <div className="space-y-1.5">
-              <Label htmlFor="fecha-credito">Fecha en que se debe pagar</Label>
+              <Label htmlFor="fecha-credito">
+                Fecha en que se debe pagar <span className="text-destructive">*</span>
+              </Label>
               <CampoFecha id="fecha-credito" value={fechaCredito} onChange={(e) => setFechaCredito(e.target.value)} />
               {fechaCredito && fechaCredito <= hoyColombia() && (
                 <p className="text-xs text-destructive">Tiene que ser posterior a hoy.</p>
