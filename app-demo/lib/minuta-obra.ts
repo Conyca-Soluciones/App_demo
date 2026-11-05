@@ -433,7 +433,7 @@ export function limpiarMinutaObra(m: MinutaObra): MinutaObra {
   }
 }
 
-export const nombreArchivoMinutaObra = (numero: number, contratista: string, variante: VarianteMinutaObra = "obra") =>
+export const nombreArchivoMinutaObra = (numero: string | number, contratista: string, variante: VarianteMinutaObra = "obra") =>
   `minuta-${variante === "mano_obra" ? "mano-obra" : "obra"}-${numero}-${contratista
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

@@ -162,7 +162,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Orden de Compra #{orden.numero}</h1>
+          <h1 className="text-2xl font-semibold">Orden de compra {orden.codigo}</h1>
           <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
 
           {orden.estado === "aprobada" && (
@@ -549,7 +549,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {accionAbierta === "desaprobar" ? "Desaprobar" : "Cancelar"} orden de compra #{orden.numero}
+              {accionAbierta === "desaprobar" ? "Desaprobar" : "Cancelar"} orden de compra {orden.codigo}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">

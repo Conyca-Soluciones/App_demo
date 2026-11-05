@@ -120,20 +120,19 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
     () => [
       {
         clave: "numero",
-        titulo: "N°",
-        ancho: 70,
+        titulo: "Contrato",
+        ancho: 120,
         fija: true,
-        alinear: "right",
-        texto: (s) => String(s.numero),
+        texto: (s) => s.codigo,
         // Enlace: abre la solicitud con un clic (la fila sigue abriendo con doble clic).
         celda: (s) => (
           <button
             type="button"
             onClick={() => setDetalleId(s.id)}
-            title={`Revisar la solicitud N° ${s.numero}`}
+            title={`Revisar la solicitud ${s.codigo}`}
             className="cursor-pointer rounded-sm font-medium tabular-nums text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-primary"
           >
-            {s.numero}
+            {s.codigo}
           </button>
         ),
       },
@@ -199,15 +198,15 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
       if (accion.tipo === "enviar") await enviarMinutaSubgerencia(accion.detalle.id)
       else if (accion.tipo === "aprobar") await preaprobarYEnviarMinuta(accion.detalle.id)
       else await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
-      const n = accion.detalle.numero
+      const n = accion.detalle.codigo
       setAviso(
         accion.tipo === "enviar"
-          ? `Minuta de la solicitud N° ${n} enviada a Subgerencia.`
+          ? `Minuta del contrato ${n} enviada a Subgerencia.`
           : accion.tipo === "aprobar"
-          ? `Solicitud N° ${n} pre-aprobada y enviada a Subgerencia.`
+          ? `Solicitud ${n} pre-aprobada y enviada a Subgerencia.`
           : accion.tipo === "devolver"
-            ? `Solicitud N° ${n} devuelta al director.`
-            : `Solicitud N° ${n} rechazada.`
+            ? `Solicitud ${n} devuelta al director.`
+            : `Solicitud ${n} rechazada.`
       )
       setAccion(null)
       setMotivo("")
@@ -281,7 +280,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
               tarjeta={{
                 titulo: (s) => (
                   <button type="button" className="text-left hover:underline" onClick={() => setDetalleId(s.id)}>
-                    N° {s.numero} · {s.contratistaNombre}
+                    {s.codigo} · {s.contratistaNombre}
                   </button>
                 ),
                 subtitulo: (s) => `${tituloTipoContrato(s.tipo)} · ${s.proyectoCodigo ?? s.proyectoNombre ?? ""}`,

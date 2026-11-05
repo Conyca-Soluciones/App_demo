@@ -377,7 +377,7 @@ export function limpiarMinuta(m: MinutaManoObra): MinutaManoObra {
   }
 }
 
-export const nombreArchivoMinuta = (numero: number, contratista: string) =>
+export const nombreArchivoMinuta = (numero: string | number, contratista: string) =>
   `minuta-contrato-${numero}-${contratista
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

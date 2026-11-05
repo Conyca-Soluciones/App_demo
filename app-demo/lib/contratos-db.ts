@@ -11,7 +11,7 @@ export type { SolicitudContratoDetalle, SolicitudContratoFila }
 // ---------------------------------------------------------------------------
 
 export const SELECT_FILA_CONTRATO = `
-  id, numero, proyecto_id, tipo, estado, objeto, valor, plazo_tipo, fecha_inicio, fecha_fin, duracion_cantidad,
+  id, numero, codigo, proyecto_id, tipo, estado, objeto, valor, plazo_tipo, fecha_inicio, fecha_fin, duracion_cantidad,
   duracion_unidad, created_at, enviado_at, motivo_resolucion, resuelto_at,
   minuta_estado, minuta_enviada_at, minuta_resuelta_at, minuta_motivo, numero_contrato,
   clase, tipo_detalle, referencia, retencion_garantia_pct, retencion_anticipo_pct, retencion_fic_pct, liquidado_at, otrosis_aprobados, poliza_estado,
@@ -28,6 +28,7 @@ export function mapFilaContrato(f: any): SolicitudContratoFila {
   return {
     id: f.id,
     numero: Number(f.numero),
+    codigo: f.codigo ?? `N° ${f.numero}`,
     proyectoId: f.proyecto_id,
     proyectoCodigo: f.proyecto?.codigo ?? null,
     proyectoNombre: f.proyecto?.nombre ?? null,

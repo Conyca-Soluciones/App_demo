@@ -223,6 +223,7 @@ export function datosTipoABase(tipo: TipoContrato, d: DatosTipoContrato): Record
 export type SolicitudContratoFila = {
   id: string
   numero: number
+  codigo: string // CJ-001-0001 (20261230000000)
   proyectoId: string
   proyectoCodigo: string | null
   proyectoNombre: string | null

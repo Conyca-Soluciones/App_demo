@@ -35,6 +35,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const { pdfContratoFirmado } = await import("@/lib/documentos-firmados")
     const firmado = await pdfContratoFirmado(supabase, id, {
       numero: Number(fila.numero),
+      codigo: fila.codigo ?? `N° ${fila.numero}`,
       numeroContrato: fila.numero_contrato ?? null,
       tipo: fila.tipo,
       clase: fila.clase,
@@ -57,7 +58,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (!fila.minuta_datos) {
       return NextResponse.json({ error: `El contrato ${fila.numero_contrato ?? ""} no tiene la minuta guardada en el sistema.` }, { status: 404 })
     }
-    const pdf = await pdfMinutaContrato(fila.tipo, Number(fila.numero), fila.minuta_datos)
+    const pdf = await pdfMinutaContrato(fila.tipo, fila.codigo ?? `N° ${fila.numero}`, fila.minuta_datos)
     if (!pdf) return NextResponse.json({ error: "Este tipo de contrato no tiene plantilla de minuta." }, { status: 400 })
     ;({ buffer, archivo } = pdf)
   }

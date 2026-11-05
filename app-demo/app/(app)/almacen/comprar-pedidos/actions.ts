@@ -674,6 +674,7 @@ export type RequisicionDeOrden = { id: string; numero: number; solicitante: stri
 export type OrdenCompraDetalle = {
   id: string
   numero: number
+  codigo: string // OC-001-0001 (20261230000000)
   estado: OrdenCompraEstado
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
@@ -728,7 +729,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     .from("ordenes_compra")
     .select(
       `
-      id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
+      id, numero, codigo, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, tipo_pago, fecha_pago_credito, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
@@ -766,6 +767,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
   return {
     id: d.id,
     numero: d.numero,
+    codigo: d.codigo,
     estado: d.estado,
     estadoEntrega: d.estado_entrega,
     estadoVisible: calcularEstadoVisible(d.estado, d.estado_entrega),
@@ -896,6 +898,7 @@ export type LineaOrdenListado = {
 export type OrdenCompraListado = {
   id: string
   numero: number
+  codigo: string
   estado: OrdenCompraEstado
   estadoEntrega: EstadoEntregaOrden
   estadoVisible: EstadoOrdenVisible
@@ -946,7 +949,7 @@ function consultaOrdenesCompra(supabase: Awaited<ReturnType<typeof createClient>
         .from("ordenes_compra")
         .select(
           `
-      id, numero, estado, estado_entrega, created_at, proyecto_id,
+      id, numero, codigo, estado, estado_entrega, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey!inner(nombre),
       created_by,
@@ -965,7 +968,7 @@ function consultaOrdenesCompra(supabase: Awaited<ReturnType<typeof createClient>
         .from("ordenes_compra")
         .select(
           `
-      id, numero, estado, estado_entrega, created_at, proyecto_id,
+      id, numero, codigo, estado, estado_entrega, created_at, proyecto_id,
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
       created_by,
@@ -1025,6 +1028,7 @@ function mapOrdenListado(o: any): Omit<OrdenCompraListado, "tieneSobrecostoPreci
   return {
     id: o.id,
     numero: o.numero,
+    codigo: o.codigo,
     estado: o.estado,
     estadoEntrega: o.estado_entrega,
     estadoVisible: calcularEstadoVisible(o.estado, o.estado_entrega),

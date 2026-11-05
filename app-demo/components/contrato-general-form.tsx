@@ -91,7 +91,7 @@ export function ContratoGeneralFormulario({
   // Contrato general DEVUELTO que se corrige y reenvía (mismo número).
   edicion?: SolicitudContratoDetalle
   onCancelar: () => void
-  onEnviado: (numero: number) => void
+  onEnviado: (codigo: string) => void
 }) {
   const [f, setF] = useState<ContratoGeneralForm>(() => (edicion ? contratoGeneralDesde(edicion) : CONTRATO_GENERAL_VACIO))
   const [errores, setErrores] = useState<Partial<Record<CampoContratoGeneral, string>>>({})
@@ -167,7 +167,7 @@ export function ContratoGeneralFormulario({
           <ArrowLeft className="size-4" /> Volver a los contratos
         </Button>
         <p className="text-sm text-muted-foreground">
-          {edicion ? `Corregir contrato general N° ${edicion.numero} de ` : "Nuevo contrato general para "}
+          {edicion ? `Corregir el contrato general ${edicion.codigo} de ` : "Nuevo contrato general para "}
           <span className="font-medium text-foreground">{proyectoNombre}</span>
         </p>
       </div>

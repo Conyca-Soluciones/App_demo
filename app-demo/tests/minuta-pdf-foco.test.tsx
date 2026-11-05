@@ -13,6 +13,7 @@ import { MinutaSuministroPDF } from "@/components/minuta-suministro-pdf"
 const detalle = {
   id: "c",
   numero: 12,
+  codigo: "CJ-001-0012",
   proyectoId: "p",
   proyectoCodigo: "X",
   proyectoNombre: "COMFIAR",
@@ -81,7 +82,7 @@ const extra = {
 
 const logo = path.join(process.cwd(), "public", "logo-conyca.png")
 const minuta = minutaSuministroPorDefecto(detalle, extra, "2026-10-13")
-const pdf = (foco?: string) => renderToBuffer(<MinutaSuministroPDF minuta={minuta} numero={12} logo={logo} foco={foco} />)
+const pdf = (foco?: string) => renderToBuffer(<MinutaSuministroPDF minuta={minuta} numero="CJ-001-0012" logo={logo} foco={foco} />)
 
 // Contenido descomprimido de todas las páginas.
 function contenido(buffer: Buffer): string {

@@ -132,7 +132,7 @@ export async function pdfOrdenCompra(supabase: Supabase, id: string): Promise<Pd
   const [orden, f] = await Promise.all([obtenerOrdenCompraDetalle(id), leerFirmas(supabase, "orden_compra", id)])
   if (orden.estado !== "aprobada") throw new Error("Solo se puede descargar el PDF de una orden ya aprobada.")
   const generar = async () => new Uint8Array(await renderToBuffer(<OrdenCompraPDF orden={orden} firmas={f.firmas} />))
-  return { nombre: `orden-compra-${orden.numero}.pdf`, ...(await firmadoOVivo("orden_compra", id, true, f, generar)) }
+  return { nombre: `${orden.codigo}.pdf`, ...(await firmadoOVivo("orden_compra", id, true, f, generar)) }
 }
 
 // ---------------------------------------------------------------- acta de aprobación de póliza
@@ -173,6 +173,7 @@ export async function pdfActaPoliza(supabase: Supabase, id: string, minuta?: unk
 // cada ruta (quien entra por otrosí no lee la tabla contratos).
 export type ContratoParaPdf = {
   numero: number
+  codigo: string // CJ-001-0001
   numeroContrato: string | null
   tipo: string
   clase: string
@@ -190,11 +191,11 @@ export async function pdfContratoFirmado(supabase: Supabase, id: string, c: Cont
   const principal = firmaPrincipal("contrato", f.firmas)
   if (!principal) return null
   const generar = async () => {
-    const r = await pdfMinutaContrato(c.tipo, c.numero, c.minutaDatos, undefined, principal)
+    const r = await pdfMinutaContrato(c.tipo, c.codigo, c.minutaDatos, undefined, principal)
     if (!r) throw new Error("Este tipo de contrato no tiene plantilla de minuta.")
     return new Uint8Array(r.buffer)
   }
-  const nombre = sinTildes(`contrato-${c.numeroContrato ?? c.numero}.pdf`)
+  const nombre = sinTildes(`${c.numeroContrato ?? c.codigo}.pdf`)
   return { nombre, ...(await pdfCongelado("contrato", id, `${principal.codigo}-${VERSION_PDF_CONTRATO}`, f.congelado, generar)) }
 }
 

@@ -338,7 +338,7 @@ export function MinutaServiciosEditor({ detalle, puedeEditar }: { detalle: Solic
         <Seccion titulo="Lugar y fecha de firma">
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("ciudadFirma", "Ciudad")}
-            {campo("fechaFirma", "Fecha", { tipo: "date", ayuda: "El año también va en el número: No. CJ-<número>-<año>." })}
+            {campo("fechaFirma", "Fecha", { tipo: "date" })}
           </div>
         </Seccion>
       </div>

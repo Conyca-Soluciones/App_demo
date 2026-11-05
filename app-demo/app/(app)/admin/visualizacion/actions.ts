@@ -34,6 +34,7 @@ export async function listarOrdenesControl(proyectoId: string, desde: string, ha
   type FilaOrden = {
     id: string
     numero: number
+    codigo: string
     estado: OrdenControl["estado"]
     created_at: string
     proveedor: { nombre: string } | null
@@ -43,7 +44,7 @@ export async function listarOrdenesControl(proyectoId: string, desde: string, ha
     supabase
       .from("ordenes_compra")
       .select(`
-        id, numero, estado, created_at,
+        id, numero, codigo, estado, created_at,
         proveedor:proveedores!ordenes_compra_proveedor_id_fkey(nombre),
         lineas:ordenes_compra_items(cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva)
       `)
@@ -60,6 +61,7 @@ export async function listarOrdenesControl(proyectoId: string, desde: string, ha
   return filas.map((o) => ({
     id: o.id,
     numero: Number(o.numero),
+    codigo: o.codigo,
     estado: o.estado,
     fecha: o.created_at,
     proveedor: o.proveedor?.nombre ?? "(proveedor eliminado)",

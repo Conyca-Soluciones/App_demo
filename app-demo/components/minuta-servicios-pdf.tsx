@@ -17,14 +17,14 @@ const ENCABEZADO = { formato: "CONTRATO DE PRESTACIÓN DE SERVICIOS", codigo: "G
 
 const numero = (i: number) => `${i + 1}.`
 
-export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, foco, firmaContratante }: { minuta: MinutaServicios; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
+export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, foco, firmaContratante }: { minuta: MinutaServicios; numero: string; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.contratistaTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.contratistaTipoDocumento)
   const valor = leerNumero(m.valor)
-  const consecutivo = `No. CJ-${numeroContrato}-${fecha ? fecha.anio : "20__"}`
+  const consecutivo = `No. ${numeroContrato}`
   const lugarFecha = fecha
     ? `a los ${cantidadEnLetras(fecha.dia)} ${fecha.dia === 1 ? "día" : "días"} del mes de ${fecha.mes} de ${fecha.anio}`
     : "a los ____ días del mes de ________ de ____"

@@ -190,6 +190,9 @@ export async function eliminarEmpresa(empresaId: string) {
 
 export type Proyecto = {
   id: string
+  // Número de 3 dígitos (001): va en los códigos OC-001-0001, CJ-001-0001 y
+  // REF 001-00001 (20261230000000).
+  numero: number
   codigo: string | null
   nombre: string
   ciudad: string | null
@@ -204,8 +207,8 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
 
   const { data, error } = await supabase
     .from("proyectos")
-    .select("id, codigo, nombre, ciudad, empresa_id, empresa:empresas(nit, razon_social)")
-    .order("codigo", { ascending: false, nullsFirst: false })
+    .select("id, numero, codigo, nombre, ciudad, empresa_id, empresa:empresas(nit, razon_social)")
+    .order("numero", { ascending: true })
 
   if (error) {
     throw new Error(error.message)
@@ -213,6 +216,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
 
   return (data ?? []).map((p: any) => ({
     id: p.id,
+    numero: Number(p.numero),
     codigo: p.codigo,
     nombre: p.nombre,
     ciudad: p.ciudad,
@@ -223,6 +227,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
 }
 
 export type CrearProyectoInput = {
+  numero?: number | null // vacío = el siguiente libre
   codigo?: string | null
   nombre: string
   ciudad?: string | null
@@ -236,12 +241,13 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
   const { data, error } = await supabase
     .from("proyectos")
     .insert({
+      ...(input.numero ? { numero: input.numero } : {}),
       codigo: input.codigo?.trim() || null,
       nombre: input.nombre,
       ciudad: input.ciudad?.trim() || null,
       empresa_id: input.empresaId || null,
     })
-    .select("id, codigo, nombre, ciudad, empresa_id, empresa:empresas(nit, razon_social)")
+    .select("id, numero, codigo, nombre, ciudad, empresa_id, empresa:empresas(nit, razon_social)")
     .single()
 
   if (error) {
@@ -251,6 +257,7 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
   const p = data as any
   return {
     id: p.id,
+    numero: Number(p.numero),
     codigo: p.codigo,
     nombre: p.nombre,
     ciudad: p.ciudad,
@@ -261,6 +268,7 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
 }
 
 export type EditarProyectoInput = {
+  numero?: number
   codigo?: string | null
   nombre?: string
   ciudad?: string | null
@@ -271,7 +279,8 @@ export async function editarProyecto(proyectoId: string, cambios: EditarProyecto
   await requerirAdmin()
   const supabase = await createClient()
 
-  const patch: Record<string, string | null> = {}
+  const patch: Record<string, string | number | null> = {}
+  if (cambios.numero !== undefined) patch.numero = cambios.numero
   if (cambios.codigo !== undefined) patch.codigo = cambios.codigo?.trim() || null
   if (cambios.nombre !== undefined) patch.nombre = cambios.nombre
   if (cambios.ciudad !== undefined) patch.ciudad = cambios.ciudad?.trim() || null

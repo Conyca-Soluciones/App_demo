@@ -18,14 +18,14 @@ const ENCABEZADO = { formato: "CONTRATO DE SUMINISTRO", codigo: "GJ-F-012", vers
 const letra = (i: number) => `${String.fromCharCode(97 + i)})`
 const pct = (t: string) => `${blanco(t.replace(/%/g, ""))}%`
 
-export function MinutaSuministroPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaSuministro; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
+export function MinutaSuministroPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaSuministro; numero: string; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.contratistaTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.contratistaTipoDocumento)
   const valor = leerNumero(m.valor)
-  const consecutivo = `No. CJ-${numero}-${fecha ? fecha.anio : "20__"}`
+  const consecutivo = `No. ${numero}`
   const lugarFecha = fecha
     ? fecha.dia === 1
       ? `el primer (1) día del mes de ${fecha.mes} de ${fecha.anio}`

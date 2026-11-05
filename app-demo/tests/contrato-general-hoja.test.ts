@@ -5,6 +5,7 @@ import { CONTRATO_GENERAL_VACIO, validarContratoGeneral } from "@/lib/contratos"
 const fila: FilaHojaContratoGeneral = {
   numero: 21,
   numero_contrato: null,
+  codigo: "CJ-001-0021",
   tipo: "otro",
   tipo_detalle: "Consultoría",
   estado: "pre_aprobacion",
@@ -39,9 +40,9 @@ const fila: FilaHojaContratoGeneral = {
 }
 
 describe("hoja del contrato general", () => {
-  it("sin aprobar: número de solicitud y sin pre-aprobación ni aprobación", () => {
+  it("sin aprobar: el código del contrato y sin pre-aprobación ni aprobación", () => {
     const h = armarHojaContratoGeneral(fila, new Date("2026-10-15T15:00:00Z"))
-    expect(h.numero).toBe("Solicitud N° 21")
+    expect(h.numero).toBe("CJ-001-0021")
     expect(h.fechaInicio).toBe("10/07/2025")
     expect(h.retencionFic).toBe("2,5 %")
     expect(h.elaboro?.nombre).toBe("Marcela")

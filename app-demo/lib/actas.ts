@@ -13,6 +13,9 @@ import { motivoSinActasPorPoliza, type EstadoPolizaContrato } from "@/lib/poliza
 import { aCentavos, leerNumero, numero, type TipoContrato } from "@/lib/contratos"
 
 export type TipoActa = "parcial" | "final" | "liquidacion"
+/** Número del acta con dos dígitos: "Acta 01 del CJ-001-0001" (decisión del usuario, 2026-11-05). */
+export const numeroActa = (n: number | string) => String(n).padStart(2, "0")
+
 export const ETIQUETA_TIPO_ACTA: Record<TipoActa, string> = {
   parcial: "Acta parcial",
   final: "Acta final",

@@ -42,6 +42,7 @@ export type PrecioProveedor = {
 export type ContratoControl = {
   id: string
   numero: number
+  codigo: string // CJ-001-0001
   numeroContrato: string | null
   tipo: string
   contratista: string
@@ -130,6 +131,7 @@ export function mapControlProyecto(datos: unknown): ControlProyecto {
     contratos: filas(r.contratos).map((c) => ({
       id: t(c.id),
       numero: n(c.numero),
+      codigo: tn(c.codigo) ?? `N° ${n(c.numero)}`,
       numeroContrato: tn(c.numero_contrato),
       tipo: t(c.tipo),
       contratista: t(c.contratista),
@@ -226,6 +228,7 @@ export function buscarInsumosPrecios(porInsumo: Map<string, PrecioProveedor[]>, 
 export type OrdenControl = {
   id: string
   numero: number
+  codigo: string // OC-001-0001
   estado: "pendiente_aprobacion" | "aprobada" | "rechazada" | "cancelada"
   fecha: string // creación
   proveedor: string

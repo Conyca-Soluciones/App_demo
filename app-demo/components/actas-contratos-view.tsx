@@ -41,6 +41,7 @@ import {
   type InfoContratoActa,
   type TipoActa,
   type TipoSoporte,
+  numeroActa,
 } from "@/lib/actas"
 import {
   buscarContratistasParaActa,
@@ -284,7 +285,7 @@ function ContratoActas({
   const siguiente = (actas?.reduce((max, a) => Math.max(max, a.numero), 0) ?? 0) + 1
 
   const columnasActas: ColumnaExcel<ActaResumen>[] = [
-    { clave: "numero", titulo: "Acta", ancho: 90, fija: true, texto: (a) => `Acta ${a.numero}`, valorOrden: (a) => a.numero, claseCelda: "font-medium" },
+    { clave: "numero", titulo: "Acta", ancho: 90, fija: true, texto: (a) => `Acta ${numeroActa(a.numero)}`, valorOrden: (a) => a.numero, claseCelda: "font-medium" },
     { clave: "tipo", titulo: "Tipo", ancho: 150, texto: (a) => ETIQUETA_TIPO_ACTA[a.tipo] },
     { clave: "periodo", titulo: "Período", ancho: 190, flexible: true, texto: (a) => textoPeriodo(a.periodoDesde, a.periodoHasta), claseCelda: "tabular-nums" },
     {
@@ -533,7 +534,7 @@ type SoporteNuevo = { clave: number; tipo: TipoSoporte; archivo: File }
 
 function FormularioActa({
   contrato,
-  numero: numeroActa,
+  numero: numeroDelActa,
   tipo,
   edicion,
   onCancelar,
@@ -655,10 +656,10 @@ function FormularioActa({
       if (edicion) {
         const res = await editarActa(edicion.id, datos, subidos, [...quitarSoportes])
         if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
-        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} corregida. ${despues}`)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${numeroActa(res.numero)} corregida. ${despues}`)
       } else {
         const res = await guardarActa(actaId, contrato.id, datos, subidos)
-        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${res.numero} guardada. ${despues}`)
+        onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${numeroActa(res.numero)} guardada. ${despues}`)
       }
     } catch (e) {
       // Nada queda a medias: crear y editar son una transacción en la base.
@@ -670,8 +671,8 @@ function FormularioActa({
   }
 
   const titulo = edicion
-    ? `Editar ${ETIQUETA_TIPO_ACTA[form.tipo].toLowerCase()} N° ${numeroActa}`
-    : `${ETIQUETA_TIPO_ACTA[form.tipo]} N° ${numeroActa}`
+    ? `Editar ${ETIQUETA_TIPO_ACTA[form.tipo].toLowerCase()} N° ${numeroActa(numeroDelActa)}`
+    : `${ETIQUETA_TIPO_ACTA[form.tipo]} N° ${numeroActa(numeroDelActa)}`
 
   return (
     <section className="rounded-lg border">

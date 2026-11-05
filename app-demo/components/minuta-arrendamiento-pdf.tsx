@@ -21,14 +21,14 @@ const ENCABEZADO = { formato: "CONTRATO DE ARRENDAMIENTO", codigo: "GJ-F-014", v
 
 const letra = (i: number) => `${String.fromCharCode(97 + i)})`
 
-export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaArrendamiento; numero: number; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
+export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco, firmaContratante }: { minuta: MinutaArrendamiento; numero: string; logo: string | Buffer; foco?: string; firmaContratante?: FirmaDocumento | null }) {
   const res = campoResaltable(foco)
   const r = (lista: string) => renglonConFoco(foco, lista)
   const fecha = partesFecha(m.fechaFirma)
   const juridica = m.arrendadorTipoPersona === "juridica"
   const documento = tipoDocumentoArrendador(m.arrendadorTipoDocumento)
   const canon = leerNumero(m.canon)
-  const consecutivo = `No. CJ-${numero}-${fecha ? fecha.anio : "20__"}`
+  const consecutivo = `No. ${numero}`
   const iva = m.iva === "mas_iva" ? "más IVA" : m.iva === "incluido" ? "incluido el IVA" : blanco(null)
   const servicios = OPCIONES_SERVICIOS.find((o) => o.valor === m.serviciosPublicos)?.texto ?? blanco(null)
   const diaFirma = fecha ? (fecha.dia === 1 ? "el primer (1) día" : `el ${cantidadEnLetras(fecha.dia)} día`) : "el ____ día"

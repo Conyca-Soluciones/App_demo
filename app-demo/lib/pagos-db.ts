@@ -3,6 +3,7 @@
 
 import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
 import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
+import { numeroActa } from "@/lib/actas"
 import { rangosSemanasIso, semanaIso, type FiltroCreacion, type Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
@@ -16,7 +17,7 @@ export const CAMPOS_PAGO = `
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
-  orden:ordenes_compra(numero, tipo_pago, fecha_pago_credito, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
+  orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
@@ -82,6 +83,7 @@ export function mapPago(f: any): Pago {
     rechazadoPorNombre: f.rechazador?.nombre ?? null,
     motivoRechazo: f.motivo_rechazo,
     ordenNumero: f.orden?.numero ?? null,
+    ordenCodigo: f.orden?.codigo ?? null,
     ordenFechaPagoCredito: f.orden?.tipo_pago === "credito" ? (f.orden?.fecha_pago_credito ?? null) : null,
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
@@ -95,9 +97,9 @@ export function mapPago(f: any): Pago {
     // requisición administrativa. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null
-      ? `OC ${f.orden.numero}${ocPse ? " · PSE" : ""}${tipoOC ? ` · ${tipoOC}` : ""}`
+      ? `${f.orden.codigo ?? `OC ${f.orden.numero}`}${ocPse ? " · PSE" : ""}${tipoOC ? ` · ${tipoOC}` : ""}`
       : f.acta
-        ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
+        ? `Acta ${numeroActa(f.acta.numero)}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
         : f.fuente === "acta"
           ? "Acta"
           : f.fuente === "requisicion_admin"

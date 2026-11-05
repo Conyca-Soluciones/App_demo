@@ -320,7 +320,7 @@ export function limpiarMinutaSuministro(m: MinutaSuministro): MinutaSuministro {
   }
 }
 
-export const nombreArchivoMinutaSuministro = (numero: number, contratista: string) =>
+export const nombreArchivoMinutaSuministro = (numero: string | number, contratista: string) =>
   `minuta-suministro-${numero}-${contratista
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

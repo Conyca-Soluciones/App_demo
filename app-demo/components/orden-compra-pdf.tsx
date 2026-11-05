@@ -186,7 +186,7 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
             {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de @react-pdf, no lleva alt */}
             <Image src={LOGO_CONYCA_PATH} style={styles.logoConyca} />
             <Text style={styles.tituloOrden}>ORDEN DE COMPRA</Text>
-            <Text style={styles.numeroOrden}>No. {orden.numero}</Text>
+            <Text style={styles.numeroOrden}>No. {orden.codigo}</Text>
             <Text style={styles.fechaOrden}>Fecha: {formatoFecha(orden.createdAt)}</Text>
           </View>
         </View>

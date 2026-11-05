@@ -128,7 +128,7 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
   const [usuario, setUsuario] = useState<OpcionBuscador | null>(null)
 
   const columnas: ColumnaExcel<OrdenEntradaFila>[] = [
-    { clave: "numero", titulo: "OC N°", ancho: 90, fija: true, texto: (o) => String(o.numero), valorOrden: (o) => o.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "Orden", ancho: 120, fija: true, texto: (o) => o.codigo, valorOrden: (o) => o.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proveedor", titulo: "Proveedor", ancho: 260, flexible: true, texto: (o) => o.proveedorNombre },
     {
       clave: "estado",
@@ -235,7 +235,7 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
               min="1"
               step="1"
               inputMode="numeric"
-              placeholder="Ej. 34"
+              placeholder="Ej. 34 (de OC-001-0034)"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleConsultar()}
@@ -342,7 +342,7 @@ function EntradasProyecto({ proyectoId }: { proyectoId: string }) {
               }}
               tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
-                titulo: (o) => `OC N° ${o.numero}`,
+                titulo: (o) => o.codigo,
                 subtitulo: (o) => o.proveedorNombre,
                 esquina: (o) => <Badge variant="outline" className={ESTADO_BADGE[o.estadoEntrega].clase}>{ESTADO_BADGE[o.estadoEntrega].label}</Badge>,
                 campos: ["persona", "fecha"],
@@ -591,7 +591,7 @@ function DetalleEntrada({
         <Button variant="outline" size="sm" onClick={onVolver}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Volver
         </Button>
-        <h1 className="text-2xl font-semibold">Entrada — OC {detalle.numero}</h1>
+        <h1 className="text-2xl font-semibold">Entrada — {detalle.codigo}</h1>
         <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
       </div>
 

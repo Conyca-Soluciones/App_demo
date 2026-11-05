@@ -2,7 +2,7 @@ import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer"
 import { Encabezado, s } from "@/components/minuta-mano-obra-pdf"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { numero, pesos, pesosEnLetras } from "@/lib/contratos"
-import { ETIQUETA_TIPO_ACTA, saldoContrato, type ActaDetalle } from "@/lib/actas"
+import { ETIQUETA_TIPO_ACTA, numeroActa, saldoContrato, type ActaDetalle } from "@/lib/actas"
 import { firmaDe, type FirmaDocumento } from "@/lib/firmas"
 import { FirmaPDF } from "@/components/firma-pdf"
 
@@ -68,7 +68,7 @@ function Renglon({ titulo, valor, total }: { titulo: string; valor: number; tota
 }
 
 export function ActaPDF({ acta: a, logo, firmas = [] }: { acta: ActaDetalle; logo: string | Buffer; firmas?: FirmaDocumento[] }) {
-  const titulo = `${ETIQUETA_TIPO_ACTA[a.tipo].toUpperCase()} N° ${a.numero}`
+  const titulo = `${ETIQUETA_TIPO_ACTA[a.tipo].toUpperCase()} N° ${numeroActa(a.numero)}`
   const firmado = firmas.length > 0
   const periodo =
     a.periodoDesde || a.periodoHasta

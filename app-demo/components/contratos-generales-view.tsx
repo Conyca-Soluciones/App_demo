@@ -88,7 +88,7 @@ function Solicitudes({
 
   const columnas: ColumnaExcel<SolicitudContratoFila>[] = useMemo(
     () => [
-      { clave: "numero", titulo: "N°", ancho: 70, fija: true, alinear: "right", texto: (s) => String(s.numero), claseCelda: "tabular-nums" },
+      { clave: "numero", titulo: "Contrato", ancho: 120, fija: true, texto: (s) => s.codigo, claseCelda: "tabular-nums" },
       { clave: "tipo", titulo: "Tipo", ancho: 170, texto: (s) => nombreTipoContrato(s) },
       { clave: "contratista", titulo: "Contratista", ancho: 220, texto: (s) => s.contratistaNombre },
       { clave: "objeto", titulo: "Descripción", ancho: 260, flexible: true, texto: (s) => s.objeto },
@@ -152,8 +152,8 @@ function Solicitudes({
           onEnviado={(n) => {
             setAviso(
               formulario === "nueva"
-                ? `Contrato general N° ${n} enviado a pre-aprobación.`
-                : `Contrato general N° ${n} corregido y reenviado a pre-aprobación.`
+                ? `Contrato general ${n} enviado a pre-aprobación.`
+                : `Contrato general ${n} corregido y reenviado a pre-aprobación.`
             )
             setFormulario(null)
             cargar()
@@ -220,7 +220,7 @@ function Solicitudes({
             tarjeta={{
               titulo: (s) => (
                 <button type="button" className="text-left hover:underline" onClick={() => setDetalleId(s.id)}>
-                  N° {s.numero} · {s.contratistaNombre}
+                  {s.codigo} · {s.contratistaNombre}
                 </button>
               ),
               subtitulo: (s) => nombreTipoContrato(s),

@@ -20,6 +20,7 @@ import {
   saldoContrato,
   type ActaDetalle,
   type SoporteActa,
+  numeroActa,
 } from "@/lib/actas"
 import { enlaceSoporteActa, obtenerActa, subirActaFirmadaContratista } from "@/app/(app)/contratos/actas/actions"
 
@@ -101,7 +102,7 @@ export function DetalleActa({
       <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto [scrollbar-width:thin] sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
-            {v ? `${ETIQUETA_TIPO_ACTA[v.tipo]} N° ${v.numero} · ${v.numeroContrato}` : "Acta"}
+            {v ? `${ETIQUETA_TIPO_ACTA[v.tipo]} N° ${numeroActa(v.numero)} · ${v.numeroContrato}` : "Acta"}
             {v && <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[v.estado]}`}>{ETIQUETA_ESTADO_ACTA[v.estado]}</Badge>}
             {v && (
               <a

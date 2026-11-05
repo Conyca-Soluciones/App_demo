@@ -60,6 +60,7 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  ordenCodigo: string | null // OC-001-0001
   // OC a crédito (20261229000000): fecha en que se debe pagar. El pago aprobado
   // queda "en_espera" hasta el lunes de esa semana.
   ordenFechaPagoCredito: string | null

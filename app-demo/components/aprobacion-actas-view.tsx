@@ -10,7 +10,7 @@ import { DetalleActa } from "@/components/detalle-acta"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos } from "@/lib/contratos"
-import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, ETIQUETA_TIPO_ACTA, type ActaAprobacionFila, type EstadoActa } from "@/lib/actas"
+import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, ETIQUETA_TIPO_ACTA, numeroActa, type ActaAprobacionFila, type EstadoActa } from "@/lib/actas"
 import { listarActasAprobacion } from "@/app/(app)/contratos/aprobacion-actas/actions"
 
 // ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ export function AprobacionActasView() {
             title={`Revisar el acta ${a.numero} del contrato ${a.numeroContrato}`}
             className="cursor-pointer rounded-sm font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary focus-visible:outline-2 focus-visible:outline-primary"
           >
-            Acta {a.numero}
+            Acta {numeroActa(a.numero)}
           </button>
         ),
       },
@@ -153,7 +153,7 @@ export function AprobacionActasView() {
               tarjeta={{
                 titulo: (a) => (
                   <button type="button" className="text-left hover:underline" onClick={() => setDetalleId(a.id)}>
-                    Acta {a.numero} · {a.numeroContrato}
+                    Acta {numeroActa(a.numero)} · {a.numeroContrato}
                   </button>
                 ),
                 subtitulo: (a) => `${a.contratistaNombre} · ${a.proyectoCodigo || a.proyectoNombre}`,

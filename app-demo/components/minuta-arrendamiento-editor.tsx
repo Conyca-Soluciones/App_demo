@@ -366,7 +366,7 @@ export function MinutaArrendamientoEditor({ detalle, puedeEditar }: { detalle: S
         <Seccion titulo="Lugar y fecha de firma">
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("ciudadFirma", "Ciudad")}
-            {campo("fechaFirma", "Fecha", { tipo: "date", ayuda: "El año también va en el número: Nº CJ-<número> DE <año>." })}
+            {campo("fechaFirma", "Fecha", { tipo: "date" })}
           </div>
         </Seccion>
       </div>

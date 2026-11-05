@@ -354,7 +354,7 @@ export function limpiarMinutaVehiculo(m: MinutaVehiculo): MinutaVehiculo {
   }
 }
 
-export const nombreArchivoMinutaVehiculo = (numero: number, contratista: string) =>
+export const nombreArchivoMinutaVehiculo = (numero: string | number, contratista: string) =>
   `minuta-alquiler-${numero}-${contratista
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
