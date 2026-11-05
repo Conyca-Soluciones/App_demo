@@ -586,5 +586,18 @@ select * from (
   union all
   select '20261231100000_notificaciones_borrar',
          exists (select 1 from pg_policy where polname = 'notificaciones_delete_propias')
+  union all
+  select '20261231200000_import_abandonado_al_cerrar',
+         exists (select 1 from pg_proc where proname = 'abandonar_import_presupuesto')
+  union all
+  select '20261231300000_compras_aprueba_insumos',
+         exists (select 1 from rol_permisos rp join roles r on r.id = rp.rol_id
+                  where r.clave = 'compras' and rp.permiso = 'accion.aprobar_insumos')
+  union all
+  select '20261231400000_modificar_orden_compra',
+         exists (select 1 from pg_proc where proname = 'modificar_orden_compra')
+         and exists (select 1 from pg_proc where proname = 'orden_compra_modificable')
+         and exists (select 1 from pg_proc where proname = 'titular_de_orden')
+         and exists (select 1 from pg_proc where proname = '_crear_orden_compra_sin_proyecto' and prosrc like '%_insertar_lineas_orden%')
 ) t
 order by 1;

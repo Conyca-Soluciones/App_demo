@@ -10,7 +10,7 @@ import { DetalleSolicitudContrato, tituloTipoContrato } from "@/components/detal
 import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ZONA_HORARIA, hoyColombia } from "@/lib/fechas"
+import { hoyColombia, formatearFechaSinHora } from "@/lib/fechas"
 import { Badge } from "@/components/ui/badge"
 import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import {
@@ -43,7 +43,7 @@ function pesosCortos(v: number) {
   return `$${new Intl.NumberFormat("es-CO", { maximumFractionDigits: Math.abs(v) < 10_000_000 ? 1 : 0 }).format(v / 1_000_000)} M`
 }
 const pct = (v: number) => `${Math.round(v)} %`
-const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
+const fecha = (iso: string) => formatearFechaSinHora(iso)
 
 const COLOR = {
   compras: "bg-sky-500",

@@ -24,7 +24,7 @@ import { createClient } from "@/lib/supabase/client"
 import { CuentasTercero } from "@/components/cuentas-tercero"
 import { SelectorTercero } from "@/components/selector-tercero"
 import type { TerceroBasico } from "@/lib/terceros"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaSinHora } from "@/lib/fechas"
 import {
   DOCUMENTOS_POR_PERSONA,
   TIPOS_DOCUMENTO_PERSONA,
@@ -65,7 +65,7 @@ function resumenDocumentos(c: Contratista) {
 // Fecha de creación en hora de Colombia (cortar el texto ISO daría la fecha
 // UTC: lo creado después de las 7 p. m. saldría con el día siguiente).
 const fechaCreacion = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
+  formatearFechaSinHora(iso)
 
 
 

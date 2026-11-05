@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
+import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -210,7 +211,14 @@ const EVENTOS_USUARIO: Record<string, DefEvento> = {
   proyecto_quitado: { etiqueta: "Proyecto quitado", tono: "malo" },
 }
 
+// Lo propio de las órdenes de compra (lo demás sale de EVENTOS).
+const EVENTOS_ORDEN_COMPRA: Record<string, DefEvento> = {
+  ...EVENTOS,
+  modificada: { etiqueta: "Orden modificada por Compras", tono: "aviso" },
+}
+
 const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>> = {
+  orden_compra: EVENTOS_ORDEN_COMPRA,
   requisicion: EVENTOS_REQUISICION,
   contrato: EVENTOS_CONTRATO,
   acta: EVENTOS_ACTA,
@@ -316,6 +324,9 @@ function formatoValor(v: unknown): string {
     const texto = JSON.stringify(v)
     return texto.length > 160 ? `${texto.slice(0, 160)}…` : texto
   }
+  // Fechas guardadas como "AAAA-MM-DD" (o marca de tiempo): siempre dd/mm/aaaa.
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return formatearFechaSinHora(v)
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return formatearFechaHora(v)
   return String(v)
 }
 
@@ -358,6 +369,13 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   const d = e.datos ?? {}
   if (e.evento === "firma_representante" && d.representante)
     return [`${d.representante}${d.tipo === "suplente" ? " (suplente)" : ""}`]
+  if (tipo === "orden_compra" && e.evento === "modificada") {
+    const lineas = [`Total: ${pesosTexto(d.total_antes)} → ${pesosTexto(d.total_despues)}`]
+    if (d.proveedor_antes !== d.proveedor_despues) lineas.push(`Proveedor: ${formatoValor(d.proveedor_antes)} → ${formatoValor(d.proveedor_despues)}`)
+    if (d.lineas_antes !== d.lineas_despues) lineas.push(`Insumos: ${d.lineas_antes} → ${d.lineas_despues}`)
+    if (d.pagos_borrados) lineas.push(`Pago anterior borrado; queda uno nuevo por aprobar`)
+    return lineas
+  }
   if (tipo === "pago") {
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]

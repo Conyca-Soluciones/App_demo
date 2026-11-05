@@ -37,8 +37,8 @@ import {
   type RequisicionDetalle,
 } from "@/app/(app)/almacen/actions"
 
-const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 // onCerrar: si se pasa, la vista va dentro de un diálogo (se cierra con su X) y no
 // muestra el botón Volver; sin él es la página completa.

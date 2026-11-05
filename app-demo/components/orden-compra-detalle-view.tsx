@@ -42,13 +42,14 @@ import {
   desaprobarOrdenCompra,
   cancelarOrdenCompra,
   cambiarFechaCreditoOC,
+  ordenCompraModificable,
   type OrdenCompraDetalle,
   type PermisosOrdenCompra,
   type RequisicionDeOrden,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
-const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -74,6 +75,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [fechaCreditoNueva, setFechaCreditoNueva] = useState<string | null>(null)
 
   const [soportes, setSoportes] = useState<SoporteGuardado[]>([])
+  // Modificar (Compras): null = se puede; si no, por qué no (lo dice la base:
+  // ya se envió el pago a liquidar, tiene entradas...). undefined = sin permiso.
+  const [noModificable, setNoModificable] = useState<string | null | undefined>(undefined)
   // Requisición abierta en un diálogo encima de la orden.
   const [requisicionAbierta, setRequisicionAbierta] = useState<string | null>(null)
 
@@ -84,6 +88,13 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         setPermisos(p)
         setSoportes(s)
         setError(null)
+        if (p.rolCompras && (o.estado === "pendiente_aprobacion" || o.estado === "aprobada")) {
+          ordenCompraModificable(ordenId)
+            .then(setNoModificable)
+            .catch(() => setNoModificable(undefined))
+        } else {
+          setNoModificable(undefined)
+        }
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
   }
@@ -170,6 +181,16 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <Button variant="outline">Descargar PDF</Button>
           </a>
         )}
+          {noModificable !== undefined && (
+            <Button
+              variant="outline"
+              disabled={procesando || noModificable !== null}
+              title={noModificable ?? "Cambiar insumos, precios o proveedor. La orden vuelve a quedar por aprobar."}
+              onClick={() => router.push(`/almacen/generar-oc?modificar=${orden.id}`)}
+            >
+              Modificar
+            </Button>
+          )}
           {puedeDesaprobar && (
             <Button
               variant="outline"
@@ -204,6 +225,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </Button>
         )}
       </div>
+      {noModificable && (
+        <p className="-mt-2 text-xs text-muted-foreground">No se puede modificar: {noModificable}</p>
+      )}
 
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">

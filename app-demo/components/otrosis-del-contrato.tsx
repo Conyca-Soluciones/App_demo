@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
-import { ZONA_HORARIA, formatearFechaSinHora } from "@/lib/fechas"
+import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, type OtrosiDeContrato } from "@/lib/otrosi"
 import { otrosisDeContrato } from "@/app/(app)/contratos/otrosi/actions"
@@ -21,7 +21,7 @@ import { otrosisDeContrato } from "@/app/(app)/contratos/otrosi/actions"
 
 // Sin importar de detalle-solicitud-contrato (que importa este archivo).
 const fecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
+  formatearFechaSinHora(iso)
 
 export function OtrosisDelContrato({ contratoId }: { contratoId: string }) {
   const [carga, setCarga] = useState<{ id: string; otrosis: OtrosiDeContrato[] } | null>(null)

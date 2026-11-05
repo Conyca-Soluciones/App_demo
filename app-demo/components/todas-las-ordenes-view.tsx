@@ -1,5 +1,6 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
 import { useEffect, useState } from "react"
 import { Loader2, Download, Ban, Eye } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -47,8 +48,8 @@ import { CampoFecha } from "@/components/ui/campo-fecha"
 import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 
-const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 const formatoMoneda = new Intl.NumberFormat("es-CO", {
   style: "currency",

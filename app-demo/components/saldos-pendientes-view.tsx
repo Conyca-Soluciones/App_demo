@@ -1,5 +1,6 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
 import { useEffect, useState } from "react"
 import { Loader2, PackageX } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +23,7 @@ import { nombreUnidad } from "@/lib/unidades"
 
 const formatoCant = (n: number) => n.toLocaleString("es-CO", { maximumFractionDigits: 2 })
 const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Bogota" })
+  formatearFechaSinHora(iso)
 
 // Solo ayudan a la vista (color); no hacen nada automático.
 const DIAS_AMARILLO = 15

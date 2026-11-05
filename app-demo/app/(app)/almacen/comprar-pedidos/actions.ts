@@ -130,7 +130,7 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
     cantidad,
     factor_unidad,
-    orden:ordenes_compra!ordenes_compra_items_orden_compra_id_fkey(estado)
+    orden:ordenes_compra!ordenes_compra_items_orden_compra_id_fkey(id, estado)
   )
 `
 
@@ -147,7 +147,9 @@ const SELECT_PENDIENTES_POR_COMPRAR = SELECT_PEDIDO_PARA_COMPRAR.replace(
 // Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
 const ESTADOS_OC_SIN_COMPROMISO = new Set(["cancelada", "rechazada"])
 
-function mapPedidoParaComprar(f: any): PedidoParaComprar {
+// excluirOrdenId: al modificar una orden, lo que ESA orden compra no cuenta
+// (sus líneas se reemplazan), así lo pendiente es lo que se le puede poner.
+function mapPedidoParaComprar(f: any, excluirOrdenId?: string): PedidoParaComprar {
   // Las líneas de órdenes CANCELADAS o RECHAZADAS no cuentan como comprado:
   // esa cantidad vuelve a la cola (mismo criterio que crear_orden_compra,
   // desaprobar_pedido y cancelar_pedido en la base, migración
@@ -156,7 +158,7 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
   // Ya comprado, en la unidad de la requisición: cada línea de orden con su
   // propia conversión (mismo cálculo que _comprado_pedido en la base).
   const yaCompradoUso = (f.compras ?? [])
-    .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado))
+    .filter((c: any) => !ESTADOS_OC_SIN_COMPROMISO.has(c.orden?.estado) && (!excluirOrdenId || c.orden?.id !== excluirOrdenId))
     .reduce((acc: number, c: any) => acc + Number(c.cantidad) * (Number(c.factor_unidad ?? 1) || 1), 0)
   const pendienteUso = Math.max(Number(f.cantidad) - yaCompradoUso, 0)
   // Unidades de compra completas que cubren lo que falta, con la conversión
@@ -230,7 +232,7 @@ export async function listarPedidosParaComprar(
   const data = await traerTodo<any>(consulta)
 
   return (data ?? [])
-    .map(mapPedidoParaComprar)
+    .map((f) => mapPedidoParaComprar(f))
     .filter((p) => !soloPendientes || p.cantidadPendiente > 0)
 }
 
@@ -256,7 +258,7 @@ export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComp
       })
     )
   ).flat()
-  return data.map(mapPedidoParaComprar).filter((p) => p.cantidadPendiente > 0)
+  return data.map((f) => mapPedidoParaComprar(f)).filter((p) => p.cantidadPendiente > 0)
 }
 
 export async function rechazarPedidoCompras(pedidoId: string, motivo: string): Promise<void> {
@@ -487,15 +489,10 @@ export type DatosOrdenCompra = {
   lineas: LineaOrdenCompra[]
 }
 
-// La orden se crea con su soporte (cotización, cuenta de cobro o factura),
-// obligatorio: el archivo ya está en el bucket `ordenes_compra` y la base lo
-// registra en la misma transacción (crear_orden_compra_con_soporte).
-export async function crearOrdenCompra(
-  datos: DatosOrdenCompra,
-  soporte: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }
-): Promise<string> {
-  await requerirScope("rol_compras")
-  if (!soporte?.ruta) throw new Error("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
+// Validaciones comunes de crear y modificar (la base las vuelve a hacer).
+// Devuelve los parámetros del anticipo: solo se mandan si hay anticipo, así una
+// orden sin anticipo llama a la función exactamente como antes.
+function validarDatosOrden(datos: DatosOrdenCompra) {
   if (datos.pago?.metodo !== "transferencia" && datos.pago?.metodo !== "pse") {
     throw new Error("Elige cómo se paga la orden: Transferencia o PSE.")
   }
@@ -523,9 +520,7 @@ export async function crearOrdenCompra(
     if (!Number.isFinite(pr.precioCompra) || pr.precioCompra < 0) throw new Error("El precio no puede ser negativo.")
   }
 
-  // Anticipo: se valida acá también (la base lo vuelve a validar). Los
-  // parámetros solo se mandan si hay anticipo, así una orden sin anticipo
-  // llama a la función exactamente como antes.
+  // Anticipo
   let anticipo: { p_anticipo_porcentaje: number; p_saldo_modo: string; p_saldo_fecha: string | null } | null = null
   if (datos.anticipoPorcentaje != null && datos.anticipoPorcentaje !== 0) {
     const pct = datos.anticipoPorcentaje
@@ -544,10 +539,46 @@ export async function crearOrdenCompra(
       p_saldo_fecha: datos.saldoModo === "fecha" ? (datos.saldoFecha as string) : null,
     }
   }
+  return anticipo
+}
+
+function lineasParaGuardar(lineas: LineaOrdenCompra[]) {
+  return lineas.map((l) =>
+    l.presentacion
+      ? {
+          pedido_id: l.pedidoId,
+          um_compra: l.presentacion.umCompra.trim().toUpperCase(),
+          conversion_compra: l.presentacion.conversionCompra,
+          cantidad_compra: l.presentacion.cantidadCompra,
+          precio_compra: l.presentacion.precioCompra,
+          porcentaje_descuento: l.porcentajeDescuento,
+          porcentaje_iva: l.porcentajeIva,
+        }
+      : {
+          pedido_id: l.pedidoId,
+          cantidad_comprar: l.cantidadComprar,
+          factor: l.factor,
+          precio_unitario: l.precioUnitario,
+          porcentaje_descuento: l.porcentajeDescuento,
+          porcentaje_iva: l.porcentajeIva,
+        }
+  )
+}
+
+// La orden se crea con su soporte (cotización, cuenta de cobro o factura),
+// obligatorio: el archivo ya está en el bucket `ordenes_compra` y la base lo
+// registra en la misma transacción (crear_orden_compra_con_soporte).
+export async function crearOrdenCompra(
+  datos: DatosOrdenCompra,
+  soporte: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }
+): Promise<string> {
+  await requerirScope("rol_compras")
+  if (!soporte?.ruta) throw new Error("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
+  const anticipo = validarDatosOrden(datos)
 
   const supabase = await createClient()
 
-    const { data, error } = await supabase.rpc("crear_orden_compra_con_soporte", {
+  const { data, error } = await supabase.rpc("crear_orden_compra_con_soporte", {
     p_proyecto_id: datos.proyectoId,
     p_proveedor_id: datos.proveedorId,
     p_sitio_entrega: datos.sitioEntrega ?? null,
@@ -571,26 +602,7 @@ export async function crearOrdenCompra(
     p_pago: datos.pago,
     p_tipo_pago: datos.tipoPago,
     p_fecha_pago_credito: datos.tipoPago === "credito" ? (datos.fechaPagoCredito ?? null) : null,
-    p_lineas: datos.lineas.map((l) =>
-      l.presentacion
-        ? {
-            pedido_id: l.pedidoId,
-            um_compra: l.presentacion.umCompra.trim().toUpperCase(),
-            conversion_compra: l.presentacion.conversionCompra,
-            cantidad_compra: l.presentacion.cantidadCompra,
-            precio_compra: l.presentacion.precioCompra,
-            porcentaje_descuento: l.porcentajeDescuento,
-            porcentaje_iva: l.porcentajeIva,
-          }
-        : {
-            pedido_id: l.pedidoId,
-            cantidad_comprar: l.cantidadComprar,
-            factor: l.factor,
-            precio_unitario: l.precioUnitario,
-            porcentaje_descuento: l.porcentajeDescuento,
-            porcentaje_iva: l.porcentajeIva,
-          }
-    ),
+    p_lineas: lineasParaGuardar(datos.lineas),
   })
 
   if (error) throw new Error(error.message)
@@ -877,6 +889,196 @@ export async function cambiarFechaCreditoOC(ordenId: string, fecha: string): Pro
 // parcial o entregada). Sus pedidos vuelven a la cola de "Comprar pedidos".
 // Aprobada: exige cancelar_oc. Pendiente: también quien la creó (retirarla).
 // La base valida cuál aplica (cancelar_orden_compra).
+// ---------------------------------------------------------------------------
+// Modificar una orden de compra (20261231400000): mientras A&F no haya enviado
+// su pago a liquidar. Vuelve a quedar por aprobar y su pago se reemplaza.
+// ---------------------------------------------------------------------------
+
+// null = se puede modificar; si no, el motivo (lo dice la base).
+export async function ordenCompraModificable(ordenId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("orden_compra_modificable", { p_orden_id: ordenId })
+  if (error) throw new Error(error.message)
+  return (data as string | null) ?? null
+}
+
+export type LineaOrdenParaModificar = {
+  pedidoId: string
+  factor: number
+  cantidad: number
+  precioUnitario: number
+  porcentajeDescuento: number
+  porcentajeIva: number
+  presentacion: PresentacionLinea | null
+}
+
+export type OrdenParaModificar = {
+  id: string
+  codigo: string
+  estado: OrdenCompraEstado
+  proyectoId: string
+  proveedor: { id: string; nombre: string; idProv: string | null }
+  sitioEntrega: string | null
+  fechaEntrega: string | null
+  contactoNombre: string | null
+  condicionesPago: string | null
+  observaciones: string | null
+  anticipoPorcentaje: number | null
+  saldoModo: "entrega" | "fecha" | null
+  saldoFecha: string | null
+  tipoPago: TipoPagoOC | null
+  fechaPagoCredito: string | null
+  metodoPago: MetodoPagoOC
+  cuentaTerceroId: string | null
+  pagoObservaciones: string | null
+  pseTitular: { nombre: string; tipoDocumento: string; documento: string } | null
+  // Titular aparte (titular_de_orden), tal como lo devuelve la base.
+  titular: unknown
+  lineas: LineaOrdenParaModificar[]
+  // Las líneas de la orden y las demás de sus requisiciones con algo por
+  // comprar; lo pendiente no cuenta lo que compra esta orden.
+  pedidos: PedidoParaComprar[]
+}
+
+export async function obtenerOrdenParaModificar(ordenId: string): Promise<OrdenParaModificar> {
+  await requerirScope("rol_compras")
+  const motivo = await ordenCompraModificable(ordenId)
+  if (motivo) throw new Error(motivo)
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("ordenes_compra")
+    .select(
+      `id, codigo, estado, proyecto_id, sitio_entrega, fecha_entrega, contacto_nombre, condiciones_pago, observaciones,
+       anticipo_porcentaje, saldo_modo, saldo_fecha, tipo_pago, fecha_pago_credito, titular_tercero_id, cuenta_tercero_id,
+       metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
+       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(unique_id, nombre, id_prov),
+       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
+         pedido_insumo_id, cantidad, factor_unidad, precio_unitario, porcentaje_descuento, porcentaje_iva,
+         um_compra, conversion_compra, cantidad_compra, precio_compra,
+         pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(grupo_pedido_id)
+       )`
+    )
+    .eq("id", ordenId)
+    .single()
+  if (error) throw new Error(error.message)
+  const d = data as any
+
+  // Todas las líneas de las requisiciones de la orden (las de la orden siempre;
+  // las demás si les falta algo por comprar).
+  const requisiciones = [...new Set<string>((d.lineas ?? []).map((l: any) => l.pedido?.grupo_pedido_id).filter(Boolean))]
+  const enOrden = new Set<string>((d.lineas ?? []).map((l: any) => l.pedido_insumo_id))
+  const filas: any[] = []
+  for (let i = 0; i < requisiciones.length; i += 100) {
+    const { data: ps, error: e } = await supabase
+      .from("pedidos_insumos")
+      .select(SELECT_PEDIDO_PARA_COMPRAR)
+      .in("grupo_pedido_id", requisiciones.slice(i, i + 100))
+      .eq("estado", "aprobado")
+      .is("rechazado_compras_at", null)
+      .order("id", { ascending: true })
+    if (e) throw new Error(e.message)
+    filas.push(...(ps ?? []))
+  }
+  const pedidos = filas
+    .map((f) => mapPedidoParaComprar(f, ordenId))
+    .filter((p) => enOrden.has(p.id) || p.cantidadPendiente > 0)
+    // Primero las de la orden, en el orden de la requisición.
+    .sort((a, b) => Number(enOrden.has(b.id)) - Number(enOrden.has(a.id)))
+
+  let titular: unknown = null
+  if (d.titular_tercero_id) {
+    const { data: t, error: et } = await supabase.rpc("titular_de_orden", { p_orden_id: ordenId })
+    if (et) throw new Error(et.message)
+    titular = t
+  }
+
+  return {
+    id: d.id,
+    codigo: d.codigo,
+    estado: d.estado,
+    proyectoId: d.proyecto_id,
+    proveedor: {
+      id: d.proveedor?.unique_id,
+      nombre: d.proveedor?.nombre ?? "(proveedor eliminado)",
+      idProv: d.proveedor?.id_prov ?? null,
+    },
+    sitioEntrega: d.sitio_entrega,
+    fechaEntrega: d.fecha_entrega,
+    contactoNombre: d.contacto_nombre,
+    condicionesPago: d.condiciones_pago,
+    observaciones: d.observaciones,
+    anticipoPorcentaje: d.anticipo_porcentaje != null ? Number(d.anticipo_porcentaje) : null,
+    saldoModo: d.saldo_modo ?? null,
+    saldoFecha: d.saldo_fecha ?? null,
+    tipoPago: d.tipo_pago === "contado" || d.tipo_pago === "credito" || d.tipo_pago === "fiducia" ? d.tipo_pago : null,
+    fechaPagoCredito: d.fecha_pago_credito ?? null,
+    metodoPago: d.metodo_pago === "pse" ? "pse" : "transferencia",
+    cuentaTerceroId: d.titular_tercero_id ? null : (d.cuenta_tercero_id ?? null),
+    pagoObservaciones: d.pago_observaciones ?? null,
+    pseTitular: d.pse_titular_nombre
+      ? { nombre: d.pse_titular_nombre, tipoDocumento: d.pse_titular_tipo_documento ?? "", documento: d.pse_titular_documento ?? "" }
+      : null,
+    titular,
+    lineas: (d.lineas ?? []).map((l: any) => ({
+      pedidoId: l.pedido_insumo_id,
+      factor: Number(l.factor_unidad ?? 1) || 1,
+      cantidad: Number(l.cantidad),
+      precioUnitario: Number(l.precio_unitario),
+      porcentajeDescuento: Number(l.porcentaje_descuento ?? 0),
+      porcentajeIva: Number(l.porcentaje_iva ?? 0),
+      presentacion: l.um_compra
+        ? {
+            umCompra: l.um_compra,
+            conversionCompra: Number(l.conversion_compra),
+            cantidadCompra: Number(l.cantidad_compra),
+            precioCompra: Number(l.precio_compra),
+          }
+        : null,
+    })),
+    pedidos,
+  }
+}
+
+// Soporte nuevo obligatorio (la cotización o factura con lo que cambió); los de
+// antes se conservan.
+export async function modificarOrdenCompra(
+  ordenId: string,
+  datos: Omit<DatosOrdenCompra, "proyectoId">,
+  soporte: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }
+): Promise<void> {
+  await requerirScope("rol_compras")
+  if (!soporte?.ruta) throw new Error("Adjunta el soporte de la modificación (cotización, cuenta de cobro o factura).")
+  const anticipo = validarDatosOrden({ ...datos, proyectoId: "" })
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("modificar_orden_compra", {
+    p_orden_id: ordenId,
+    p_proveedor_id: datos.proveedorId,
+    p_sitio_entrega: datos.sitioEntrega ?? null,
+    p_fecha_entrega: datos.fechaEntrega ?? null,
+    p_contacto_nombre: datos.contactoNombre ?? null,
+    p_telefono: datos.telefono ?? null,
+    p_ciudad: datos.ciudad ?? null,
+    p_email: datos.email ?? null,
+    p_condiciones_pago: datos.condicionesPago ?? null,
+    p_observaciones: datos.observaciones ?? null,
+    p_lineas: lineasParaGuardar(datos.lineas),
+    p_pago: datos.pago,
+    p_tipo_pago: datos.tipoPago,
+    p_fecha_pago_credito: datos.tipoPago === "credito" ? (datos.fechaPagoCredito ?? null) : null,
+    ...(anticipo ?? {}),
+    p_titular: datos.titular ?? null,
+    p_soporte: {
+      tipo: soporte.tipo,
+      ruta: soporte.ruta,
+      nombre_archivo: soporte.nombreArchivo,
+      tamano: soporte.tamano,
+      mime: soporte.mime,
+    },
+  })
+  if (error) throw new Error(error.message)
+}
+
 export async function cancelarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
   if (!(await obtenerUsuarioId())) throw new Error("No autenticado.")
   if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")

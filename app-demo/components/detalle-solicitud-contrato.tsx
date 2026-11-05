@@ -9,7 +9,7 @@ import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
-import { ZONA_HORARIA, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
+import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import {
   CLASE_ETAPA_CONTRATO,
   ETIQUETA_ETAPA_CONTRATO,
@@ -39,7 +39,7 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 // ---------------------------------------------------------------------------
 
 export const fechaContrato = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { timeZone: ZONA_HORARIA, day: "2-digit", month: "2-digit", year: "numeric" })
+  formatearFechaSinHora(iso)
 
 // Los generales guardan "servicios" u "otro" (con su detalle, ver nombreTipoContrato).
 export const tituloTipoContrato = (t: string) => (t === "servicios" ? "Servicios" : t === "otro" ? "Otro" : TIPO_CONTRATO_POR_VALOR.get(t as never)?.titulo ?? t)

@@ -1,4 +1,4 @@
-import { formatearFechaHora, formatearFechaSinHora, ZONA_HORARIA } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import path from "path"
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { numeroALetrasCOP } from "@/lib/numero-a-letras"
@@ -15,15 +15,7 @@ const formatoMoneda = (n: number) =>
 
 // El PDF se genera en el servidor (UTC): sin timeZone, una orden creada a
 // las 8 p. m. en Colombia salía con la fecha del día siguiente.
-const formatoFecha = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleDateString("es-CO", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        timeZone: ZONA_HORARIA,
-      })
-    : "—"
+const formatoFecha = (iso: string | null) => (iso ? formatearFechaSinHora(iso) : "—")
 
 const AZUL = "#3B6EA5"
 const GRIS_BORDE = "#D0D7DE"

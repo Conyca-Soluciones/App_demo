@@ -1060,6 +1060,25 @@ no podía distinguir 50 m de 50 rollos.
   (`claude/tender-maxwell-iresrp`) aplica migraciones a Supabase. Antes de
   `create or replace` de una función, leer su `prosrc` vivo (MCP de solo lectura).
 
+## Modificar una orden de compra (2026-11-05)
+
+`20261231400000_modificar_orden_compra.sql` (decisión del usuario). Botón
+"Modificar" en el detalle de la OC (acción `comprar` + proyecto) que abre
+Generar OC con `?modificar=<id>` (`GenerarOCView ordenId`): agregar insumos de
+las MISMAS requisiciones de la orden, quitarlos, cambiar cantidades, precios,
+proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan).
+- Solo ANTES de que A&F pulse "Enviar a liquidar" en algún pago de la orden:
+  `liquidacion_estado`, `enviado_liquidar_en` o `referencia` (la REF queda aunque
+  se devuelva a preparación) bloquean; también dispersado o entradas de almacén
+  (`_motivo_orden_no_modificable`; `orden_compra_modificable` para la pantalla).
+  `modificar_orden_compra` bloquea la orden y sus pagos antes de revisarlo.
+- Al guardar, la orden vuelve a POR APROBAR y sus pagos sin liquidar se BORRAN
+  (no se anulan, para que no salgan dos veces); se crea el pago nuevo por
+  aprobar con el total nuevo. Evento `modificada` en el historial de la OC.
+- Las líneas usan las mismas reglas de crear (`_insertar_lineas_orden`, que
+  ahora usa `_crear_orden_compra_sin_proyecto`); lo pendiente de cada
+  requisición no cuenta lo que compra la misma orden.
+
 ## Las OC se aprueban en Aprobación de pagos (2026-10-22)
 
 `20261204000000_oc_se_aprueba_en_pagos.sql` (decisión del usuario). Ya no existe

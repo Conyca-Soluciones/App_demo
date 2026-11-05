@@ -1,5 +1,6 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
 import { leerCantidadEntera } from "@/lib/numeros"
 
 
@@ -62,8 +63,8 @@ import { CampoSoporte } from "@/components/campo-soporte"
 import { createClient } from "@/lib/supabase/client"
 import { rutaSoporte, type SoporteGuardado, type SoporteSubidoArchivo } from "@/lib/soportes"
 
-const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 const formatoNumero = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 })
 

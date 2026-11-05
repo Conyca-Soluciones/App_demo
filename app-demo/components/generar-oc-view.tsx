@@ -22,7 +22,7 @@ import {
 import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
 import { TarjetaProveedorOC } from "./tarjeta-proveedor-oc"
 import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
-import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
+import { mapTitularCuenta, titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { MetodoPagoOC } from "@/components/metodo-pago-oc"
 import {
   pagoOCParaGuardar,
@@ -38,6 +38,9 @@ import {
   obtenerProveedorDetalle,
   cuentasProveedorOC,
   crearOrdenCompra,
+  modificarOrdenCompra,
+  obtenerOrdenParaModificar,
+  type OrdenParaModificar,
   type PedidoParaComprar,
   type ProveedorDetalle,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
@@ -126,10 +129,43 @@ async function buscarProveedoresAdaptado(termino: string): Promise<OpcionBuscado
   }))
 }
 
+// Una línea de la orden como queda en el formulario (al modificarla).
+function lineaFormDeOrden(l: OrdenParaModificar["lineas"][number]): LineaForm {
+  const pr = l.presentacion
+  return {
+    umCompra: pr?.umCompra ?? "",
+    conversion: String(pr ? pr.conversionCompra : l.factor),
+    cantidad: String(pr ? pr.cantidadCompra : l.cantidad),
+    precioUnitario: String(pr ? pr.precioCompra : l.precioUnitario),
+    porcentajeDescuento: String(l.porcentajeDescuento),
+    porcentajeIva: String(l.porcentajeIva),
+  }
+}
+
+const lineaFormNueva = (p: PedidoParaComprar): LineaForm => ({
+  umCompra: "",
+  conversion: String(p.factor),
+  cantidad: String(p.cantidadPendiente),
+  precioUnitario: "",
+  porcentajeDescuento: "0",
+  porcentajeIva: "0",
+})
+
 // puedeEditarProveedor: acción `editar_proveedores` (o Administrador); lo
 // calcula la página en el servidor. La base vuelve a exigirlo (RLS).
-export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarProveedor?: boolean }) {
+// ordenId: modificar esa orden (20261231400000) en vez de crear una: se llena
+// con lo que tiene, se pueden agregar insumos de sus mismas requisiciones o
+// quitarlos, y cambiar precios y proveedor. Al guardar vuelve a quedar por
+// aprobar y su pago se reemplaza en Aprobación de pagos.
+export function GenerarOCView({
+  puedeEditarProveedor = false,
+  ordenId,
+}: {
+  puedeEditarProveedor?: boolean
+  ordenId?: string
+}) {
   const router = useRouter()
+  const modificar = !!ordenId
 
   const seleccionRaw = useSyncExternalStore(
     sinSuscripcion,
@@ -141,6 +177,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     [seleccionRaw]
   )
   const [pedidos, setPedidos] = useState<PedidoParaComprar[]>([])
+  // Al modificar: las líneas que quedan en la orden (las demás de sus
+  // requisiciones se pueden marcar para agregarlas).
+  const [incluidos, setIncluidos] = useState<Set<string>>(new Set())
+  const [codigoOrden, setCodigoOrden] = useState<string | null>(null)
+  const lineasOrden = modificar ? pedidos.filter((p) => incluidos.has(p.id)) : pedidos
   const [lineas, setLineas] = useState<Record<string, LineaForm>>({})
   const [cargandoPedidos, setCargandoPedidos] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -185,29 +226,62 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   // La selección no cambia mientras se está en la página (cargandoPedidos ya
   // empieza en true).
   useEffect(() => {
-    if (!seleccion) return
+    if (modificar || !seleccion) return
     obtenerPedidosPorId(seleccion.pedidoIds)
       .then((data) => {
         setPedidos(data)
-        setLineas(
-          Object.fromEntries(
-            data.map((p) => [
-              p.id,
-              {
-                umCompra: "",
-                conversion: String(p.factor),
-                cantidad: String(p.cantidadPendiente),
-                precioUnitario: "",
-                porcentajeDescuento: "0",
-                porcentajeIva: "0",
-              },
-            ])
-          )
-        )
+        setLineas(Object.fromEntries(data.map((p) => [p.id, lineaFormNueva(p)])))
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargandoPedidos(false))
-  }, [seleccion])
+  }, [seleccion, modificar])
+
+  // Modificar: el formulario se llena con la orden guardada.
+  useEffect(() => {
+    if (!ordenId) return
+    obtenerOrdenParaModificar(ordenId)
+      .then((o) => {
+        const deOrden = new Map(o.lineas.map((l) => [l.pedidoId, lineaFormDeOrden(l)]))
+        setCodigoOrden(o.codigo)
+        setPedidos(o.pedidos)
+        setIncluidos(new Set(o.lineas.map((l) => l.pedidoId)))
+        setLineas(Object.fromEntries(o.pedidos.map((p) => [p.id, deOrden.get(p.id) ?? lineaFormNueva(p)])))
+        setProveedor({ id: o.proveedor.id, etiqueta: o.proveedor.nombre, subetiqueta: o.proveedor.idProv ? `ID ${o.proveedor.idProv}` : null })
+        setSitioEntrega(o.sitioEntrega ?? "")
+        setFechaEntrega(o.fechaEntrega ?? "")
+        setContactoProyecto(o.contactoNombre ?? "")
+        setCondicionesPago(o.condicionesPago ?? "")
+        setObservaciones(o.observaciones ?? "")
+        setTipoPago(o.tipoPago)
+        setFechaCredito(o.fechaPagoCredito ?? "")
+        setConAnticipo(o.anticipoPorcentaje != null)
+        setAnticipoPct(o.anticipoPorcentaje != null ? String(o.anticipoPorcentaje) : "")
+        setSaldoModo(o.saldoModo ?? "entrega")
+        setSaldoFecha(o.saldoFecha ?? "")
+        setTitular(mapTitularCuenta(o.titular))
+        setPago({
+          ...pagoOCVacio(),
+          metodo: o.metodoPago,
+          cuentaId: o.cuentaTerceroId,
+          observaciones: o.pagoObservaciones ?? "",
+          titularDistinto: o.pseTitular !== null,
+          titularNombre: o.pseTitular?.nombre ?? "",
+          titularTipoDocumento: o.pseTitular?.tipoDocumento ?? "",
+          titularDocumento: o.pseTitular?.documento ?? "",
+        })
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
+      .finally(() => setCargandoPedidos(false))
+  }, [ordenId])
+
+  function cambiarIncluido(pedidoId: string, incluir: boolean) {
+    setIncluidos((prev) => {
+      const n = new Set(prev)
+      if (incluir) n.add(pedidoId)
+      else n.delete(pedidoId)
+      return n
+    })
+  }
 
   useEffect(() => {
     if (!proveedor) return
@@ -342,10 +416,10 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     return { cantidad, factor, precioUnitario, porcentajeDescuento, porcentajeIva, presentacion: undefined }
   }
 
-  const todasLasLineasValidas = pedidos.length > 0 && pedidos.every((p) => lineaValida(p) !== null)
+  const todasLasLineasValidas = lineasOrden.length > 0 && lineasOrden.every((p) => lineaValida(p) !== null)
 
   const totales = todasLasLineasValidas
-    ? calcularTotalesOrden(pedidos.map((p) => lineaValida(p)!))
+    ? calcularTotalesOrden(lineasOrden.map((p) => lineaValida(p)!))
     : null
 
   // Hoy en hora local (YYYY-MM-DD): la fecha del saldo no puede ser anterior.
@@ -361,12 +435,17 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const montoAnticipo = conAnticipo && totales && anticipoValido ? Math.round((totales.total * pctNumero) / 100) : null
 
   const puedeGenerar =
-    proveedor !== null && !cargandoProveedor && todasLasLineasValidas && anticipoValido && archivoSoporte !== null && !generando
+    proveedor !== null &&
+    !cargandoProveedor &&
+    todasLasLineasValidas &&
+    anticipoValido &&
+    archivoSoporte !== null &&
+    !generando
 
   async function handleGenerar() {
-    if (!seleccion || !proveedor || !todasLasLineasValidas) return
+    if ((!modificar && !seleccion) || !proveedor || !todasLasLineasValidas) return
     // Precios sospechosos: confirmar antes de crear la orden (ver alertaPrecio).
-    const sospechosos = pedidos
+    const sospechosos = lineasOrden
       .map((p) => {
         const alerta = alertaPrecio(Number(lineas[p.id]?.precioUnitario), p.valorUnitarioProyectado)
         return alerta ? `• ${p.insumoDescripcion}: ${alerta}` : null
@@ -400,6 +479,14 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
       setError(t.error)
       return
     }
+    if (
+      modificar &&
+      !window.confirm(
+        "La orden vuelve a quedar por aprobar y su pago se reemplaza en Aprobación de pagos (A&F lo aprueba otra vez). ¿Guardar los cambios?"
+      )
+    ) {
+      return
+    }
     setGenerando(true)
     setError(null)
     // El soporte se sube primero; si la orden no se crea, se borra.
@@ -412,8 +499,8 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
       if (e) throw new Error(`No se pudo subir el soporte: ${e.message}`)
       subido = true
-      const ordenId = await crearOrdenCompra({
-        proyectoId: seleccion.proyectoId,
+      const soporte = { tipo: tipoSoporte, ruta, nombreArchivo: archivoSoporte.name, tamano: archivoSoporte.size, mime: archivoSoporte.type }
+      const datos = {
         proveedorId: proveedor.id,
         sitioEntrega: sitioEntrega.trim() || null,
         fechaEntrega: fechaEntrega || null,
@@ -429,7 +516,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         ...(conAnticipo
           ? { anticipoPorcentaje: pctNumero, saldoModo, saldoFecha: saldoModo === "fecha" ? saldoFecha : null }
           : {}),
-        lineas: pedidos.map((p) => {
+        lineas: lineasOrden.map((p) => {
           const l = lineaValida(p)!
           return {
             pedidoId: p.id,
@@ -441,12 +528,18 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             ...(l.presentacion ? { presentacion: l.presentacion } : {}),
           }
         }),
-      }, { tipo: tipoSoporte, ruta, nombreArchivo: archivoSoporte.name, tamano: archivoSoporte.size, mime: archivoSoporte.type })
-      sessionStorage.removeItem(CLAVE_SELECCION)
-      setOrdenCreada(ordenId)
+      }
+      if (ordenId) {
+        await modificarOrdenCompra(ordenId, datos, soporte)
+        setOrdenCreada(ordenId)
+      } else {
+        const nueva = await crearOrdenCompra({ ...datos, proyectoId: seleccion!.proyectoId }, soporte)
+        sessionStorage.removeItem(CLAVE_SELECCION)
+        setOrdenCreada(nueva)
+      }
     } catch (e) {
       if (subido) await supabase.storage.from("ordenes_compra").remove([ruta])
-      setError(e instanceof Error ? e.message : "No se pudo generar la orden de compra.")
+      setError(e instanceof Error ? e.message : modificar ? "No se pudo modificar la orden de compra." : "No se pudo generar la orden de compra.")
     } finally {
       setGenerando(false)
     }
@@ -454,6 +547,19 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
   // Primero la orden creada: al crearla se borra la selección guardada y,
   // si no, saldría "No hay requisiciones seleccionadas".
+  if (ordenCreada && modificar) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+        <ClipboardList className="h-10 w-10 text-primary" />
+        <p className="text-lg font-medium">Orden de compra {codigoOrden} modificada</p>
+        <p className="text-sm text-muted-foreground">
+          Quedó por aprobar otra vez: su pago nuevo está en A&amp;F (Aprobación de pagos) y el anterior se borró.
+        </p>
+        <Button onClick={() => router.push("/almacen/ordenes-compra")}>Ir a Órdenes de compra</Button>
+      </div>
+    )
+  }
+
   if (ordenCreada) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
@@ -468,9 +574,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     )
   }
 
-  if (seleccion === undefined) return null
+  if (!modificar && seleccion === undefined) return null
 
-  if (seleccion === null) {
+  if (!modificar && seleccion === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
         <p>No hay requisiciones seleccionadas para generar una orden de compra.</p>
@@ -483,6 +589,12 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
+      {modificar && codigoOrden && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Modificando la orden {codigoOrden}. Marca los insumos que quedan en la orden (solo de sus mismas requisiciones).
+          Al guardar vuelve a quedar por aprobar y su pago se reemplaza en Aprobación de pagos.
+        </div>
+      )}
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
@@ -500,6 +612,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {modificar && <TableHead className="w-10">En OC</TableHead>}
                     <TableHead>Cod</TableHead>
                     <TableHead>Insumo</TableHead>
                     <TableHead className="text-right">Solicitado</TableHead>
@@ -523,10 +636,20 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                       porcentajeDescuento: "0",
                       porcentajeIva: "0",
                     }
-                    const valida = lineaValida(pedido)
+                    const enOrden = !modificar || incluidos.has(pedido.id)
+                    const valida = enOrden ? lineaValida(pedido) : null
                     const totalLinea = valida ? calcularLinea(valida).total : null
                     return (
-                      <TableRow key={pedido.id}>
+                      <TableRow key={pedido.id} className={enOrden ? undefined : "opacity-50"}>
+                        {modificar && (
+                          <TableCell>
+                            <Checkbox
+                              checked={enOrden}
+                              onCheckedChange={(v) => cambiarIncluido(pedido.id, v === true)}
+                              aria-label="Incluir en la orden"
+                            />
+                          </TableCell>
+                        )}
                         <TableCell className="text-muted-foreground">{pedido.insumoCodigo}</TableCell>
                         {/* whitespace-normal: la celda de tabla trae nowrap por defecto y los
                             nombres largos se salían de su columna tapando las demás. Ahora
@@ -589,7 +712,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                             inputMode="numeric"
                             value={l.cantidad}
                             onChange={(e) => actualizarLinea(pedido.id, "cantidad", e.target.value)}
-                            className={`text-right ${!valida ? "border-destructive" : ""}`}
+                            className={`text-right ${enOrden && !valida ? "border-destructive" : ""}`}
                           />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
@@ -620,7 +743,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
                             step="any"
                             value={l.precioUnitario}
                             onChange={(e) => actualizarLinea(pedido.id, "precioUnitario", e.target.value)}
-                            className={`text-right ${!valida ? "border-destructive" : ""}`}
+                            className={`text-right ${enOrden && !valida ? "border-destructive" : ""}`}
                           />
                           {l.umCompra && (
                             <p className="mt-0.5 text-right text-[10px] leading-tight text-muted-foreground">
@@ -891,7 +1014,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
           </div>
 
           <CampoSoporte
-            etiqueta="Soporte de la orden"
+            etiqueta={modificar ? "Soporte de la modificación (los anteriores se conservan)" : "Soporte de la orden"}
             obligatorio
             tipos={ETIQUETA_SOPORTE_ORDEN}
             tipo={tipoSoporte}
@@ -903,15 +1026,20 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
           />
 
           <Button className="w-full" disabled={!puedeGenerar} onClick={handleGenerar}>
-            {generando ? "Generando..." : "Generar OC"}
+            {generando ? (modificar ? "Guardando..." : "Generando...") : modificar ? "Guardar cambios" : "Generar OC"}
           </Button>
           {!proveedor && (
             <p className="text-xs text-muted-foreground">Selecciona un proveedor para continuar.</p>
           )}
           {proveedor && todasLasLineasValidas && !archivoSoporte && (
-            <p className="text-xs text-muted-foreground">Adjunta el soporte (cotización, cuenta de cobro o factura) para generar la orden.</p>
+            <p className="text-xs text-muted-foreground">
+              Adjunta el soporte (cotización, cuenta de cobro o factura) para {modificar ? "guardar los cambios" : "generar la orden"}.
+            </p>
           )}
-          {proveedor && !todasLasLineasValidas && (
+          {proveedor && !cargandoPedidos && lineasOrden.length === 0 && (
+            <p className="text-xs text-destructive">La orden necesita al menos un insumo.</p>
+          )}
+          {proveedor && lineasOrden.length > 0 && !todasLasLineasValidas && (
             <p className="text-xs text-destructive">
               Revisa cantidad y precio de cada línea — ninguna cantidad puede superar lo pendiente.
             </p>

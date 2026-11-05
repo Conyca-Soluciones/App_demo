@@ -14,7 +14,7 @@ import type { FirmaDocumento } from "@/lib/firmas"
 // ---------------------------------------------------------------------------
 
 // Así viene el encabezado de la plantilla (el código es el mismo de la de mano de obra).
-const ENCABEZADO = { formato: "CONTRATO DE ALQUILER DE VEHÍCULO O MAQUINARIA", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" }
+const ENCABEZADO = { formato: "CONTRATO DE ALQUILER DE VEHÍCULO O MAQUINARIA", codigo: "GJ-F-003", version: "04", fecha: "09/05/2025" }
 
 const numero = (i: number) => `${i + 1}.`
 const pct = (t: string) => `${blanco(t.replace(/%/g, ""))}%`

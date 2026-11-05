@@ -16,7 +16,7 @@ import { Clausula, Encabezado, P, s, campoResaltable, renglonConFoco, resaltado,
 // ---------------------------------------------------------------------------
 
 // Así viene el encabezado de la plantilla (el código no trae número).
-const ENCABEZADO = { formato: "OTROSÍ", codigo: "GJ-F", version: "04", fecha: "9/05/2025" }
+const ENCABEZADO = { formato: "OTROSÍ", codigo: "GJ-F", version: "04", fecha: "09/05/2025" }
 
 export function OtrosiPDF({
   minuta: m,

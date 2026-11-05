@@ -1,5 +1,6 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
 import { useEffect, useState } from "react"
 import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
@@ -38,8 +39,8 @@ import {
 
 const CUENTA_VACIA: DatosCuenta = { bancoId: "", tipoCuenta: "", numeroCuenta: "", etiqueta: "", observaciones: "" }
 
-const formatoFecha = (iso: string) =>
-  new Date(iso + "T00:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 function Etiqueta({ estado }: { estado: CuentaTercero["estado"] }) {
   return (

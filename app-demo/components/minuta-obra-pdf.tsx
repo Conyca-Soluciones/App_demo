@@ -17,8 +17,8 @@ import type { FirmaDocumento } from "@/lib/firmas"
 
 // Así viene el encabezado de cada plantilla (las dos con el código GJ-F-003).
 const ENCABEZADO = {
-  obra: { formato: "CONTRATO DE OBRA TC", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" },
-  mano_obra: { formato: "CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "04", fecha: "9/05/2025" },
+  obra: { formato: "CONTRATO DE OBRA TC", codigo: "GJ-F-003", version: "04", fecha: "09/05/2025" },
+  mano_obra: { formato: "CONTRATO DE MANO DE OBRA", codigo: "GJ-F-003", version: "04", fecha: "09/05/2025" },
 }
 
 const numero = (i: number) => `${i + 1}.`

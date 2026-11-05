@@ -13,6 +13,7 @@ import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comu
 import { rutaPdfOtrosi } from "@/components/otrosi-editor"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 import { SelectorItemPresupuesto } from "@/components/solicitud-contrato-form"
 import { leerNumero, nombreTipoContrato, numero, pesos, pesosEnLetras, sinManoObraEnApu, topeValorUnitario } from "@/lib/contratos"
 import {
@@ -642,9 +643,10 @@ function FormularioOtrosi({
                 <label htmlFor="otrosi-nueva-fecha" className="text-sm">
                   Nueva fecha de terminación *
                 </label>
-                <input
+                <CampoFecha
                   id="otrosi-nueva-fecha"
-                  type="date"
+                  sinEstilo
+                  contenedorClassName="w-48"
                   value={nuevaFechaFin}
                   min={finVigente && finVigente > hoyColombia() ? finVigente : hoyColombia()}
                   onChange={(e) => {
@@ -652,7 +654,7 @@ function FormularioOtrosi({
                     setError(null)
                   }}
                   disabled={enviando}
-                  className="block rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 />
                 <p className="text-xs text-muted-foreground">
                   Cuando el otrosí quede aprobado, esta pasa a ser la fecha de terminación del contrato (actas, avisos de vencimiento y

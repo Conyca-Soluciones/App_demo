@@ -1,5 +1,6 @@
 "use client"
 
+import { formatearFechaSinHora } from "@/lib/fechas"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Bell, X } from "lucide-react"
@@ -12,8 +13,8 @@ import {
   type Notificacion,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
-const formatoFecha = (iso: string) =>
-  new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 // A dónde navega cada tipo de notificación al hacer click: las órdenes de
 // compra a su detalle, y las requisiciones al registro de requisiciones.
