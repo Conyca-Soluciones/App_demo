@@ -1165,8 +1165,11 @@ export async function listarNotificaciones(): Promise<Notificacion[]> {
   const { data, error } = await supabase
     .from("notificaciones")
     .select("id, tipo, entidad_tipo, entidad_id, titulo, mensaje, leida, created_at")
+    // No leídas arriba, leídas al final; cada grupo de la más nueva a la más
+    // vieja (índice idx_notificaciones_usuario_leida_fecha, 20261231100000).
+    .order("leida", { ascending: true })
     .order("created_at", { ascending: false })
-    .limit(20)
+    .limit(30)
 
   if (error) throw new Error(error.message)
 
@@ -1186,6 +1189,22 @@ export async function listarNotificaciones(): Promise<Notificacion[]> {
 // notificaciones_update_propias (usuario_id = auth.uid()) ya impide que
 // alguien marque como leída una notificación que no es suya, aunque
 // adivine el id.
+// Borrar: una notificación o todas las leídas. La policy
+// notificaciones_delete_propias (20261231100000) solo deja borrar las propias.
+export async function borrarNotificacion(id: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.from("notificaciones").delete().eq("id", id)
+  if (error) throw new Error(error.message)
+}
+
+export async function borrarNotificacionesLeidas(): Promise<void> {
+  const supabase = await createClient()
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
+  const { error } = await supabase.from("notificaciones").delete().eq("usuario_id", userId).eq("leida", true)
+  if (error) throw new Error(error.message)
+}
+
 export async function marcarNotificacionLeida(id: string): Promise<void> {
   const supabase = await createClient()
   const { error } = await supabase.from("notificaciones").update({ leida: true }).eq("id", id)

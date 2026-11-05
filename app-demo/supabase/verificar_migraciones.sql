@@ -583,5 +583,8 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'devolver_pagos_a_preparacion')
          and exists (select 1 from pg_proc where proname = 'enviar_pagos_a_liquidar' and prosrc like '%_pago_asignar_referencia%')
          and not exists (select 1 from pg_proc where proname = '_pago_asignar_item' and prosrc like '%pagos_contadores%')
+  union all
+  select '20261231100000_notificaciones_borrar',
+         exists (select 1 from pg_policy where polname = 'notificaciones_delete_propias')
 ) t
 order by 1;

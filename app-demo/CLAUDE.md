@@ -3764,7 +3764,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261228400000` tipo de pago de la OC (de contado, crédito con fecha, fiducia) ·
 `20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha ·
 `20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
-`20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación.
+`20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
+`20261231100000` campanita: no leídas arriba y borrar notificaciones propias.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
