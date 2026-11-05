@@ -42,11 +42,6 @@ end;
 $$;
 revoke all on function public._siguiente_consecutivo(uuid, text) from public, anon, authenticated;
 
-create or replace function public._numero_proyecto(p_proyecto_id uuid)
-returns text language sql stable security definer set search_path = public
-as $$ select public._con_ceros(numero, 3) from public.proyectos where id = p_proyecto_id $$;
-revoke all on function public._numero_proyecto(uuid) from public, anon;
-grant execute on function public._numero_proyecto(uuid) to authenticated;
 
 -- ------------------------------------------------------- número del proyecto
 alter table public.proyectos add column if not exists numero smallint;
@@ -57,6 +52,13 @@ alter table public.proyectos alter column numero set not null;
 alter table public.proyectos drop constraint if exists proyectos_numero_rango;
 alter table public.proyectos add constraint proyectos_numero_rango check (numero between 1 and 999);
 create unique index if not exists proyectos_numero_unico on public.proyectos (numero);
+
+-- (Después de crear la columna: una función SQL revisa sus columnas al crearse.)
+create or replace function public._numero_proyecto(p_proyecto_id uuid)
+returns text language sql stable security definer set search_path = public
+as $$ select public._con_ceros(numero, 3) from public.proyectos where id = p_proyecto_id $$;
+revoke all on function public._numero_proyecto(uuid) from public, anon;
+grant execute on function public._numero_proyecto(uuid) to authenticated;
 
 create or replace function public._proyecto_numero()
 returns trigger language plpgsql security definer set search_path = public
