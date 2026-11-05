@@ -1678,6 +1678,21 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   (valida otra vez). Es informativo: el pago va a Aprobación de pagos como
   siempre. Se ve en el origen del pago ("OC 12 · Crédito · pagar el ..."), en
   el detalle y en el PDF de la orden. Las OC de antes quedan sin tipo.
+- **Crédito en espera** (`20261229000000`, decisión del usuario 2026-11-05):
+  la OC a crédito va a Aprobación de pagos de una vez; al aprobarla, la orden
+  queda aprobada pero su pago queda `en_espera` ("Crédito en espera", sin ITEM,
+  fuera del Consolidado; disparador BEFORE `trg_pago_credito_en_espera`). El
+  LUNES de la semana de `fecha_pago_credito` pasa a `aprobado` con el ITEM de
+  esa semana (`_liberar_creditos`, desde la tarea de cada hora
+  `_liberar_pagos_programados`; `pagos.liberado_en` manda en
+  `_pago_asignar_item`; historial `en_espera` / `credito_liberado`). Si la
+  semana ya llegó al aprobar, pasa directo. Acción `cambiar_fecha_credito`
+  (Compras, Líder Compras, Financiera): "Cambiar fecha de pago" en el detalle
+  de la OC (`cambiar_fecha_credito_oc`, fecha >= hoy, solo mientras el pago no
+  esté aprobado/dispersado; evento `fecha_credito_cambiada` de la OC). Crédito
+  no lleva anticipo. `en_espera` cuenta como pago vivo en las listas
+  ('programado', 'solicitado', 'en_espera', 'aprobado') de las funciones de
+  terceros, cuentas, empresas y anulación con la OC.
 - **Mis pendientes** (`20261227000000`): "Pagos observados por Contabilidad"
   (`pago_observado`, acción `gestionar_pagos`, con la última observación) y
   "Pagos por liquidar" (`pago_por_liquidar`, acción `liquidar_pagos`), solo de
@@ -3724,7 +3739,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261228100000` otrosí: bajar cantidades (`cantidad_reducida`) ·
 `20261228200000` firma del representante legal en el otrosí ·
 `20261228300000` crear versión nueva del presupuesto en una transacción ·
-`20261228400000` tipo de pago de la OC (de contado, crédito con fecha, fiducia).
+`20261228400000` tipo de pago de la OC (de contado, crédito con fecha, fiducia) ·
+`20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

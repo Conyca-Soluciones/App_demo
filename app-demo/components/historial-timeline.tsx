@@ -16,6 +16,7 @@ import {
   type TipoHistorial,
 } from "@/app/(app)/almacen/historial/actions"
 import { ACCIONES, PESTANAS } from "@/lib/pestanas"
+import { fechaCortaOC } from "@/lib/tipo-pago-oc"
 
 // Cómo se muestra cada evento. El color del punto indica el "tono":
 // verde = aprobado, rojo = rechazado/cancelado, ámbar = desaprobado.
@@ -27,6 +28,7 @@ const EVENTOS: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" 
   desaprobada: { etiqueta: "Orden desaprobada", tono: "aviso" },
   cancelada: { etiqueta: "Orden cancelada", tono: "malo" },
   entrega_actualizada: { etiqueta: "Estado de entrega", tono: "neutro" },
+  fecha_credito_cambiada: { etiqueta: "Fecha de pago del crédito cambiada", tono: "aviso" },
   // requisiciones
   creado: { etiqueta: "Requisición solicitada", tono: "neutro" },
   modificado: { etiqueta: "Requisición modificada", tono: "aviso" },
@@ -117,6 +119,8 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   programado: { etiqueta: "Pago programado", tono: "neutro" },
   solicitado: { etiqueta: "Pago enviado a aprobación", tono: "neutro" },
   aprobado: { etiqueta: "Pago aprobado", tono: "ok" },
+  en_espera: { etiqueta: "Pago aprobado a crédito: espera la semana de su fecha", tono: "ok" },
+  credito_liberado: { etiqueta: "Llegó la semana del crédito: pasa a pago", tono: "neutro" },
   rechazado: { etiqueta: "Pago rechazado", tono: "malo" },
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   enviado_liquidar: { etiqueta: "Enviado a liquidar", tono: "neutro" },
@@ -460,6 +464,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
       (c) => `${c.etiqueta}: ${formatoValor(d.antes[c.clave])} → ${formatoValor(d.despues[c.clave])}`
     )
   }
+  if (e.evento === "fecha_credito_cambiada") return [`${fechaCortaOC(d.de)} → ${fechaCortaOC(d.a)}`]
   if (e.evento === "entrega_actualizada" && d.de && d.a) {
     return [`${ETIQUETA_ENTREGA[d.de] ?? d.de} → ${ETIQUETA_ENTREGA[d.a] ?? d.a}`]
   }

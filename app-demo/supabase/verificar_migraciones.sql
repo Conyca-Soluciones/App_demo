@@ -562,5 +562,13 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
                       and prosrc like '%_fijar_tipo_pago_orden%')
          and (select count(*) from pg_proc where proname = 'crear_orden_compra_con_soporte') = 1
+  union all
+  select '20261229000000_credito_en_espera',
+         exists (select 1 from pg_trigger where tgname = 'trg_pago_credito_en_espera')
+         and exists (select 1 from pg_proc where proname = '_liberar_pagos_programados' and prosrc like '%_liberar_creditos%')
+         and exists (select 1 from pg_proc where proname = '_pago_asignar_item' and prosrc like '%liberado_en%')
+         and exists (select 1 from pg_proc where proname = 'cambiar_fecha_credito_oc')
+         and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace
+                          and prosrc like '%''programado'', ''solicitado'', ''aprobado'')%')
 ) t
 order by 1;

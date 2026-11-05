@@ -29,7 +29,9 @@ import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { ETIQUETA_METODO_PAGO_OC, textoTitularPse } from "@/lib/metodo-pago-oc"
-import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
+import { lunesDeLaSemana, textoTipoPagoOC } from "@/lib/tipo-pago-oc"
+import { hoyColombia } from "@/lib/fechas"
+import { CampoFecha } from "@/components/ui/campo-fecha"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
@@ -39,6 +41,7 @@ import {
   listarSoportesOrden,
   desaprobarOrdenCompra,
   cancelarOrdenCompra,
+  cambiarFechaCreditoOC,
   type OrdenCompraDetalle,
   type PermisosOrdenCompra,
   type RequisicionDeOrden,
@@ -67,6 +70,8 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   // "desaprobar" | "cancelar": abre el diálogo de motivo de esa acción.
   const [accionAbierta, setAccionAbierta] = useState<"desaprobar" | "cancelar" | null>(null)
   const [motivoAccion, setMotivoAccion] = useState("")
+  // Fecha de pago del crédito en edición (null = no se está cambiando).
+  const [fechaCreditoNueva, setFechaCreditoNueva] = useState<string | null>(null)
 
   const [soportes, setSoportes] = useState<SoporteGuardado[]>([])
   // Requisición abierta en un diálogo encima de la orden.
@@ -101,6 +106,21 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo completar la acción.")
       setAccionAbierta(null)
+    } finally {
+      setProcesando(false)
+    }
+  }
+
+  async function guardarFechaCredito() {
+    if (!fechaCreditoNueva) return
+    setProcesando(true)
+    setError(null)
+    try {
+      await cambiarFechaCreditoOC(ordenId, fechaCreditoNueva)
+      setFechaCreditoNueva(null)
+      cargar()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar la fecha.")
     } finally {
       setProcesando(false)
     }
@@ -353,6 +373,44 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <div className="space-y-1">
               <p className="text-muted-foreground">Tipo de pago</p>
               <p>{textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito)}</p>
+              {orden.tipoPago === "credito" && orden.fechaPagoCredito && (
+                <p className="text-xs text-muted-foreground">
+                  Aprobado por Gerencia, el pago espera hasta el {formatearFechaSinHora(lunesDeLaSemana(orden.fechaPagoCredito))} (lunes de esa semana) para pasar a pago.
+                </p>
+              )}
+              {orden.tipoPago === "credito" &&
+                permisos.puedeCambiarFechaCredito &&
+                orden.estado !== "cancelada" &&
+                orden.estado !== "rechazada" &&
+                (fechaCreditoNueva === null ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={procesando}
+                    onClick={() => setFechaCreditoNueva(orden.fechaPagoCredito ?? "")}
+                  >
+                    Cambiar fecha de pago
+                  </Button>
+                ) : (
+                  <div className="space-y-1.5 rounded-md border p-2">
+                    <CampoFecha id="fecha-credito-nueva" value={fechaCreditoNueva} onChange={(e) => setFechaCreditoNueva(e.target.value)} />
+                    {fechaCreditoNueva && fechaCreditoNueva < hoyColombia() && (
+                      <p className="text-xs text-destructive">No puede ser anterior a hoy.</p>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={procesando || !fechaCreditoNueva || fechaCreditoNueva < hoyColombia()}
+                        onClick={guardarFechaCredito}
+                      >
+                        Guardar
+                      </Button>
+                      <Button size="sm" variant="outline" disabled={procesando} onClick={() => setFechaCreditoNueva(null)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
             </div>
           )}
           <div className="space-y-1">

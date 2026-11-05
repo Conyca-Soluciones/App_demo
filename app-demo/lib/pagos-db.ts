@@ -82,6 +82,7 @@ export function mapPago(f: any): Pago {
     rechazadoPorNombre: f.rechazador?.nombre ?? null,
     motivoRechazo: f.motivo_rechazo,
     ordenNumero: f.orden?.numero ?? null,
+    ordenFechaPagoCredito: f.orden?.tipo_pago === "credito" ? (f.orden?.fecha_pago_credito ?? null) : null,
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
     requisicionAdminItemId: f.requisicion_admin_item_id ?? null,

@@ -773,7 +773,10 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             <Label>
               Tipo de pago <span className="text-destructive">*</span>
             </Label>
-            <Select value={tipoPago ?? ""} onValueChange={(v) => setTipoPago((v || null) as TipoPagoOC | null)}>
+            <Select value={tipoPago ?? ""} onValueChange={(v) => {
+                setTipoPago((v || null) as TipoPagoOC | null)
+                if (v === "credito") setConAnticipo(false)
+              }}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Elige el tipo de pago" />
               </SelectTrigger>
@@ -796,6 +799,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
               {fechaCredito && fechaCredito <= hoyColombia() && (
                 <p className="text-xs text-destructive">Tiene que ser posterior a hoy.</p>
               )}
+              <p className="text-xs text-muted-foreground">
+                Va a Aprobación de pagos de una vez. Aprobado por Gerencia, el pago espera hasta el lunes de la semana de esta fecha para pasar a pago. A crédito no hay anticipo.
+              </p>
             </div>
           )}
 
@@ -809,6 +815,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
             />
           </div>
 
+          {tipoPago !== "credito" && (
           <div className="space-y-2 rounded-lg border p-3">
             <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
               <Checkbox checked={conAnticipo} onCheckedChange={(v) => setConAnticipo(v === true)} />
@@ -871,6 +878,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="observaciones-oc">Observaciones (opcional)</Label>

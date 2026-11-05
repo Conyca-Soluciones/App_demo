@@ -38,10 +38,24 @@ export const tipoPagoParaGuardar = (tipo: TipoPagoOC, fechaCredito: string) => (
   fechaPagoCredito: tipo === "credito" ? fechaCredito : null,
 })
 
+/** "2026-12-05" → "05/12/2026". */
+export function fechaCortaOC(iso: string | null | undefined): string {
+  if (!iso) return "—"
+  const [a, m, d] = iso.slice(0, 10).split("-")
+  return `${d}/${m}/${a}`
+}
+
 /** "Crédito · pagar el 05/12/2026", "De contado"; null si la OC no tiene tipo (las de antes). */
 export function textoTipoPagoOC(tipo: string | null | undefined, fechaCredito: string | null | undefined): string | null {
   if (!esTipoPagoOC(tipo)) return null
   if (tipo !== "credito" || !fechaCredito) return ETIQUETA_TIPO_PAGO_OC[tipo]
-  const [a, m, d] = fechaCredito.slice(0, 10).split("-")
-  return `Crédito · pagar el ${d}/${m}/${a}`
+  return `Crédito · pagar el ${fechaCortaOC(fechaCredito)}`
+}
+
+/** Lunes (AAAA-MM-DD) de la semana de una fecha: ese día el crédito en espera pasa a pago (20261229000000). */
+export function lunesDeLaSemana(iso: string): string {
+  const [a, m, d] = iso.slice(0, 10).split("-").map(Number)
+  const f = new Date(Date.UTC(a, m - 1, d))
+  f.setUTCDate(f.getUTCDate() - ((f.getUTCDay() + 6) % 7))
+  return f.toISOString().slice(0, 10)
 }

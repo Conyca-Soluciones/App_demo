@@ -629,6 +629,7 @@ export type PermisosOrdenCompra = {
   rolCompras: boolean
   puedeDesaprobar: boolean
   puedeCancelar: boolean
+  puedeCambiarFechaCredito: boolean
   // Para saber si la orden es propia (retirar una pendiente).
   usuarioId: string | null
 }
@@ -636,7 +637,7 @@ export type PermisosOrdenCompra = {
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
   const permisos = await obtenerPermisosRol()
   if (!permisos) {
-    return { rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, usuarioId: null }
+    return { rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, puedeCambiarFechaCredito: false, usuarioId: null }
   }
 
   const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
@@ -644,6 +645,7 @@ export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra>
     rolCompras: puede("comprar"),
     puedeDesaprobar: puede("desaprobar_oc"),
     puedeCancelar: puede("cancelar_oc"),
+    puedeCambiarFechaCredito: puede("cambiar_fecha_credito"),
     usuarioId: await obtenerUsuarioId(),
   }
 }
@@ -847,6 +849,17 @@ export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Pr
     p_orden_id: ordenId,
     p_motivo: motivo.trim(),
   })
+  if (error) throw new Error(error.message)
+}
+
+// Mueve la fecha de pago de una OC a crédito (20261229000000). La base valida
+// que el pago no haya pasado a pago y, si la fecha nueva ya está en esta
+// semana, el pago en espera pasa de una vez.
+export async function cambiarFechaCreditoOC(ordenId: string, fecha: string): Promise<void> {
+  await requerirAccion("cambiar_fecha_credito")
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw new Error("Escribe la fecha de pago.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("cambiar_fecha_credito_oc", { p_orden_id: ordenId, p_fecha: fecha })
   if (error) throw new Error(error.message)
 }
 

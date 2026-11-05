@@ -163,6 +163,7 @@ export const ACCIONES: Accion[] = [
   { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
+  { clave: "cambiar_fecha_credito", titulo: "Cambiar la fecha de pago de un crédito", descripcion: "Mover la fecha en que se debe pagar una orden de compra a crédito, mientras su pago no haya pasado a pago (aprobado por Gerencia, el pago espera hasta el lunes de la semana de esa fecha).", seccion: "Compras" },
   { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente: su pago vuelve a Aprobación de pagos.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Retirar órdenes pendientes de otros (una aprobada ya no se cancela: su pago ya fue aprobado).", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },

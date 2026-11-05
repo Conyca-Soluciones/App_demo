@@ -7,6 +7,7 @@
 export type EstadoPago =
   | "programado"
   | "solicitado"
+  | "en_espera"
   | "aprobado"
   | "dispersado"
   | "rechazado"
@@ -15,6 +16,7 @@ export type EstadoPago =
 export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
   programado: "Programado",
   solicitado: "Por aprobar",
+  en_espera: "Crédito en espera",
   aprobado: "Aprobado",
   dispersado: "Dispersado",
   rechazado: "Rechazado",
@@ -26,6 +28,7 @@ export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
 export const CLASE_ESTADO_PAGO: Record<EstadoPago, string> = {
   programado: "border-gray-300 bg-gray-50 text-gray-600",
   solicitado: "border-amber-300 bg-amber-50 text-amber-700",
+  en_espera: "border-sky-300 bg-sky-50 text-sky-700",
   aprobado: "border-green-300 bg-green-50 text-green-700",
   dispersado: "border-emerald-300 bg-emerald-50 text-emerald-800",
   rechazado: "border-red-300 bg-red-50 text-red-700",
@@ -57,6 +60,9 @@ export type Pago = {
   rechazadoPorNombre: string | null
   motivoRechazo: string | null
   ordenNumero: number | null
+  // OC a crédito (20261229000000): fecha en que se debe pagar. El pago aprobado
+  // queda "en_espera" hasta el lunes de esa semana.
+  ordenFechaPagoCredito: string | null
   // Requisición administrativa de la que sale el pago (para ver su detalle).
   requisicionAdminId: string | null
   // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
