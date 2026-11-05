@@ -45,7 +45,7 @@ import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
   { valor: "solicitado", etiqueta: "Por aprobar" },
   { valor: "programado", etiqueta: "Programados (esperan entrega o fecha)" },
-  { valor: "en_espera", etiqueta: "Crédito en espera (aprobados, esperan su semana)" },
+  { valor: "en_espera", etiqueta: "Crédito en espera" },
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
 ]
