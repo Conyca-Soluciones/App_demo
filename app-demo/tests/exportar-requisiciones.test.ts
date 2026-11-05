@@ -13,6 +13,7 @@ const fila = (cambios: Partial<FilaExcelRequisicion> = {}): FilaExcelRequisicion
   fechaRequerida: "2026-10-20",
   estado: "aprobada",
   estadoCompra: "pendiente",
+  extraordinaria: false,
   ...cambios,
 })
 
@@ -21,9 +22,13 @@ describe("Excel del registro de requisiciones", () => {
     expect(formatoCantidadExcel(96)).toBe("#,##0")
     expect(formatoCantidadExcel(96.5)).toBe("#,##0.##")
   })
-  it("estado de la compra al final; vacío si no aplica", () => {
-    expect(valoresFilaExcel(fila()).slice(-2)).toEqual(["Aprobada", "Pendiente"])
-    expect(valoresFilaExcel(fila({ estado: "rechazada", estadoCompra: null })).slice(-2)).toEqual(["Rechazada", ""])
-    expect(valoresFilaExcel(fila({ estadoCompra: "rechazada_compras" })).at(-1)).toBe("Rechazada por Compras")
+  it("estado de la compra antes del tipo; vacío si no aplica", () => {
+    expect(valoresFilaExcel(fila()).slice(-3, -1)).toEqual(["Aprobada", "Pendiente"])
+    expect(valoresFilaExcel(fila({ estado: "rechazada", estadoCompra: null })).slice(-3, -1)).toEqual(["Rechazada", ""])
+    expect(valoresFilaExcel(fila({ estadoCompra: "rechazada_compras" })).at(-2)).toBe("Rechazada por Compras")
+  })
+  it("tipo al final: normal o extraordinaria", () => {
+    expect(valoresFilaExcel(fila()).at(-1)).toBe("Normal")
+    expect(valoresFilaExcel(fila({ extraordinaria: true })).at(-1)).toBe("Extraordinaria")
   })
 })

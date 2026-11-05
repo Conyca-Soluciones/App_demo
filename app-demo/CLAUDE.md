@@ -714,10 +714,8 @@ resolver los primeros 3 juntos con un solo cambio de diseño:
   pendientes nunca pudieron sumar más del tope en primer lugar.
 - ✅ **`crearPedido` traía hasta 1000 filas para revalidar**: reemplazado
   por `disponible_insumo_item`, consulta puntual (un insumo, un ítem).
-- ⚠️ **`crearPedido` solo valida la versión del primer ítem del pedido**
-  (`input.items[0].presupuestoItemId`) -- sigue sin resolver, bajo
-  riesgo real porque la UI actual nunca genera pedidos mezclando
-  versiones/presupuestos distintos.
+- ✅ **Versión de los ítems de una requisición**: `crear_requisicion` exige
+  que TODOS sean de la versión vigente (20261228000000).
 - ✅ **"No hay forma de cancelar/editar un pedido pendiente"**: resuelto
   con cancelar (no editar, decisión explícita -- ver "Cancelar pedido").
 
@@ -959,8 +957,8 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   siempre + original renombrada con "_" (sin EXECUTE para usuarios).
 - **Resuelto (2026-10-08)**: escribir en `apu`, `item_apu`,
   `apu_import_revision` y `transporte_precios` exige `editar_presupuestos`
-  (ver "Seguridad de APU"). `crearNuevaVersion` no es transaccional (si falla
-  a mitad deja una versión vacía y APUs huérfanos).
+  (ver "Seguridad de APU"). `crearNuevaVersion` ya es una transacción
+  (`crear_nueva_version`, 20261228300000).
 
 ## Unidades: presentación de insumos y conversión (2026-10-05)
 
@@ -1886,8 +1884,8 @@ cantidad; había 31 ítems descuadrados). Pendiente:
 
 - **Seguridad APU**: opciones A y B hechas (ver "Seguridad de APU"); la lectura
   sigue abierta a propósito (APU recomendados e import).
-- **`crearNuevaVersion` atómica**: pasarla a una función SQL (hoy, si falla a
-  mitad, deja una versión vacía y APUs huérfanos).
+- ~~`crearNuevaVersion` atómica~~: hecha (`crear_nueva_version`, SECURITY
+  INVOKER, 20261228300000; Malecón 716 ítems en 0,6 s).
 - **Resuelto en `20261024000000_requisiciones_y_almacen_por_proyecto.sql`
   (falta aplicarla en producción, junto con el deploy de la app)**:
   (1) usuarios sin INSERT/UPDATE/DELETE en `pedidos_insumos`,
@@ -1924,10 +1922,6 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   patrón documentado (leer query param, mostrar aviso, `router.replace`
   para limpiar la URL) pero no aplicado, faltó tener el `page.tsx` a
   mano en la sesión donde se hizo la protección de rutas.
-- **`crearPedido` solo valida la versión del primer ítem del pedido**
-  (`input.items[0].presupuestoItemId`) -- riesgo bajo hoy (la UI nunca
-  mezcla versiones/presupuestos en un pedido), pero sigue siendo una
-  asunción implícita sin validar explícitamente.
 - Investigar latencia intermitente al cargar presupuesto/APU (reportada
   por el usuario, "a veces se demora, pocas veces") -- nunca se llegó a
   revisar con logs reales, a diferencia de `/admin` y `verProyectos` que
@@ -1942,8 +1936,10 @@ cantidad; había 31 ítems descuadrados). Pendiente:
 - Subida de `soporte_url` a Supabase Storage en el diálogo de pedido --
   hoy el campo existe en la tabla pero el flujo de subida no está
   implementado (queda en `null`).
-- Resaltar el ítem exacto al navegar desde el link "Ítem" del panel de
-  aprobación hacia `/presupuestos` (hoy solo pasa `presupuestoId`).
+- ~~Resaltar el ítem exacto~~: hecho. En el detalle de una requisición el
+  código del ítem abre `/presupuestos?item=<código>` (cambia antes el
+  proyecto actual si hace falta; solo con la pestaña Elaboración de
+  presupuestos) y la página va a esa fila y la resalta 5 s.
 - Migrar `solicitudes_insumos.solicitado_por`/`resuelto_por` a
   `perfiles(id)` -- decidido no hacerlo todavía, solo `pedidos_insumos` se
   migró.
@@ -2390,6 +2386,46 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 
+## Requisiciones extraordinarias (2026-11-05)
+
+`20261226000000_requisiciones_extraordinarias.sql` (decisión del usuario). Lo que
+el ingeniero necesita POR ENCIMA del presupuesto se pide con "Solicitar
+requisición extraordinaria a Gerencia" en Elaboración de requisiciones (botón
+general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
+`components/solicitud-extraordinaria-dialog.tsx`, acción
+`crearRequisicionExtraordinaria` -> `crear_requisicion_extraordinaria(p_lineas, ...)`.
+- Es una requisición normal (número, `pedidos_insumos`, Compras, almacén) con
+  `requisiciones.extraordinaria = true` y `justificacion` (obligatoria; también
+  va en observaciones). Uno o varios insumos (máx. 50), cada uno en un ítem de
+  la versión vigente. El insumo se busca en TODO el maestro
+  (`buscarInsumosMaestro`) y el ítem en la versión vigente
+  (`buscarItemsPresupuesto`): si el insumo no está en el APU del ítem (se rompió
+  algo y hay que comprar pego para un ítem que no lo tenía), la línea va sin
+  `item_apu_id` (unidad del maestro; el resto del flujo ya acepta null) y
+  Gerencia la ve "fuera del APU". `insumoEnItem` dice si está en el APU, con lo
+  presupuestado y disponible.
+- No revisa el cupo (se puede pedir por encima), pero SÍ lo descuenta como
+  cualquier requisición mientras esté pendiente o aprobada (decisión del
+  usuario: si se usa por error cuando todavía había cupo, el cupo debe bajar);
+  `_comprometido_insumo_item` cuenta todas (20261227000000 deshizo la exclusión
+  que traía la primera versión aplicada de 20261226000000). No se modifica (se cancela y se pide otra).
+- Lo COMPRADO sí cuenta en Control del proyecto: `control_proyecto` y
+  `precios_control_proyecto` suman toda línea de OC aprobada del proyecto, sin
+  mirar el tipo de requisición ni el APU. No filtrar por `extraordinaria` ahí.
+- La aprueba Gerencia en **Aprobación de requisiciones extraordinarias**
+  (`/almacen/requisiciones-extraordinarias`, pestaña `tecnico.aprobar_extraordinarias`,
+  acción `aprobar_requisiciones_extraordinarias`), con `listar_requisiciones_extraordinarias`
+  (SECURITY DEFINER; por línea: en APU o no, presupuestado, ya pedido en el
+  ítem en normales y extraordinarias anteriores, total pedido del insumo en el
+  proyecto). `resolver_requisicion` / `desaprobar_requisicion` exigen la acción
+  según el tipo: `aprobar_pedidos` ya NO aprueba extraordinarias, y Aprobación
+  de requisiciones las excluye. A Gerencia se le quitaron la pestaña Aprobación
+  de requisiciones y las acciones aprobar/desaprobar requisiciones.
+- Registro de requisiciones: etiqueta "Extraordinaria", filtro Tipo
+  (`FiltrosRequisiciones.tipo`) y columna Tipo en el Excel.
+- Aviso `requisicion_extraordinaria` a quienes tienen la acción y ven el
+  proyecto; Mis pendientes `req_extra_por_aprobar` (parche sobre `_pendientes_de`).
+
 ## Lint (2026-10-14)
 
 `npx eslint .` quedó solo con `@typescript-eslint/no-explicit-any` (134, en
@@ -2505,7 +2541,8 @@ seguridad social, SOAT, cotización...) van con el contrato, después.
   aparte"), igual en Solicitud de contratos. Funciona porque los enlaces
   firmados de Storage no traen X-Frame-Options ni `Content-Disposition:
   attachment` (revisado).
-- **Pendiente**: editar datos, reemplazar o agregar documentos, y vencimientos
+- Editar datos y reemplazar o agregar documentos: hecho (botón Editar,
+  `editarContratista` -> `editar_contratista`). **Pendiente**: vencimientos
   (p. ej. certificación bancaria o cámara de comercio con más de 30 días).
 
 
@@ -2851,6 +2888,16 @@ código dice solo "GJ-F"). Decisiones del usuario:
   anexo ni el texto del contrato; lo que cambie se escribe en la redacción de
   la cláusula nueva. Lo que sí aplica en el sistema, solo cuando el otrosí
   queda APROBADO (cuenta el último por número):
+  - **Bajar cantidades** (20261228100000_otrosi_bajar_cantidades.sql): columna
+    "Bajar" junto a "Aumentar" en cada actividad del contrato; hasta lo que falta
+    por cobrar en actas no rechazadas; total negativo (baja el valor). Al
+    aprobarse suma en `contrato_anexo_items.cantidad_reducida` (la fila del
+    contrato firmado no cambia) y la cantidad que vale es cantidad −
+    cantidad_reducida en: actas (`_guardar_acta`, `contrato_para_acta`,
+    `detalle_acta`), lo contratado del ítem (`_contratado_item`,
+    `items_presupuesto_para_contrato`, `actividades_para_otrosi`). Una función
+    nueva que lea la cantidad de una actividad del contrato debe restar
+    `cantidad_reducida`.
   - **Prórroga**: check "¿Se va a extender la fecha?" con la nueva fecha
     (`otrosis.nueva_fecha_fin`). `_fecha_fin_contrato` devuelve la del último
     otrosí aprobado con prórroga (o la inicial, `_fecha_fin_inicial_contrato`):
@@ -3130,7 +3177,15 @@ otrosí.
   texto) y el contrato aprobado se congela (`pdfContratoFirmado`, en la ruta de
   Pre-aprobación y la de ver contrato desde otrosí). `_puede_ver_contrato_rl` =
   la regla de `contratos_select` (en producción no existe `puede_ver_contrato`).
-  Pendiente: otrosí y acta de liquidación (el usuario: "quizás en el futuro").
+  El acta de liquidación ya firmaba (mismo disparador y PDF que las demás
+  actas; si sale aprobada sola por neto $ 0, "Aprobó" es quien la creó).
+  **Otrosí** (20261228200000_firmas_otrosi.sql): al aprobarlo Subgerencia se
+  copia la firma del representante de la cédula del documento del otrosí
+  (`_representante_que_firma_otrosi`, misma regla que el contrato; disparador
+  `trg_firmar_representante_otrosi`), se dibuja sobre "EL CONTRATANTE" y el
+  PDF aprobado se congela (`pdfOtrosiFirmado`, entidad 'otrosi'). El documento
+  toma por omisión al representante principal de la empresa si la minuta del
+  contrato no trae uno, y el editor del otrosí tiene `SelectorRepresentante`.
 - PDF: `components/firma-pdf.tsx` (bloque de firma con leyenda "Firmado
   electrónicamente el … · Código …"); `acta-pdf.tsx` y `acta-poliza-pdf.tsx`
   la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
@@ -3441,8 +3496,8 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   usuario: se permiten períodos que se cruzan entre actas; la liquidación se
   puede hacer sin actas de avance (terminación anticipada); no se bloquea una
   solicitud con fecha de fin ya pasada.
-- **Pendiente**: (otrosí: no baja cantidades ni cambia precios de
-  actividades del contrato),
+- **Pendiente**: (otrosí: no cambia precios de actividades del contrato; bajar
+  cantidades ya se puede, 20261228100000),
   retención en garantía en mano de obra (cuando el usuario tenga la minuta),
   pago del anticipo al aprobar la minuta, código del formato del acta (lo
   define el usuario), firmas digitales, AIU.
@@ -3632,7 +3687,13 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261222000000` contratistas enlazados al tercero (sin datos bancarios propios) ·
 `20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria) ·
 `20261224000000` contrato por PSE: titular con otro nombre ·
-`20261225000000` actas generales (después de las de la otra rama).
+`20261225000000` actas generales (después de las de la otra rama) ·
+`20261226000000` requisiciones extraordinarias (Solicitar a Gerencia) ·
+`20261227000000` las extraordinarias descuentan del cupo (la primera versión aplicada de la anterior las excluía) ·
+`20261228000000` crear requisición: todos los ítems de la versión vigente ·
+`20261228100000` otrosí: bajar cantidades (`cantidad_reducida`) ·
+`20261228200000` firma del representante legal en el otrosí ·
+`20261228300000` crear versión nueva del presupuesto en una transacción.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
@@ -3644,9 +3705,9 @@ Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente
   aprobación insumos sin sugerencia" los manda como insumo nuevo. Opciones
   pendientes: dejarlos (aprobar con tipo SUBCONTRATO - S), que el botón no los
   mande y devolverlos a pendientes, o mandarlos con tipo SUBCONTRATO ya puesto.
-- Compras → requisiciones: el filtro "Solo pendientes por comprar" se aplica en
-  JS después de traer todo el histórico del proyecto; con
-  `requisiciones.estado_compra` guardado se puede filtrar en la base.
+- ~~Compras → requisiciones: "Solo pendientes por comprar" en JS~~: ahora la
+  base trae solo líneas de requisiciones con `estado_compra = 'pendiente'`
+  (embed `!inner`); el filtro por línea en JS sigue para las ya completas.
 - Funciones por línea antiguas siguen en la base sin uso: `cancelar_pedido`,
   `modificar_pedido`, `desaprobar_pedido` (decisión: dejarlas por ahora).
 - La matriz de Roles y permisos no agrupa por módulo todavía.

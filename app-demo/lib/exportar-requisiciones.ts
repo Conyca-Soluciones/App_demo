@@ -18,6 +18,8 @@ export type FilaExcelRequisicion = {
   fechaRequerida: string | null // AAAA-MM-DD
   estado: EstadoRequisicion
   estadoCompra: EstadoCompra
+  // Por encima del presupuesto (la aprueba Gerencia).
+  extraordinaria: boolean
 }
 
 export const ETIQUETA_ESTADO_EXCEL: Record<EstadoRequisicion, string> = {
@@ -45,6 +47,7 @@ export const COLUMNAS_EXCEL_REQUISICIONES = [
   { titulo: "Fecha requerida", ancho: 14 },
   { titulo: "Estado", ancho: 12 },
   { titulo: "Estado de la compra", ancho: 20 },
+  { titulo: "Tipo", ancho: 16 },
 ] as const
 
 // "AAAA-MM-DD" -> fecha de Excel (a medianoche UTC: Excel no tiene zona
@@ -70,6 +73,7 @@ export function valoresFilaExcel(f: FilaExcelRequisicion): (string | number | Da
     f.fechaRequerida ? fechaExcel(f.fechaRequerida) : null,
     ETIQUETA_ESTADO_EXCEL[f.estado],
     f.estadoCompra ? ETIQUETA_COMPRA_EXCEL[f.estadoCompra] : "",
+    f.extraordinaria ? "Extraordinaria" : "Normal",
   ]
 }
 

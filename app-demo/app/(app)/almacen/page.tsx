@@ -4,7 +4,14 @@ import Link from "next/link"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { useEffect, useState } from "react"
 
+import { TriangleAlert } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { FormularioRequisicion } from "@/components/dialogue-nuevo-pedido"
+import {
+  SolicitudExtraordinariaDialog,
+  TITULO_EXTRAORDINARIA,
+  type InicialExtraordinaria,
+} from "@/components/solicitud-extraordinaria-dialog"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 
@@ -34,7 +41,9 @@ export default function Almacen() {
 
 function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; proyectoNombre: string }) {
   // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
-  const [creada, setCreada] = useState<{ requisicionId: string; numero: number } | null>(null)
+  const [creada, setCreada] = useState<{ requisicionId: string; numero: number; extraordinaria?: boolean } | null>(null)
+  // "Solicitar requisición extraordinaria a Gerencia" (requisición extraordinaria): null = cerrado.
+  const [extraordinaria, setExtraordinaria] = useState<{ inicial: InicialExtraordinaria | null } | null>(null)
   // null = todavía cargando el presupuesto del proyecto.
   const [carga, setCarga] = useState<{ presupuesto: PresupuestoActivo | null; error: string | null } | null>(null)
   const presupuestoActivo = carga?.presupuesto ?? null
@@ -69,7 +78,9 @@ function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; pro
           )}
           {creada && (
             <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              Requisición {creada.numero} creada.{" "}
+              {creada.extraordinaria
+                ? `Requisición extraordinaria ${creada.numero} enviada a Gerencia.`
+                : `Requisición ${creada.numero} creada.`}{" "}
               <Link
                 href={`/almacen/registro-requisiciones/${creada.requisicionId}`}
                 className="font-medium underline underline-offset-2"
@@ -84,12 +95,29 @@ function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; pro
         {/* El formulario va directo en la página (sin botón para abrirlo). */}
         {presupuestoActivo && (
           <section className="rounded-lg border bg-card">
-            <h2 className="border-b px-6 py-4 text-xl font-semibold">Nueva requisición</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <h2 className="text-xl font-semibold">Nueva requisición</h2>
+              <Button variant="outline" onClick={() => setExtraordinaria({ inicial: null })}>
+                <TriangleAlert className="size-4" />
+                {TITULO_EXTRAORDINARIA}
+              </Button>
+            </div>
             <FormularioRequisicion
               versionId={presupuestoActivo.versionActualId}
               onPedidoCreado={(c) => setCreada(c ?? null)}
+              onSolicitarGerencia={(inicial) => setExtraordinaria({ inicial })}
             />
           </section>
+        )}
+
+        {presupuestoActivo && (
+          <SolicitudExtraordinariaDialog
+            open={extraordinaria !== null}
+            onOpenChange={(v) => !v && setExtraordinaria(null)}
+            versionId={presupuestoActivo.versionActualId}
+            inicial={extraordinaria?.inicial ?? null}
+            onCreada={(c) => setCreada({ ...c, extraordinaria: true })}
+          />
         )}
       </main>
   )

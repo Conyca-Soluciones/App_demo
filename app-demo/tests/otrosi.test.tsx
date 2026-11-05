@@ -163,8 +163,8 @@ describe("documento del otrosí", () => {
 
 describe("actividades del otrosí", () => {
   const anexo = [
-    { id: "a1", codigo: "1.1", actividad: "Excavación", unidad: "m3", cantidad: 40, valorUnitario: 30_000, enPresupuesto: true, disponible: 60 },
-    { id: "a2", codigo: "9.9", actividad: "Vieja", unidad: "m2", cantidad: 5, valorUnitario: 1_000, enPresupuesto: false, disponible: 0 },
+    { id: "a1", codigo: "1.1", actividad: "Excavación", unidad: "m3", cantidad: 40, valorUnitario: 30_000, enPresupuesto: true, disponible: 60, cobrado: 10 },
+    { id: "a2", codigo: "9.9", actividad: "Vieja", unidad: "m2", cantidad: 5, valorUnitario: 1_000, enPresupuesto: false, disponible: 0, cobrado: 0 },
   ]
   const catalogo = [
     { id: "p2", codigo: "1.2", descripcion: "Concreto", unidad: "m3", cantidad: 50, valorUnitario: 200_000, valorManoObra: 0, contratado: 0, disponible: 50 },
@@ -174,7 +174,7 @@ describe("actividades del otrosí", () => {
 
   it("suma adiciones (al valor pactado) y nuevas; arma lo que se envía", () => {
     const r = leerActividadesOtrosi(
-      { adiciones: { a1: "20" }, nuevas: [{ presupuestoItemId: "p3", cantidad: "2,5", valorUnitario: "31.500" }] },
+      { adiciones: { a1: "20" }, reducciones: {}, nuevas: [{ presupuestoItemId: "p3", cantidad: "2,5", valorUnitario: "31.500" }] },
       datos
     )
     expect(r).toEqual({
@@ -187,19 +187,34 @@ describe("actividades del otrosí", () => {
     })
   })
   it("sin nada: lista vacía", () => {
-    expect(leerActividadesOtrosi({ adiciones: { a1: " " }, nuevas: [] }, datos)).toEqual({ ok: true, envio: [], total: 0 })
+    expect(leerActividadesOtrosi({ adiciones: { a1: " " }, reducciones: {}, nuevas: [] }, datos)).toEqual({ ok: true, envio: [], total: 0 })
   })
   it("topes: disponible, precio máximo, fuera del presupuesto, repetidos", () => {
     const err = (f: Parameters<typeof leerActividadesOtrosi>[0]) => {
       const r = leerActividadesOtrosi(f, datos)
       return r.ok ? null : r.error
     }
-    expect(err({ adiciones: { a1: "61" }, nuevas: [] })).toMatch(/disponible/)
-    expect(err({ adiciones: { a2: "1" }, nuevas: [] })).toMatch(/presupuesto vigente/)
-    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "p3", cantidad: "1", valorUnitario: "31.501" }] })).toMatch(/máximo/)
-    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "p2", cantidad: "1", valorUnitario: "200.000" }] })).toBeNull()
-    expect(err({ adiciones: {}, nuevas: [{ presupuestoItemId: "", cantidad: "1", valorUnitario: "" }] })).toMatch(/Escoge/)
+    expect(err({ adiciones: { a1: "61" }, reducciones: {}, nuevas: [] })).toMatch(/disponible/)
+    expect(err({ adiciones: { a2: "1" }, reducciones: {}, nuevas: [] })).toMatch(/presupuesto vigente/)
+    expect(err({ adiciones: {}, reducciones: {}, nuevas: [{ presupuestoItemId: "p3", cantidad: "1", valorUnitario: "31.501" }] })).toMatch(/máximo/)
+    expect(err({ adiciones: {}, reducciones: {}, nuevas: [{ presupuestoItemId: "p2", cantidad: "1", valorUnitario: "200.000" }] })).toBeNull()
+    expect(err({ adiciones: {}, reducciones: {}, nuevas: [{ presupuestoItemId: "", cantidad: "1", valorUnitario: "" }] })).toMatch(/Escoge/)
     const dos = { presupuestoItemId: "p2", cantidad: "1", valorUnitario: "1" }
-    expect(err({ adiciones: {}, nuevas: [dos, dos] })).toMatch(/repetido/)
+    expect(err({ adiciones: {}, reducciones: {}, nuevas: [dos, dos] })).toMatch(/repetido/)
+  })
+  it("bajar: hasta lo que falta por cobrar, total negativo, no a la vez que aumentar", () => {
+    expect(leerActividadesOtrosi({ adiciones: {}, reducciones: { a1: "5" }, nuevas: [] }, datos)).toEqual({
+      ok: true,
+      envio: [{ tipo: "reduccion", anexo_item_id: "a1", cantidad: 5 }],
+      total: -150_000,
+    })
+    const err = (f: Parameters<typeof leerActividadesOtrosi>[0]) => {
+      const r = leerActividadesOtrosi(f, datos)
+      return r.ok ? null : r.error
+    }
+    // 40 contratadas − 10 cobradas = 30
+    expect(err({ adiciones: {}, reducciones: { a1: "30" }, nuevas: [] })).toBeNull()
+    expect(err({ adiciones: {}, reducciones: { a1: "31" }, nuevas: [] })).toMatch(/cobrar/)
+    expect(err({ adiciones: { a1: "1" }, reducciones: { a1: "1" }, nuevas: [] })).toMatch(/no las dos/)
   })
 })

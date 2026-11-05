@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
+import { mapRepresentante, principalActivo, type RepresentanteLegal } from "@/lib/representantes"
 import {
   PESTANAS_VER_OTROSI,
   limpiarMinutaOtrosi,
@@ -111,6 +112,21 @@ async function cargarOtrosi(id: string): Promise<OtrosiDetalle> {
   return mapOtrosiDetalle(data as Record<string, unknown>)
 }
 
+// El otrosí con los representantes legales de la empresa del proyecto (para el
+// documento: el principal es el que firma por omisión). Quien no lee los
+// representantes (representantes_de_contrato) recibe la lista vacía.
+async function cargarOtrosiConRepresentantes(id: string): Promise<{ detalle: OtrosiDetalle; representantes: RepresentanteLegal[] }> {
+  const d = await cargarOtrosi(id)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("representantes_de_contrato", { p_contrato_id: d.contratoId })
+  const representantes: RepresentanteLegal[] = !error && Array.isArray(data) ? data.map(mapRepresentante) : []
+  const p = principalActivo(representantes)
+  return {
+    detalle: { ...d, empresaRepresentante: p ? { nombre: p.nombre, documento: p.numeroDocumento, expedidaEn: p.expedidaEn } : null },
+    representantes,
+  }
+}
+
 export async function obtenerOtrosi(id: string): Promise<OtrosiDetalle> {
   await requerirAlgunaPestana(PESTANAS_OTROSI)
   return cargarOtrosi(id)
@@ -122,6 +138,7 @@ export type DocumentoOtrosi = {
   numero: number
   guardadaAt: string | null
   guardadaPorNombre: string | null
+  representantes: RepresentanteLegal[] // de la empresa del proyecto (selector del documento)
 }
 
 // El documento: lo calculado (contrato, partes y lo que pidió el ingeniero) y
@@ -129,7 +146,7 @@ export type DocumentoOtrosi = {
 // el documento completo.
 export async function obtenerDocumentoOtrosi(id: string): Promise<DocumentoOtrosi> {
   await requerirAlgunaPestana(PESTANAS_OTROSI)
-  const d = await cargarOtrosi(id)
+  const { detalle: d, representantes } = await cargarOtrosiConRepresentantes(id)
   const defecto = minutaOtrosiPorDefecto(d, hoyColombia())
   return {
     minuta: mezclarMinutaOtrosi(defecto, d.minutaDatos),
@@ -137,6 +154,7 @@ export async function obtenerDocumentoOtrosi(id: string): Promise<DocumentoOtros
     numero: d.numero ?? d.numeroProvisional,
     guardadaAt: d.minutaActualizadaAt,
     guardadaPorNombre: d.minutaActualizadaPorNombre,
+    representantes,
   }
 }
 
@@ -160,7 +178,7 @@ export async function resolverOtrosiJuridica(id: string, accion: AccionJuridicaO
   const supabase = await createClient()
   let minuta: MinutaOtrosi | null = null
   if (accion === "enviar") {
-    const d = await cargarOtrosi(id)
+    const { detalle: d } = await cargarOtrosiConRepresentantes(id)
     minuta = limpiarMinutaOtrosi(mezclarMinutaOtrosi(minutaOtrosiPorDefecto(d, hoyColombia()), d.minutaDatos))
     if (minuta.modificaciones.length === 0) throw new Error("El otrosí no tiene cláusulas: revisa el documento.")
   }

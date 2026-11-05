@@ -54,6 +54,8 @@ type Props = {
   conEstado?: boolean
   // Casilla "Solo por Aprobar": solo en Aprobación de requisiciones.
   conSoloPorAprobar?: boolean
+  // Filtro Tipo (normales / extraordinarias): solo en el Registro.
+  conTipo?: boolean
   // Al limpiar, además de vaciar los campos vuelve a consultar sin filtros
   // (Aprobación, que siempre muestra su cola). El Registro solo vacía los campos.
   consultarAlLimpiar?: boolean
@@ -66,6 +68,7 @@ export function FiltrosRequisicionesPanel({
   cargando,
   conEstado = true,
   conSoloPorAprobar = false,
+  conTipo = false,
   consultarAlLimpiar = false,
   onError,
 }: Props) {
@@ -79,6 +82,7 @@ export function FiltrosRequisicionesPanel({
   // Donde existe (Aprobación) viene marcado de entrada.
   const [soloPorAprobar, setSoloPorAprobar] = useState(conSoloPorAprobar)
   const [solicitante, setSolicitante] = useState<OpcionBuscador | null>(null)
+  const [tipo, setTipo] = useState<"todos" | "normal" | "extraordinaria">("todos")
   const [desde, setDesde] = useState("")
   const [hasta, setHasta] = useState("")
 
@@ -101,6 +105,7 @@ export function FiltrosRequisicionesPanel({
       insumoId: insumo?.id,
       estado: conSoloPorAprobar && soloPorAprobar ? "pendiente" : conEstado && estado !== "todos" ? estado : undefined,
       solicitadoPorId: solicitante?.id,
+      tipo: conTipo && tipo !== "todos" ? tipo : undefined,
       desde: desde || undefined,
       hasta: hasta || undefined,
     }
@@ -121,6 +126,7 @@ export function FiltrosRequisicionesPanel({
     setEstado("todos")
     setSoloPorAprobar(conSoloPorAprobar)
     setSolicitante(null)
+    setTipo("todos")
     setDesde("")
     setHasta("")
   }
@@ -212,6 +218,22 @@ export function FiltrosRequisicionesPanel({
                     {e.etiqueta}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {conTipo && (
+          <div className="space-y-1.5">
+            <Label>Tipo</Label>
+            <Select value={tipo} onValueChange={(v) => setTipo((v ?? "todos") as "todos" | "normal" | "extraordinaria")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas</SelectItem>
+                <SelectItem value="normal">Normales</SelectItem>
+                <SelectItem value="extraordinaria">Extraordinarias</SelectItem>
               </SelectContent>
             </Select>
           </div>

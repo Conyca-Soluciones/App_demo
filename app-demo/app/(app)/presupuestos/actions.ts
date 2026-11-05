@@ -384,147 +384,32 @@ function copiaLineaApu(linea: any, apuId: string) {
   }
 }
 
+// Versión nueva = copia de la actual (ítems con su jerarquía y un APU propio
+// por ítem, con el precio congelado tal cual) que queda como actual. Todo en
+// una transacción en la base (crear_nueva_version,
+// 20261228300000_crear_nueva_version.sql): antes se hacía aquí en 5 pasos y un
+// fallo a mitad dejaba una versión vacía y APUs huérfanos.
 export async function crearNuevaVersion(
   presupuestoId: string,
   nombre: string
 ): Promise<VersionPresupuesto> {
   const supabase = await createClient()
 
-  const versionActualId = await obtenerOCrearVersionActual(supabase, presupuestoId)
+  // Un presupuesto recién creado todavía no tiene versión: se crea la inicial.
+  await obtenerOCrearVersionActual(supabase, presupuestoId)
 
-  // Paginado: la API corta en 1000 filas sin avisar y la versión nueva
-  // quedaba sin los ítems que pasaran de ahí.
-  const itemsActuales = await traerTodo<any>((desde, hasta) =>
-    supabase
-      .from("presupuesto_items")
-      .select("id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original, lineas_apu_oficial")
-      .eq("presupuesto_id", presupuestoId)
-      .eq("version_id", versionActualId)
-      .order("id")
-      .range(desde, hasta)
-  )
+  const { data, error } = await supabase.rpc("crear_nueva_version", {
+    p_presupuesto_id: presupuestoId,
+    p_nombre: nombre,
+  })
+  if (error) throw new Error(error.message)
 
-  const { data: ultimaVersion, error: errorUltima } = await supabase
-    .from("presupuesto_versiones")
-    .select("numero")
-    .eq("presupuesto_id", presupuestoId)
-    .order("numero", { ascending: false })
-    .limit(1)
-    .single()
-
-  if (errorUltima) {
-    throw new Error(errorUltima.message)
-  }
-
-  const { data: nuevaVersion, error: errorCreacion } = await supabase
-    .from("presupuesto_versiones")
-    .insert({
-      presupuesto_id: presupuestoId,
-      numero: ultimaVersion.numero + 1,
-      nombre,
-    })
-    .select("id, numero, nombre, creado_en")
-    .single()
-
-  if (errorCreacion) {
-    throw new Error(errorCreacion.message)
-  }
-
-  const idNuevoDe = new Map<string, string>()
-  for (const item of itemsActuales ?? []) {
-    idNuevoDe.set(item.id, crypto.randomUUID())
-  }
-
-  const apuIdsUnicos = Array.from(
-    new Set((itemsActuales ?? []).map((item) => item.apu_id).filter((id): id is string => Boolean(id)))
-  )
-
-  const apuNuevoDe = new Map<string, string>()
-
-  if (apuIdsUnicos.length > 0) {
-    // ver seleccionarEnLotesPorIds -- con un presupuesto grande,
-    // apuIdsUnicos puede tener cientos de valores.
-    const apusOrigen = await seleccionarEnLotesPorIds<any>(apuIdsUnicos, 200, async (lote) => {
-      const { data, error } = await supabase
-        .from("apu")
-        .select(
-          `id, codigo, descripcion, item_apu(${COLUMNAS_COPIA_ITEM_APU})`
-        )
-        .in("id", lote)
-      if (error) throw new Error(error.message)
-      return data ?? []
-    })
-
-    const filasApuNuevas = (apusOrigen ?? []).map((apu) => {
-      const nuevoId = crypto.randomUUID()
-      apuNuevoDe.set(apu.id, nuevoId)
-      return { id: nuevoId, codigo: apu.codigo, descripcion: apu.descripcion }
-    })
-
-    const { error: errorInsertApus } = await supabase.from("apu").insert(filasApuNuevas)
-    if (errorInsertApus) {
-      throw new Error(errorInsertApus.message)
-    }
-
-    // precio_unitario_congelado se copia TAL CUAL -- esta versión nueva
-    // es una copia del APU compartido, no una línea nueva, así que debe
-    // conservar el precio que ya tenía congelado (ver migración
-    // congelar_precio_insumo_en_item_apu). Si no se copiara, la línea
-    // quedaría sin congelar y recalcular_valor_apu caería al precio en
-    // vivo de maestro_insumos, moviendo un valor que no debía moverse.
-    const todasLasLineasNuevas = (apusOrigen ?? []).flatMap((apu) =>
-      (apu.item_apu ?? []).map((linea: any) => copiaLineaApu(linea, apuNuevoDe.get(apu.id)!))
-    )
-
-    if (todasLasLineasNuevas.length > 0) {
-      const { error: errorInsertLineas } = await supabase.from("item_apu").insert(todasLasLineasNuevas)
-      if (errorInsertLineas) {
-        throw new Error(errorInsertLineas.message)
-      }
-    }
-  }
-
-  const filasNuevas = (itemsActuales ?? []).map((item) => ({
-    id: idNuevoDe.get(item.id),
-    presupuesto_id: presupuestoId,
-    version_id: nuevaVersion.id,
-    padre_id: item.padre_id ? idNuevoDe.get(item.padre_id) ?? null : null,
-    nivel: item.nivel,
-    codigo: item.codigo,
-    descripcion: item.descripcion,
-    unidad: item.unidad,
-    cantidad: item.cantidad,
-    valor_unitario: item.valor_unitario,
-    valor_total: item.valor_total,
-    apu_id: item.apu_id ? apuNuevoDe.get(item.apu_id) ?? null : null,
-    precio_original: item.precio_original,
-    lineas_apu_oficial: item.lineas_apu_oficial,
-  }))
-
-  if (filasNuevas.length > 0) {
-    const { error: errorInsertItems } = await supabase
-      .from("presupuesto_items")
-      .insert(filasNuevas)
-
-    if (errorInsertItems) {
-      throw new Error(errorInsertItems.message)
-    }
-  }
-
-  const { error: errorActualizarActual } = await supabase
-    .from("presupuestos")
-    .update({ version_actual_id: nuevaVersion.id })
-    .eq("id", presupuestoId)
-
-  if (errorActualizarActual) {
-    throw new Error(errorActualizarActual.message)
-  }
-
+  const v = data as { id: string; numero: number; nombre: string; creado_en: string }
   return {
-    id: nuevaVersion.id,
-    numero: nuevaVersion.numero,
-    nombre: nuevaVersion.nombre,
-    creadoEn: nuevaVersion.creado_en,
+    id: v.id,
+    numero: Number(v.numero),
+    nombre: v.nombre,
+    creadoEn: v.creado_en,
     esActual: true,
   }
 }

@@ -130,6 +130,16 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   )
 `
 
+// "Solo pendientes por comprar": el mismo select, pero solo líneas de
+// requisiciones con algo por comprar (requisiciones.estado_compra = 'pendiente',
+// que guarda la base: alguna línea aprobada con comprado < pedido). Así no se
+// trae todo el histórico del proyecto; el filtro por línea de abajo sigue
+// quitando las líneas ya completas de esas requisiciones.
+const SELECT_PENDIENTES_POR_COMPRAR = SELECT_PEDIDO_PARA_COMPRAR.replace(
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero)",
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, estado_compra)"
+)
+
 // Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
 const ESTADOS_OC_SIN_COMPROMISO = new Set(["cancelada", "rechazada"])
 
@@ -180,13 +190,13 @@ export async function listarPedidosParaComprar(
   await requerirScope("rol_compras")
   const supabase = await createClient()
 
-  // Paginado: trae TODAS las líneas aprobadas del proyecto (también las ya
-  // compradas completas, que se descartan abajo); la API corta cada respuesta
-  // en 1000 filas sin avisar y se perdían requisiciones por comprar.
+  // Paginado (la API corta cada respuesta en 1000 filas sin avisar). Con "Solo
+  // pendientes" la base ya descarta las requisiciones compradas completas.
+  const soloPendientes = filtros.soloPendientes !== false
   const consulta = (desde: number, hasta: number) => {
     let query = supabase
       .from("pedidos_insumos")
-      .select(SELECT_PEDIDO_PARA_COMPRAR)
+      .select(soloPendientes ? SELECT_PENDIENTES_POR_COMPRAR : SELECT_PEDIDO_PARA_COMPRAR)
       .eq("proyecto_id", filtros.proyectoId)
       .eq("estado", "aprobado")
       .is("rechazado_compras_at", null)
@@ -194,6 +204,7 @@ export async function listarPedidosParaComprar(
       .order("fecha_requerida", { ascending: true })
       .order("id", { ascending: true })
 
+    if (soloPendientes) query = query.eq("requisicion.estado_compra", "pendiente")
     if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
     if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
     if (filtros.observacion?.trim()) query = query.ilike("observaciones", `%${filtros.observacion.trim()}%`)
@@ -211,7 +222,7 @@ export async function listarPedidosParaComprar(
 
   return (data ?? [])
     .map(mapPedidoParaComprar)
-    .filter((p) => filtros.soloPendientes === false || p.cantidadPendiente > 0)
+    .filter((p) => !soloPendientes || p.cantidadPendiente > 0)
 }
 
 export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComprar[]> {
@@ -1086,6 +1097,7 @@ export type NotificacionTipo =
   | "poliza_devuelta"
   | "requisicion_admin_aprobada"
   | "requisicion_admin_rechazada"
+  | "requisicion_extraordinaria"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"

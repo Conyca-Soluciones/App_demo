@@ -5,9 +5,10 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 // app/(app)/almacen/actions.ts
 
 import { createClient } from "@/lib/supabase/server"
-import { obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
+import { obtenerPermisosRol, obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
+import { limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import {
   cargarLineas,
@@ -288,6 +289,123 @@ export async function crearPedido(input: NuevoPedidoInput) {
 }
 
 // ---------------------------------------------------------------------------
+// Requisiciones extraordinarias ("Solicitar requisición extraordinaria a
+// Gerencia"): uno o varios insumos por encima de lo que contempla el
+// presupuesto. Cada línea es un insumo en un ítem; el insumo puede no estar en
+// el APU del ítem (se rompió algo y hay que comprar un material que el ítem no
+// tenía). No revisan el cupo (se puede pedir por encima) pero sí lo descuentan
+// como cualquier requisición, y las aprueba Gerencia
+// (20261226000000_requisiciones_extraordinarias.sql).
+// ---------------------------------------------------------------------------
+
+// ¿Puede abrir Elaboración de presupuestos? (para ofrecer el enlace al ítem
+// desde el detalle de una requisición).
+export async function puedeVerPresupuestos(): Promise<boolean> {
+  const p = await obtenerPermisosRol()
+  return !!p && (p.esAdministrador || p.pestanas.includes("presupuestos.elaboracion"))
+}
+
+export type ItemParaExtraordinaria = { id: string; codigo: string; descripcion: string; unidad: string | null }
+export type InsumoMaestro = { id: string; codigo: number; descripcion: string; um: string | null }
+// Si el insumo está en el APU del ítem: lo presupuestado y lo que queda del cupo.
+export type InsumoEnItem = { enApu: boolean; presupuestado: number; disponible: number }
+
+// Quita lo que rompe el filtro .or() de PostgREST (comas y paréntesis) y los
+// comodines de ilike que el usuario no quiso escribir.
+const textoFiltro = (t: string) => t.trim().replace(/[,()%]/g, " ")
+
+// Ítems de la versión vigente (no los capítulos) por código o descripción.
+export async function buscarItemsPresupuesto(versionId: string, termino: string): Promise<ItemParaExtraordinaria[]> {
+  if (!puedeBuscar(termino)) return []
+  const supabase = await createClient()
+  const t = textoFiltro(termino)
+  const { data, error } = await supabase
+    .from("presupuesto_items")
+    .select("id, codigo, descripcion, unidad")
+    .eq("version_id", versionId)
+    .not("padre_id", "is", null)
+    .or(`codigo.ilike.%${t}%,descripcion.ilike.%${t}%`)
+    .order("codigo")
+    .limit(limiteBusqueda(termino))
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((f) => ({ id: f.id, codigo: f.codigo ?? "", descripcion: f.descripcion ?? "", unidad: f.unidad ?? null }))
+}
+
+// Cualquier insumo del maestro, por código o descripción.
+export async function buscarInsumosMaestro(termino: string): Promise<InsumoMaestro[]> {
+  if (!puedeBuscar(termino)) return []
+  const supabase = await createClient()
+  const t = textoFiltro(termino)
+  let query = supabase.from("maestro_insumos").select("id, codigo, descripcion, u_m")
+  query = /^\d+$/.test(t) ? query.or(`codigo.eq.${t},descripcion.ilike.%${t}%`) : query.ilike("descripcion", `%${t}%`)
+  const { data, error } = await query.order("descripcion").limit(limiteBusqueda(termino))
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((f) => ({ id: f.id, codigo: Number(f.codigo), descripcion: f.descripcion ?? "", um: f.u_m ?? null }))
+}
+
+// ¿Está el insumo en el APU del ítem? Con cuánto presupuestado y disponible.
+export async function insumoEnItem(presupuestoItemId: string, insumoId: string): Promise<InsumoEnItem> {
+  const supabase = await createClient()
+  const { data: item, error } = await supabase
+    .from("presupuesto_items")
+    .select("apu_id, cantidad")
+    .eq("id", presupuestoItemId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!item?.apu_id) return { enApu: false, presupuestado: 0, disponible: 0 }
+
+  const [lineas, disponible] = await Promise.all([
+    supabase.from("item_apu").select("cantidad").eq("apu_id", item.apu_id).eq("insumo_id", insumoId),
+    supabase.rpc("disponible_insumo_item", { p_presupuesto_item_id: presupuestoItemId, p_insumo_id: insumoId }),
+  ])
+  if (lineas.error) throw new Error(lineas.error.message)
+  if (disponible.error) throw new Error(disponible.error.message)
+  const filas = lineas.data ?? []
+  if (filas.length === 0) return { enApu: false, presupuestado: 0, disponible: 0 }
+  const porUnidad = filas.reduce((s, f) => s + Number(f.cantidad ?? 0), 0)
+  return { enApu: true, presupuestado: porUnidad * Number(item.cantidad ?? 0), disponible: Number(disponible.data ?? 0) }
+}
+
+export type NuevaRequisicionExtraordinaria = {
+  lineas: { presupuestoItemId: string; insumoId: string; cantidad: number }[]
+  fechaRequerida: string
+  urgente: boolean
+  justificacion: string
+}
+
+export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtraordinaria) {
+  if (!input.justificacion.trim()) throw new Error("Escribe por qué se necesita más de lo presupuestado.")
+  if (input.lineas.length === 0) throw new Error("Agrega al menos un insumo a la requisición.")
+  if (input.lineas.length > MAX_INSUMOS_POR_PEDIDO) {
+    throw new Error(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
+  }
+  if (new Set(input.lineas.map((l) => `${l.insumoId}|${l.presupuestoItemId}`)).size !== input.lineas.length) {
+    throw new Error("Hay un insumo repetido para el mismo ítem del presupuesto.")
+  }
+  if (!input.lineas.every((l) => esCantidadEnteraPositiva(l.cantidad))) {
+    throw new Error("Todas las cantidades deben ser números enteros mayores que cero.")
+  }
+  if (!input.fechaRequerida || input.fechaRequerida < hoyColombia()) {
+    throw new Error("La fecha requerida no puede ser anterior a hoy.")
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("crear_requisicion_extraordinaria", {
+    p_lineas: input.lineas.map((l) => ({
+      presupuesto_item_id: l.presupuestoItemId,
+      insumo_id: l.insumoId,
+      cantidad: l.cantidad,
+    })),
+    p_fecha_requerida: input.fechaRequerida,
+    p_urgente: input.urgente,
+    p_justificacion: input.justificacion.trim(),
+  })
+  if (error) throw new Error(error.message)
+  const r = data as { id: string; numero: number }
+  return { requisicionId: r.id, numero: Number(r.numero) }
+}
+
+// ---------------------------------------------------------------------------
 // Requisiciones agrupadas (cabecera con número + insumos). Ver
 // supabase/migrations/20261008000000_requisiciones.sql: el estado de la
 // requisición se deriva de sus líneas (vista requisiciones_vista) y cancelar,
@@ -313,6 +431,8 @@ export type FiltrosRequisiciones = {
   insumoId?: string
   estado?: EstadoRequisicion
   solicitadoPorId?: string
+  // Normales o extraordinarias (por encima del presupuesto); sin esto, todas.
+  tipo?: "normal" | "extraordinaria"
   desde?: string // YYYY-MM-DD, por fecha de la requisición
   hasta?: string // YYYY-MM-DD, inclusive
 }
@@ -348,6 +468,7 @@ async function consultaRequisiciones(filtros: FiltrosRequisiciones) {
     if (filtros.numero !== undefined) query = query.eq("numero", filtros.numero)
     if (filtros.estado) query = query.eq("estado", filtros.estado)
     if (filtros.solicitadoPorId) query = query.eq("solicitado_por", filtros.solicitadoPorId)
+    if (filtros.tipo) query = query.eq("extraordinaria", filtros.tipo === "extraordinaria")
     // Colombia es UTC-5 todo el año: así "hasta" incluye el día completo.
     if (filtros.desde) query = query.gte("created_at", `${filtros.desde}T00:00:00-05:00`)
     if (filtros.hasta) query = query.lte("created_at", `${filtros.hasta}T23:59:59.999-05:00`)
@@ -427,6 +548,7 @@ export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Prom
         fechaRequerida: r.fechaRequerida,
         estado: r.estado,
         estadoCompra: r.estadoCompra,
+        extraordinaria: r.extraordinaria,
       })
     }
   }

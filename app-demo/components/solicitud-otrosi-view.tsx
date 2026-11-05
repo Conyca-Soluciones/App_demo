@@ -666,8 +666,9 @@ function FormularioOtrosi({
             <section className="space-y-2 rounded-md border p-3">
               <h3 className="text-sm font-semibold">Actividades (opcional)</h3>
               <p className="text-xs text-muted-foreground">
-                Más cantidad de actividades del contrato (a su valor pactado) o actividades nuevas del presupuesto. Cuando el otrosí quede
-                aprobado se agregan al contrato y se pueden cobrar en las actas; el valor del contrato sube solo.
+                Aumentar o bajar la cantidad de actividades del contrato (a su valor pactado), o agregar actividades nuevas del
+                presupuesto. Solo se puede bajar lo que falta por cobrar en actas. Cuando el otrosí quede aprobado, el valor del contrato
+                cambia solo.
               </p>
               {!cargaActs ? (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -688,7 +689,8 @@ function FormularioOtrosi({
             <section className="space-y-1 rounded-md border p-3 text-sm">
               <p className="font-semibold">Valor del contrato</p>
               <p className="tabular-nums">
-                Vigente {pesos(valorVigente)} + actividades {pesos(totalActs)} = <strong>{pesos(valorVigente + totalActs)}</strong>
+                Vigente {pesos(valorVigente)} {totalActs < 0 ? "−" : "+"} actividades {pesos(Math.abs(totalActs))} ={" "}
+                <strong>{pesos(valorVigente + totalActs)}</strong>
               </p>
               <p className="text-xs text-muted-foreground">
                 Con actividades el nuevo valor es este (no se escribe a mano). Al aprobarse pasa a ser el tope de las actas. Recuerda
@@ -766,24 +768,26 @@ function FormularioOtrosi({
 }
 
 // ---------------------------------------------------------------- actividades
-const ACTIVIDADES_VACIAS: ActividadesOtrosiForm = { adiciones: {}, nuevas: [] }
+const ACTIVIDADES_VACIAS: ActividadesOtrosiForm = { adiciones: {}, reducciones: {}, nuevas: [] }
 const comoTexto = (n: number) => String(n).replace(".", ",")
 
 function actividadesDesdeEdicion(edicion: OtrosiDetalle | null): ActividadesOtrosiForm {
   if (!edicion) return ACTIVIDADES_VACIAS
   const adiciones: Record<string, string> = {}
+  const reducciones: Record<string, string> = {}
   const nuevas: ActividadesOtrosiForm["nuevas"] = []
   for (const a of edicion.actividades) {
     if (a.tipo === "adicion" && a.anexoItemId) adiciones[a.anexoItemId] = comoTexto(a.cantidad)
+    else if (a.tipo === "reduccion" && a.anexoItemId) reducciones[a.anexoItemId] = comoTexto(a.cantidad)
     else nuevas.push({ presupuestoItemId: a.presupuestoItemId, cantidad: comoTexto(a.cantidad), valorUnitario: comoTexto(a.valorUnitario) })
   }
-  return { adiciones, nuevas }
+  return { adiciones, reducciones, nuevas }
 }
 
 const claseNumero =
   "w-full rounded-md border bg-background px-2 py-1 text-right text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-primary"
 
-// Adiciones a las actividades del contrato y actividades nuevas del
+// Adiciones y reducciones a las actividades del contrato y actividades nuevas del
 // presupuesto (con el tope del tipo de contrato: mano de obra en mano de obra).
 function ActividadesOtrosi({
   datos,
@@ -815,8 +819,10 @@ function ActividadesOtrosi({
                 <th className="px-2 py-1.5 text-left font-medium">Actividad del contrato</th>
                 <th className="px-2 py-1.5 text-right font-medium">Contratada</th>
                 <th className="px-2 py-1.5 text-right font-medium">Valor unitario</th>
+                <th className="px-2 py-1.5 text-right font-medium">Cobrado en actas</th>
                 <th className="px-2 py-1.5 text-right font-medium">Disponible</th>
-                <th className="w-32 px-2 py-1.5 text-right font-medium">Cantidad adicional</th>
+                <th className="w-28 px-2 py-1.5 text-right font-medium">Aumentar</th>
+                <th className="w-28 px-2 py-1.5 text-right font-medium">Bajar</th>
               </tr>
             </thead>
             <tbody>
@@ -830,6 +836,7 @@ function ActividadesOtrosi({
                     {numero(a.cantidad)} {a.unidad}
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{pesos(a.valorUnitario)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{numero(a.cobrado)}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{a.enPresupuesto ? numero(a.disponible) : "No está en el presupuesto"}</td>
                   <td className="p-1">
                     <input
@@ -837,7 +844,18 @@ function ActividadesOtrosi({
                       inputMode="decimal"
                       value={form.adiciones[a.id] ?? ""}
                       onChange={(e) => onChange({ ...form, adiciones: { ...form.adiciones, [a.id]: e.target.value } })}
-                      disabled={disabled || !a.enPresupuesto || a.disponible <= 0}
+                      disabled={disabled || !a.enPresupuesto || a.disponible <= 0 || Boolean(form.reducciones[a.id]?.trim())}
+                      className={claseNumero}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <input
+                      aria-label={`Cantidad a bajar de ${a.actividad}`}
+                      title={`Hasta ${numero(Math.max(a.cantidad - a.cobrado, 0))} (lo que falta por cobrar en actas)`}
+                      inputMode="decimal"
+                      value={form.reducciones[a.id] ?? ""}
+                      onChange={(e) => onChange({ ...form, reducciones: { ...form.reducciones, [a.id]: e.target.value } })}
+                      disabled={disabled || a.cantidad - a.cobrado <= 0 || Boolean(form.adiciones[a.id]?.trim())}
                       className={claseNumero}
                     />
                   </td>

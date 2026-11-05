@@ -45,10 +45,13 @@ export type OtrosiDeContrato = {
 }
 
 // Actividad del otrosí (contratos por valores unitarios): adición de cantidad a
-// una del contrato (a su valor pactado) o actividad nueva del presupuesto.
-// Aprobado el otrosí, cada una es una fila nueva del anexo que cobran las actas.
+// una del contrato (a su valor pactado), actividad nueva del presupuesto, o
+// reducción (menos cantidad de una del contrato, total negativo). Aprobado el
+// otrosí, adiciones y nuevas son filas nuevas del anexo que cobran las actas;
+// una reducción baja la cantidad vigente de la actividad
+// (contrato_anexo_items.cantidad_reducida, 20261228100000).
 export type ActividadOtrosi = {
-  tipo: "adicion" | "nueva"
+  tipo: "adicion" | "nueva" | "reduccion"
   anexoItemId: string | null
   presupuestoItemId: string
   codigo: string
@@ -71,6 +74,8 @@ export type ActividadContratoOtrosi = {
   valorUnitario: number
   enPresupuesto: boolean
   disponible: number
+  // Ya cobrado en actas no rechazadas: se puede bajar hasta cantidad − cobrado.
+  cobrado: number
 }
 export type ActividadesParaOtrosi = {
   anexoTipo: string | null
@@ -177,6 +182,10 @@ export type OtrosiDetalle = OtrosiFila & {
   minutaDatos: unknown
   minutaActualizadaAt: string | null
   minutaActualizadaPorNombre: string | null
+  // Representante legal principal de la empresa (Admin › Empresas): lo pone
+  // quien carga el otrosí; si la minuta del contrato no trae representante, el
+  // documento lo toma de aquí (su firma se pone al aprobar, 20261228200000).
+  empresaRepresentante?: { nombre: string; documento: string; expedidaEn: string | null } | null
   numeroProvisional: number
   fechaFin: string | null
   contratoMinuta: unknown
@@ -247,7 +256,7 @@ export function mapOtrosiFila(x: Fila): OtrosiFila {
 
 export function mapActividadesOtrosi(v: unknown): ActividadOtrosi[] {
   return (Array.isArray(v) ? (v as Fila[]) : []).map((a) => ({
-    tipo: a.tipo === "adicion" ? "adicion" : "nueva",
+    tipo: a.tipo === "adicion" ? "adicion" : a.tipo === "reduccion" ? "reduccion" : "nueva",
     anexoItemId: textoONulo(a.anexo_item_id),
     presupuestoItemId: texto(a.presupuesto_item_id),
     codigo: texto(a.codigo),
@@ -274,6 +283,7 @@ export function mapActividadesParaOtrosi(x: Fila): ActividadesParaOtrosi {
       valorUnitario: Number(a.valor_unitario ?? 0),
       enPresupuesto: a.en_presupuesto === true,
       disponible: Number(a.disponible ?? 0),
+      cobrado: Number(a.cobrado ?? 0),
     })),
     catalogo: (Array.isArray(x.catalogo) ? (x.catalogo as Fila[]) : []).map((c) => ({
       id: texto(c.presupuesto_item_id),
@@ -289,13 +299,17 @@ export function mapActividadesParaOtrosi(x: Fila): ActividadesParaOtrosi {
   }
 }
 
-// Actividades del formulario: cantidad adicional por actividad del contrato y
-// actividades nuevas del presupuesto (texto en formato colombiano).
+// Actividades del formulario: cantidad que se aumenta o se baja por actividad
+// del contrato y actividades nuevas del presupuesto (texto en formato colombiano).
 export type ActividadesOtrosiForm = {
   adiciones: Record<string, string>
+  reducciones: Record<string, string>
   nuevas: { presupuestoItemId: string; cantidad: string; valorUnitario: string }[]
 }
-export type ActividadOtrosiEnvio = { anexo_item_id: string; cantidad: number } | { presupuesto_item_id: string; cantidad: number; valor_unitario: number }
+export type ActividadOtrosiEnvio =
+  | { anexo_item_id: string; cantidad: number }
+  | { tipo: "reduccion"; anexo_item_id: string; cantidad: number }
+  | { presupuesto_item_id: string; cantidad: number; valor_unitario: number }
 
 // Revisa lo mismo que _normalizar_actividades_otrosi con lo que se ve en
 // pantalla (disponible y tope); devuelve lo que se envía y el total, o el error.
@@ -314,6 +328,18 @@ export function leerActividadesOtrosi(
     if (cantidad > a.disponible + 1e-9) return { ok: false, error: `"${a.actividad}": la cantidad adicional supera lo disponible en el presupuesto.` }
     envio.push({ anexo_item_id: a.id, cantidad })
     total += Math.round(cantidad * a.valorUnitario * 100) / 100
+  }
+  for (const a of datos.anexo) {
+    const t = (f.reducciones[a.id] ?? "").trim()
+    if (!t) continue
+    if ((f.adiciones[a.id] ?? "").trim()) return { ok: false, error: `"${a.actividad}": aumenta o baja la cantidad, no las dos.` }
+    const cantidad = leerNumero(t)
+    if (cantidad === null || cantidad <= 0) return { ok: false, error: `"${a.actividad}": la cantidad a bajar no es válida.` }
+    const maximo = Math.max(a.cantidad - a.cobrado, 0)
+    if (cantidad > maximo + 1e-9)
+      return { ok: false, error: `"${a.actividad}": solo se puede bajar hasta ${maximo} (lo que falta por cobrar en actas).` }
+    envio.push({ tipo: "reduccion", anexo_item_id: a.id, cantidad })
+    total -= Math.round(cantidad * a.valorUnitario * 100) / 100
   }
   const vistos = new Set<string>()
   for (const [i, n] of f.nuevas.entries()) {
@@ -462,9 +488,12 @@ export function minutaOtrosiPorDefecto(d: OtrosiDetalle, hoy: string): MinutaOtr
   return {
     contratanteNombre: deMinuta(cm, "contratanteNombre") ?? d.empresaNombre ?? CONTRATANTE_POR_DEFECTO.nombre,
     contratanteNit: deMinuta(cm, "contratanteNit") ?? d.empresaNit ?? CONTRATANTE_POR_DEFECTO.nit,
-    contratanteRepresentante: deMinuta(cm, "contratanteRepresentante") ?? "",
-    contratanteRepresentanteCedula: deMinuta(cm, "contratanteRepresentanteCedula") ?? "",
-    contratanteRepresentanteExpedida: deMinuta(cm, "contratanteRepresentanteExpedida") ?? EXPEDIDA_PLANTILLA_OTROSI,
+    // El representante de la minuta del contrato, o el principal de la empresa
+    // (si no, el otrosí no se podría aprobar con firma).
+    contratanteRepresentante: deMinuta(cm, "contratanteRepresentante") ?? d.empresaRepresentante?.nombre ?? "",
+    contratanteRepresentanteCedula: deMinuta(cm, "contratanteRepresentanteCedula") ?? d.empresaRepresentante?.documento ?? "",
+    contratanteRepresentanteExpedida:
+      deMinuta(cm, "contratanteRepresentanteExpedida") ?? d.empresaRepresentante?.expedidaEn ?? EXPEDIDA_PLANTILLA_OTROSI,
     contratistaTipoPersona: juridica ? "juridica" : "natural",
     contratistaNombre: deMinuta(cm, "contratistaNombre") ?? d.contratistaNombre,
     contratistaNit: deMinuta(cm, "contratistaNit") ?? nitDirectorio,

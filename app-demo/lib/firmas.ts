@@ -9,7 +9,7 @@ import { formatearFechaHora } from "@/lib/fechas"
 // para poder probarlas).
 // ---------------------------------------------------------------------------
 
-export type EntidadFirmada = "acta" | "poliza" | "orden_compra" | "contrato"
+export type EntidadFirmada = "acta" | "poliza" | "orden_compra" | "contrato" | "otrosi"
 export type PapelFirma = "elaboro" | "aprobo" | "juridica" | "representante_legal"
 
 export type FirmaDocumento = {
@@ -85,7 +85,10 @@ export function textoFirmado(f: FirmaDocumento): string {
 // es la versión del PDF congelado (una OC desaprobada y vuelta a aprobar
 // renueva el código y se congela otra vez).
 export function firmaPrincipal(entidad: EntidadFirmada, firmas: FirmaDocumento[]): FirmaDocumento | null {
-  return firmaDe(firmas, entidad === "poliza" ? "juridica" : entidad === "contrato" ? "representante_legal" : "aprobo")
+  return firmaDe(
+    firmas,
+    entidad === "poliza" ? "juridica" : entidad === "contrato" || entidad === "otrosi" ? "representante_legal" : "aprobo"
+  )
 }
 
 // ¿El documento se aprobó con firmas (desde esta fase)? Solo esos se congelan:

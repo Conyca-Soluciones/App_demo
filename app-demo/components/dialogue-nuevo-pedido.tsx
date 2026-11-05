@@ -44,6 +44,10 @@ interface FormularioRequisicionProps {
   // esto el formulario va directo en la página: al guardar se vacía para
   // poder hacer otra requisición, y el botón secundario es "Limpiar".
   onTerminar?: () => void
+  // "Solicitar requisición extraordinaria a Gerencia" desde un ítem sin cupo o con una cantidad que lo
+  // supera: abre la requisición extraordinaria con el insumo y el ítem ya
+  // escogidos. Sin esto (al modificar) no se ofrece.
+  onSolicitarGerencia?: (inicial: { insumo: InsumoAgrupado; presupuestoItemId: string }) => void
 }
 
 interface SolicitudInsumoDialogProps {
@@ -73,9 +77,9 @@ function motivoLinea(linea: LineaPedido): string | null {
   const { marcados, hayExceso, lista } = estadoLinea(linea)
   if (lista) return null
   if (linea.items.every((it) => it.cantidadDisponible <= 0))
-    return "Este insumo no tiene cupo disponible en el presupuesto. Quítalo para poder guardar."
+    return "Este insumo no tiene cupo disponible en el presupuesto. Quítalo para poder guardar, o pide lo que falta con \"Solicitar requisición extraordinaria a Gerencia\"."
   if (marcados.length === 0) return "Marca al menos un ítem del presupuesto."
-  if (hayExceso) return "Una cantidad supera lo disponible en el presupuesto."
+  if (hayExceso) return "Una cantidad supera lo disponible en el presupuesto. Pide hasta lo disponible aquí y lo demás con \"Solicitar requisición extraordinaria a Gerencia\"."
   if (marcados.some((it) => it.cantidad.trim() === "")) return "Falta escribir la cantidad."
   if (marcados.some((it) => !esEntero(it.cantidad))) return "Las cantidades deben ser números enteros."
   return "La cantidad debe ser mayor que cero."
@@ -87,6 +91,7 @@ export function FormularioRequisicion({
   onPedidoCreado,
   edicion = null,
   onTerminar,
+  onSolicitarGerencia,
 }: FormularioRequisicionProps) {
   // Sube cada vez que hay que vaciar el formulario (Limpiar, o tras crear).
   const [reinicio, setReinicio] = useState(0)
@@ -468,6 +473,20 @@ export function FormularioRequisicion({
                                 {sinDisponible
                                   ? "Sin cantidad disponible en el presupuesto"
                                   : `Disponible: ${it.cantidadDisponible}`}
+                                {onSolicitarGerencia && (sinDisponible || excedido) && (
+                                  <>
+                                    {" · "}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onSolicitarGerencia({ insumo, presupuestoItemId: it.presupuestoItemId })
+                                      }
+                                      className="font-medium text-primary underline underline-offset-2"
+                                    >
+                                      Solicitar requisición extraordinaria a Gerencia
+                                    </button>
+                                  </>
+                                )}
                               </p>
                             </div>
                             <div className="w-28 space-y-0.5">
