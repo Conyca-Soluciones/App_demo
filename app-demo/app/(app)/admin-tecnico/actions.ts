@@ -36,6 +36,8 @@ export async function verRequisicionesAprobacion(
   let query = supabase
     .from("requisiciones_vista")
     .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
+    // Las extraordinarias las aprueba Gerencia en su propia pestaña.
+    .eq("extraordinaria", false)
   query = filtros.estado
     ? query.eq("estado", filtros.estado)
     : query.in("estado", ["pendiente", "aprobada", "rechazada"])

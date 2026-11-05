@@ -25,6 +25,10 @@ export type RequisicionResumen = {
   nLineas: number
   estado: EstadoRequisicion
   estadoCompra: EstadoCompra
+  // Pide más de lo que contempla el presupuesto: la aprueba Gerencia
+  // (20261226000000_requisiciones_extraordinarias.sql).
+  extraordinaria: boolean
+  justificacion: string | null
 }
 
 export type LineaRequisicion = {
@@ -164,6 +168,8 @@ export function mapResumen(r: any): RequisicionResumen {
     nLineas: r.n_lineas,
     estado: r.estado,
     estadoCompra: r.estado_compra,
+    extraordinaria: r.extraordinaria === true,
+    justificacion: r.justificacion ?? null,
   }
 }
 

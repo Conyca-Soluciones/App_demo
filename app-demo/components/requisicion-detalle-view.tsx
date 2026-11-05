@@ -21,12 +21,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
+import { BadgeCompraRequisicion, BadgeEstadoRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { seleccionarProyecto } from "@/app/(app)/inicio/actions"
 import {
+  puedeVerPresupuestos,
   obtenerRequisicion,
   cancelarRequisicion,
   cargarRequisicionParaEditar,
@@ -58,6 +61,8 @@ export function RequisicionDetalleView({
   const [motivo, setMotivo] = useState("")
   const [edicion, setEdicion] = useState<EdicionRequisicion | null>(null)
   const [editando, setEditando] = useState(false)
+  const { proyecto } = useProyectoActual()
+  const [verPresupuesto, setVerPresupuesto] = useState(false)
 
   function cargar() {
     obtenerRequisicion(requisicionId)
@@ -73,6 +78,28 @@ export function RequisicionDetalleView({
     cargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requisicionId])
+
+  useEffect(() => {
+    puedeVerPresupuestos()
+      .then(setVerPresupuesto)
+      .catch(() => {})
+  }, [])
+
+  // Abre Elaboración de presupuestos con el ítem resaltado (?item=<código>: se
+  // busca por código en la versión vigente, porque la requisición puede ser de
+  // una versión anterior). Si la requisición es de otro proyecto, antes se
+  // cambia el proyecto actual (igual que Mis pendientes).
+  async function irAlItem(codigo: string) {
+    if (!req) return
+    try {
+      const otro = req.proyectoId !== null && req.proyectoId !== proyecto?.id
+      if (otro) await seleccionarProyecto(req.proyectoId!)
+      router.push(`/presupuestos?item=${encodeURIComponent(codigo)}`)
+      if (otro) router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo abrir el presupuesto.")
+    }
+  }
 
   useEffect(() => {
     // getClaims valida el token localmente; getUser hacía una llamada a Supabase Auth.
@@ -143,6 +170,7 @@ export function RequisicionDetalleView({
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">Requisición #{req.numero}</h1>
           <BadgeEstadoRequisicion estado={req.estado} />
+          {req.extraordinaria && <BadgeExtraordinaria />}
           {req.urgente && <Badge variant="destructive">Urgente</Badge>}
           {mostrarCompra && (
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -151,9 +179,12 @@ export function RequisicionDetalleView({
           )}
           {puedeEditar && (
             <>
-              <Button variant="outline" disabled={procesando} onClick={abrirEdicion}>
-                Modificar
-              </Button>
+              {/* Una extraordinaria no se modifica: se cancela y se pide otra. */}
+              {!req.extraordinaria && (
+                <Button variant="outline" disabled={procesando} onClick={abrirEdicion}>
+                  Modificar
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
@@ -224,8 +255,21 @@ export function RequisicionDetalleView({
                   </TableCell>
                   <TableCell>{l.insumoUm ?? "—"}</TableCell>
                   <TableCell className="whitespace-normal break-words">
-                    <span className="font-mono text-muted-foreground">{l.itemCodigo}</span>{" "}
-                    {l.itemDescripcion}
+                    {verPresupuesto ? (
+                      <button
+                        type="button"
+                        onClick={() => irAlItem(l.itemCodigo)}
+                        title="Ver este ítem en el presupuesto"
+                        className="text-left underline-offset-2 hover:underline"
+                      >
+                        <span className="font-mono text-primary">{l.itemCodigo}</span> {l.itemDescripcion}
+                      </button>
+                    ) : (
+                      <>
+                        <span className="font-mono text-muted-foreground">{l.itemCodigo}</span>{" "}
+                        {l.itemDescripcion}
+                      </>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">{l.cantidad.toLocaleString("es-CO")}</TableCell>
                   {mostrarCompra && (
@@ -284,7 +328,7 @@ export function RequisicionDetalleView({
             </div>
           )}
           <div className="space-y-1">
-            <p className="text-muted-foreground">Observaciones</p>
+            <p className="text-muted-foreground">{req.extraordinaria ? "Justificación (por encima del presupuesto)" : "Observaciones"}</p>
             <p className="whitespace-pre-wrap break-words">{req.observaciones ?? "—"}</p>
           </div>
           {req.soporteUrl && (

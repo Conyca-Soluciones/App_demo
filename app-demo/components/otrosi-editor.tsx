@@ -17,6 +17,7 @@ import {
   useVistaPreviaMinuta,
 } from "@/components/minuta-comun"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
+import { SelectorRepresentante } from "@/components/selector-representante"
 import { TIPOS_DOCUMENTO_ARRENDADOR } from "@/lib/minuta-arrendamiento"
 import { ordinalClausula, type OrigenDato } from "@/lib/minuta-mano-obra"
 import { MAXIMO_MODIFICACIONES_OTROSI, nombreArchivoOtrosi, origenCampoOtrosi, type MinutaOtrosi, type OtrosiDetalle } from "@/lib/otrosi"
@@ -201,6 +202,20 @@ export function OtrosiEditor({ detalle, puedeEditar }: { detalle: OtrosiDetalle;
           <div className="grid gap-3 sm:grid-cols-2">
             {campo("contratanteNombre", "Razón social")}
             {campo("contratanteNit", "NIT")}
+            <div className="sm:col-span-2">
+              <SelectorRepresentante
+                representantes={datos.representantes}
+                documentoActual={m.contratanteRepresentanteCedula}
+                deshabilitado={deshabilitado}
+                onElegir={(r) =>
+                  actualizar({
+                    contratanteRepresentante: r.nombre,
+                    contratanteRepresentanteCedula: r.numeroDocumento,
+                    ...(r.expedidaEn ? { contratanteRepresentanteExpedida: r.expedidaEn } : {}),
+                  })
+                }
+              />
+            </div>
             {campo("contratanteRepresentante", "Representante legal")}
             {campo("contratanteRepresentanteCedula", "Cédula del representante")}
             {campo("contratanteRepresentanteExpedida", "Cédula expedida en")}

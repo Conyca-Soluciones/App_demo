@@ -531,7 +531,32 @@ select * from (
                       and has_function_privilege('anon', oid, 'execute'))
          and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%pago_por_liquidar%')
   union all
-  select '20261228000000_oc_tipo_pago',
+  select '20261226000000_requisiciones_extraordinarias',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'requisiciones' and column_name = 'extraordinaria')
+         and exists (select 1 from pg_proc where proname = 'listar_requisiciones_extraordinarias')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%req_extra_por_aprobar%')
+  union all
+  select '20261227000000_extraordinarias_descuentan_cupo',
+         exists (select 1 from pg_proc where proname = '_comprometido_insumo_item' and prosrc not like '%extraordinaria%')
+  union all
+  select '20261228000000_requisicion_items_version_vigente',
+         exists (select 1 from pg_proc where proname = 'crear_requisicion' and prosrc like '%versión vigente%')
+  union all
+  select '20261228100000_otrosi_bajar_cantidades',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'contrato_anexo_items' and column_name = 'cantidad_reducida')
+         and exists (select 1 from pg_proc where proname = '_normalizar_actividades_otrosi' and prosrc like '%reduccion%')
+         and exists (select 1 from pg_proc where proname = '_guardar_acta' and prosrc like '%cantidad_reducida%')
+  union all
+  select '20261228200000_firmas_otrosi',
+         exists (select 1 from pg_trigger where tgname = 'trg_firmar_representante_otrosi')
+         and exists (select 1 from pg_proc where proname = 'verificar_documento' and prosrc like '%otrosi%')
+  union all
+  select '20261228300000_crear_nueva_version',
+         exists (select 1 from pg_proc where proname = 'crear_nueva_version')
+  union all
+  select '20261228400000_oc_tipo_pago',
          exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'ordenes_compra' and column_name = 'tipo_pago')
          and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'

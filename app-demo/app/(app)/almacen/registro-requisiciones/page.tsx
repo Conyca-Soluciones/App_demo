@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
-import { BadgeCompraRequisicion, BadgeEstadoRequisicion } from "@/components/badge-requisicion"
+import { BadgeCompraRequisicion, BadgeEstadoRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -47,6 +47,7 @@ export default function RegistroRequisiciones() {
         celda: (r) => (
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate font-medium">Requisición {r.numero}</span>
+            {r.extraordinaria && <BadgeExtraordinaria />}
             {r.urgente && <Badge variant="destructive">Urgente</Badge>}
           </span>
         ),
@@ -137,7 +138,7 @@ export default function RegistroRequisiciones() {
       />
 
       <main className="flex w-full flex-1 gap-4 p-6">
-        <FiltrosRequisicionesPanel onConsultar={consultar} cargando={cargando} onError={setError} />
+        <FiltrosRequisicionesPanel conTipo onConsultar={consultar} cargando={cargando} onError={setError} />
 
         <div className="min-w-0 flex-1 space-y-3">
           {error && (

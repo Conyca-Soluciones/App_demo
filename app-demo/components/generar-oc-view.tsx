@@ -156,7 +156,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const [fechaEntrega, setFechaEntrega] = useState("")
   const [contactoProyecto, setContactoProyecto] = useState("")
   const [condicionesPago, setCondicionesPago] = useState("")
-  // Tipo de pago (20261228000000): obligatorio; con crédito, la fecha de pago.
+  // Tipo de pago (20261228400000): obligatorio; con crédito, la fecha de pago.
   const [tipoPago, setTipoPago] = useState<TipoPagoOC | null>(null)
   const [fechaCredito, setFechaCredito] = useState("")
   const [observaciones, setObservaciones] = useState("")

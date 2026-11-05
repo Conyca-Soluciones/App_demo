@@ -63,7 +63,7 @@ export function mapPago(f: any): Pago {
   // Acta de un contrato por PSE (20261220000000): igual, sin cuenta.
   const actaPse = f.acta?.contrato?.metodo_pago === "pse"
   const pse = ocPse || actaPse || f.req?.metodo === "pse"
-  // Tipo de pago de la OC (20261228000000): de contado, crédito con su fecha o fiducia.
+  // Tipo de pago de la OC (20261228400000): de contado, crédito con su fecha o fiducia.
   const tipoOC = textoTipoPagoOC(f.orden?.tipo_pago, f.orden?.fecha_pago_credito)
   return {
     id: f.id,

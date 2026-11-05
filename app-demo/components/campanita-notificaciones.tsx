@@ -17,7 +17,11 @@ const formatoFecha = (iso: string) =>
 // compra a su detalle, y las requisiciones al registro de requisiciones.
 function rutaDestino(n: Notificacion): string {
   if (n.entidadTipo === "orden_compra") return `/almacen/ordenes-compra/${n.entidadId}`
-  if (n.entidadTipo === "requisicion") return `/almacen/registro-requisiciones/${n.entidadId}`
+  if (n.entidadTipo === "requisicion")
+    // A Gerencia, la bandeja de extraordinarias; lo demás, al detalle.
+    return n.tipo === "requisicion_extraordinaria"
+      ? "/almacen/requisiciones-extraordinarias"
+      : `/almacen/registro-requisiciones/${n.entidadId}`
   // Contratos: a quien aprueba, a Pre-aprobación; a Subgerencia, a Aprobación
   // de minutas; a Jurídica (minuta aprobada o devuelta), a Pre-aprobación; a
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.

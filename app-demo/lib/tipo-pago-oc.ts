@@ -1,4 +1,4 @@
-// Tipo de pago de una orden de compra (20261228000000, decisión del usuario):
+// Tipo de pago de una orden de compra (20261228400000, decisión del usuario):
 // De contado, Crédito o Fiducia, obligatorio al generar la orden. Con Crédito
 // se escribe la fecha (futura) en que se debe pagar. Es INFORMATIVO: el pago
 // llega a Aprobación de pagos como siempre (aprobarlo aprueba la orden) y A&F

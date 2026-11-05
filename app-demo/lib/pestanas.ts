@@ -72,6 +72,9 @@ export const PESTANAS: Pestana[] = [
   { clave: "tecnico.pedidos", titulo: "Elaboración de requisiciones", seccion: "Requisiciones", url: "/almacen", rutas: ["/almacen"] },
   { clave: "tecnico.registro_pedidos", titulo: "Registro de requisiciones", seccion: "Requisiciones", url: "/almacen/registro-requisiciones", rutas: ["/almacen/registro-requisiciones"] },
   { clave: "tecnico.aprobar_pedidos", titulo: "Aprobación de requisiciones", seccion: "Requisiciones", url: "/admin-tecnico", rutas: ["/admin-tecnico"] },
+  // Lo que se pide por encima del presupuesto ("Solicitar requisición extraordinaria a Gerencia"); la
+  // aprueba Gerencia (20261226000000_requisiciones_extraordinarias.sql).
+  { clave: "tecnico.aprobar_extraordinarias", titulo: "Aprobación de requisiciones extraordinarias", seccion: "Requisiciones", url: "/almacen/requisiciones-extraordinarias", rutas: ["/almacen/requisiciones-extraordinarias"], nota: "Requisiciones por encima del presupuesto; las aprueba Gerencia." },
 
   // Compras: subgrupo Requisiciones (lo que falta comprar), subgrupo Órdenes de
   // compra y Proveedores. comprar_pedidos = Requisiciones por comprar,
@@ -156,6 +159,7 @@ export const ACCIONES: Accion[] = [
   { clave: "aprobar_insumos", titulo: "Aprobar insumos nuevos", descripcion: "Aprobar solicitudes de insumos y editar la maestra de insumos.", seccion: "Presupuestos" },
   { clave: "aprobar_mano_obra", titulo: "Aprobar mano de obra y equipos", descripcion: "Resolver las solicitudes de mano de obra y de equipo.", seccion: "Presupuestos" },
   { clave: "aprobar_pedidos", titulo: "Aprobar requisiciones", descripcion: "Aprobar o rechazar las requisiciones de insumos de los ingenieros (y ver las de todos los proyectos).", seccion: "Requisiciones" },
+  { clave: "aprobar_requisiciones_extraordinarias", titulo: "Aprobar requisiciones extraordinarias", descripcion: "Aprobar o rechazar lo que se pide por encima del presupuesto (\"Solicitar requisición extraordinaria a Gerencia\").", seccion: "Requisiciones" },
   { clave: "desaprobar_pedidos", titulo: "Desaprobar requisiciones", descripcion: "Devolver una requisición aprobada a pendiente, si todavía no está en una orden de compra.", seccion: "Requisiciones" },
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },

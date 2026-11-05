@@ -19,6 +19,8 @@ import {
 import { ActaPDF } from "@/components/acta-pdf"
 import { ActaPolizaPDF } from "@/components/acta-poliza-pdf"
 import { OrdenCompraPDF } from "@/components/orden-compra-pdf"
+import { OtrosiPDF } from "@/components/otrosi-pdf"
+import type { MinutaOtrosi } from "@/lib/otrosi"
 import { pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
 
 
@@ -194,4 +196,25 @@ export async function pdfContratoFirmado(supabase: Supabase, id: string, c: Cont
   }
   const nombre = sinTildes(`contrato-${c.numeroContrato ?? c.numero}.pdf`)
   return { nombre, ...(await pdfCongelado("contrato", id, `${principal.codigo}-${VERSION_PDF_CONTRATO}`, f.congelado, generar)) }
+}
+
+// ---------------------------------------------------------------- otrosí (aprobado)
+// Aprobado con la firma del representante legal (20261228200000_firmas_otrosi.sql):
+// el PDF congelado. null = no aplica (sin aprobar o aprobado sin representantes
+// registrados): la ruta lo arma como siempre. La minuta (el documento guardado
+// que aprobó Subgerencia) la arma la ruta.
+export async function pdfOtrosiFirmado(
+  supabase: Supabase,
+  id: string,
+  o: { estado: string; numero: number; minuta: MinutaOtrosi; nombre: string }
+): Promise<PdfDocumento | null> {
+  if (o.estado !== "aprobada") return null
+  const f = await leerFirmas(supabase, "otrosi", id)
+  const principal = firmaPrincipal("otrosi", f.firmas)
+  if (!principal) return null
+  const generar = async () =>
+    new Uint8Array(
+      await renderToBuffer(<OtrosiPDF minuta={o.minuta} numero={o.numero} logo={LOGO_CONYCA_PATH} firmaContratante={principal} />)
+    )
+  return { nombre: o.nombre, ...(await pdfCongelado("otrosi", id, principal.codigo, f.congelado, generar)) }
 }

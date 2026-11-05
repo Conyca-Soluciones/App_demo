@@ -174,7 +174,11 @@ export function DetalleOtrosi({
                                     <td className="px-2 py-1.5">
                                       <span className="font-medium tabular-nums">{a.codigo}</span> {a.actividad}
                                       <span className="block text-xs text-muted-foreground">
-                                        {a.tipo === "adicion" ? "Más cantidad de una actividad del contrato" : "Actividad nueva"}
+                                        {a.tipo === "adicion"
+                                          ? "Más cantidad de una actividad del contrato"
+                                          : a.tipo === "reduccion"
+                                            ? "Menos cantidad de una actividad del contrato"
+                                            : "Actividad nueva"}
                                       </span>
                                       {a.sinManoObra && (
                                         <span className="block text-xs text-amber-700 dark:text-amber-400">

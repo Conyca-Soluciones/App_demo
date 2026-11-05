@@ -2,6 +2,8 @@ import { Document, Page, View, Text } from "@react-pdf/renderer"
 import { blanco, cantidadEnLetras, ordinalClausula, partesFecha } from "@/lib/minuta-mano-obra"
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import type { MinutaOtrosi } from "@/lib/otrosi"
+import type { FirmaDocumento } from "@/lib/firmas"
+import { LineaFirma } from "@/components/linea-firma-pdf"
 import { Clausula, Encabezado, P, s, campoResaltable, renglonConFoco, resaltado, unirTexto } from "@/components/minuta-mano-obra-pdf"
 
 // ---------------------------------------------------------------------------
@@ -9,13 +11,26 @@ import { Clausula, Encabezado, P, s, campoResaltable, renglonConFoco, resaltado,
 // cada modificación ("Modificar la cláusula X" + cómo queda), las cláusulas no
 // modificadas y el perfeccionamiento, numeradas seguidas (la plantilla salta de
 // SEGUNDA a SEXTO). Se genera en el servidor
-// (app/(app)/contratos/otrosi-pdf/[id]/route.tsx).
+// (app/(app)/contratos/otrosi-pdf/[id]/route.tsx). Aprobado, lleva la firma del
+// representante legal sobre la línea del contratante (20261228200000).
 // ---------------------------------------------------------------------------
 
 // Así viene el encabezado de la plantilla (el código no trae número).
 const ENCABEZADO = { formato: "OTROSÍ", codigo: "GJ-F", version: "04", fecha: "9/05/2025" }
 
-export function OtrosiPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaOtrosi; numero: number; logo: string | Buffer; foco?: string }) {
+export function OtrosiPDF({
+  minuta: m,
+  numero,
+  logo,
+  foco,
+  firmaContratante,
+}: {
+  minuta: MinutaOtrosi
+  numero: number
+  logo: string | Buffer
+  foco?: string
+  firmaContratante?: FirmaDocumento | null
+}) {
   const res = campoResaltable(foco)
   const renglon = renglonConFoco(foco, "modificaciones")
   const fecha = partesFecha(m.fechaFirma)
@@ -100,7 +115,7 @@ export function OtrosiPDF({ minuta: m, numero, logo, foco }: { minuta: MinutaOtr
           </View>
           <View style={s.firma}>
             <Text style={[s.b, { marginBottom: 36 }]}>EL CONTRATANTE</Text>
-            <View style={s.firmaLinea} />
+            {firmaContratante ? <LineaFirma firma={firmaContratante} /> : <View style={s.firmaLinea} />}
             <Text style={s.b}>{res("contratanteNombre", blanco(m.contratanteNombre))}</Text>
             <Text>NIT. {res("contratanteNit", blanco(m.contratanteNit))}</Text>
             <Text>RL. {res("contratanteRepresentante", blanco(m.contratanteRepresentante))}</Text>

@@ -475,6 +475,13 @@ function PresupuestoDeProyecto() {
   const [avisoImportApu, setAvisoImportApu] = useState<string | null>(null)
   const [itemApuAbierto, setItemApuAbierto] = useState<ItemPresupuesto | null>(null)
   const [itemResaltadoId, setItemResaltadoId] = useState<string | null>(null)
+  // ?item=<código>: viene del detalle de una requisición (Aprobación, Registro):
+  // al cargar el presupuesto se va a ese ítem y se resalta. Se lee una vez de la
+  // URL (sin useSearchParams, que pide un Suspense en la página).
+  const [itemPedidoCodigo] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("item")
+  )
+  const itemPedidoHecho = useRef(false)
   // Controla el pliegue del árbol de navegación (PresupuestoTree) desde
   // acá -- así el <aside> que lo envuelve puede achicar su propio ancho
   // cuando se pliega, y el <main> de al lado (flex-1, contenedor
@@ -1525,6 +1532,22 @@ function PresupuestoDeProyecto() {
       setItemResaltadoId((actual) => (actual === id ? null : actual))
     }, 2000)
   }
+
+  // Ir al ítem pedido en la URL apenas esté en la tabla (una sola vez); el
+  // resaltado dura más que el del árbol, porque llega de otra pantalla.
+  useEffect(() => {
+    if (!itemPedidoCodigo || itemPedidoHecho.current) return
+    const item = presupuesto.find((i) => i.codigo === itemPedidoCodigo)
+    if (!item) return
+    const t = setTimeout(() => {
+      itemPedidoHecho.current = true
+      setItemResaltadoId(item.id)
+      document.getElementById(`item-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+      setTimeout(() => setItemResaltadoId((actual) => (actual === item.id ? null : actual)), 5000)
+      window.history.replaceState(null, "", window.location.pathname)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [presupuesto, itemPedidoCodigo])
 
   // Ítem YA guardado en la base -- necesita su propio round-trip (ver
   // comentario en actualizarCantidadPresupuestoItem, actions.ts) en vez de

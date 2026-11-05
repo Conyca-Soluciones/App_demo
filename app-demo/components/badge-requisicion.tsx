@@ -21,6 +21,15 @@ export function BadgeEstadoRequisicion({ estado }: { estado: EstadoRequisicion }
   return <span className={`${base} ${e.clase}`}>{e.etiqueta}</span>
 }
 
+// Requisición extraordinaria: por encima del presupuesto, la aprueba Gerencia.
+export function BadgeExtraordinaria() {
+  return (
+    <span className={`${base} bg-orange-100 text-orange-800`} title="Por encima del presupuesto; la aprueba Gerencia">
+      Extraordinaria
+    </span>
+  )
+}
+
 // Estado de COMPRA (solo requisiciones aprobadas): Completa = todos sus
 // insumos ya están en órdenes de compra; Pendiente = falta alguno.
 export function BadgeCompraRequisicion({ estadoCompra }: { estadoCompra: EstadoCompra }) {

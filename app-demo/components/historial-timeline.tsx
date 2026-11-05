@@ -89,6 +89,7 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   otrosi_reenviado_subgerencia: { etiqueta: "Otrosí corregido y enviado otra vez a Subgerencia", tono: "neutro" },
   otrosi_devuelto_subgerencia: { etiqueta: "Otrosí devuelto a Jurídica por Subgerencia", tono: "aviso" },
   otrosi_aprobado: { etiqueta: "Otrosí aprobado por Subgerencia", tono: "ok" },
+  otrosi_firma_representante: { etiqueta: "Firma del representante legal puesta en el otrosí", tono: "ok" },
   // Póliza (20261126000000_polizas.sql).
   poliza_subida: { etiqueta: "Póliza subida", tono: "neutro" },
   poliza_aprobada: { etiqueta: "Póliza aprobada por Jurídica", tono: "ok" },
@@ -107,6 +108,7 @@ const EVENTOS_OTROSI: Record<string, { etiqueta: string; tono: "ok" | "malo" | "
   reenviado_subgerencia: { etiqueta: "Corregido y enviado otra vez a Subgerencia", tono: "neutro" },
   devuelto_subgerencia: { etiqueta: "Devuelto a Jurídica por Subgerencia", tono: "aviso" },
   aprobado: { etiqueta: "Aprobado por Subgerencia", tono: "ok" },
+  firma_representante: { etiqueta: "Firma del representante legal puesta en el otrosí", tono: "ok" },
 }
 
 // Pagos de A&F (el evento de un cambio de estado es el nombre del estado nuevo).

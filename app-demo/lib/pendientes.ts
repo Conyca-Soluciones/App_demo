@@ -40,6 +40,7 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   mi_poliza_por_subir: { titulo: "Pólizas por subir", accion: "Subir póliza", orden: 5 },
   mi_req_admin_rechazada: { titulo: "Mis requisiciones administrativas rechazadas", accion: "Corregir", orden: 6 },
   req_por_aprobar: { titulo: "Requisiciones por aprobar", accion: "Aprobar", orden: 10 },
+  req_extra_por_aprobar: { titulo: "Requisiciones extraordinarias por aprobar", accion: "Aprobar", orden: 10.5 },
   insumo_por_aprobar: { titulo: "Insumos nuevos por aprobar", accion: "Revisar", orden: 11 },
   mo_por_aprobar: { titulo: "Mano de obra y equipos por aprobar", accion: "Revisar", orden: 12 },
   req_por_comprar: { titulo: "Requisiciones por comprar", accion: "Comprar", orden: 20 },

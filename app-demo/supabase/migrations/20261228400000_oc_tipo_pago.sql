@@ -8,7 +8,7 @@
 -- (parchada sobre su versión VIVA, texto exacto) y llama a
 -- `_fijar_tipo_pago_orden` en la misma transacción. Sin tipo (código de antes
 -- del deploy) la orden se crea igual: la pantalla lo exige. Las OC de antes
--- quedan sin tipo. Se puede correr dos veces. Va después de 20261227000000.
+-- quedan sin tipo. Se puede correr dos veces. Va después de 20261227000000 (antes se llamaba 20261228000000_oc_tipo_pago; ese número lo usa otra rama).
 
 alter table public.ordenes_compra
   add column if not exists tipo_pago text,
