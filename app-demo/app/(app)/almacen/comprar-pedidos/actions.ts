@@ -116,6 +116,8 @@ export type PedidoParaComprar = {
   observaciones: string | null
   soporteUrl: string | null
   solicitadoPorNombre: string | null
+  // Proyecto de la requisición: "001 · ZZ-PRUEBA" (número y código).
+  proyectoTexto: string | null
   resueltoAt: string | null
 }
 
@@ -124,6 +126,7 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
   requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
+  proyecto:proyectos!pedidos_insumos_proyecto_id_fkey(numero, codigo, nombre),
   compras:ordenes_compra_items!ordenes_compra_items_pedido_insumo_id_fkey(
     cantidad,
     factor_unidad,
@@ -181,6 +184,11 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     observaciones: f.observaciones,
     soporteUrl: f.soporte_url,
     solicitadoPorNombre: f.solicitante?.nombre ?? null,
+    proyectoTexto: f.proyecto
+      ? [f.proyecto.numero != null ? String(f.proyecto.numero).padStart(3, "0") : null, f.proyecto.codigo ?? f.proyecto.nombre]
+          .filter(Boolean)
+          .join(" · ")
+      : null,
     resueltoAt: f.resuelto_at,
   }
 }
