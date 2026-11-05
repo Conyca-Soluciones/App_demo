@@ -3,7 +3,7 @@
 // almacen/actions.ts trae TODAS, no solo la página en pantalla).
 
 import type { EstadoCompra, EstadoRequisicion } from "@/lib/requisiciones-lineas"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { fechaIsoEnZona, hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
 export type FilaExcelRequisicion = {
@@ -58,7 +58,7 @@ function fechaExcel(ymd: string): Date {
 }
 
 // Día en Colombia de un timestamptz, como "AAAA-MM-DD".
-export const diaColombia = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
+export const diaColombia = (iso: string) => fechaIsoEnZona(new Date(iso))
 
 // Valores de cada fila en el orden de COLUMNAS_EXCEL_REQUISICIONES.
 export function valoresFilaExcel(f: FilaExcelRequisicion): (string | number | Date | null)[] {
@@ -120,7 +120,7 @@ export async function descargarExcelRequisiciones(filas: FilaExcelRequisicion[])
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `requisiciones-${new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })}.xlsx`
+  a.download = `requisiciones-${hoyColombia()}.xlsx`
   a.click()
   URL.revokeObjectURL(url)
 }

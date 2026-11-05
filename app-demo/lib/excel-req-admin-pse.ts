@@ -8,7 +8,7 @@
 // archivo en el navegador.
 
 import { leerNumero } from "@/lib/contratos"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 import {
   MAX_ITEMS_REQ_ADMIN,
@@ -220,7 +220,7 @@ export async function descargarPlantillaReqAdminPse(opciones: OpcionesReqAdmin) 
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `requisicion-administrativa-pse-${new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })}.xlsx`
+  a.download = `requisicion-administrativa-pse-${hoyColombia()}.xlsx`
   a.click()
   URL.revokeObjectURL(url)
 }

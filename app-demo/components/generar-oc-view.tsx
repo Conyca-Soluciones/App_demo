@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { ClipboardList, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { formatearFechaSinHora, sumarDiasFecha } from "@/lib/fechas"
+import { formatearFechaSinHora, hoyColombia, sumarDiasFecha } from "@/lib/fechas"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -345,7 +345,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
     : null
 
   // Hoy en hora local (YYYY-MM-DD): la fecha del saldo no puede ser anterior.
-  const hoy = new Date().toLocaleDateString("en-CA")
+  const hoy = hoyColombia()
   const pctNumero = Number(anticipoPct)
   const anticipoValido =
     !conAnticipo ||

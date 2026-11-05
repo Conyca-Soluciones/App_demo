@@ -466,6 +466,12 @@ function PresupuestoDeProyecto() {
   const [presupuesto, setPresupuesto] = useState<ItemPresupuesto[]>([])
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // El error se muestra arriba: si aparece con la página bajada (p. ej. al
+  // guardar), se lleva a la vista.
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [error])
   // Aviso NO bloqueante para problemas de lectura del Excel que no
   // deberían impedir seguir (ej. no encontró la hoja "APU" -- puede ser
   // a propósito, un presupuesto sin análisis de precios es válido). Se
@@ -502,6 +508,13 @@ function PresupuestoDeProyecto() {
   // Vive con el ciclo del import, no con el componente: navegar dentro de la
   // app no detiene el import, así que el latido tampoco debe detenerse.
   const latidoImportRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Presupuesto con un import a medias desde ESTA página (lo guardado no
+  // terminó). Si la pestaña se cierra o recarga, se avisa a la base para que
+  // al volver se descarte enseguida (ver el efecto de pagehide).
+  const importAMediasRef = useRef<string | null>(null)
+  // Segundos que faltan para descartar un import a medias de otra pestaña
+  // (o de una que se cerró sin poder avisar). Null = no hay ninguno.
+  const [segundosImportAjeno, setSegundosImportAjeno] = useState<number | null>(null)
   const [cargandoPresupuesto, setCargandoPresupuesto] = useState(false)
 
 
@@ -817,21 +830,34 @@ function PresupuestoDeProyecto() {
           `El import de "${r.version}" quedó a medias porque se salió de la página antes de terminar, ` +
             `y se eliminó. Sube el archivo de nuevo.`
         )
+        // Lo que se alcanzó a mostrar del import a medias (pendientes,
+        // sobrecosto, líneas, transporte) ya no existe.
+        setEstadosApu({})
+        setMotivosRechazo({})
+        setDiferenciasLineas({})
+        setItemIdsTransportePendiente([])
+        setImportAjenoEnCurso(false)
+        setSegundosImportAjeno(null)
         if (r.presupuestoBorrado) {
           setPresupuestoExistente(null)
           setPresupuesto([])
           setPresupuestoDbId(null)
-          setImportAjenoEnCurso(false)
           return
         }
       }
       setImportAjenoEnCurso(r.estado === "en_curso")
       if (r.estado === "en_curso") {
+        // Mientras tanto NO se abre el presupuesto: lo que hay es la versión a
+        // medias, con avisos de pendientes que no corresponden. Se abre cuando
+        // el import termine o se descarte.
+        setSegundosImportAjeno(r.segundos)
         reintento = setTimeout(() => {
           revisarImport(existente, false).catch((e) => console.error("No se pudo revisar el import:", e))
         }, (r.segundos + 2) * 1000)
+        return
       }
-      if (primeraVez || r.estado !== "en_curso") await handleContinuarPresupuesto(existente)
+      setSegundosImportAjeno(null)
+      await handleContinuarPresupuesto(existente)
     }
 
     verPresupuestoDeProyecto(proyectoId)
@@ -861,6 +887,32 @@ function PresupuestoDeProyecto() {
     window.addEventListener("beforeunload", avisar)
     return () => window.removeEventListener("beforeunload", avisar)
   }, [guardandoImportApu])
+
+  // Si la pestaña se cierra o recarga con un import a medias, se avisa a la
+  // base (keepalive: el envío sobrevive al cierre) para que al volver se
+  // descarte enseguida y no haya que esperar el plazo de 2 minutos.
+  useEffect(() => {
+    const alSalir = () => {
+      const id = importAMediasRef.current
+      if (!id) return
+      fetch("/presupuestos/import-abandonado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ presupuestoId: id }),
+        keepalive: true,
+      }).catch(() => {})
+    }
+    window.addEventListener("pagehide", alSalir)
+    return () => window.removeEventListener("pagehide", alSalir)
+  }, [])
+
+  // Cuenta regresiva del aviso de import a medias (solo visual; la
+  // revisión real la hace revisarImport cuando vence el plazo).
+  useEffect(() => {
+    if (segundosImportAjeno === null || segundosImportAjeno <= 0) return
+    const t = setTimeout(() => setSegundosImportAjeno((s) => (s === null ? null : Math.max(0, s - 1))), 1000)
+    return () => clearTimeout(t)
+  }, [segundosImportAjeno])
 
   async function handleContinuarPresupuesto(existente: PresupuestoExistente) {
     setCargandoPresupuesto(true)
@@ -984,6 +1036,7 @@ function PresupuestoDeProyecto() {
       // Desde aquí hay datos en la base: si la página se cierra antes de
       // terminar, el latido se detiene y el import se descarta al volver.
       await latidoImportPresupuesto(idPresupuesto, true)
+      importAMediasRef.current = idPresupuesto
       if (latidoImportRef.current) clearInterval(latidoImportRef.current)
       latidoImportRef.current = setInterval(() => {
         latidoImportPresupuesto(idPresupuesto, true).catch((e) => console.error("Latido del import:", e))
@@ -1044,6 +1097,7 @@ function PresupuestoDeProyecto() {
       if (latidoImportRef.current) clearInterval(latidoImportRef.current)
       latidoImportRef.current = null
       await latidoImportPresupuesto(idPresupuesto, false)
+      importAMediasRef.current = null
 
       const itemsFrescos = await cargarItemsDePresupuesto(idPresupuesto)
       setPresupuesto(itemsFrescos)
@@ -1665,16 +1719,16 @@ function PresupuestoDeProyecto() {
             </div>
           )}
 
-          {/* También se muestra acá (además de junto al botón de
-              guardar, más abajo) porque esa otra ubicación vive dentro
-              de {presupuesto.length > 0 && (...)} -- si el archivo
-              falla tan mal que ni siquiera se alcanzan a sacar los
-              ítems de la hoja 1 (ej. "Formato no reconocido"),
-              `presupuesto` queda vacío y ese otro bloque ni se
-              renderiza. Sin esto, ese caso quedaba completamente mudo:
-              ni tabla, ni error, nada. */}
-          {error && presupuesto.length === 0 && (
-            <p className="whitespace-pre-line text-sm text-destructive">{error}</p>
+          {/* El error va arriba, junto a la carga del archivo (no debajo
+              de la tabla, donde con un presupuesto largo no se veía). El
+              del import que se puede reintentar sale en su propio bloque. */}
+          {error && !(bloquesParaReintentar && !guardandoImportApu) && (
+            <p
+              ref={errorRef}
+              className="whitespace-pre-line rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            >
+              {error}
+            </p>
           )}
         </div>
 
@@ -1745,9 +1799,16 @@ function PresupuestoDeProyecto() {
         )}
 
         {!guardandoImportApu && importAjenoEnCurso && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            Hay un import de este presupuesto en curso (en otra pestaña o de otro usuario). Si fuiste tú y saliste
-            de la página antes de que terminara, se eliminará en unos segundos y podrás subir el archivo de nuevo.
+          <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <span className="animate-spin inline-block h-4 w-4 shrink-0 border-2 border-current border-t-transparent rounded-full" />
+            <span>
+              Hay un import de este presupuesto sin terminar (en otra pestaña o de otro usuario). Si fuiste tú y
+              saliste de la página antes de que terminara, se eliminará
+              {segundosImportAjeno && segundosImportAjeno > 0
+                ? ` en ${segundosImportAjeno >= 60 ? `${Math.ceil(segundosImportAjeno / 60)} min` : `${segundosImportAjeno} s`}`
+                : " en un momento"}{" "}
+              y podrás subir el archivo de nuevo. El presupuesto se abre cuando termine o se elimine.
+            </span>
           </div>
         )}
 
@@ -1760,7 +1821,7 @@ function PresupuestoDeProyecto() {
           </div>
         )}
 
-        {idsConPendientes.length > 0 && !dialogoRevisionAbierto && (
+        {idsConPendientes.length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
             <p className="text-sm text-amber-900">
               {idsConPendientes.length} ítem(s) todavía tienen insumos sin resolver 
@@ -1771,7 +1832,7 @@ function PresupuestoDeProyecto() {
           </div>
         )}
  
-        {(idsConRechazados.length > 0 || idsConSobrecosto.length > 0) && !dialogoRevisionAbierto && (
+        {(idsConRechazados.length > 0 || idsConSobrecosto.length > 0) && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
             {idsConRechazados.length > 0 && (
               <div className="flex items-center justify-between gap-3">
@@ -1791,14 +1852,14 @@ function PresupuestoDeProyecto() {
           </div>
         )}
 
-        {Object.keys(diferenciasLineas).length > 0 && !dialogoRevisionAbierto && (
+        {Object.keys(diferenciasLineas).length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {Object.keys(diferenciasLineas).length} ítem(s) tienen un APU con más o menos líneas que el Excel
             oficial. Revísalos (etiqueta &ldquo;líneas&rdquo; en la columna APU) por si se perdió o se duplicó algo.
           </div>
         )}
 
-        {itemIdsTransportePendiente.length > 0 && !dialogoRevisionAbierto && (
+        {itemIdsTransportePendiente.length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50 px-4 py-3">
             <p className="text-sm text-sky-900">
               {itemIdsTransportePendiente.length} ítem(s) necesitan precio de transporte -- descarga
@@ -1938,10 +1999,6 @@ function PresupuestoDeProyecto() {
                   diferenciasLineas={diferenciasLineas}
                   onRevisarItem={handleAbrirRevisionDeItem}
                 />
-
-                {error && (
-                  <p className="whitespace-pre-line text-sm text-destructive">{error}</p>
-                )}
 
                 <div className="flex items-center justify-end gap-3 border-t pt-4">
                   {!hayCambiosSinGuardar && idsConAlgoPendiente.length === 0 && (

@@ -3,6 +3,7 @@
 // Archivo plano (sin "use server"/"use client"): lo comparten las actions y los
 // componentes de cliente.
 // ---------------------------------------------------------------------------
+import { fechaIsoEnZona } from "@/lib/fechas"
 
 export type EstadoPago =
   | "programado"
@@ -328,8 +329,7 @@ export function semanasDelAnio(anio: number): number {
 }
 
 export function semanaIso(fecha: Date = new Date()): { anio: number; semana: number } {
-  const [a, m, d] = fecha
-    .toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
+  const [a, m, d] = fechaIsoEnZona(fecha, "America/Bogota")
     .split("-")
     .map(Number)
   const f = new Date(Date.UTC(a, m - 1, d))

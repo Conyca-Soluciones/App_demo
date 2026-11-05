@@ -10,7 +10,7 @@
 
 import { leerNumero } from "@/lib/contratos"
 import { UNIDADES_DE_USO, UNIDADES_MAESTRO, unidadMaestro, validarPresentacion } from "@/lib/unidades"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
 export type SolicitudParaPrecio = {
@@ -310,7 +310,7 @@ export async function descargarExcelPreciosInsumos(solicitudes: SolicitudParaPre
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `solicitudes-insumos-${new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })}.xlsx`
+  a.download = `solicitudes-insumos-${hoyColombia()}.xlsx`
   a.click()
   URL.revokeObjectURL(url)
 }

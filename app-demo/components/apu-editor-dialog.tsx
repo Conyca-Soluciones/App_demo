@@ -39,7 +39,7 @@ import {
 import type { CategoriaManoObra, CategoriaEquipo } from "@/lib/apu-import-types"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
-import { describirPresentacion, nombreUnidad, normalizarUnidad, UNIDADES_DE_USO } from "@/lib/unidades"
+import { describirPresentacion, nombreUnidad, normalizarUnidad, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
 import { puedeEditarPresentacion } from "@/app/(app)/presupuestos/insumos/actions"
 
 // Qué "recurso" real corresponde a cada sección visual de CATEGORIAS_APU
@@ -793,6 +793,10 @@ function BuscadorInsumoCategoria({
       setMensaje("Escribe la cantidad por unidad del ítem.")
       return
     }
+    if (!uMInsumoNuevo) {
+      setMensaje("Elige la unidad del insumo.")
+      return
+    }
 
     setEnviandoSolicitud(true)
     setMensaje(null)
@@ -998,14 +1002,20 @@ function BuscadorInsumoCategoria({
               />
             </div>
 
-            <div className="w-32 space-y-1.5">
+            <div className="w-56 space-y-1.5">
               <label className="text-xs text-sky-800">Unidad</label>
-              <Input
+              <select
                 value={uMInsumoNuevo}
                 onChange={(e) => setUMInsumoNuevo(e.target.value)}
-                className="h-10 bg-white"
-                placeholder="ej. m2, un"
-              />
+                className="h-10 w-full rounded-md border bg-white px-2 text-sm"
+              >
+                <option value="">Elegir...</option>
+                {UNIDADES_MAESTRO.map((u) => (
+                  <option key={u.codigo} value={u.texto}>
+                    {u.texto}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <Button onClick={handleEnviarSolicitud} disabled={enviandoSolicitud}>

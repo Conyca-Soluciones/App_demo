@@ -2,7 +2,7 @@
 // búsqueda y los filtros de la pantalla (todas las páginas), en el orden de la
 // tabla y con sus mismas columnas. Mismo formato que el Excel de requisiciones.
 
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
 export type InsumoExcel = {
@@ -73,7 +73,7 @@ export async function descargarExcelMaestroInsumos(insumos: InsumoExcel[]) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `maestra-insumos-${new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })}.xlsx`
+  a.download = `maestra-insumos-${hoyColombia()}.xlsx`
   a.click()
   URL.revokeObjectURL(url)
 }

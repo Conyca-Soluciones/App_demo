@@ -4,7 +4,7 @@
 // requisiciones. El inventario ya viene completo al navegador
 // (inventario_proyecto_completo), así que no hay que volver a consultar.
 
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { hoyColombia } from "@/lib/fechas"
 import { formatoCantidadExcel } from "@/lib/exportar-requisiciones"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
@@ -100,7 +100,7 @@ export async function descargarExcelInventario(
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  const fecha = new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
+  const fecha = hoyColombia()
   a.download = `inventario-${proyecto.codigo ? `${proyecto.codigo}-` : ""}${fecha}.xlsx`
   a.click()
   URL.revokeObjectURL(url)

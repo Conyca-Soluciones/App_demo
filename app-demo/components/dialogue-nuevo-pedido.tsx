@@ -1,6 +1,6 @@
 "use client"
 
-import { formatearFechaHora, formatearFechaSinHora, hoyColombia, ZONA_HORARIA } from "@/lib/fechas"
+import { fechaIsoEnZona, formatearFechaHora, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 
 // components/dialogue-nuevo-pedido.tsx
 //
@@ -131,7 +131,7 @@ export function FormularioRequisicion({
     // Al modificar se muestra la fecha ORIGINAL de la requisición (no cambia);
     // antes salía la de hoy.
     const fecha = edicion
-      ? new Date(edicion.creadaAt).toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
+      ? fechaIsoEnZona(new Date(edicion.creadaAt))
       : hoyColombia()
     setFechaPedido(fecha)
     setBusqueda("")

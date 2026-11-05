@@ -8,7 +8,7 @@
 // descargarExcelLiquidacion arma el archivo en el navegador.
 
 import { leerNumero } from "@/lib/contratos"
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 import {
   anticiposOrigen,
@@ -287,7 +287,7 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
 }
 
 export async function descargarExcelLiquidacion(pagos: Pago[], nombreConsolidado: string) {
-  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
+  const hoy = hoyColombia()
   const libro = await construirLibroLiquidacion(pagos, {
     titulo: `Liquidación · ${nombreConsolidado}`,
     origenUrl: window.location.origin,

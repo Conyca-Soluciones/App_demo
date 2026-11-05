@@ -24,11 +24,25 @@ export function formatearFechaSinHora(valor: string | null | undefined): string 
     : d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: ZONA_HORARIA })
 }
 
+// Una marca de tiempo como "AAAA-MM-DD" en la zona dada. No usar
+// toLocaleDateString("en-CA"): Safari lo da como "11/5/2026" y el campo de
+// fecha quedaba vacío (formatToParts da las partes igual en todos).
+export function fechaIsoEnZona(fecha: Date = new Date(), zona: string = ZONA_HORARIA): string {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: zona,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(fecha)
+  const p = (t: string) => partes.find((x) => x.type === t)?.value ?? ""
+  return `${p("year")}-${p("month")}-${p("day")}`
+}
+
 // Hoy en Colombia como "AAAA-MM-DD" (para <input type="date"> y para
 // comparar con columnas `date`). Igual en el navegador y en el servidor
 // (que corre en UTC).
 export function hoyColombia(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })
+  return fechaIsoEnZona(new Date(), ZONA_HORARIA)
 }
 
 // "2026-10-20" - 3 días -> "2026-10-17", sin pasar por zona horaria (se

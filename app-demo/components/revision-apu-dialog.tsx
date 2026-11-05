@@ -904,16 +904,19 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // un solo scroll larguísimo. El auto-match nunca aplica a mano de obra
   // ni a transporte (ver actions.ts / handoff), así que esas pestañas no
   // tienen sección de "Automáticos" -- equipo sí, igual que insumos.
-  const totalPendientesInsumos = pendientes.length + rechazados.length + autoMatch.length
+  // El número de la pestaña cuenta solo lo que falta resolver: los
+  // automáticos ya quedaron en el APU (se muestran para revisarlos, pero
+  // no son pendientes).
+  const totalPendientesInsumos = pendientes.length + rechazados.length
   const hayPendientesSinSugerencia = pendientes.some(
     (f) => !Array.isArray(f.candidatos) || f.candidatos.length === 0
   )
   const totalPendientesManoObra = pendientesManoObra.length + rechazadosManoObra.length
-  const totalPendientesEquipo = pendientesEquipo.length + rechazadosEquipo.length + autoMatchEquipo.length
+  const totalPendientesEquipo = pendientesEquipo.length + rechazadosEquipo.length
   const totalPendientesTransporte = pendientesTransporte.length
-  const sinNadaEnTabInsumos = totalPendientesInsumos === 0
+  const sinNadaEnTabInsumos = totalPendientesInsumos === 0 && autoMatch.length === 0
   const sinNadaEnTabManoObra = totalPendientesManoObra === 0
-  const sinNadaEnTabEquipo = totalPendientesEquipo === 0
+  const sinNadaEnTabEquipo = totalPendientesEquipo === 0 && autoMatchEquipo.length === 0
   const sinNadaEnTabTransporte = totalPendientesTransporte === 0 && resueltasTransporte.length === 0
 
   function agruparPorItem(lista: FilaRevisionImport[]) {

@@ -1,15 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { hoyColombia } from "@/lib/fechas"
 import { cn } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // Campo de fecha que SIEMPRE se ve dd/mm/aaaa. El <input type="date"> del
 // navegador usa el idioma del navegador (en inglés sale mm/dd/aaaa) y la
 // página no lo puede cambiar. Este campo se escribe a mano (las barras se
-// ponen solas) o se elige en el calendario del navegador con el botón.
+// ponen solas) o se elige en el calendario del botón (propio: Safari no abre
+// el calendario de un <input type="date"> escondido con showPicker).
 //
 // El valor sigue siendo "AAAA-MM-DD" (igual que el de <input type="date">) y
 // onChange entrega { target: { value } }, así que reemplaza a
@@ -51,7 +54,7 @@ type Props = Omit<React.ComponentProps<"input">, "value" | "onChange" | "type" |
 
 export function CampoFecha({ value, onChange, contenedorClassName, sinEstilo, className, min, max, disabled, readOnly, onBlur, onFocus, ...props }: Props) {
   const [texto, setTexto] = React.useState(() => aTexto(value))
-  const nativo = React.useRef<HTMLInputElement>(null)
+  const [abierto, setAbierto] = React.useState(false)
 
   // Si el valor cambia desde afuera (limpiar filtros, cargar una edición),
   // se muestra; si es el mismo que ya está escrito, no se toca lo escrito.
@@ -96,39 +99,110 @@ export function CampoFecha({ value, onChange, contenedorClassName, sinEstilo, cl
         }}
       />
       {!readOnly && !disabled && (
-        <>
-          <button
+        <Popover open={abierto} onOpenChange={setAbierto}>
+          <PopoverTrigger
             type="button"
             tabIndex={-1}
             aria-label="Abrir calendario"
             className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              try {
-                nativo.current?.showPicker()
-              } catch {
-                nativo.current?.focus()
-              }
-            }}
           >
             <CalendarDays className="h-4 w-4" />
-          </button>
-          {/* Solo para abrir el calendario del navegador; no se ve. */}
-          <input
-            ref={nativo}
-            type="date"
-            tabIndex={-1}
-            aria-hidden
-            className="pointer-events-none absolute right-0 bottom-0 h-px w-px opacity-0"
-            value={value ?? ""}
-            min={min}
-            max={max}
-            onChange={(e) => {
-              setTexto(aTexto(e.target.value))
-              emitir(e.target.value)
-            }}
-          />
-        </>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-auto p-3">
+            <Calendario
+              valor={value ?? ""}
+              min={typeof min === "string" ? min : undefined}
+              max={typeof max === "string" ? max : undefined}
+              onElegir={(iso) => {
+                setTexto(aTexto(iso))
+                emitir(iso)
+                setAbierto(false)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       )}
+    </div>
+  )
+}
+
+const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+const DIAS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"]
+const iso = (a: number, m: number, d: number) =>
+  `${String(a).padStart(4, "0")}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`
+
+// Calendario de un mes (semana de lunes a domingo). Abre en el mes de la fecha
+// elegida, o en el de hoy; los días fuera de min/max no se pueden elegir.
+function Calendario({ valor, min, max, onElegir }: { valor: string; min?: string; max?: string; onElegir: (iso: string) => void }) {
+  const hoy = hoyColombia()
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor : hoy
+  const [mes, setMes] = React.useState({ a: Number(base.slice(0, 4)), m: Number(base.slice(5, 7)) - 1 })
+
+  const primero = new Date(Date.UTC(mes.a, mes.m, 1)).getUTCDay() // 0 = domingo
+  const vacios = (primero + 6) % 7
+  const diasMes = new Date(Date.UTC(mes.a, mes.m + 1, 0)).getUTCDate()
+  const mover = (delta: number) =>
+    setMes(({ a, m }) => {
+      const n = m + delta
+      return { a: a + Math.floor(n / 12), m: ((n % 12) + 12) % 12 }
+    })
+
+  return (
+    <div className="w-64 select-none">
+      <div className="mb-2 flex items-center justify-between">
+        <button type="button" aria-label="Mes anterior" className="rounded p-1 hover:bg-muted" onClick={() => mover(-1)}>
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-medium">
+          {MESES[mes.m]} {mes.a}
+        </span>
+        <button type="button" aria-label="Mes siguiente" className="rounded p-1 hover:bg-muted" onClick={() => mover(1)}>
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center text-xs">
+        {DIAS.map((d) => (
+          <div key={d} className="py-1 font-medium text-muted-foreground">
+            {d}
+          </div>
+        ))}
+        {Array.from({ length: vacios }, (_, i) => (
+          <div key={`v${i}`} />
+        ))}
+        {Array.from({ length: diasMes }, (_, i) => {
+          const f = iso(mes.a, mes.m, i + 1)
+          const fuera = (!!min && f < min) || (!!max && f > max)
+          return (
+            <button
+              key={f}
+              type="button"
+              disabled={fuera}
+              onClick={() => onElegir(f)}
+              className={cn(
+                "h-8 rounded text-sm",
+                f === valor
+                  ? "bg-primary text-primary-foreground"
+                  : f === hoy
+                    ? "border border-primary/50 hover:bg-muted"
+                    : "hover:bg-muted",
+                fuera && "cursor-not-allowed opacity-30 hover:bg-transparent"
+              )}
+            >
+              {i + 1}
+            </button>
+          )
+        })}
+      </div>
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          disabled={(!!min && hoy < min) || (!!max && hoy > max)}
+          onClick={() => onElegir(hoy)}
+          className="rounded px-2 py-1 text-xs text-primary hover:bg-muted disabled:opacity-40"
+        >
+          Hoy
+        </button>
+      </div>
     </div>
   )
 }

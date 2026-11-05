@@ -4,7 +4,7 @@
 // la consulta (exportarOrdenesCompra en comprar-pedidos/actions.ts), no solo la
 // página en pantalla.
 
-import { ZONA_HORARIA } from "@/lib/fechas"
+import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 import { ESTADO_VISIBLE_BADGE, type EstadoOrdenVisible } from "@/lib/ordenes-compra-estado"
 import { diaColombia, formatoCantidadExcel } from "@/lib/exportar-requisiciones"
@@ -155,7 +155,7 @@ export async function descargarExcelOrdenes(ordenes: OrdenExcel[], vista: VistaO
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
-  a.download = `ordenes-compra-${vista}-${new Date().toLocaleDateString("en-CA", { timeZone: ZONA_HORARIA })}.xlsx`
+  a.download = `ordenes-compra-${vista}-${hoyColombia()}.xlsx`
   a.click()
   URL.revokeObjectURL(url)
 }
