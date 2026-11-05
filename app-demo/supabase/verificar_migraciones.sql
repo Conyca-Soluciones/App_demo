@@ -530,5 +530,12 @@ select * from (
          not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace
                       and has_function_privilege('anon', oid, 'execute'))
          and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%pago_por_liquidar%')
+  union all
+  select '20261228000000_oc_tipo_pago',
+         exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'ordenes_compra' and column_name = 'tipo_pago')
+         and exists (select 1 from pg_proc where proname = 'crear_orden_compra_con_soporte'
+                      and prosrc like '%_fijar_tipo_pago_orden%')
+         and (select count(*) from pg_proc where proname = 'crear_orden_compra_con_soporte') = 1
 ) t
 order by 1;

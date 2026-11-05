@@ -6,6 +6,7 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { calcularLinea } from "@/lib/ordenes-compra-calculos"
 import type { SoporteGuardado, SoporteSubidoArchivo, TipoSoporteOrden } from "@/lib/soportes"
 import type { CuentasProveedorOC, MetodoPagoOC } from "@/lib/metodo-pago-oc"
+import type { TipoPagoOC } from "@/lib/tipo-pago-oc"
 
 import { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -461,6 +462,9 @@ export type DatosOrdenCompra = {
   titular?: { tercero_id: string; cuenta_id: string } | null
   // Método de pago (pagoOCParaGuardar en lib/metodo-pago-oc.ts).
   pago: { metodo: MetodoPagoOC } & Record<string, unknown>
+  // Tipo de pago, aparte del método (20261228000000, lib/tipo-pago-oc.ts).
+  tipoPago: TipoPagoOC
+  fechaPagoCredito?: string | null // YYYY-MM-DD, solo con crédito
   lineas: LineaOrdenCompra[]
 }
 
@@ -546,6 +550,8 @@ export async function crearOrdenCompra(
     // Solo se manda si hay titular aparte (igual que el anticipo).
     ...(datos.titular ? { p_titular: datos.titular } : {}),
     p_pago: datos.pago,
+    p_tipo_pago: datos.tipoPago,
+    p_fecha_pago_credito: datos.tipoPago === "credito" ? (datos.fechaPagoCredito ?? null) : null,
     p_lineas: datos.lineas.map((l) =>
       l.presentacion
         ? {
@@ -678,6 +684,8 @@ export type OrdenCompraDetalle = {
   ciudad: string | null
   email: string | null
   condicionesPago: string | null
+  tipoPago: string | null
+  fechaPagoCredito: string | null
   observaciones: string | null
   creadaPorNombre: string | null
   creadaPorId: string | null
@@ -708,7 +716,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     .select(
       `
       id, numero, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
-      condiciones_pago, observaciones, created_at, aprobada_at, motivo_rechazo,
+      condiciones_pago, tipo_pago, fecha_pago_credito, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
       metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
@@ -768,6 +776,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     ciudad: d.ciudad,
     email: d.email,
     condicionesPago: d.condiciones_pago,
+    tipoPago: d.tipo_pago ?? null,
+    fechaPagoCredito: d.fecha_pago_credito ?? null,
     observaciones: d.observaciones,
     creadaPorNombre: d.creado_por?.nombre ?? null,
     creadaPorId: d.created_by ?? null,

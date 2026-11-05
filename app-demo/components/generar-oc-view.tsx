@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { ClipboardList, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { formatearFechaSinHora, sumarDiasFecha } from "@/lib/fechas"
+import { formatearFechaSinHora, hoyColombia, sumarDiasFecha } from "@/lib/fechas"
+import { TIPOS_PAGO_OC, tipoPagoParaGuardar, validarTipoPagoOC, type TipoPagoOC } from "@/lib/tipo-pago-oc"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -155,6 +156,9 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
   const [fechaEntrega, setFechaEntrega] = useState("")
   const [contactoProyecto, setContactoProyecto] = useState("")
   const [condicionesPago, setCondicionesPago] = useState("")
+  // Tipo de pago (20261228000000): obligatorio; con crédito, la fecha de pago.
+  const [tipoPago, setTipoPago] = useState<TipoPagoOC | null>(null)
+  const [fechaCredito, setFechaCredito] = useState("")
   const [observaciones, setObservaciones] = useState("")
   // Soporte obligatorio de la orden (cotización, cuenta de cobro o factura).
   const [tipoSoporte, setTipoSoporte] = useState<TipoSoporteOrden>("cotizacion")
@@ -381,6 +385,11 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
       return
     }
     const conTitularAparte = pago.metodo === "transferencia" && titular !== null
+    const errorTipo = validarTipoPagoOC(tipoPago, fechaCredito, hoyColombia())
+    if (errorTipo) {
+      setError(errorTipo)
+      return
+    }
     const errorPago = validarPagoOC(pago, infoCuentas, conTitularAparte)
     if (errorPago) {
       setError(errorPago)
@@ -416,6 +425,7 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
         observaciones: observaciones.trim() || null,
         titular: t.titular,
         pago: pagoOCParaGuardar(pago, infoCuentas, conTitularAparte),
+        ...tipoPagoParaGuardar(tipoPago!, fechaCredito),
         ...(conAnticipo
           ? { anticipoPorcentaje: pctNumero, saldoModo, saldoFecha: saldoModo === "fecha" ? saldoFecha : null }
           : {}),
@@ -758,6 +768,32 @@ export function GenerarOCView({ puedeEditarProveedor = false }: { puedeEditarPro
               onChange={(e) => setFechaEntrega(e.target.value)}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label>Tipo de pago</Label>
+            <Select value={tipoPago ?? ""} onValueChange={(v) => setTipoPago((v || null) as TipoPagoOC | null)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Elige el tipo de pago" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_PAGO_OC.map((t) => (
+                  <SelectItem key={t.valor} value={t.valor}>
+                    {t.titulo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {tipoPago === "credito" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha-credito">Fecha en que se debe pagar</Label>
+              <CampoFecha id="fecha-credito" value={fechaCredito} onChange={(e) => setFechaCredito(e.target.value)} />
+              {fechaCredito && fechaCredito <= hoyColombia() && (
+                <p className="text-xs text-destructive">Tiene que ser posterior a hoy.</p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="condiciones-pago">Condiciones de pago (opcional)</Label>

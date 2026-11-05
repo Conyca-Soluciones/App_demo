@@ -1671,6 +1671,15 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   pestañas de los consolidados, Gerencia y Aprobación de pagos.
   `lib/soportes-pagos-db.ts` busca el soporte de cada pago (tres consultas por
   lote).
+- **Tipo de pago de la OC** (`20261228000000`, `lib/tipo-pago-oc.ts`): al
+  generar la orden se elige De contado, Crédito o Fiducia (obligatorio); con
+  Crédito, la fecha futura en que se debe pagar. Es APARTE del método de pago
+  (Transferencia/PSE): columnas `ordenes_compra.tipo_pago` y
+  `fecha_pago_credito`, parámetros `p_tipo_pago` / `p_fecha_pago_credito` de
+  `crear_orden_compra_con_soporte`, que llama a `_fijar_tipo_pago_orden`
+  (valida otra vez). Es informativo: el pago va a Aprobación de pagos como
+  siempre. Se ve en el origen del pago ("OC 12 · Crédito · pagar el ..."), en
+  el detalle y en el PDF de la orden. Las OC de antes quedan sin tipo.
 - **Mis pendientes** (`20261227000000`): "Pagos observados por Contabilidad"
   (`pago_observado`, acción `gestionar_pagos`, con la última observación) y
   "Pagos por liquidar" (`pago_por_liquidar`, acción `liquidar_pagos`), solo de
@@ -3652,7 +3661,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261224000000` contrato por PSE: titular con otro nombre ·
 `20261225000000` actas generales (después de las de la otra rama) ·
 `20261226000000` rebote del dispersor, dispersado fijo y estados del pago ·
-`20261227000000` funciones sin acceso anónimo y Mis pendientes de liquidación.
+`20261227000000` funciones sin acceso anónimo y Mis pendientes de liquidación ·
+`20261228000000` tipo de pago de la OC (de contado, crédito con fecha, fiducia).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

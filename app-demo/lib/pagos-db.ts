@@ -2,6 +2,7 @@
 // pagos y del Consolidado). Archivo plano: no es una Server Action.
 
 import { ETIQUETA_TIPO_CUENTA, documentoFormateado } from "@/lib/terceros"
+import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
 import { rangosSemanasIso, semanaIso, type FiltroCreacion, type Pago } from "@/lib/pagos"
 
 // Los embeds usan el nombre real de cada llave foránea cuando hay más de una
@@ -15,7 +16,7 @@ export const CAMPOS_PAGO = `
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin,
-  orden:ordenes_compra(numero, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
+  orden:ordenes_compra(numero, tipo_pago, fecha_pago_credito, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
@@ -62,6 +63,8 @@ export function mapPago(f: any): Pago {
   // Acta de un contrato por PSE (20261220000000): igual, sin cuenta.
   const actaPse = f.acta?.contrato?.metodo_pago === "pse"
   const pse = ocPse || actaPse || f.req?.metodo === "pse"
+  // Tipo de pago de la OC (20261228000000): de contado, crédito con su fecha o fiducia.
+  const tipoOC = textoTipoPagoOC(f.orden?.tipo_pago, f.orden?.fecha_pago_credito)
   return {
     id: f.id,
     tipo: f.tipo,
@@ -91,7 +94,7 @@ export function mapPago(f: any): Pago {
     // requisición administrativa. Quien
     // no tiene pestañas de Contratos no lee el acta (RLS): entonces "Acta".
     origen: f.orden?.numero != null
-      ? `OC ${f.orden.numero}${ocPse ? " · PSE" : ""}`
+      ? `OC ${f.orden.numero}${ocPse ? " · PSE" : ""}${tipoOC ? ` · ${tipoOC}` : ""}`
       : f.acta
         ? `Acta ${f.acta.numero}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
         : f.fuente === "acta"

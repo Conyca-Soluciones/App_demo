@@ -29,6 +29,7 @@ import { nombreUnidad } from "@/lib/unidades"
 import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { ETIQUETA_METODO_PAGO_OC, textoTitularPse } from "@/lib/metodo-pago-oc"
+import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
@@ -348,6 +349,12 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               <p className="whitespace-pre-line text-xs text-muted-foreground">{orden.pagoObservaciones}</p>
             )}
           </div>
+          {textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito) && (
+            <div className="space-y-1">
+              <p className="text-muted-foreground">Tipo de pago</p>
+              <p>{textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito)}</p>
+            </div>
+          )}
           <div className="space-y-1">
             <p className="text-muted-foreground">Sitio de entrega</p>
             <p>{orden.sitioEntrega ?? "—"}</p>

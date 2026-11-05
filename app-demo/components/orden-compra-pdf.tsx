@@ -6,6 +6,7 @@ import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calcul
 import { nombreUnidad } from "@/lib/unidades"
 import type { OrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { firmaDe, textoFirmado, type FirmaDocumento } from "@/lib/firmas"
+import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
 
 const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 
@@ -201,6 +202,7 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
               <Dato label="Teléfono" value={orden.proveedorTelefono ?? "—"} />
               <Dato label="Email" value={orden.proveedorEmail ?? "—"} />
               <Dato label="Contacto" value={orden.proveedorContacto ?? "—"} />
+              <Dato label="Tipo de pago" value={textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito) ?? "—"} />
               <Dato label="Cond. de pago" value={orden.condicionesPago ?? "—"} />
             </View>
           </View>
