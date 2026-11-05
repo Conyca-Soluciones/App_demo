@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!UUID.test(id)) return NextResponse.json({ error: "Pago no válido." }, { status: 400 })
   const supabase = await createClient()
 
-  const { data, error } = await supabase.from("dispersion_pagos").select("soporte_ruta").eq("pago_id", id).maybeSingle()
+  const { data, error } = await supabase.from("dispersion_pagos").select("soporte_ruta").eq("pago_id", id).is("rebotado_en", null).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: "Este pago no se ha dispersado o no tienes acceso." }, { status: 404 })
 

@@ -49,7 +49,7 @@ function enteros(lista: number[] | undefined, min: number, max: number, nombre: 
 
 const CAMPOS_TERCERO = "razon_social, tipo_documento, numero_documento, dv, nombre_banco, nombres, apellidos"
 const CAMPOS = `
-  id, item, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id,
+  id, item, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id, dispersion_id,
   cuenta_confirmada_en, cuenta_modificada, etiquetas, tercero_id, titular_tercero_id,
   consolidado:consolidados!pagos_consolidado_id_fkey(nombre),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(metodo),
@@ -60,7 +60,7 @@ const CAMPOS = `
   titular:terceros!pagos_titular_tercero_id_fkey(${CAMPOS_TERCERO}),
   cuenta:terceros_cuentas!pagos_cuenta_tercero_id_fkey(numero_cuenta, tipo_cuenta, estado, etiqueta, banco:bancos(nombre)),
   dispersion:dispersiones!pagos_dispersion_id_fkey(apodo, nombre_base, generado_en),
-  dispersion_pago:dispersion_pagos!dispersion_pagos_pago_id_fkey(soporte_ruta, soporte_nombre)
+  intentos:dispersion_pagos!dispersion_pagos_pago_id_fkey(dispersion_id, soporte_ruta, soporte_nombre, rebotado_en, motivo_rebote)
 `
 
 const terceroDe = (t: any): TerceroDispersor | null =>
@@ -76,10 +76,19 @@ const terceroDe = (t: any): TerceroDispersor | null =>
       }
     : null
 
-// pago_id es único en dispersion_pagos: PostgREST lo puede dar como objeto o lista
-function soporteDe(dp: any): { nombre: string; ruta: string } | null {
-  const x = Array.isArray(dp) ? dp[0] : dp
+// Los intentos de dispersión del pago (20261226000000): el vigente es el de su
+// dispersion_id; el último que rebotó se muestra como aviso.
+const intentosDe = (x: any): any[] => (Array.isArray(x) ? x : x ? [x] : [])
+
+function soporteDe(intentos: any[], dispersionId: string | null): { nombre: string; ruta: string } | null {
+  const x = dispersionId ? intentos.find((i) => i.dispersion_id === dispersionId && !i.rebotado_en) : null
   return x?.soporte_ruta ? { nombre: x.soporte_nombre, ruta: x.soporte_ruta } : null
+}
+
+function reboteDe(intentos: any[]): { fecha: string; motivo: string } | null {
+  let ultimo: any = null
+  for (const i of intentos) if (i.rebotado_en && (!ultimo || i.rebotado_en > ultimo.rebotado_en)) ultimo = i
+  return ultimo ? { fecha: ultimo.rebotado_en, motivo: ultimo.motivo_rebote ?? "" } : null
 }
 
 function mapPagoDispersor(f: any): PagoDispersor {
@@ -113,9 +122,10 @@ function mapPagoDispersor(f: any): PagoDispersor {
           apodo: f.dispersion.apodo,
           nombreBase: f.dispersion.nombre_base,
           generadoEn: f.dispersion.generado_en,
-          soporte: soporteDe(f.dispersion_pago),
+          soporte: soporteDe(intentosDe(f.intentos), f.dispersion_id ?? null),
         }
       : null,
+    rebote: reboteDe(intentosDe(f.intentos)),
   }
 }
 
@@ -194,6 +204,18 @@ export async function confirmarCuentaPagos(ids: string[]): Promise<number> {
   const supabase = await createClient()
   return enTandas(ids, async (lote) => {
     const { data, error } = await supabase.rpc("confirmar_cuenta_pagos", { p_ids: lote })
+    if (error) throw new Error(error.message)
+    return Number(data ?? 0)
+  })
+}
+
+/** "Rebotó en el banco": el pago dispersado vuelve a dispersión (Por asignar), con el motivo. */
+export async function redispersarPagos(ids: string[], motivo: string): Promise<number> {
+  await requerirAccion(ACCION)
+  if (motivo.trim().length < 3) throw new Error("Escribe por qué rebotó el pago.")
+  const supabase = await createClient()
+  return enTandas(ids, async (lote) => {
+    const { data, error } = await supabase.rpc("redispersar_pagos", { p_ids: lote, p_motivo: motivo.trim() })
     if (error) throw new Error(error.message)
     return Number(data ?? 0)
   })

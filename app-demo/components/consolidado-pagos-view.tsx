@@ -54,7 +54,7 @@ import {
   type SoportePago,
 } from "@/lib/pagos"
 
-const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "en_dispersion", "dispersado", "anulado"]
+const ESTADOS_FILTRO: EstadoPago[] = ["aprobado", "dispersado", "anulado"]
 
 async function buscarTercerosAdaptado(termino: string): Promise<OpcionBuscador[]> {
   const r = await buscarTercerosParaPago(termino)
@@ -102,10 +102,13 @@ export function ConsolidadoPagosView({
   clave,
   puedeGestionar,
   puedeLiquidar,
+  etapaInicial = null,
 }: {
   clave: ClaveConsolidado
   puedeGestionar: boolean
   puedeLiquidar: boolean
+  // Desde Mis pendientes (?etapa=): abre esa pestaña, con todas las semanas y ya consultado.
+  etapaInicial?: EtapaConsolidado | null
 }) {
   const titulo = CONSOLIDADOS.find((c) => c.clave === clave)?.titulo ?? "Consolidado"
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
@@ -120,12 +123,14 @@ export function ConsolidadoPagosView({
   const [error, setError] = useState<string | null>(null)
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosConsolidado | null>(null)
   // Contabilidad entra directo a lo suyo.
-  const [etapa, setEtapa] = useState<EtapaConsolidado>(puedeLiquidar && !puedeGestionar ? "por_liquidar" : "preparacion")
+  const [etapa, setEtapa] = useState<EtapaConsolidado>(
+    etapaInicial ?? (puedeLiquidar && !puedeGestionar ? "por_liquidar" : "preparacion")
+  )
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
 
   const actual = semanaIso()
-  const [anios, setAnios] = useState<number[]>([actual.anio])
-  const [semanas, setSemanas] = useState<number[]>([actual.semana])
+  const [anios, setAnios] = useState<number[]>(etapaInicial ? [] : [actual.anio])
+  const [semanas, setSemanas] = useState<number[]>(etapaInicial ? [] : [actual.semana])
   // Semana de creación del pago: vacía = todas (la de aprobación es la del ITEM).
   const [aniosCreacion, setAniosCreacion] = useState<number[]>([])
   const [semanasCreacion, setSemanasCreacion] = useState<number[]>([])
@@ -154,6 +159,13 @@ export function ConsolidadoPagosView({
     cargarAlertas()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clave])
+
+  // Desde Mis pendientes: consulta de una vez la pestaña pedida.
+  useEffect(() => {
+    if (etapaInicial) cargar(filtrosDelPanel(), 0)
+    // Solo al entrar a la página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const opcionesAnios = useMemo(() => {
     const lista: number[] = []

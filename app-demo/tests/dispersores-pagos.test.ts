@@ -42,6 +42,7 @@ const pago = (p: Partial<PagoDispersor> = {}): PagoDispersor => ({
   confirmada: false,
   cuentaDebitarId: null,
   dispersion: null,
+  rebote: null,
   ...p,
 })
 

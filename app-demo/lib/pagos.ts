@@ -8,8 +8,6 @@ export type EstadoPago =
   | "programado"
   | "solicitado"
   | "aprobado"
-  | "liquidado"
-  | "en_dispersion"
   | "dispersado"
   | "rechazado"
   | "anulado"
@@ -18,8 +16,6 @@ export const ETIQUETA_ESTADO_PAGO: Record<EstadoPago, string> = {
   programado: "Programado",
   solicitado: "Por aprobar",
   aprobado: "Aprobado",
-  liquidado: "Liquidado",
-  en_dispersion: "En dispersión",
   dispersado: "Dispersado",
   rechazado: "Rechazado",
   anulado: "Anulado",
@@ -31,8 +27,6 @@ export const CLASE_ESTADO_PAGO: Record<EstadoPago, string> = {
   programado: "border-gray-300 bg-gray-50 text-gray-600",
   solicitado: "border-amber-300 bg-amber-50 text-amber-700",
   aprobado: "border-green-300 bg-green-50 text-green-700",
-  liquidado: "border-blue-300 bg-blue-50 text-blue-700",
-  en_dispersion: "border-indigo-300 bg-indigo-50 text-indigo-700",
   dispersado: "border-emerald-300 bg-emerald-50 text-emerald-800",
   rechazado: "border-red-300 bg-red-50 text-red-700",
   anulado: "border-gray-300 bg-gray-50 text-gray-500",

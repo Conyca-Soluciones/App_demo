@@ -589,11 +589,9 @@ Dos cosas no obvias de este mapa:
   redirige a `/presupuestos?error=no-autorizado` antes de que la
   página cargue nada.
 
-**Pendiente**: el `?error=no-autorizado` en la URL de redirección
-todavía no tiene un banner que lo muestre en `/presupuestos` -- se
-documentó el patrón (leer el query param, mostrar aviso, limpiar la URL
-con `router.replace`) pero no se aplicó porque no se tenía el `page.tsx`
-de esa ruta a mano en la sesión. Ver "Pendientes generales".
+**Hecho**: hoy el middleware manda a `/inicio?error=no-autorizado` y la
+landing muestra "No tienes permiso para abrir esa sección" (`sinPermiso` en
+`landing-proyectos.tsx`).
 
 ## Pedidos de insumos (implementado)
 
@@ -838,8 +836,11 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `aprobar_mano_obra`. `apu`, `item_apu`, `apu_import_revision` y
   `transporte_precios`: ver "Seguridad de APU" (2026-10-08).
 - Ninguna función de `public` es ejecutable sin sesión
-  (`20261005200000_funciones_sin_anon.sql`); las nuevas tampoco (default
-  privileges). `test_fase1_compras` (prueba que inserta datos) sin permiso
+  (`20261005200000_funciones_sin_anon.sql`, y otra vez `20261227000000`: 16
+  funciones creadas después habían quedado con EXECUTE a PUBLIC). Desde
+  `20261227000000` las funciones nuevas nacen sin PUBLIC (`alter default
+  privileges for role postgres revoke execute on functions from public`); si
+  una función nueva la llama la app, darle `grant execute ... to authenticated`. `test_fase1_compras` (prueba que inserta datos) sin permiso
   para nadie -- pendiente decidir si se borra.
 - Permisos fallan CERRADO: si `permisos_rol_usuario` falla, el middleware
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
@@ -1668,9 +1669,12 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   pestañas de los consolidados, Gerencia y Aprobación de pagos.
   `lib/soportes-pagos-db.ts` busca el soporte de cada pago (tres consultas por
   lote).
-- **Pendiente**: avisar en Mis pendientes (observados a Financiera, por liquidar
-  a Contabilidad: hay que recrear `_pendientes_de`); dispersores y PSE (fecha de
-  pago, cuenta a debitar y soporte del dispersor).
+- **Mis pendientes** (`20261227000000`): "Pagos observados por Contabilidad"
+  (`pago_observado`, acción `gestionar_pagos`, con la última observación) y
+  "Pagos por liquidar" (`pago_por_liquidar`, acción `liquidar_pagos`), solo de
+  los consolidados que la persona ve. El enlace es
+  `/ayf/consolidado/<clave>?etapa=<etapa>`: la página abre esa pestaña con
+  todas las semanas y ya consultada (`etapaInicial`).
 
 ## Realizar Pagos: dispersores `/ayf/realizar-pagos` (2026-10-23)
 
@@ -1716,8 +1720,26 @@ tres consolidados.
   "Dispersor" junto al Soporte: el soporte individual por el enlace fijo
   `/ayf/soporte-dispersor/<pago>` (route handler; RLS de `dispersion_pagos` y
   del bucket). El estado `dispersado` se muestra "Dispersado" (antes "Pagado").
-- **Pendiente**: soporte de los pagos por PSE; el soporte del dispersor en la
-  ventana del pago.
+- **Dispersado = liquidado y fijo; "Rebotó en el banco"** (`20261226000000`,
+  decisiones del usuario 2026-10-26): CHECK `pagos_dispersado_liquidado` (un
+  dispersado siempre está liquidado; "Liquidar sin retenciones" también deja
+  liquidado). `trg_pago_dispersado_fijo` impide que un dispersado cambie de
+  estado (anular, cancelar la OC...), salvo `redispersar_pagos(ids, motivo)`
+  (acción `generar_dispersores`; botón "Rebotó en el banco" en el paso 2 de
+  Realizar Pagos, sobre los "Ya dispersados"): el pago vuelve a aprobado +
+  liquidado, Por asignar (sin cuenta a debitar), con el mismo ITEM; el intento
+  queda en `dispersion_pagos` con `rebotado_en/por` y `motivo_rebote` (ya no
+  hay `unique(pago_id)`: solo un intento vigente, índice parcial
+  `dispersion_pagos_pago_vigente`) y en el historial (evento `rebotado`, con
+  el motivo). La pantalla muestra "Rebotó: <motivo>" en el pago. El soporte del
+  dispersor (Consolidado y `/ayf/soporte-dispersor`) es el del intento vigente.
+- **Estados del pago** (misma migración): `programado`, `solicitado`,
+  `aprobado`, `dispersado`, `rechazado`, `anulado`. Se quitaron `en_dispersion`
+  y `liquidado` (nunca se usaron; la liquidación va en `liquidacion_estado`) del
+  CHECK, del código y de las funciones que los nombraban.
+- La ventana del pago (Consolidado) tiene "Soporte del dispersor" cuando el
+  pago está dispersado.
+- **Pendiente**: soporte de los pagos por PSE.
 
 ## Liquidación de pagos: se quitó (2026-10-22)
 
@@ -1918,10 +1940,6 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   específico; (c) un solo aprobador que puede dejar "aprobado sin
   precio" hasta que compras lo complete, y el insumo no entra al
   maestro hasta tener precio. Retomar cuando se decida el enfoque.
-- Mostrar el banner de `?error=no-autorizado` en `/presupuestos` --
-  patrón documentado (leer query param, mostrar aviso, `router.replace`
-  para limpiar la URL) pero no aplicado, faltó tener el `page.tsx` a
-  mano en la sesión donde se hizo la protección de rutas.
 - Investigar latencia intermitente al cargar presupuesto/APU (reportada
   por el usuario, "a veces se demora, pocas veces") -- nunca se llegó a
   revisar con logs reales, a diferencia de `/admin` y `verProyectos` que
@@ -2874,10 +2892,10 @@ hoja PDF (no minuta larga); actas generales después.
   observaciones y elaboró / pre-aprobó / aprobó con fecha y hora.
 - Contratos por grupos solo lista 'grupo'; Actas por grupos solo busca 'grupo'
   (`buscar_*_para_acta`).
+- La campanita y Mis pendientes llevan a `/contratos/solicitar?ver=`: si el
+  contrato es general, esa página redirige a `/contratos/generales?ver=`.
 - **Pendiente**: la tabla `empresas` no tiene dirección ni teléfono (la hoja
-  muestra razón social, NIT y la ciudad del proyecto); la campanita lleva al director a Contratos por grupos aunque el
-  contrato sea general (el detalle abre bien, pero "Corregir" está en
-  Contratos generales).
+  muestra razón social, NIT y la ciudad del proyecto).
 
 ## Otrosí `/contratos/otrosi` y `/contratos/aprobacion-otrosi` (2026-10-20)
 
@@ -3688,6 +3706,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261223000000` proveedores enlazados al tercero (se borra informacion_bancaria) ·
 `20261224000000` contrato por PSE: titular con otro nombre ·
 `20261225000000` actas generales (después de las de la otra rama) ·
+`20261226000000` rebote del dispersor, dispersado fijo y estados del pago ·
+`20261227000000` funciones sin acceso anónimo y Mis pendientes de liquidación ·
+(mismos números, otra rama; las dos parchan `_pendientes_de` por texto y conviven:)
 `20261226000000` requisiciones extraordinarias (Solicitar a Gerencia) ·
 `20261227000000` las extraordinarias descuentan del cupo (la primera versión aplicada de la anterior las excluía) ·
 `20261228000000` crear requisición: todos los ítems de la versión vigente ·

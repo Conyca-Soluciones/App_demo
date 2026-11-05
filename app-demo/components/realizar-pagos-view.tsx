@@ -5,6 +5,8 @@ import { AlertTriangle, Download, FileText, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,6 +21,7 @@ import {
   listarDispersiones,
   listarRealizarPagos,
   marcarFueraDispersor,
+  redispersarPagos,
   type ArchivoDispersion,
   type Dispersion,
   type FiltrosRealizarPagos,
@@ -80,6 +83,8 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [banco, setBanco] = useState("")
   const [cuentaId, setCuentaId] = useState("")
+  // "Rebotó en el banco": el motivo (null = ventana cerrada).
+  const [motivoRebote, setMotivoRebote] = useState<string | null>(null)
 
   const opcionesAnios = useMemo(() => {
     const lista: number[] = []
@@ -187,6 +192,18 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
       () => marcarFueraDispersor(idsDe(["listo", "asignado", "confirmar", "bloqueado"]), true),
       (n) => `${n} ${n === 1 ? "pago pasó" : "pagos pasaron"} a Otros pagos pendientes.`
     )
+  const rebotados = () => idsDe(["dispersado"])
+  async function confirmarRebote() {
+    const motivo = (motivoRebote ?? "").trim()
+    const ids = rebotados()
+    setMotivoRebote(null)
+    await ejecutar(
+      "rebote",
+      () => redispersarPagos(ids, motivo),
+      (n) => `${n} ${n === 1 ? "pago volvió" : "pagos volvieron"} a dispersión (Por asignar). El intento que rebotó queda en su historial.`
+    )
+  }
+
   const devolver = () =>
     ejecutar(
       "devolver",
@@ -239,7 +256,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
             ordenable: false,
             texto: () => "",
             celda: (p: PagoConEstado) =>
-              p.estado === "dispersado" || (vista === "otros" && p.esPse) ? null : (
+              (p.estado === "dispersado" && paso !== 2) || (vista === "otros" && p.esPse) ? null : (
                 <Checkbox
                   checked={seleccion.has(p.id)}
                   aria-label="Elegir el pago"
@@ -304,6 +321,9 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
       celda: (p) => (
         <div className="min-w-0" title={p.alertas.map((a) => `${a.mensaje}${a.detalle ? ` (${a.detalle})` : ""}`).join("\n")}>
           <Badge className={`h-6 px-3 text-xs ${COLOR_ESTADO[p.estado]}`}>{ETIQUETA_ESTADO_DISPERSOR[p.estado]}</Badge>
+          {p.rebote && p.estado !== "dispersado" && (
+            <div className="truncate text-xs text-amber-700">Rebotó: {p.rebote.motivo}</div>
+          )}
           {p.alertas[0] && p.estado !== "listo" && p.estado !== "asignado" && (
             <div className="truncate text-xs text-muted-foreground">
               {p.alertas[0].mensaje}
@@ -463,6 +483,16 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           </Button>
           <Button size="sm" variant="outline" disabled={ocupado !== null || idsDe(["listo", "asignado"]).length === 0} onClick={sacar}>
             No van por dispersor
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-amber-300 text-amber-800 hover:bg-amber-50"
+            disabled={ocupado !== null || rebotados().length === 0}
+            onClick={() => setMotivoRebote("")}
+            title="Para pagos ya dispersados que el banco devolvió: vuelven a Por asignar con el mismo ITEM"
+          >
+            Rebotó en el banco
           </Button>
         </>
       ) : (
@@ -726,6 +756,36 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           )}
         </div>
       </div>
+
+      <Dialog open={motivoRebote !== null} onOpenChange={(a) => !a && setMotivoRebote(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rebotó en el banco</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {rebotados().length} {rebotados().length === 1 ? "pago dispersado vuelve" : "pagos dispersados vuelven"} a dispersión, en Por
+            asignar, con el mismo ITEM. Si la cuenta del tercero estaba mal, corrígela en Terceros antes de volver a generar. El dispersor
+            anterior y su soporte quedan como registro.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="motivo-rebote">¿Por qué rebotó?</Label>
+            <Textarea
+              id="motivo-rebote"
+              value={motivoRebote ?? ""}
+              onChange={(e) => setMotivoRebote(e.target.value)}
+              placeholder="Ej.: cuenta inexistente, cuenta embargada, titular no coincide"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMotivoRebote(null)}>
+              Cancelar
+            </Button>
+            <Button disabled={(motivoRebote ?? "").trim().length < 3} onClick={confirmarRebote}>
+              Volver a dispersar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
