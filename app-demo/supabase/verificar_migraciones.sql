@@ -525,5 +525,10 @@ select * from (
          and exists (select 1 from pg_trigger where tgname = 'trg_pago_dispersado_fijo')
          and exists (select 1 from pg_constraint where conname = 'pagos_dispersado_liquidado')
          and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%en_dispersion%')
+  union all
+  select '20261227000000_seguridad_y_pendientes_liquidacion',
+         not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace
+                      and has_function_privilege('anon', oid, 'execute'))
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%pago_por_liquidar%')
 ) t
 order by 1;

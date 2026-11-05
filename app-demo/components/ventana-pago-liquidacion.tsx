@@ -14,6 +14,7 @@ import {
   cuadreLiquidacion,
   etiquetaEtapa,
   formatoMoneda,
+  rutaSoporteDispersor,
   rutaSoportePago,
   type ComentarioPago,
   type FilaLiquidacion,
@@ -325,6 +326,17 @@ function Contenido({
           </a>
         ) : (
           <span className="self-center text-sm text-muted-foreground">Sin soporte</span>
+        )}
+        {/* Dispersado: el soporte individual de su dispersor (el del intento vigente). */}
+        {pago.estado === "dispersado" && (
+          <a
+            href={rutaSoporteDispersor(pago.id)}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
+            <FileText className="mr-1.5 h-4 w-4" /> Soporte del dispersor
+          </a>
         )}
         <Button size="sm" variant="outline" onClick={onOrigen}>
           <FileText className="mr-1.5 h-4 w-4" /> Ver {pago.ordenCompraId ? "orden de compra" : pago.actaId ? "acta" : "documento"}
