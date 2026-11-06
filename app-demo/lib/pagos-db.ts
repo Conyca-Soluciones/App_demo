@@ -11,7 +11,7 @@ import { rangosSemanasIso, semanaIso, type FiltroCreacion, type Pago } from "@/l
 // cuenta, 20261214000000).
 export const CAMPOS_PAGO = `
   id, tipo, fuente, estado, valor, concepto, novedad, fecha_programada, anio, semana, referencia,
-  solicitado_en, aprobado_en, motivo_rechazo, consolidado_id, tercero_id, cuenta_tercero_id, titular_tercero_id,
+  solicitado_en, aprobado_en, motivo_rechazo, proyecto_id, consolidado_id, tercero_id, cuenta_tercero_id, titular_tercero_id,
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
@@ -56,6 +56,22 @@ export function filtrarSemanaCreacion(query: any, filtros: FiltroCreacion) {
 }
 
 const num = (v: unknown): number | null => (v == null ? null : Number(v))
+
+// A&F (Financiera, Contabilidad) no tiene proyectos asignados: el embed de
+// proyectos le llega vacío por la RLS. Se completa con proyectos_de_pagos
+// (20261231300000), que solo da los proyectos de pagos que ya ve. Una consulta.
+export async function conProyectos(supabase: any, pagos: Pago[]): Promise<Pago[]> {
+  const ids = [...new Set(pagos.filter((p) => p.proyectoId && !p.proyectoCodigo && !p.proyectoNombre).map((p) => p.proyectoId!))]
+  if (ids.length === 0) return pagos
+  const { data, error } = await supabase.rpc("proyectos_de_pagos", { p_ids: ids })
+  if (error) return pagos // sin el nombre se muestra como antes; no se bloquea la lista
+  const porId = new Map<string, { codigo: string | null; nombre: string | null }>()
+  for (const p of (data ?? []) as any[]) porId.set(p.id, { codigo: p.codigo ?? null, nombre: p.nombre ?? null })
+  return pagos.map((p) => {
+    const x = p.proyectoId && !p.proyectoCodigo && !p.proyectoNombre ? porId.get(p.proyectoId) : undefined
+    return x ? { ...p, proyectoCodigo: x.codigo, proyectoNombre: x.nombre } : p
+  })
+}
 
 export function mapPago(f: any): Pago {
   const t = f.tercero
@@ -108,6 +124,7 @@ export function mapPago(f: any): Pago {
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
     // no es de acta o quien consulta no lee el acta (RLS).
     actaBruto: f.acta?.valor_bruto != null ? Number(f.acta.valor_bruto) : null,
+    proyectoId: f.proyecto_id ?? null,
     proyectoCodigo: f.proyecto?.codigo ?? null,
     proyectoNombre: f.proyecto?.nombre ?? null,
     empresaNombre: f.empresa?.razon_social ?? null,

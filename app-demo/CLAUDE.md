@@ -1628,6 +1628,14 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   y `listar_bancos_admin` también van por `tercero_id`; `guardar_banco` ya no toca
   contratistas. Los contratistas de prueba se enlazaron (o se les creó el tercero,
   sin cuenta).
+- **Proyecto de los pagos para A&F** (`20261231300000`): Financiera y
+  Contabilidad no tienen proyectos asignados y la RLS de `proyectos` les dejaba
+  el embed vacío (soporte del dispersor "(sin proyecto)", columna Proyecto en
+  blanco). `proyectos_de_pagos(ids)` da número, código y nombre solo de
+  proyectos de pagos que ya ven (`_ve_pago`); lo usan `conProyectos`
+  (`lib/pagos-db.ts`: consolidados, Gerencia, Aprobación de pagos) y
+  `completarProyectos` (Realizar Pagos). No toca la RLS de `proyectos` (el
+  selector de proyecto de A&F sigue vacío).
 - **Cuentas por verificar** (`20261231200000`, decisión del usuario 2026-11-06):
   pestaña en Terceros (`components/terceros-pestanas.tsx`,
   `components/cuentas-por-verificar.tsx`; `?vista=verificar`, a donde lleva
@@ -3781,7 +3789,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
 `20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
 `20261231100000` campanita: no leídas arriba y borrar notificaciones propias ·
-`20261231200000` Terceros › Cuentas por verificar (tabla, certificación por cuenta).
+`20261231200000` Terceros › Cuentas por verificar (tabla, certificación por cuenta) ·
+`20261231300000` proyecto de los pagos para A&F (soporte del dispersor y columnas Proyecto).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR, limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, filtrarSemanaCreacion, mapPago, rangosCreacion } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, filtrarSemanaCreacion, conProyectos, mapPago, rangosCreacion } from "@/lib/pagos-db"
 import { documentoFormateado, soloDigitos } from "@/lib/terceros"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { buscarSoportesDePagos } from "@/lib/soportes-pagos-db"
@@ -83,7 +83,7 @@ export async function listarConsolidado(
   const { data, error } = await consultaConsolidado(supabase, consolidadoId, filtros).range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
   const { filas, hayMas } = cortarPagina((data ?? []) as any[])
-  const pagos = filas.map(mapPago)
+  const pagos = await conProyectos(supabase, filas.map(mapPago))
   const dispersados = pagos.filter((p) => p.estado === "dispersado").map((p) => p.id)
   const [soportes, dispersores] = await Promise.all([buscarSoportesDePagos(supabase, pagos), soportesDispersor(supabase, dispersados)])
   return { pagos, hayMas, soportes, dispersores }
@@ -127,7 +127,7 @@ export async function obtenerPagoConsolidado(pagoId: string): Promise<Pago> {
   const { data, error } = await supabase.from("pagos").select(CAMPOS_PAGO).eq("id", pagoId).maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) throw new Error("El pago no existe o no tienes acceso.")
-  return mapPago(data)
+  return (await conProyectos(supabase, [mapPago(data)]))[0]
 }
 
 // ------------------------------------------------------------ liquidación
@@ -249,7 +249,7 @@ export async function pagosParaExcelLiquidacion(clave: string, filtros: FiltrosC
       .not("liquidacion_estado", "is", null)
       .range(desde, hasta)
   )
-  return filas.map(mapPago)
+  return await conProyectos(supabase, filas.map(mapPago))
 }
 
 // Aviso de la pantalla: órdenes aprobadas cuyos pagos no se pudieron crear (la
@@ -344,5 +344,5 @@ export async function asignarTerceroPago(pagoId: string, terceroId: string, cuen
   const { data, error: errorLeer } = await supabase.from("pagos").select(CAMPOS_PAGO).eq("id", pagoId).maybeSingle()
   if (errorLeer) throw new Error(errorLeer.message)
   if (!data) throw new Error("El pago no existe o no tienes acceso.")
-  return mapPago(data)
+  return (await conProyectos(supabase, [mapPago(data)]))[0]
 }

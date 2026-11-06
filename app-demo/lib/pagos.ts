@@ -77,6 +77,7 @@ export type Pago = {
   requisicionAdminItemId: string | null
   origen: string
   actaBruto: number | null
+  proyectoId: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
   empresaNombre: string | null
