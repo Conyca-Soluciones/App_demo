@@ -394,7 +394,7 @@ export async function cambiarPasswordUsuario(usuarioId: string, nuevaPassword: s
 // ---------------------------------------------------------------------------
 // Representantes legales de las empresas (20261201000000): el principal y el
 // suplente se registran aquí con su firma (guardarFirmaRepresentante, en
-// contratos/representantes/actions.ts; Subgerencia también la adjunta desde
+// contratos/representantes/actions.ts; Gerencia también la adjunta desde
 // Aprobación de contratos).
 // ---------------------------------------------------------------------------
 

@@ -22,13 +22,13 @@ import {
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
 } from "@/lib/contratos"
-import { listarMinutasSubgerencia, resolverMinutaContrato, type AccionMinuta } from "@/app/(app)/contratos/aprobacion-minutas/actions"
+import { listarMinutasGerencia, resolverMinutaContrato, type AccionMinuta } from "@/app/(app)/contratos/aprobacion-minutas/actions"
 import { firmaRepresentanteContrato } from "@/app/(app)/contratos/representantes/actions"
 import { RepresentantesLegalesView } from "@/components/representantes-legales-view"
 import { textoFirmaRepresentante, type FirmaRepresentanteContrato } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
-// Aprobación de contratos (ruta /contratos/aprobacion-minutas): Subgerencia
+// Aprobación de contratos (ruta /contratos/aprobacion-minutas): Gerencia
 // revisa las minutas que envía Jurídica, de
 // todos sus proyectos (no depende del proyecto actual), y las aprueba o las
 // devuelve con motivo. Al aprobar, el contrato recibe su número CJ y ya se le
@@ -74,7 +74,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
 
   function cargar() {
-    listarMinutasSubgerencia({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
+    listarMinutasGerencia({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
       .then((lista: SolicitudContratoFila[]) => setMinutas(lista))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las minutas."))
   }
@@ -203,7 +203,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <EncabezadoPagina titulo="Aprobación de contratos" subtitulo="Subgerencia: revisa la minuta de los contratos que pre-aprobó Jurídica y apruébala o devuélvela para corregir." />
+      <EncabezadoPagina titulo="Aprobación de contratos" subtitulo="Gerencia: revisa la minuta de los contratos que pre-aprobó Jurídica y apruébala o devuélvela para corregir." />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1" role="tablist" aria-label="Estado de la minuta">

@@ -5,7 +5,7 @@ import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comu
 import { obtenerMinutaParaRevision } from "@/app/(app)/contratos/pre-aprobacion/actions"
 
 // Minuta solo en PDF, sin el panel de edición de Jurídica (Aprobación de
-// contratos, Subgerencia). Muestra lo guardado: lo que Jurídica envió.
+// contratos, Gerencia). Muestra lo guardado: lo que Jurídica envió.
 export function MinutaSoloPdf({ id }: { id: string }) {
   const [minuta, setMinuta] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)

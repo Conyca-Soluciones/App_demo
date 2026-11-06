@@ -92,7 +92,7 @@ export const PESTANAS: Pestana[] = [
   // Contratos: Contratistas, el subgrupo Contratos, el subgrupo Actas e Informes.
   // Claves de antes con nombre nuevo: solicitar = Contratos por grupos,
   // contratos = Contratos generales, preaprobacion = Pre aprobación de contratos,
-  // aprobar_minutas = Aprobación de contratos (Subgerencia),
+  // aprobar_minutas = Aprobación de contratos (Gerencia),
   // cortes = Actas por grupos.
   { clave: "contratos.contratistas", titulo: "Contratistas", seccion: "Contratos", url: "/contratos/contratistas", rutas: ["/contratos/contratistas"] },
   { clave: "contratos.solicitar", titulo: "Contratos por grupos", seccion: "Contratos", subseccion: "Contratos", url: "/contratos/solicitar", rutas: ["/contratos/solicitar", "/contratos/otrosi-pdf"] },
@@ -164,12 +164,11 @@ export const ACCIONES: Accion[] = [
   { clave: "comprar", titulo: "Comprar", descripcion: "Comprar requisiciones y crear órdenes de compra.", seccion: "Compras" },
   { clave: "editar_proveedores", titulo: "Editar proveedores", descripcion: "Crear proveedores y corregir sus datos, también desde la tarjeta del proveedor al generar una orden de compra.", seccion: "Compras" },
   { clave: "cambiar_fecha_credito", titulo: "Cambiar la fecha de pago de un crédito", descripcion: "Mover la fecha en que se debe pagar una orden de compra a crédito, mientras su pago no haya pasado a pago (aprobado por Gerencia, el pago espera hasta el lunes de la semana de esa fecha).", seccion: "Compras" },
-  { clave: "desaprobar_oc", titulo: "Desaprobar órdenes de compra", descripcion: "Devolver una orden aprobada a pendiente: su pago vuelve a Aprobación de pagos.", seccion: "Compras" },
   { clave: "cancelar_oc", titulo: "Cancelar órdenes de compra", descripcion: "Retirar órdenes pendientes de otros (una aprobada ya no se cancela: su pago ya fue aprobado).", seccion: "Compras" },
   { clave: "gestionar_almacen", titulo: "Gestionar bodega", descripcion: "Registrar, editar y anular entradas y salidas de almacén.", seccion: "Almacén" },
   { clave: "solicitar_contratos", titulo: "Solicitar contratos", descripcion: "Llenar y mandar a pre-aprobación solicitudes de contrato y de otrosí de los proyectos a los que tiene acceso.", seccion: "Contratos" },
-  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Subgerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso. También arma el otrosí y lo envía a Subgerencia, lo devuelve o lo rechaza.", seccion: "Contratos" },
-  { clave: "aprobar_minutas", titulo: "Aprobar contratos (Subgerencia)", descripcion: "Aprobar o devolver con motivo la minuta de los contratos que Jurídica pre-aprueba y envía a Subgerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas. También aprueba o devuelve los otrosí.", seccion: "Contratos" },
+  { clave: "aprobar_contratos", titulo: "Pre-aprobar contratos", descripcion: "Pre-aprobar (y enviar la minuta a Gerencia), devolver con motivo o rechazar las solicitudes de contrato de los proyectos a los que tiene acceso. También arma el otrosí y lo envía a Gerencia, lo devuelve o lo rechaza.", seccion: "Contratos" },
+  { clave: "aprobar_minutas", titulo: "Aprobar contratos (Gerencia)", descripcion: "Aprobar o devolver con motivo la minuta de los contratos que Jurídica pre-aprueba y envía a Gerencia, de los proyectos a los que tiene acceso. Al aprobar, el contrato recibe su número y ya se le pueden hacer actas. También aprueba o devuelve los otrosí.", seccion: "Contratos" },
   { clave: "elaborar_actas", titulo: "Elaborar actas", descripcion: "Crear actas de los contratos con minuta aprobada de los proyectos a los que tiene acceso.", seccion: "Contratos" },
   { clave: "ver_datos_bancarios", titulo: "Ver datos bancarios de contratistas", descripcion: "Ver el banco, la cuenta y la certificación bancaria de los contratistas. Sin esta acción se ven como \"Restringido\".", seccion: "Contratos" },
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
@@ -335,7 +334,7 @@ export function permisosDesdeBanderas(b: BanderasPerfil | null | undefined): Per
     acciones.push("aprobar_pedidos", "desaprobar_pedidos", "cancelar_pedidos")
   }
   if (admin || b?.admin_mano_obra) acciones.push("aprobar_mano_obra")
-  if (admin) acciones.push("desaprobar_oc", "cancelar_oc", "editar_presupuestos")
+  if (admin) acciones.push("cancelar_oc", "editar_presupuestos")
 
   return {
     sinRol: true,

@@ -20,7 +20,7 @@ import { guardarRepresentantesEmpresa } from "@/app/(app)/admin/actions"
 // documento). Dejar uno en blanco = la empresa queda sin él. Cambiar el
 // documento = otra persona: la anterior queda inactiva (los contratos que firmó
 // no cambian) y la nueva necesita su firma (Contratos › Firmas de
-// representantes, Subgerencia).
+// representantes, Gerencia).
 export function RepresentantesEmpresaDialog({
   empresa,
   principal,

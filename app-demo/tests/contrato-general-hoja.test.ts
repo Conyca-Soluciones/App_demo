@@ -52,7 +52,7 @@ describe("hoja del contrato general", () => {
     expect(h.tipo).toBe("Consultoría")
   })
 
-  it("aprobada por Subgerencia: número CJ y las tres firmas", () => {
+  it("aprobada por Gerencia: número CJ y las tres firmas", () => {
     const h = armarHojaContratoGeneral(
       { ...fila, estado: "aprobada", minuta_estado: "aprobada", numero_contrato: "CJ-21-2026", minuta_resolutor: { nombre: "Luis" }, minuta_resuelta_at: "2026-02-25T17:00:00Z" },
       new Date()
@@ -60,7 +60,7 @@ describe("hoja del contrato general", () => {
     expect(h.numero).toBe("CJ-21-2026")
     expect(h.preaprobo?.nombre).toBe("Diana")
     expect(h.aprobo?.nombre).toBe("Luis")
-    expect(h.estado).toBe("Aprobado por Subgerencia")
+    expect(h.estado).toBe("Aprobado por Gerencia")
   })
 
   it("NIT con dígito de verificación", () => {

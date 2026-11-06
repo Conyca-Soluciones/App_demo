@@ -15,14 +15,14 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { hoyColombia } from "@/lib/fechas"
 import { nombreTipoContrato } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, contratoVencido, type EstadoOtrosi, type OtrosiDetalle, type OtrosiFila } from "@/lib/otrosi"
-import { listarOtrosis, resolverOtrosiJuridica, resolverOtrosiSubgerencia } from "@/app/(app)/contratos/otrosi/actions"
+import { listarOtrosis, resolverOtrosiJuridica, resolverOtrosiGerencia } from "@/app/(app)/contratos/otrosi/actions"
 
 // ---------------------------------------------------------------------------
 // Aprobación de otrosí (ruta /contratos/aprobacion-otrosi), como Aprobación de
 // contratos: tabla con los otrosí de todos los proyectos que el usuario ve y,
 // al abrir uno, el diálogo con la solicitud y el otrosí (vista previa y
-// editor). Jurídica lo arma y lo envía a Subgerencia (o lo devuelve al
-// ingeniero, o lo rechaza); Subgerencia lo aprueba (recibe su número) o se lo
+// editor). Jurídica lo arma y lo envía a Gerencia (o lo devuelve al
+// ingeniero, o lo rechaza); Gerencia lo aprueba (recibe su número) o se lo
 // devuelve a Jurídica.
 // ---------------------------------------------------------------------------
 
@@ -30,7 +30,7 @@ type Filtro = "juridica" | "subgerencia" | "devueltos" | "aprobados" | "rechazad
 
 const FILTROS: { valor: Filtro; etiqueta: string; estados?: EstadoOtrosi[] }[] = [
   { valor: "juridica", etiqueta: "Por revisar en Jurídica", estados: ["por_revisar", "devuelta_subgerencia"] },
-  { valor: "subgerencia", etiqueta: "En Subgerencia", estados: ["en_revision"] },
+  { valor: "subgerencia", etiqueta: "En Gerencia", estados: ["en_revision"] },
   { valor: "devueltos", etiqueta: "Devueltos al ingeniero", estados: ["devuelta"] },
   { valor: "aprobados", etiqueta: "Aprobados", estados: ["aprobada"] },
   { valor: "rechazados", etiqueta: "Rechazados", estados: ["rechazada"] },
@@ -41,9 +41,9 @@ type Accion = "enviar" | "devolver" | "rechazar" | "aprobar" | "devolver_juridic
 
 const TEXTO_ACCION: Record<Accion, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean; placeholder?: string }> = {
   enviar: {
-    titulo: "Enviar a Subgerencia",
+    titulo: "Enviar a Gerencia",
     explicacion:
-      "Se envía el otrosí GUARDADO (guarda antes los cambios de la pestaña Otrosí). Mientras Subgerencia lo revisa no se puede editar.",
+      "Se envía el otrosí GUARDADO (guarda antes los cambios de la pestaña Otrosí). Mientras Gerencia lo revisa no se puede editar.",
     boton: "Enviar",
     pideMotivo: false,
   },
@@ -78,16 +78,16 @@ const TEXTO_ACCION: Record<Accion, { titulo: string; explicacion: string; boton:
 
 export function AprobacionOtrosiView({
   puedeJuridica,
-  puedeSubgerencia,
+  puedeGerencia,
   verInicial,
 }: {
   puedeJuridica: boolean
-  puedeSubgerencia: boolean
+  puedeGerencia: boolean
   verInicial: string | null
 }) {
   const router = useRouter()
   const { proyectos } = useProyectoActual()
-  const [filtro, setFiltro] = useState<Filtro>(puedeJuridica || !puedeSubgerencia ? "juridica" : "subgerencia")
+  const [filtro, setFiltro] = useState<Filtro>(puedeJuridica || !puedeGerencia ? "juridica" : "subgerencia")
   const [proyectoId, setProyectoId] = useState("")
   const [otrosis, setOtrosis] = useState<OtrosiFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -175,12 +175,12 @@ export function AprobacionOtrosiView({
     setErrorAccion(null)
     try {
       const { tipo, detalle } = accion
-      if (tipo === "aprobar" || tipo === "devolver_juridica") await resolverOtrosiSubgerencia(detalle.id, tipo, motivo)
+      if (tipo === "aprobar" || tipo === "devolver_juridica") await resolverOtrosiGerencia(detalle.id, tipo, motivo)
       else await resolverOtrosiJuridica(detalle.id, tipo, motivo)
       const c = detalle.numeroContrato
       setAviso(
         tipo === "enviar"
-          ? `Otrosí al contrato ${c} enviado a Subgerencia.`
+          ? `Otrosí al contrato ${c} enviado a Gerencia.`
           : tipo === "aprobar"
             ? `Otrosí al contrato ${c} aprobado.`
             : tipo === "rechazar"
@@ -216,12 +216,12 @@ export function AprobacionOtrosiView({
             <Undo2 className="size-4" /> Devolver al ingeniero
           </Button>
           <Button onClick={() => setAccion({ tipo: "enviar", detalle: d })} disabled={vencido}>
-            <Send className="size-4" /> {d.estado === "devuelta_subgerencia" ? "Enviar otra vez a Subgerencia" : "Enviar a Subgerencia"}
+            <Send className="size-4" /> {d.estado === "devuelta_subgerencia" ? "Enviar otra vez a Gerencia" : "Enviar a Gerencia"}
           </Button>
         </>
       )
     }
-    if (puedeSubgerencia && d.estado === "en_revision") {
+    if (puedeGerencia && d.estado === "en_revision") {
       return (
         <>
           {avisoVencido}
@@ -241,7 +241,7 @@ export function AprobacionOtrosiView({
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
         titulo="Aprobación de otrosí"
-        subtitulo="Jurídica arma el otrosí y lo envía a Subgerencia; Subgerencia lo aprueba o lo devuelve para corregir."
+        subtitulo="Jurídica arma el otrosí y lo envía a Gerencia; Gerencia lo aprueba o lo devuelve para corregir."
       />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">

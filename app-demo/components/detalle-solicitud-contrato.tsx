@@ -32,8 +32,8 @@ import { enlaceDocumentoContratista } from "@/app/(app)/contratos/contratistas/a
 // ---------------------------------------------------------------------------
 // Detalle de una solicitud de contrato, compartido por Solicitud de contratos
 // (el director), Pre-aprobación (Jurídica) y Aprobación de minutas
-// (Subgerencia). Cada pantalla pone sus botones con `acciones` (corregir y
-// reenviar / aprobar, devolver, rechazar, enviar a Subgerencia), que salen en
+// (Gerencia). Cada pantalla pone sus botones con `acciones` (corregir y
+// reenviar / aprobar, devolver, rechazar, enviar a Gerencia), que salen en
 // las dos pestañas. Con `minuta` el diálogo se agranda y suma la pestaña
 // "Minuta" junto a "Solicitud".
 // ---------------------------------------------------------------------------
@@ -388,13 +388,13 @@ export function DetalleSolicitudContrato({
   )
 }
 
-// Subgerencia devolvió la minuta: el motivo, para que Jurídica la corrija.
+// Gerencia devolvió la minuta: el motivo, para que Jurídica la corrija.
 function AvisoMinutaDevuelta({ detalle }: { detalle: SolicitudContratoDetalle }) {
   if (detalle.minutaEstado !== "devuelta" || !detalle.minutaMotivo) return null
   return (
     <div className="mb-4 rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900">
       <p className="font-medium">
-        Minuta devuelta por Subgerencia
+        Minuta devuelta por Gerencia
         {detalle.minutaResueltaPorNombre && ` (${detalle.minutaResueltaPorNombre})`}
         {detalle.minutaResueltaAt && ` el ${fechaContrato(detalle.minutaResueltaAt)}`}
       </p>

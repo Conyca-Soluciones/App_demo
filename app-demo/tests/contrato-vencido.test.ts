@@ -40,7 +40,7 @@ describe("contrato vencido (como _avisar_contratos_vencidos)", () => {
     expect(contratoVencido(contrato(), "2026-10-02")).toEqual({ vencido: true, fechaFin: "2026-10-01" })
     expect(contratoVencido(contrato(), "2026-10-01").vencido).toBe(false)
   })
-  it("solo si está aprobado por Subgerencia y sin liquidar", () => {
+  it("solo si está aprobado por Gerencia y sin liquidar", () => {
     expect(contratoVencido(contrato({ minutaEstado: "en_revision" }), "2026-10-16").vencido).toBe(false)
     expect(contratoVencido(contrato({ estado: "pre_aprobacion", minutaEstado: null }), "2026-10-16").vencido).toBe(false)
     expect(contratoVencido(contrato({ liquidadoAt: "2026-10-10T15:00:00Z" }), "2026-10-16").vencido).toBe(false)

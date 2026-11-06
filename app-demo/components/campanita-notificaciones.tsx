@@ -25,7 +25,7 @@ function rutaDestino(n: Notificacion): string {
     return n.tipo === "requisicion_extraordinaria"
       ? "/almacen/requisiciones-extraordinarias"
       : `/almacen/registro-requisiciones/${n.entidadId}`
-  // Contratos: a quien aprueba, a Pre-aprobación; a Subgerencia, a Aprobación
+  // Contratos: a quien aprueba, a Pre-aprobación; a Gerencia, a Aprobación
   // de minutas; a Jurídica (minuta aprobada o devuelta), a Pre-aprobación; a
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.
   if (n.entidadTipo === "contrato") {
@@ -44,14 +44,14 @@ function rutaDestino(n: Notificacion): string {
   }
   // Actas aprobadas o rechazadas: a quien la hizo, a Elaboración de actas con el acta abierta.
   if (n.entidadTipo === "acta") return `/contratos/actas?ver=${n.entidadId}`
-  // Otrosí: a Jurídica (por revisar, devuelto por Subgerencia) y a Subgerencia
+  // Otrosí: a Jurídica (por revisar, devuelto por Gerencia) y a Gerencia
   // (por aprobar), a Aprobación de otrosí; al ingeniero (devuelto, rechazado,
   // aprobado), a Solicitud de otrosí. "Aprobado" también le llega a quien lo
   // envió desde Jurídica, que tiene las dos pestañas.
   if (n.entidadTipo === "otrosi") {
-    const aJuridicaOSubgerencia =
+    const aJuridicaOGerencia =
       n.tipo === "otrosi_por_revisar" || n.tipo === "otrosi_por_aprobar" || n.tipo === "otrosi_devuelto_subgerencia"
-    return aJuridicaOSubgerencia ? `/contratos/aprobacion-otrosi?ver=${n.entidadId}` : `/contratos/otrosi?ver=${n.entidadId}`
+    return aJuridicaOGerencia ? `/contratos/aprobacion-otrosi?ver=${n.entidadId}` : `/contratos/otrosi?ver=${n.entidadId}`
   }
   // Requisición administrativa aprobada o rechazada: a quien la hizo.
   if (n.entidadTipo === "requisicion_admin") return `/ayf/requisiciones-administrativas?ver=${n.entidadId}`

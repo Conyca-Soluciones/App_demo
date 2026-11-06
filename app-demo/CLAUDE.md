@@ -1079,6 +1079,20 @@ proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan)
   ahora usa `_crear_orden_compra_sin_proyecto`); lo pendiente de cada
   requisición no cuenta lo que compra la misma orden.
 
+## Pruebas de Compras y Contratos (2026-11-06)
+
+- Compras y Líder Compras ven Elaboración de presupuestos en solo lectura
+  (`20261231500000`; la página oculta lo que escribe con
+  `puedeEditarPresupuestos`, la base exige `editar_presupuestos`).
+- Minutas y otrosí los aprueba GERENCIA, no Subgerencia (`20261231600000`):
+  la acción `aprobar_minutas` y las pestañas Aprobación de contratos / de otrosí
+  salieron de Subgerencia, y los textos dicen "Gerencia". Las claves internas
+  (`en_subgerencia`, `devuelta_subgerencia`, eventos `*_subgerencia`) no cambiaron.
+- Director de obra ve Terceros. Entradas muestra el código de la OC
+  (`listar_ordenes_entradas` / `listar_ordenes_para_entrada` devuelven `codigo`).
+- Ojo al cambiar un mensaje para usar `codigo`: `subir_poliza` y
+  `_avisar_contratos_vencidos` fallaban porque su `select ... into` no lo traía.
+
 ## Las OC se aprueban en Aprobación de pagos (2026-10-22)
 
 `20261204000000_oc_se_aprueba_en_pagos.sql` (decisión del usuario). Ya no existe
@@ -1093,9 +1107,10 @@ proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan)
   OC salen a su nombre) y lista para recibir en almacén. Rechazar ese pago deja
   la OC `rechazada` con el mismo motivo (sus líneas vuelven a la cola de Compras).
 - `aprobar_orden_compra` / `rechazar_orden_compra` solo devuelven un error
-  (no hay otra forma de aprobar una OC). Desaprobar (devolver) una OC aprobada
-  anula sus pagos y le crea otra vez el pago por aprobar; retirarla o cancelarla
-  anula sus pagos (`_oc_estado_pagos`).
+  (no hay otra forma de aprobar una OC). Desaprobar tampoco existe
+  (`20261231500000`: `desaprobar_orden_compra` solo da error y la acción
+  `desaprobar_oc` se quitó): para cambiar una OC se usa "Modificar"
+  (`20261231400000`). Retirarla o cancelarla anula sus pagos (`_oc_estado_pagos`).
 - Mis pendientes ya no tiene "OC por aprobar" (sale como pago por aprobar); los
   avisos de precio alto y de insumo sobre presupuesto van a quien aprueba pagos.
 - A&F (pestañas Aprobación de pagos o Consolidado) lee las líneas, requisiciones
@@ -2245,7 +2260,8 @@ Migración `20261002000000_desaprobar_cancelar_oc.sql`. Acciones del rol
 permiso y las reglas, la pantalla solo decide si muestra el botón
 (`sePuedeDesaprobar` / `sePuedeCancelar` en `lib/ordenes-compra-estado.ts`).
 
-- **Desaprobar** (botón en el detalle; desde 2026-10-22 la OC vuelve a Aprobación de pagos):
+- **Desaprobar**: QUITADO el 2026-11-05 (`20261231500000`); se reemplazó por
+  "Modificar". Lo que sigue es historia.
   aprobada -> pendiente_aprobacion. Solo si `enviada = false` y
   `estado_entrega = 'sin_entregar'`. Motivo obligatorio
   (`motivo_desaprobacion`); se limpian `aprobada_por/aprobada_at`.

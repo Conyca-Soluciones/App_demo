@@ -169,7 +169,7 @@ export function ContratoGeneralPDF({ hoja: h, logo }: { hoja: HojaContratoGenera
         <View style={s.firmas} wrap={false}>
           <Firma titulo="Elaborado por" cargo="Director de obra" firma={h.elaboro} />
           <Firma titulo="Pre aprobado por" cargo="Jurídica" firma={h.preaprobo} borde />
-          <Firma titulo="Aprobado por" cargo="Subgerencia" firma={h.aprobo} borde />
+          <Firma titulo="Aprobado por" cargo="Gerencia" firma={h.aprobo} borde />
           <View style={[s.firma, s.celdaBorde]}>
             <Text style={s.firmaTitulo}>Firma y sello del contratista</Text>
           </View>

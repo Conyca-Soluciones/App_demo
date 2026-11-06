@@ -203,7 +203,7 @@ export async function pdfContratoFirmado(supabase: Supabase, id: string, c: Cont
 // Aprobado con la firma del representante legal (20261228200000_firmas_otrosi.sql):
 // el PDF congelado. null = no aplica (sin aprobar o aprobado sin representantes
 // registrados): la ruta lo arma como siempre. La minuta (el documento guardado
-// que aprobó Subgerencia) la arma la ruta.
+// que aprobó Gerencia) la arma la ruta.
 export async function pdfOtrosiFirmado(
   supabase: Supabase,
   id: string,

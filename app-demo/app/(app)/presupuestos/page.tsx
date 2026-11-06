@@ -44,6 +44,7 @@ import {
   type EstadoApuItem,
   type MotivoRechazoPorItem,
   type DiferenciaLineasApu,
+  puedeEditarPresupuestos,
 } from "./actions"
 import {
   Select,
@@ -521,6 +522,16 @@ function PresupuestoDeProyecto() {
   // Sin presupuesto en la base no hay versiones (se deriva; no se limpia en un efecto).
   const [versionesCargadas, setVersiones] = useState<VersionPresupuesto[]>([])
   const [viendoVersionActual, setViendoVersionActual] = useState(true)
+  // Sin la acción editar_presupuestos (p. ej. Compras) la página es de solo
+  // lectura: sin subir Excel, agregar, editar, versiones ni borrar. Mientras no
+  // se sabe, también (no se muestra algo que después desaparece).
+  const [puedeEditar, setPuedeEditar] = useState(false)
+  useEffect(() => {
+    puedeEditarPresupuestos()
+      .then(setPuedeEditar)
+      .catch(() => setPuedeEditar(false))
+  }, [])
+  const editable = puedeEditar && viendoVersionActual
   const [versionViendoIdEstado, setVersionViendoId] = useState<string | null>(null)
   const versiones = presupuestoDbId ? versionesCargadas : []
   const versionViendoId = presupuestoDbId ? versionViendoIdEstado : null
@@ -1656,12 +1667,14 @@ function PresupuestoDeProyecto() {
       <main className="mx-auto w-full max-w-[1800px] flex-1 min-w-0 space-y-6 p-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <FileUpload
-              accept=".xlsx,.xls"
-              onFileSelected={handleFileSelected}
-              disabled={!proyectoId || guardandoImportApu}
-              className="flex-1"
-            />
+            {puedeEditar && (
+              <FileUpload
+                accept=".xlsx,.xls"
+                onFileSelected={handleFileSelected}
+                disabled={!proyectoId || guardandoImportApu}
+                className="flex-1"
+              />
+            )}
 
             <ExportTemplateButton
               columnas={["Código", "Descripción", "Unidad", "Cantidad","Valor Unitario"]}
@@ -1821,7 +1834,7 @@ function PresupuestoDeProyecto() {
           </div>
         )}
 
-        {idsConPendientes.length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
+        {puedeEditar && idsConPendientes.length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
             <p className="text-sm text-amber-900">
               {idsConPendientes.length} ítem(s) todavía tienen insumos sin resolver 
@@ -1832,7 +1845,7 @@ function PresupuestoDeProyecto() {
           </div>
         )}
  
-        {(idsConRechazados.length > 0 || idsConSobrecosto.length > 0) && !dialogoRevisionAbierto && !importAjenoEnCurso && (
+        {puedeEditar && (idsConRechazados.length > 0 || idsConSobrecosto.length > 0) && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
             {idsConRechazados.length > 0 && (
               <div className="flex items-center justify-between gap-3">
@@ -1859,7 +1872,7 @@ function PresupuestoDeProyecto() {
           </div>
         )}
 
-        {itemIdsTransportePendiente.length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
+        {puedeEditar && itemIdsTransportePendiente.length > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50 px-4 py-3">
             <p className="text-sm text-sky-900">
               {itemIdsTransportePendiente.length} ítem(s) necesitan precio de transporte -- descarga
@@ -1871,7 +1884,7 @@ function PresupuestoDeProyecto() {
           </div>
         )}
 
-        {proyectoId && viendoVersionActual && (
+        {proyectoId && editable && (
           <div>
             <Button variant="outline" onClick={() => setDialogoAgregarAbierto(true)}>
               + Agregar ítem manual
@@ -1904,7 +1917,9 @@ function PresupuestoDeProyecto() {
                   </Select>
                 </div>
 
-                {viendoVersionActual ? (
+                {!viendoVersionActual ? null : !puedeEditar ? (
+                  <span className="text-xs text-muted-foreground">Solo lectura</span>
+                ) : (
                   <div className="flex items-center gap-1.5">
                     <input
                       type="text"
@@ -1923,7 +1938,8 @@ function PresupuestoDeProyecto() {
                       {creandoVersion ? "Creando..." : "+ Nueva versión"}
                     </Button>
                   </div>
-                ) : (
+                )}
+                {!viendoVersionActual && (
                   <div className="flex items-center gap-2 rounded bg-amber-50 px-2.5 py-1">
                     <span className="text-xs text-amber-800">
                       Viendo una versión anterior — solo lectura
@@ -1943,6 +1959,7 @@ function PresupuestoDeProyecto() {
                   <span className="text-xs text-muted-foreground">Estado</span>
                   <Select
                     value={estadoPresupuesto}
+                    disabled={!puedeEditar}
                     onValueChange={(v) =>
                       handleCambiarEstado(v as "Borrador" | "En ejecucion" | "Con movimientos")
                     }
@@ -1987,17 +2004,15 @@ function PresupuestoDeProyecto() {
                 <PresupuestoTable
                   data={presupuesto}
                   onChange={setPresupuesto}
-                  onEditarApu={viendoVersionActual ? setItemApuAbierto : undefined}
-                  onActualizarCantidadGuardada={
-                    viendoVersionActual ? handleActualizarCantidadGuardada : undefined
-                  }
-                  onEliminarItem={viendoVersionActual ? handleEliminarItem : undefined}
+                  onEditarApu={editable ? setItemApuAbierto : undefined}
+                  onActualizarCantidadGuardada={editable ? handleActualizarCantidadGuardada : undefined}
+                  onEliminarItem={editable ? handleEliminarItem : undefined}
                   idResaltado={itemResaltadoId}
-                  soloLectura={!viendoVersionActual}
+                  soloLectura={!editable}
                   estadosApu={estadosApu}
                   motivosRechazo={motivosRechazo}
                   diferenciasLineas={diferenciasLineas}
-                  onRevisarItem={handleAbrirRevisionDeItem}
+                  onRevisarItem={puedeEditar ? handleAbrirRevisionDeItem : undefined}
                 />
 
                 <div className="flex items-center justify-end gap-3 border-t pt-4">
@@ -2015,6 +2030,8 @@ function PresupuestoDeProyecto() {
                       arriba.
                     </p>
                   )}
+                  {puedeEditar && (
+                    <>
                   <Button
                     variant="outline"
                     onClick={async () => {
@@ -2060,6 +2077,8 @@ function PresupuestoDeProyecto() {
                           : "Todo guardado"}
                   </Button>
 
+                    </>
+                  )}
                   <Button variant="default" onClick={handleExportar} disabled={exportando}>
                     {exportando ? "Exportando..." : "Exportar"}
                   </Button>

@@ -12,7 +12,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // Firmas de representantes legales: las adjunta el Administrador (Admin ›
-// Empresas, donde se registran los representantes) o Subgerencia (acción
+// Empresas, donde se registran los representantes) o Gerencia (acción
 // aprobar_minutas, botón «Adjuntar firma de RL» en Aprobación de contratos).
 // Todo pasa por las funciones de 20261201000000_representantes_legales.sql.
 // ---------------------------------------------------------------------------
@@ -25,7 +25,7 @@ export async function listarRepresentantesLegales(): Promise<EmpresaConRepresent
   return mapEmpresasRepresentantes(data)
 }
 
-// Subgerencia: la firma de un representante y, si usa la app, su usuario.
+// Gerencia: la firma de un representante y, si usa la app, su usuario.
 // Cada campo solo cambia si viene: imagenFirma null = quitarla; perfilId null =
 // no usa la app.
 export async function guardarFirmaRepresentante(

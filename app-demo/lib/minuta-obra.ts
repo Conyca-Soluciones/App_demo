@@ -462,7 +462,7 @@ export const esMinutaManoObra04 = (datos: unknown): boolean =>
   Boolean(datos) && typeof datos === "object" && (datos as Record<string, unknown>).variante === "mano_obra"
 
 // Qué plantilla usa un contrato de mano de obra: la vieja solo si su minuta ya
-// se envió a Subgerencia o se aprobó con ella (no se le cambia el texto a un
+// se envió a Gerencia o se aprobó con ella (no se le cambia el texto a un
 // contrato aprobado); todo lo demás va con la nueva.
 export function usaPlantillaManoObra04(minutaEstado: string | null | undefined, datosGuardados: unknown): boolean {
   if (esMinutaManoObra04(datosGuardados)) return true

@@ -26,7 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import { nombreUnidad } from "@/lib/unidades"
-import { ESTADO_VISIBLE_BADGE, muestraCancelar, sePuedeDesaprobar } from "@/lib/ordenes-compra-estado"
+import { ESTADO_VISIBLE_BADGE, muestraCancelar } from "@/lib/ordenes-compra-estado"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { ETIQUETA_METODO_PAGO_OC, textoTitularPse } from "@/lib/metodo-pago-oc"
 import { lunesDeLaSemana, textoTipoPagoOC } from "@/lib/tipo-pago-oc"
@@ -39,7 +39,6 @@ import {
   obtenerPermisosOrdenCompra,
   enlaceSoporteOrden,
   listarSoportesOrden,
-  desaprobarOrdenCompra,
   cancelarOrdenCompra,
   cambiarFechaCreditoOC,
   ordenCompraModificable,
@@ -68,8 +67,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [permisos, setPermisos] = useState<PermisosOrdenCompra | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [procesando, setProcesando] = useState(false)
-  // "desaprobar" | "cancelar": abre el diálogo de motivo de esa acción.
-  const [accionAbierta, setAccionAbierta] = useState<"desaprobar" | "cancelar" | null>(null)
+  // Abre el diálogo del motivo para cancelar (o retirar) la orden. Las OC no
+  // se aprueban ni se desaprueban: las aprueba A&F con su pago.
+  const [accionAbierta, setAccionAbierta] = useState<"cancelar" | null>(null)
   const [motivoAccion, setMotivoAccion] = useState("")
   // Fecha de pago del crédito en edición (null = no se está cambiando).
   const [fechaCreditoNueva, setFechaCreditoNueva] = useState<string | null>(null)
@@ -82,19 +82,21 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [requisicionAbierta, setRequisicionAbierta] = useState<string | null>(null)
 
   function cargar() {
-    Promise.all([obtenerOrdenCompraDetalle(ordenId), obtenerPermisosOrdenCompra(), listarSoportesOrden(ordenId)])
-      .then(([o, p, s]) => {
+    // "Modificar" se consulta junto con lo demás: los botones salen a la vez.
+    Promise.all([
+      obtenerOrdenCompraDetalle(ordenId),
+      obtenerPermisosOrdenCompra(),
+      listarSoportesOrden(ordenId),
+      ordenCompraModificable(ordenId).catch(() => undefined),
+    ])
+      .then(([o, p, s, modificable]) => {
         setOrden(o)
         setPermisos(p)
         setSoportes(s)
         setError(null)
-        if (p.rolCompras && (o.estado === "pendiente_aprobacion" || o.estado === "aprobada")) {
-          ordenCompraModificable(ordenId)
-            .then(setNoModificable)
-            .catch(() => setNoModificable(undefined))
-        } else {
-          setNoModificable(undefined)
-        }
+        setNoModificable(
+          p.rolCompras && (o.estado === "pendiente_aprobacion" || o.estado === "aprobada") ? modificable : undefined
+        )
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
   }
@@ -109,8 +111,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     setProcesando(true)
     setError(null)
     try {
-      if (accionAbierta === "desaprobar") await desaprobarOrdenCompra(ordenId, motivoAccion.trim())
-      else await cancelarOrdenCompra(ordenId, motivoAccion.trim())
+      await cancelarOrdenCompra(ordenId, motivoAccion.trim())
       setAccionAbierta(null)
       setMotivoAccion("")
       cargar()
@@ -154,7 +155,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   }
 
   const badge = ESTADO_VISIBLE_BADGE[orden.estadoVisible]
-  const puedeDesaprobar = permisos.puedeDesaprobar && sePuedeDesaprobar(orden)
   // Aprobada: con cancelar_oc. Pendiente: también quien la creó ("Retirar").
   const puedeCancelar = muestraCancelar(orden, permisos)
   const esRetiro = orden.estado === "pendiente_aprobacion"
@@ -189,19 +189,6 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               onClick={() => router.push(`/almacen/generar-oc?modificar=${orden.id}`)}
             >
               Modificar
-            </Button>
-          )}
-          {puedeDesaprobar && (
-            <Button
-              variant="outline"
-              className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-              disabled={procesando}
-              onClick={() => {
-                setAccionAbierta("desaprobar")
-                setMotivoAccion("")
-              }}
-            >
-              Desaprobar
             </Button>
           )}
           {puedeCancelar && (
@@ -573,19 +560,13 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {accionAbierta === "desaprobar" ? "Desaprobar" : "Cancelar"} orden de compra {orden.codigo}
+              Cancelar orden de compra {orden.codigo}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            {accionAbierta === "desaprobar"
-              ? "La orden vuelve a “Pendiente” y su pago vuelve a Aprobación de pagos (A&F) para aprobarlo o rechazarlo de nuevo."
-              : "La orden queda cancelada y sus requisiciones vuelven a “Requisiciones por comprar” para poder comprarse de nuevo."}
+            La orden queda cancelada y sus requisiciones vuelven a “Requisiciones por comprar” para poder comprarse de nuevo.
           </p>
-          {accionAbierta === "cancelar" && (
-            <p className="text-sm font-medium">
-              Esta orden ya fue creada: avísale al proveedor de la cancelación.
-            </p>
-          )}
+          <p className="text-sm font-medium">Esta orden ya fue creada: avísale al proveedor de la cancelación.</p>
           <Textarea
             placeholder="Motivo (obligatorio)"
             value={motivoAccion}
@@ -601,14 +582,14 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               disabled={!motivoAccion.trim() || procesando}
               onClick={confirmarAccion}
             >
-              {procesando ? "Procesando..." : accionAbierta === "desaprobar" ? "Desaprobar orden" : "Cancelar orden"}
+              {procesando ? "Procesando..." : "Cancelar orden"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={requisicionAbierta !== null} onOpenChange={(open) => !open && setRequisicionAbierta(null)}>
-        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+        <DialogContent className="top-[5vh] left-[5vw] flex h-[90vh] w-[90vw] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden sm:max-w-none">
           <DialogTitle className="sr-only">Detalle de la requisición</DialogTitle>
           {requisicionAbierta && (
             <RequisicionDetalleView requisicionId={requisicionAbierta} onCerrar={() => setRequisicionAbierta(null)} />

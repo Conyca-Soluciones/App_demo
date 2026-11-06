@@ -25,7 +25,7 @@ const MAXIMO_BYTES = 200_000
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
-    // Jurídica (Pre-aprobación) y Subgerencia (Aprobación de minutas).
+    // Jurídica (Pre-aprobación) y Gerencia (Aprobación de minutas).
     await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Sin permiso." }, { status: 403 })

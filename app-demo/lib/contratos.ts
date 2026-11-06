@@ -244,7 +244,7 @@ export type SolicitudContratoFila = {
   motivoResolucion: string | null
   resueltoPorNombre: string | null
   resueltoAt: string | null
-  // Minuta (Subgerencia, 20261111000000_aprobacion_minutas.sql). null = Jurídica la está armando.
+  // Minuta (Gerencia, 20261111000000_aprobacion_minutas.sql). null = Jurídica la está armando.
   minutaEstado: EstadoMinuta | null
   minutaEnviadaAt: string | null
   minutaEnviadaPorNombre: string | null
@@ -265,7 +265,7 @@ export type SolicitudContratoFila = {
   liquidadoAt: string | null
   // Otrosí aprobados (columna calculada otrosis_aprobados, 20261121000000).
   otrosisAprobados?: number
-  // Póliza (20261126000000_polizas.sql): null hasta que Subgerencia aprueba;
+  // Póliza (20261126000000_polizas.sql): null hasta que Gerencia aprueba;
   // "no_aplica" si el contrato no la pide (20261208000000).
   polizaEstado?: "pendiente" | "recibida" | "aprobada" | "no_aplica" | null
 }
@@ -341,7 +341,7 @@ export const CLASE_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
 export type EstadoMinuta = "en_revision" | "devuelta" | "aprobada"
 export const ETIQUETA_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> = {
   elaboracion: "Minuta en elaboración",
-  en_revision: "Minuta en Subgerencia",
+  en_revision: "Minuta en Gerencia",
   devuelta: "Minuta devuelta",
   aprobada: "Minuta aprobada",
 }
@@ -374,9 +374,9 @@ export const ETIQUETA_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
   por_revisar: "Por revisar",
   devuelta_director: "Devuelta al director",
   sin_enviar: "Pre-aprobada sin enviar",
-  en_subgerencia: "En Subgerencia",
-  devuelta_subgerencia: "Devuelta por Subgerencia",
-  aprobado: "Aprobado por Subgerencia",
+  en_subgerencia: "En Gerencia",
+  devuelta_subgerencia: "Devuelta por Gerencia",
+  aprobado: "Aprobado por Gerencia",
   rechazada: "Rechazada",
 }
 export const CLASE_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
@@ -393,7 +393,7 @@ export const CLASE_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
 export const TIPOS_CON_MINUTA: ReadonlySet<TipoContrato> = new Set<TipoContrato>([
   "mano_obra", "arrendamiento", "suministro_instalacion", "alquiler_vehiculo", "prestacion_servicios", "obra",
 ])
-// Jurídica edita y envía la minuta mientras no esté en Subgerencia ni aprobada.
+// Jurídica edita y envía la minuta mientras no esté en Gerencia ni aprobada.
 export const minutaEditable = (c: { estado: EstadoContrato; minutaEstado: EstadoMinuta | null }) =>
   c.estado !== "rechazada" && c.minutaEstado !== "en_revision" && c.minutaEstado !== "aprobada"
 
@@ -778,7 +778,7 @@ export function fechaFinContrato(c: {
   return new Date(Date.UTC(a, m - 1, d + c.duracionCantidad)).toISOString().slice(0, 10)
 }
 
-// Vencido = aprobado por Subgerencia, sin liquidar y su último día ya pasó
+// Vencido = aprobado por Gerencia, sin liquidar y su último día ya pasó
 // (hoy = "AAAA-MM-DD" en Colombia). Como _avisar_contratos_vencidos.
 export function contratoVencido(
   c: Parameters<typeof fechaFinContrato>[0] & {

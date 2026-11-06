@@ -201,7 +201,7 @@ export function SolicitudOtrosiView({ puedeSolicitar, verInicial }: { puedeSolic
         id={detalleId}
         onCerrar={cerrarDetalle}
         // El documento aprobado, solo en PDF.
-        documento={(d) => (d.estado === "aprobada" ? <OtrosiSoloPdf id={d.id} /> : <p className="text-sm text-muted-foreground">El documento se ve aquí cuando Subgerencia apruebe el otrosí.</p>)}
+        documento={(d) => (d.estado === "aprobada" ? <OtrosiSoloPdf id={d.id} /> : <p className="text-sm text-muted-foreground">El documento se ve aquí cuando Gerencia apruebe el otrosí.</p>)}
         acciones={(d) =>
           d.estado === "devuelta" && puedeSolicitar ? (
             <Button

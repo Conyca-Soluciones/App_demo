@@ -348,6 +348,8 @@ declare
   v_proveedor_antes text;
   v_proveedor_despues text;
   v_pagos_borrados int;
+  v_uso_antes jsonb;
+  v_saldo_cerrado text;
 begin
   if not rol_compras(auth.uid()) then
     raise exception 'No autorizado -- no tienes permiso para comprar.';
@@ -428,8 +430,27 @@ begin
 
   -- Líneas nuevas con las mismas reglas de crear (cupo de cada requisición sin
   -- contar esta orden).
+  -- Lo que compraba cada línea (en la unidad de la requisición): una línea con
+  -- el saldo cerrado por Compras (rechazado_compras_at) no puede subir.
+  select coalesce(jsonb_object_agg(pedido_insumo_id::text, cantidad * factor_unidad), '{}'::jsonb)
+    into v_uso_antes
+    from ordenes_compra_items where orden_compra_id = p_orden_id;
+
   delete from ordenes_compra_items where orden_compra_id = p_orden_id;
   perform public._insertar_lineas_orden(p_orden_id, v_o.proyecto_id, p_lineas);
+
+  select mi.descripcion into v_saldo_cerrado
+    from ordenes_compra_items oci
+    join pedidos_insumos p on p.id = oci.pedido_insumo_id
+    left join maestro_insumos mi on mi.id = p.insumo_id
+   where oci.orden_compra_id = p_orden_id
+     and p.rechazado_compras_at is not null
+     and oci.cantidad * oci.factor_unidad > coalesce((v_uso_antes ->> p.id::text)::numeric, 0) + 0.000001
+   limit 1;
+  if found then
+    raise exception '% tiene el saldo cerrado en Compras: no se puede comprar más de lo que ya traía la orden.',
+      coalesce(v_saldo_cerrado, 'Un insumo');
+  end if;
 
   if round(public.total_orden_compra(p_orden_id), 0) <= 0 then
     raise exception 'La orden de compra no puede quedar en $ 0: revisa los precios.';

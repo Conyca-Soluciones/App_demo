@@ -67,10 +67,10 @@ export async function listarSolicitudesPreaprobacion(filtros: FiltrosPreaprobaci
   const filas = await traerTodo<any>((desde, hasta) => {
     let q = supabase.from("contratos").select(SELECT_FILA_CONTRATO)
     switch (filtros.grupo) {
-      case "por_revisar": // por revisar, o pre-aprobada que nunca se envió a Subgerencia
+      case "por_revisar": // por revisar, o pre-aprobada que nunca se envió a Gerencia
         q = q.or("estado.eq.pre_aprobacion,and(estado.eq.aprobada,minuta_estado.is.null)")
         break
-      case "devueltas": // al director, o la minuta por Subgerencia
+      case "devueltas": // al director, o la minuta por Gerencia
         q = q.or("estado.eq.devuelta,and(estado.eq.aprobada,minuta_estado.eq.devuelta)")
         break
       case "en_subgerencia":
@@ -170,7 +170,7 @@ function principalParaMinuta(reps: RepresentanteLegal[]): DatosExtraMinuta["empr
 
 // Lo que necesita cualquier minuta: la solicitud, los datos del contratista y
 // el proyecto que no vienen en el detalle, y lo que Jurídica ya guardó.
-// También la lee Subgerencia (Aprobación de minutas, solo lectura).
+// También la lee Gerencia (Aprobación de minutas, solo lectura).
 async function cargarBaseMinuta(id: string) {
   await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   const supabase = await createClient()
@@ -387,9 +387,9 @@ export async function plantillaMinutaManoObra(id: string): Promise<"04" | "anter
   return (await plantillaManoObra04(id)) ? "04" : "anterior"
 }
 
-// ---------------------------------------------------------------- enviar a Subgerencia
+// ---------------------------------------------------------------- enviar a Gerencia
 // Se envía la minuta GUARDADA, completa (lo calculado de la solicitud + lo
-// editado), para que Subgerencia apruebe exactamente eso aunque después
+// editado), para que Gerencia apruebe exactamente eso aunque después
 // cambien los datos del contratista o del proyecto. La base la guarda y la
 // pasa a revisión en una transacción (enviar_minuta_contrato,
 // 20261111000000_aprobacion_minutas.sql).
@@ -424,14 +424,14 @@ async function minutaParaEnviar(id: string): Promise<unknown> {
 }
 
 // La minuta tal como está guardada (completa), para verla solo en PDF
-// (Aprobación de contratos, Subgerencia).
+// (Aprobación de contratos, Gerencia).
 export async function obtenerMinutaParaRevision(id: string): Promise<unknown> {
   await requerirAlgunaPestana(["contratos.preaprobacion", "contratos.aprobar_minutas"])
   return minutaParaEnviar(id)
 }
 
 // Enviar otra vez una minuta devuelta (o una pre-aprobada que nunca se envió).
-export async function enviarMinutaSubgerencia(id: string): Promise<void> {
+export async function enviarMinutaGerencia(id: string): Promise<void> {
   await requerirAccion("aprobar_contratos")
   const datos = await minutaParaEnviar(id)
   const supabase = await createClient()
@@ -439,7 +439,7 @@ export async function enviarMinutaSubgerencia(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// Pre-aprobar la solicitud y enviar su minuta a Subgerencia en un solo paso
+// Pre-aprobar la solicitud y enviar su minuta a Gerencia en un solo paso
 // (una transacción: preaprobar_y_enviar_minuta,
 // 20261111100000_preaprobar_y_enviar_minuta.sql).
 export async function preaprobarYEnviarMinuta(id: string): Promise<void> {

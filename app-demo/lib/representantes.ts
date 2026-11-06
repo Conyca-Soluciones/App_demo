@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Representantes legales de las empresas (20261201000000_representantes_legales.sql).
 // Cada empresa tiene un representante legal (principal) y un suplente: sus
-// datos y su firma se registran en Admin › Empresas (Subgerencia también
+// datos y su firma se registran en Admin › Empresas (Gerencia también
 // adjunta la firma desde Aprobación de contratos; si usa la app, firma con su
 // "Mi firma"). Se
 // pone en el contrato al aprobar la minuta: firma el representante cuya cédula
@@ -29,7 +29,7 @@ export type RepresentanteLegal = {
   perfilNombre: string | null
   firmaDeUsuario: boolean
   tieneImagen: boolean
-  imagenFirma: string | null // solo en la pantalla de Subgerencia
+  imagenFirma: string | null // solo en la pantalla de Gerencia
   activo: boolean
   actualizadoAt: string
 }
@@ -85,7 +85,7 @@ export function mapEmpresasRepresentantes(crudo: unknown): EmpresaConRepresentan
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-// Con qué firma: la de su usuario (si la registró) o la subida por Subgerencia.
+// Con qué firma: la de su usuario (si la registró) o la subida por Gerencia.
 export function origenFirmaRepresentante(r: RepresentanteLegal): "usuario" | "subida" | null {
   if (r.perfilId && r.firmaDeUsuario) return "usuario"
   if (r.tieneImagen) return "subida"
@@ -142,7 +142,7 @@ export function mapFirmaRepresentante(v: any): FirmaRepresentanteContrato {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-// Texto para Subgerencia antes de aprobar. bloquea = la base no dejará aprobar.
+// Texto para Gerencia antes de aprobar. bloquea = la base no dejará aprobar.
 export function textoFirmaRepresentante(f: FirmaRepresentanteContrato): { texto: string; bloquea: boolean } {
   switch (f.estado) {
     case "ok":

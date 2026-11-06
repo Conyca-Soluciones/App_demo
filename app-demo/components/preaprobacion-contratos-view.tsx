@@ -25,7 +25,7 @@ import {
   type SolicitudContratoFila,
 } from "@/lib/contratos"
 import {
-  enviarMinutaSubgerencia,
+  enviarMinutaGerencia,
   listarSolicitudesPreaprobacion,
   preaprobarYEnviarMinuta,
   resolverSolicitudContrato,
@@ -36,16 +36,16 @@ import {
 // ---------------------------------------------------------------------------
 // Pre-aprobación: Jurídica revisa solicitudes de todos sus proyectos (no
 // depende del proyecto actual) y las devuelve, rechaza o pre-aprueba. Pre-aprobar
-// envía también la minuta a Subgerencia (Aprobación de contratos) en el mismo
+// envía también la minuta a Gerencia (Aprobación de contratos) en el mismo
 // paso; una minuta devuelta se corrige y se envía otra vez.
 // ---------------------------------------------------------------------------
 
 // Devueltas junta las devueltas al director y las minutas devueltas por
-// Subgerencia; la columna Estado dice cuál es cuál.
+// Gerencia; la columna Estado dice cuál es cuál.
 const FILTROS: { valor: GrupoPreaprobacion | "todas"; etiqueta: string }[] = [
   { valor: "por_revisar", etiqueta: "Por revisar" },
   { valor: "devueltas", etiqueta: "Devueltas" },
-  { valor: "en_subgerencia", etiqueta: "En Subgerencia" },
+  { valor: "en_subgerencia", etiqueta: "En Gerencia" },
   { valor: "aprobados", etiqueta: "Aprobados" },
   { valor: "rechazadas", etiqueta: "Rechazadas" },
   { valor: "todas", etiqueta: "Todas" },
@@ -55,9 +55,9 @@ type AccionVista = AccionPreaprobacion | "enviar"
 
 const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
   aprobar: {
-    titulo: "Pre-aprobar y enviar a Subgerencia",
+    titulo: "Pre-aprobar y enviar a Gerencia",
     explicacion:
-      "La solicitud queda pre-aprobada y su minuta pasa a Subgerencia (Aprobación de contratos). Se envía la minuta GUARDADA: revisa la pestaña Minuta y guarda los cambios antes. Mientras Subgerencia la revisa no se puede editar.",
+      "La solicitud queda pre-aprobada y su minuta pasa a Gerencia (Aprobación de contratos). Se envía la minuta GUARDADA: revisa la pestaña Minuta y guarda los cambios antes. Mientras Gerencia la revisa no se puede editar.",
     boton: "Pre-aprobar y enviar",
     pideMotivo: false,
   },
@@ -74,9 +74,9 @@ const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; b
     pideMotivo: true,
   },
   enviar: {
-    titulo: "Enviar minuta otra vez a Subgerencia",
+    titulo: "Enviar minuta otra vez a Gerencia",
     explicacion:
-      "Se envía la minuta GUARDADA (guarda antes los cambios que tengas en pantalla). Mientras Subgerencia la revisa no se puede editar; si la devuelve, la corriges y la envías otra vez.",
+      "Se envía la minuta GUARDADA (guarda antes los cambios que tengas en pantalla). Mientras Gerencia la revisa no se puede editar; si la devuelve, la corriges y la envías otra vez.",
     boton: "Enviar",
     pideMotivo: false,
   },
@@ -195,15 +195,15 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
     setProcesando(true)
     setErrorAccion(null)
     try {
-      if (accion.tipo === "enviar") await enviarMinutaSubgerencia(accion.detalle.id)
+      if (accion.tipo === "enviar") await enviarMinutaGerencia(accion.detalle.id)
       else if (accion.tipo === "aprobar") await preaprobarYEnviarMinuta(accion.detalle.id)
       else await resolverSolicitudContrato(accion.detalle.id, accion.tipo, motivo)
       const n = accion.detalle.codigo
       setAviso(
         accion.tipo === "enviar"
-          ? `Minuta del contrato ${n} enviada a Subgerencia.`
+          ? `Minuta del contrato ${n} enviada a Gerencia.`
           : accion.tipo === "aprobar"
-          ? `Solicitud ${n} pre-aprobada y enviada a Subgerencia.`
+          ? `Solicitud ${n} pre-aprobada y enviada a Gerencia.`
           : accion.tipo === "devolver"
             ? `Solicitud ${n} devuelta al director.`
             : `Solicitud ${n} rechazada.`
@@ -223,7 +223,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina
         titulo="Pre aprobación de contratos"
-        subtitulo="Revisa las solicitudes de los directores: pre-aprueba y envía a Subgerencia, devuelve para corregir o rechaza."
+        subtitulo="Revisa las solicitudes de los directores: pre-aprueba y envía a Gerencia, devuelve para corregir o rechaza."
       />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
@@ -306,12 +306,12 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
                 <Undo2 className="size-4" /> Devolver
               </Button>
               <Button onClick={() => setAccion({ tipo: "aprobar", detalle: d })}>
-                <CheckCircle2 className="size-4" /> Pre-aprobar y enviar a Subgerencia
+                <CheckCircle2 className="size-4" /> Pre-aprobar y enviar a Gerencia
               </Button>
             </>
           ) : d.estado === "aprobada" && puedeResolver && minutaEditable(d) && (d.clase === "general" || TIPOS_CON_MINUTA.has(d.tipo)) ? (
             <Button onClick={() => setAccion({ tipo: "enviar", detalle: d })}>
-              <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Subgerencia" : "Enviar a Subgerencia"}
+              <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Gerencia" : "Enviar a Gerencia"}
             </Button>
           ) : null
         }

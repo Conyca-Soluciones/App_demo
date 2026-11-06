@@ -556,7 +556,7 @@ export function AprobacionPagosView({
           compra con sus insumos, o el acta), con el pago y sus botones abajo.
           Sin documento (o sin id), la ventana común con los datos del pago. */}
       <Dialog open={viendo?.ordenCompraId != null} onOpenChange={(abierto) => !abierto && setViendo(null)}>
-        <DialogContent className="flex h-[90vh] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden sm:w-[90vw] sm:max-w-none">
+        <DialogContent className="top-[5vh] left-2 flex h-[90vh] w-[calc(100vw-1rem)] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden sm:left-[5vw] sm:w-[90vw] sm:max-w-none">
           <DialogTitle className="sr-only">Detalle de la orden de compra del pago</DialogTitle>
           {viendo?.ordenCompraId && (
             <>

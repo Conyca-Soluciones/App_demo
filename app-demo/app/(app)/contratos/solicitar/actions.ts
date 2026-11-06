@@ -21,7 +21,7 @@ import {
 } from "@/lib/contratos-db"
 
 // Ver el detalle de una solicitud: quien la pide (Solicitud de contratos),
-// quien la revisa (Pre-aprobación), Subgerencia (Aprobación de minutas) o
+// quien la revisa (Pre-aprobación), Gerencia (Aprobación de minutas) o
 // Gerencia desde Control del proyecto. La base además limita por proyecto.
 async function requerirVerContratos() {
   const permisos = await obtenerPermisosRol()

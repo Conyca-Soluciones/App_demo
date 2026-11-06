@@ -2,7 +2,7 @@ import { nombreTipoContrato, type ClaseContrato } from "@/lib/contratos"
 
 // ---------------------------------------------------------------------------
 // Pólizas de los contratos (supabase/migrations/20261126000000_polizas.sql).
-// Cuando Subgerencia aprueba un contrato queda "Póliza pendiente"; el ingeniero
+// Cuando Gerencia aprueba un contrato queda "Póliza pendiente"; el ingeniero
 // sube el archivo ("Póliza recibida") y Jurídica la aprueba ("Póliza
 // aprobada") o la devuelve con motivo (otra vez pendiente). Sin póliza
 // aprobada no se hacen actas.

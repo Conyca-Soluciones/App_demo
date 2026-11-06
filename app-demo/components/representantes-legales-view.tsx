@@ -21,7 +21,7 @@ import {
 } from "@/app/(app)/contratos/representantes/actions"
 
 // ---------------------------------------------------------------------------
-// «Adjuntar firma de RL» (Subgerencia, en Aprobación de contratos): los
+// «Adjuntar firma de RL» (Gerencia, en Aprobación de contratos): los
 // representantes de cada empresa (registrados en Admin › Empresas) y su firma:
 // dibujada o subida, o, si usa la app, la de su "Mi firma". FirmaRepresentanteDialog
 // también lo usa Admin › Empresas. La firma se pone sola en el contrato al

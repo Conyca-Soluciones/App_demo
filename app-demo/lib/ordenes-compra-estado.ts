@@ -41,10 +41,6 @@ type OrdenParaReglas = {
   estadoEntrega: EstadoEntregaOrden
 }
 
-// Aprobada y sin material recibido (sin entradas de almacén).
-export const sePuedeDesaprobar = (o: OrdenParaReglas) =>
-  o.estado === "aprobada" && o.estadoEntrega === "sin_entregar"
-
 // Pendiente de aprobación: la puede retirar quien la creó o quien tenga
 // cancelar_oc (la base lo vuelve a validar en cancelar_orden_compra).
 export const sePuedeRetirar = (o: OrdenParaReglas, esCreador: boolean, puedeCancelarOC: boolean) =>

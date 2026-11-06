@@ -562,7 +562,7 @@ function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
       )}
       {/* El mismo detalle que en Órdenes de compra, en un diálogo encima. */}
       <Dialog open={abierta !== null} onOpenChange={(abiertoDialogo) => !abiertoDialogo && setAbierta(null)}>
-        <DialogContent className="flex h-[90vh] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden sm:w-[90vw] sm:max-w-none">
+        <DialogContent className="top-[5vh] left-2 flex h-[90vh] w-[calc(100vw-1rem)] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden sm:left-[5vw] sm:w-[90vw] sm:max-w-none">
           <DialogTitle className="sr-only">Detalle de orden de compra</DialogTitle>
           {abierta && <OrdenCompraDetalleView ordenId={abierta} onCerrar={() => setAbierta(null)} />}
         </DialogContent>

@@ -10,7 +10,7 @@ import type { DocumentoContratoSubido } from "@/app/(app)/contratos/solicitar/ac
 // ---------------------------------------------------------------------------
 // Contratos generales (pestaña contratos.contratos): contratos sin ítems del
 // presupuesto, como el "Contrato General" de Sinco. Mismo camino que por
-// grupos (Jurídica pre-aprueba, Subgerencia aprueba); la base guarda y valida
+// grupos (Jurídica pre-aprueba, Gerencia aprueba); la base guarda y valida
 // en crear_contrato_general / reenviar_contrato_general
 // (20261113000000_contratos_generales.sql).
 // ---------------------------------------------------------------------------

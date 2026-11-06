@@ -92,7 +92,7 @@ function Solicitudes({
         titulo: "Estado",
         ancho: 200,
         alinear: "center",
-        // Junta la solicitud y la minuta: termina en "Aprobado por Subgerencia".
+        // Junta la solicitud y la minuta: termina en "Aprobado por Gerencia".
         texto: (s) => ETIQUETA_ETAPA_CONTRATO[etapaContrato(s)],
         celda: (s) => (
           <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(s)]} title={s.motivoResolucion ?? undefined}>

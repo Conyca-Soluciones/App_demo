@@ -109,7 +109,7 @@ export function DetalleOrigenPago({
   return (
     <>
       <Dialog open={ordenId != null} onOpenChange={(abierto) => !abierto && onCerrar()}>
-        <DialogContent className="flex h-[90vh] w-[calc(100vw-1rem)] max-w-none flex-col overflow-hidden sm:w-[90vw] sm:max-w-none">
+        <DialogContent className="top-[5vh] left-2 flex h-[90vh] w-[calc(100vw-1rem)] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden sm:left-[5vw] sm:w-[90vw] sm:max-w-none">
           <DialogTitle className="sr-only">Orden de compra del pago</DialogTitle>
           {pago && ordenId && (
             <>

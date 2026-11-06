@@ -22,6 +22,7 @@ export type EstadoEntrega = "sin_entregar" | "entrega_parcial" | "entregada"
 export type OrdenParaEntrada = {
   id: string
   numero: number
+  codigo: string // OC-001-0001
   estadoEntrega: EstadoEntrega
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -50,6 +51,7 @@ export async function listarOrdenesParaEntrada(
   return (data ?? []).map((o: any) => ({
     id: o.id,
     numero: o.numero,
+    codigo: o.codigo ?? `N° ${o.numero}`,
     estadoEntrega: o.estado_entrega,
     proyectoCodigo: o.proyecto_codigo,
     proyectoNombre: o.proyecto_nombre,

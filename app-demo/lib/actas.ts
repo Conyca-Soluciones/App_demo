@@ -152,7 +152,7 @@ export type InfoContratoActa = {
 
 // Qué actas se pueden hacer hoy sobre el contrato (sin contar la que se edita).
 export function tiposPermitidos(info: InfoContratoActa): { tipos: TipoActa[]; motivo: string | null } {
-  if (!info.listoParaActas) return { tipos: [], motivo: "La minuta del contrato todavía no está aprobada por Subgerencia." }
+  if (!info.listoParaActas) return { tipos: [], motivo: "La minuta del contrato todavía no está aprobada por Gerencia." }
   if (info.liquidado) return { tipos: [], motivo: "El contrato ya está liquidado." }
   const sinPoliza = motivoSinActasPorPoliza(info.polizaEstado)
   if (sinPoliza) return { tipos: [], motivo: sinPoliza }

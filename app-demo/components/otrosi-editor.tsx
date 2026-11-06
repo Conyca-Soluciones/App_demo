@@ -27,7 +27,7 @@ import { guardarDocumentoOtrosi, obtenerDocumentoOtrosi, type DocumentoOtrosi } 
 // Documento del otrosí (segunda pestaña de Aprobación de otrosí): Jurídica
 // edita los datos de la plantilla y la redacción de cada cláusula, con la
 // vista previa del PDF al lado (mismas piezas que las minutas,
-// components/minuta-comun.tsx). Subgerencia lo ve igual, en solo lectura. El
+// components/minuta-comun.tsx). Gerencia lo ve igual, en solo lectura. El
 // texto fijo está en components/otrosi-pdf.tsx.
 // ---------------------------------------------------------------------------
 

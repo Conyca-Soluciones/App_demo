@@ -13,7 +13,7 @@ import { plantillaMinutaManoObra } from "@/app/(app)/contratos/pre-aprobacion/ac
 import type { SolicitudContratoDetalle } from "@/lib/contratos"
 
 // Editor de la minuta según el tipo de contrato (Pre-aprobación, Jurídica).
-// Subgerencia la ve solo en PDF (components/minuta-solo-pdf.tsx).
+// Gerencia la ve solo en PDF (components/minuta-solo-pdf.tsx).
 export function MinutaSegunTipo({ detalle: d, puedeEditar }: { detalle: SolicitudContratoDetalle; puedeEditar: boolean }) {
   // Contrato general: no hay minuta que editar, solo su hoja en PDF.
   if (d.clase === "general") return <MinutaSoloPdf id={d.id} />

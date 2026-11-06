@@ -544,7 +544,7 @@ function InformacionContrato({ poliza }: { poliza: PolizaConContrato }) {
           ["Valor vigente", pesos(c.valor)],
           ["Inicio", c.fechaInicio ? formatearFechaSinHora(c.fechaInicio) : "—"],
           ["Fin del plazo vigente", c.fechaFin ? formatearFechaSinHora(c.fechaFin) : "Sin fecha"],
-          ["Aprobado por Subgerencia", c.aprobadoAt ? fechaContrato(c.aprobadoAt) : "—"],
+          ["Aprobado por Gerencia", c.aprobadoAt ? fechaContrato(c.aprobadoAt) : "—"],
           ["Solicitado por", c.solicitadoPorNombre ?? "—"],
         ]}
       />

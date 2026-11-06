@@ -29,7 +29,7 @@ import {
 // ---------------------------------------------------------------------------
 // Otrosí: Solicitud de otrosí (pestaña contratos.solicitar_otrosi, acción
 // solicitar_contratos) y Aprobación de otrosí (contratos.aprobar_otrosi;
-// Jurídica = aprobar_contratos, Subgerencia = aprobar_minutas). Todo pasa por
+// Jurídica = aprobar_contratos, Gerencia = aprobar_minutas). Todo pasa por
 // funciones de la base que validan permiso, proyecto, estado y que el plazo
 // del contrato no haya terminado (20261119000000_otrosis.sql).
 // ---------------------------------------------------------------------------
@@ -142,7 +142,7 @@ export type DocumentoOtrosi = {
 }
 
 // El documento: lo calculado (contrato, partes y lo que pidió el ingeniero) y
-// encima lo que Jurídica guardó. Una vez enviado a Subgerencia, lo guardado es
+// encima lo que Jurídica guardó. Una vez enviado a Gerencia, lo guardado es
 // el documento completo.
 export async function obtenerDocumentoOtrosi(id: string): Promise<DocumentoOtrosi> {
   await requerirAlgunaPestana(PESTANAS_OTROSI)
@@ -167,10 +167,10 @@ export async function guardarDocumentoOtrosi(id: string, minuta: MinutaOtrosi): 
 }
 
 export type AccionJuridicaOtrosi = "enviar" | "devolver" | "rechazar"
-export type AccionSubgerenciaOtrosi = "aprobar" | "devolver_juridica"
+export type AccionGerenciaOtrosi = "aprobar" | "devolver_juridica"
 
-// Jurídica: enviar a Subgerencia (con el documento GUARDADO completo, como las
-// minutas: lo que aprueba Subgerencia no cambia aunque cambien los datos del
+// Jurídica: enviar a Gerencia (con el documento GUARDADO completo, como las
+// minutas: lo que aprueba Gerencia no cambia aunque cambien los datos del
 // contratista), devolver al ingeniero o rechazar.
 export async function resolverOtrosiJuridica(id: string, accion: AccionJuridicaOtrosi, motivo?: string): Promise<void> {
   await requerirAccion("aprobar_contratos")
@@ -191,7 +191,7 @@ export async function resolverOtrosiJuridica(id: string, accion: AccionJuridicaO
   if (error) throw new Error(error.message)
 }
 
-export async function resolverOtrosiSubgerencia(id: string, accion: AccionSubgerenciaOtrosi, motivo?: string): Promise<void> {
+export async function resolverOtrosiGerencia(id: string, accion: AccionGerenciaOtrosi, motivo?: string): Promise<void> {
   await requerirAccion("aprobar_minutas")
   if (accion === "devolver_juridica" && !motivo?.trim()) throw new Error("Escribe el motivo.")
   const supabase = await createClient()

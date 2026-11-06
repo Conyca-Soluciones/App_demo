@@ -39,7 +39,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // Pólizas (ruta /contratos/polizas): se busca el contrato o el contratista,
-// como en Actas por grupos (solo contratos aprobados por Subgerencia, de los
+// como en Actas por grupos (solo contratos aprobados por Gerencia, de los
 // proyectos que el usuario ve). Del contrato se ve el estado de su póliza, las
 // que se han subido (con su revisión) y, si está pendiente, se sube el archivo.
 // ?ver=<contrato_id> (campanita) abre ese contrato.

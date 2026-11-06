@@ -5,7 +5,7 @@ import { leerNumero, nombreTipoContrato, pesos, type ClaseContrato, type ItemPre
 // ---------------------------------------------------------------------------
 // Otrosí de contratos (plantilla "OTROSÍ" versión 04, 9/05/2025). El ingeniero
 // pide qué cláusulas cambian y cómo quedan (Solicitud de otrosí); Jurídica
-// arma el documento y lo envía a Subgerencia, que lo aprueba (Aprobación de
+// arma el documento y lo envía a Gerencia, que lo aprueba (Aprobación de
 // otrosí). Es documento; aprobado, su prórroga y su nuevo valor (opcionales)
 // pasan a ser el fin vigente y el tope de las actas. Base:
 // supabase/migrations/20261119000000_otrosis.sql y 20261123000000_otrosi_prorroga_y_valor.sql.
@@ -91,8 +91,8 @@ export const ETIQUETA_ESTADO_OTROSI: Record<EstadoOtrosi, string> = {
   por_revisar: "En Jurídica",
   devuelta: "Devuelto al ingeniero",
   rechazada: "Rechazado",
-  en_revision: "En Subgerencia",
-  devuelta_subgerencia: "Devuelto por Subgerencia",
+  en_revision: "En Gerencia",
+  devuelta_subgerencia: "Devuelto por Gerencia",
   aprobada: "Aprobado",
 }
 
@@ -149,8 +149,8 @@ export type OtrosiFila = {
   solicitadoPorNombre: string | null
   createdAt: string
   enviadoAt: string
-  enviadaSubgerenciaAt: string | null
-  enviadaSubgerenciaPorNombre: string | null
+  enviadaGerenciaAt: string | null
+  enviadaGerenciaPorNombre: string | null
   aprobadoAt: string | null
   // Prórroga: nueva fecha de terminación (al aprobarse es la vigente del contrato).
   nuevaFechaFin: string | null
@@ -244,8 +244,8 @@ export function mapOtrosiFila(x: Fila): OtrosiFila {
     solicitadoPorNombre: textoONulo(x.solicitado_por_nombre),
     createdAt: texto(x.created_at),
     enviadoAt: texto(x.enviado_at),
-    enviadaSubgerenciaAt: textoONulo(x.enviada_subgerencia_at),
-    enviadaSubgerenciaPorNombre: textoONulo(x.enviada_subgerencia_por_nombre),
+    enviadaGerenciaAt: textoONulo(x.enviada_subgerencia_at),
+    enviadaGerenciaPorNombre: textoONulo(x.enviada_subgerencia_por_nombre),
     aprobadoAt: textoONulo(x.aprobado_at),
     nuevaFechaFin: textoONulo(x.nueva_fecha_fin),
     nuevoValor: x.nuevo_valor == null ? null : Number(x.nuevo_valor),

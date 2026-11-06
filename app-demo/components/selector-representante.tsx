@@ -6,7 +6,7 @@ import { ETIQUETA_TIPO_REPRESENTANTE, origenFirmaRepresentante, soloDigitos, typ
 // empresa del proyecto (vienen con la minuta: obtenerMinuta*; sin otra llamada
 // al servidor, que Next atiende de una en una). Escoger uno llena nombre, cédula (y lugar de
 // expedición, si la plantilla lo pide). Su firma se pone sola cuando
-// Subgerencia aprueba: firma el de la cédula que quede en la minuta.
+// Gerencia aprueba: firma el de la cédula que quede en la minuta.
 export function SelectorRepresentante({
   representantes,
   documentoActual,
@@ -37,7 +37,7 @@ export function SelectorRepresentante({
             disabled={deshabilitado || elegido}
             onClick={() => onElegir(r)}
             className={`rounded-full border px-3 py-1 ${elegido ? "border-primary bg-primary/10 font-medium text-primary" : "hover:bg-accent"} disabled:cursor-default`}
-            title={origenFirmaRepresentante(r) ? "Tiene firma" : "Todavía no tiene firma: Subgerencia no podrá aprobar"}
+            title={origenFirmaRepresentante(r) ? "Tiene firma" : "Todavía no tiene firma: Gerencia no podrá aprobar"}
           >
             {ETIQUETA_TIPO_REPRESENTANTE[r.tipo]}: {r.nombre}
             {!origenFirmaRepresentante(r) && " · sin firma"}
@@ -45,7 +45,7 @@ export function SelectorRepresentante({
         )
       })}
       {actual && !representantes.some((r) => r.numeroDocumento === actual) && (
-        <span className="text-amber-700">La cédula de la minuta no es de ningún representante registrado: Subgerencia no podrá aprobar.</span>
+        <span className="text-amber-700">La cédula de la minuta no es de ningún representante registrado: Gerencia no podrá aprobar.</span>
       )}
     </div>
   )

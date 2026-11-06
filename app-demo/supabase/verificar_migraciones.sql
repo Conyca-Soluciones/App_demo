@@ -599,5 +599,14 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'orden_compra_modificable')
          and exists (select 1 from pg_proc where proname = 'titular_de_orden')
          and exists (select 1 from pg_proc where proname = '_crear_orden_compra_sin_proyecto' and prosrc like '%_insertar_lineas_orden%')
+  union all
+  select '20261231500000_compras_permisos_oc_y_presupuestos',
+         not exists (select 1 from rol_permisos where permiso = 'accion.desaprobar_oc')
+         and exists (select 1 from pg_proc where proname = 'desaprobar_orden_compra' and prosrc like '%no se desaprueban%')
+  union all
+  select '20261231600000_codigos_polizas_y_gerencia',
+         exists (select 1 from pg_proc where proname = 'subir_poliza' and prosrc like '%numero_contrato, codigo, poliza_estado%')
+         and exists (select 1 from pg_proc where proname = 'listar_ordenes_entradas' and pg_get_function_result(oid) like '%codigo text%')
+         and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%Subgerencia%')
 ) t
 order by 1;

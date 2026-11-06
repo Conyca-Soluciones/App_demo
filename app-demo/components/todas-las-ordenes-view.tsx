@@ -601,7 +601,7 @@ export function TodasLasOrdenesView() {
           }
         }}
       >
-        <DialogContent className="flex h-[90vh] w-[90vw] max-w-none flex-col overflow-hidden sm:max-w-none">
+        <DialogContent className="top-[5vh] left-[5vw] flex h-[90vh] w-[90vw] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden sm:max-w-none">
           <DialogTitle className="sr-only">Detalle de orden de compra</DialogTitle>
           {abiertaId && (
             <OrdenCompraDetalleView

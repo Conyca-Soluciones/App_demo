@@ -78,20 +78,20 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   aprobada: { etiqueta: "Pre-aprobada por Jurídica", tono: "ok" },
   devuelta: { etiqueta: "Devuelta para corregir", tono: "aviso" },
   rechazada: { etiqueta: "Rechazada", tono: "malo" },
-  minuta_enviada: { etiqueta: "Minuta enviada a Subgerencia", tono: "neutro" },
+  minuta_enviada: { etiqueta: "Minuta enviada a Gerencia", tono: "neutro" },
   minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
-  minuta_aprobada: { etiqueta: "Minuta aprobada por Subgerencia", tono: "ok" },
-  minuta_devuelta: { etiqueta: "Minuta devuelta por Subgerencia", tono: "aviso" },
+  minuta_aprobada: { etiqueta: "Minuta aprobada por Gerencia", tono: "ok" },
+  minuta_devuelta: { etiqueta: "Minuta devuelta por Gerencia", tono: "aviso" },
   minuta_guardada: { etiqueta: "Minuta guardada", tono: "neutro" },
   // Eventos de sus otrosí (historial_otrosis_de_contrato).
   otrosi_creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },
   otrosi_reenviado: { etiqueta: "Otrosí corregido y enviado otra vez", tono: "neutro" },
   otrosi_devuelto: { etiqueta: "Otrosí devuelto al ingeniero por Jurídica", tono: "aviso" },
   otrosi_rechazado: { etiqueta: "Otrosí rechazado por Jurídica", tono: "malo" },
-  otrosi_enviado_subgerencia: { etiqueta: "Otrosí enviado a Subgerencia", tono: "neutro" },
-  otrosi_reenviado_subgerencia: { etiqueta: "Otrosí corregido y enviado otra vez a Subgerencia", tono: "neutro" },
-  otrosi_devuelto_subgerencia: { etiqueta: "Otrosí devuelto a Jurídica por Subgerencia", tono: "aviso" },
-  otrosi_aprobado: { etiqueta: "Otrosí aprobado por Subgerencia", tono: "ok" },
+  otrosi_enviado_subgerencia: { etiqueta: "Otrosí enviado a Gerencia", tono: "neutro" },
+  otrosi_reenviado_subgerencia: { etiqueta: "Otrosí corregido y enviado otra vez a Gerencia", tono: "neutro" },
+  otrosi_devuelto_subgerencia: { etiqueta: "Otrosí devuelto a Jurídica por Gerencia", tono: "aviso" },
+  otrosi_aprobado: { etiqueta: "Otrosí aprobado por Gerencia", tono: "ok" },
   otrosi_firma_representante: { etiqueta: "Firma del representante legal puesta en el otrosí", tono: "ok" },
   // Póliza (20261126000000_polizas.sql).
   poliza_subida: { etiqueta: "Póliza subida", tono: "neutro" },
@@ -101,16 +101,16 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   poliza_no_aplica: { etiqueta: "El contrato no requiere póliza", tono: "neutro" },
 }
 
-// Eventos de un OTROSÍ (Jurídica y Subgerencia).
+// Eventos de un OTROSÍ (Jurídica y Gerencia).
 const EVENTOS_OTROSI: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
   creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },
   reenviado: { etiqueta: "Otrosí corregido y enviado otra vez", tono: "neutro" },
   devuelto: { etiqueta: "Devuelto al ingeniero por Jurídica", tono: "aviso" },
   rechazado: { etiqueta: "Rechazado por Jurídica", tono: "malo" },
-  enviado_subgerencia: { etiqueta: "Enviado a Subgerencia", tono: "neutro" },
-  reenviado_subgerencia: { etiqueta: "Corregido y enviado otra vez a Subgerencia", tono: "neutro" },
-  devuelto_subgerencia: { etiqueta: "Devuelto a Jurídica por Subgerencia", tono: "aviso" },
-  aprobado: { etiqueta: "Aprobado por Subgerencia", tono: "ok" },
+  enviado_subgerencia: { etiqueta: "Enviado a Gerencia", tono: "neutro" },
+  reenviado_subgerencia: { etiqueta: "Corregido y enviado otra vez a Gerencia", tono: "neutro" },
+  devuelto_subgerencia: { etiqueta: "Devuelto a Jurídica por Gerencia", tono: "aviso" },
+  aprobado: { etiqueta: "Aprobado por Gerencia", tono: "ok" },
   firma_representante: { etiqueta: "Firma del representante legal puesta en el otrosí", tono: "ok" },
 }
 

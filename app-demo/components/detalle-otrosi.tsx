@@ -15,7 +15,7 @@ import { obtenerOtrosi } from "@/app/(app)/contratos/otrosi/actions"
 
 // ---------------------------------------------------------------------------
 // Detalle de un otrosí, compartido por Solicitud de otrosí (el ingeniero) y
-// Aprobación de otrosí (Jurídica y Subgerencia). Primera pestaña: la solicitud
+// Aprobación de otrosí (Jurídica y Gerencia). Primera pestaña: la solicitud
 // (contrato, cláusulas pedidas, justificación, historial). Con `documento`
 // suma la segunda: el otrosí (vista previa y, para Jurídica, el editor). Cada
 // pantalla pone sus botones con `acciones`, que salen en las dos pestañas.

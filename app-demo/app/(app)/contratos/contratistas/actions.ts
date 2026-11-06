@@ -262,7 +262,7 @@ export async function editarContratista(
 }
 
 // Enlace temporal (2 minutos) para ver un documento: el bucket es privado.
-// También desde Pre-aprobación y Aprobación de minutas: Jurídica y Subgerencia
+// También desde Pre-aprobación y Aprobación de minutas: Jurídica y Gerencia
 // revisan los documentos generales del contratista (igual que la política
 // contratistas_archivos_select).
 export async function enlaceDocumentoContratista(documentoId: string): Promise<string> {

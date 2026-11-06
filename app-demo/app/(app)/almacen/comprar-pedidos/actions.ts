@@ -647,7 +647,6 @@ export async function enlaceSoporteOrden(soporteId: string): Promise<string> {
 // aprueba aquí: se aprueba con su pago en A&F › Aprobación de pagos.
 export type PermisosOrdenCompra = {
   rolCompras: boolean
-  puedeDesaprobar: boolean
   puedeCancelar: boolean
   puedeCambiarFechaCredito: boolean
   // Para saber si la orden es propia (retirar una pendiente).
@@ -657,13 +656,12 @@ export type PermisosOrdenCompra = {
 export async function obtenerPermisosOrdenCompra(): Promise<PermisosOrdenCompra> {
   const permisos = await obtenerPermisosRol()
   if (!permisos) {
-    return { rolCompras: false, puedeDesaprobar: false, puedeCancelar: false, puedeCambiarFechaCredito: false, usuarioId: null }
+    return { rolCompras: false, puedeCancelar: false, puedeCambiarFechaCredito: false, usuarioId: null }
   }
 
   const puede = (accion: string) => permisos.esAdministrador || permisos.acciones.includes(accion)
   return {
     rolCompras: puede("comprar"),
-    puedeDesaprobar: puede("desaprobar_oc"),
     puedeCancelar: puede("cancelar_oc"),
     puedeCambiarFechaCredito: puede("cambiar_fecha_credito"),
     usuarioId: await obtenerUsuarioId(),
@@ -863,17 +861,6 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
 // Devuelve una orden aprobada a "pendiente de aprobación": sus pagos se anulan
 // y vuelve a Aprobación de pagos (A&F) con un pago nuevo. Solo si no tiene
 // material recibido (sin entradas de almacén; lo valida la base).
-export async function desaprobarOrdenCompra(ordenId: string, motivo: string): Promise<void> {
-  await requerirAccion("desaprobar_oc")
-  if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("desaprobar_orden_compra", {
-    p_orden_id: ordenId,
-    p_motivo: motivo.trim(),
-  })
-  if (error) throw new Error(error.message)
-}
-
 // Mueve la fecha de pago de una OC a crédito (20261229000000). La base valida
 // que el pago no haya pasado a pago y, si la fecha nueva ya está en esta
 // semana, el pago en espera pasa de una vez.
@@ -972,17 +959,30 @@ export async function obtenerOrdenParaModificar(ordenId: string): Promise<OrdenP
   for (let i = 0; i < requisiciones.length; i += 100) {
     const { data: ps, error: e } = await supabase
       .from("pedidos_insumos")
-      .select(SELECT_PEDIDO_PARA_COMPRAR)
+      .select(`${SELECT_PEDIDO_PARA_COMPRAR}, rechazado_compras_at`)
       .in("grupo_pedido_id", requisiciones.slice(i, i + 100))
       .eq("estado", "aprobado")
-      .is("rechazado_compras_at", null)
       .order("id", { ascending: true })
     if (e) throw new Error(e.message)
     filas.push(...(ps ?? []))
   }
+  // Las de la orden salen siempre, aunque Compras les haya cerrado el saldo o
+  // rechazado lo que faltaba (rechazado_compras_at); las demás, solo si se
+  // pueden comprar.
+  const rechazadas = new Set<string>(filas.filter((f) => f.rechazado_compras_at).map((f) => f.id))
+  // Con el saldo cerrado no se compra más de lo que ya traía la orden (la base
+  // lo vuelve a revisar en modificar_orden_compra).
+  const usoEnOrden = new Map<string, number>(
+    (d.lineas ?? []).map((l: any) => [l.pedido_insumo_id, Number(l.cantidad) * (Number(l.factor_unidad ?? 1) || 1)])
+  )
   const pedidos = filas
-    .map((f) => mapPedidoParaComprar(f, ordenId))
-    .filter((p) => enOrden.has(p.id) || p.cantidadPendiente > 0)
+    .map((f) => {
+      const p = mapPedidoParaComprar(f, ordenId)
+      if (!rechazadas.has(p.id)) return p
+      const pendienteUso = Math.min(p.pendienteUso, usoEnOrden.get(p.id) ?? 0)
+      return { ...p, pendienteUso, cantidadPendiente: pendienteUso > 0 ? unidadesDeCompra(pendienteUso, p.factor) : 0 }
+    })
+    .filter((p) => enOrden.has(p.id) || (!rechazadas.has(p.id) && p.cantidadPendiente > 0))
     // Primero las de la orden, en el orden de la requisición.
     .sort((a, b) => Number(enOrden.has(b.id)) - Number(enOrden.has(a.id)))
 

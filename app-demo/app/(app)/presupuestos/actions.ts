@@ -35,6 +35,15 @@ import type { FilaPrecioInsumo, ListasPreciosInsumos, SolicitudParaPrecio } from
 
 //Aprobado
 
+
+// Ver sin editar (Compras ve el presupuesto para seguir de dónde sale una
+// requisición): la pantalla oculta lo que escribe. La base lo exige igual
+// (proyectos_editables = acción editar_presupuestos).
+export async function puedeEditarPresupuestos(): Promise<boolean> {
+  const p = await obtenerPermisosRol()
+  return !!p && (p.esAdministrador || p.acciones.includes("editar_presupuestos"))
+}
+
 export async function crearPresupuesto(proyectoId: string, nombre: string) {
   const supabase = await createClient()
 

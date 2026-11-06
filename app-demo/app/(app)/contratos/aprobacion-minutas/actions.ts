@@ -7,7 +7,7 @@ import type { EstadoMinuta } from "@/lib/contratos"
 import { SELECT_FILA_CONTRATO, mapFilaContrato, type SolicitudContratoFila } from "@/lib/contratos-db"
 
 // ---------------------------------------------------------------------------
-// Aprobación de minutas: Subgerencia revisa las minutas que Jurídica envía,
+// Aprobación de minutas: Gerencia revisa las minutas que Jurídica envía,
 // de TODOS los proyectos que puede ver (no depende del proyecto actual), y las
 // aprueba o devuelve. La base valida permiso, proyecto y estado
 // (resolver_minuta_contrato, 20261111000000_aprobacion_minutas.sql).
@@ -18,7 +18,7 @@ export type FiltrosMinutas = {
   proyectoId?: string
 }
 
-export async function listarMinutasSubgerencia(filtros: FiltrosMinutas): Promise<SolicitudContratoFila[]> {
+export async function listarMinutasGerencia(filtros: FiltrosMinutas): Promise<SolicitudContratoFila[]> {
   await requerirPestana("contratos.aprobar_minutas")
   const supabase = await createClient()
   const filas = await traerTodo<any>((desde, hasta) => {
