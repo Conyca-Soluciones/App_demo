@@ -83,8 +83,8 @@ export function TablaPedidosCompra({
   const columnas: ColumnaExcel<PedidoParaComprar>[] = [
     {
       clave: "requisicion",
-      titulo: "Requisición",
-      ancho: 120,
+      titulo: "REF",
+      ancho: 130,
       fija: true,
       texto: (p) => p.requisicionCodigo ?? (p.requisicionNumero != null ? String(p.requisicionNumero) : ""),
       valorOrden: (p) => p.requisicionCodigo ?? "",

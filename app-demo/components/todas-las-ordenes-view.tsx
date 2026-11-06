@@ -230,7 +230,7 @@ export function TodasLasOrdenesView() {
   }
 
   const columnas: ColumnaExcel<OrdenCompraListado>[] = [
-    { clave: "numero", titulo: "Orden", ancho: 120, fija: true, texto: (o) => o.codigo, valorOrden: (o) => o.codigo, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "REF", ancho: 130, fija: true, texto: (o) => o.codigo, valorOrden: (o) => o.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 170, texto: (o) => o.proyectoCodigo ?? o.proyectoNombre ?? "" },
     { clave: "proveedor", titulo: "Proveedor", ancho: 240, flexible: true, texto: (o) => o.proveedorNombre },
     {
@@ -265,7 +265,7 @@ export function TodasLasOrdenesView() {
   }
   const deOrden = (f: FilaDetalle, valor: string) => (f.primera ? valor : "")
   const columnasDetalle: ColumnaExcel<FilaDetalle>[] = [
-    { clave: "numero", titulo: "Orden", ancho: 120, fija: true, ordenable: false, texto: (f) => deOrden(f, f.orden.codigo), claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "REF", ancho: 130, fija: true, ordenable: false, texto: (f) => deOrden(f, f.orden.codigo), claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 150, ordenable: false, texto: (f) => deOrden(f, f.orden.proyectoCodigo ?? f.orden.proyectoNombre ?? "") },
     { clave: "proveedor", titulo: "Proveedor", ancho: 200, ordenable: false, texto: (f) => deOrden(f, f.orden.proveedorNombre) },
     {

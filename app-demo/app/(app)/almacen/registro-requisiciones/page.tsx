@@ -39,8 +39,8 @@ export default function RegistroRequisiciones() {
     () => [
       {
         clave: "numero",
-        titulo: "Requisición",
-        ancho: 200,
+        titulo: "REF",
+        ancho: 240,
         fija: true,
         texto: (r) => r.codigo,
         valorOrden: (r) => r.codigo,
