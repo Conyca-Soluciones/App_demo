@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -596,6 +597,9 @@ export function NuevoTerceroDialogo({
   }, [abierto, numero])
   const [conCuenta, setConCuenta] = useState(true)
   const [cuenta, setCuenta] = useState<DatosCuenta>(CUENTA_VACIA)
+  // Certificación bancaria de la cuenta (opcional): se sube al crear.
+  const [certificacion, setCertificacion] = useState<File | null>(null)
+  const archivoRef = useRef<HTMLInputElement>(null)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -612,6 +616,7 @@ export function NuevoTerceroDialogo({
     setDatos(TERCERO_VACIO)
     setCuenta(CUENTA_VACIA)
     setConCuenta(true)
+    setCertificacion(null)
     setError(null)
     setRevision(null)
     onCerrar()
@@ -620,13 +625,30 @@ export function NuevoTerceroDialogo({
   async function guardar() {
     setOcupado(true)
     setError(null)
+    // La certificación se sube primero (a la carpeta del usuario); si el
+    // tercero no se crea, se borra.
+    const supabase = createClient()
+    let subida: { ruta: string; nombre: string; mime: string } | null = null
     try {
-      const creado = await crearTercero(datos, conCuenta ? cuenta : null)
+      if (conCuenta && certificacion) {
+        const ext = certificacion.type === "application/pdf" ? "pdf" : certificacion.type === "image/png" ? "png" : "jpg"
+        const { data: sesion } = await supabase.auth.getUser()
+        if (!sesion.user) throw new Error("Tu sesión se cerró: vuelve a iniciar sesión.")
+        const ruta = `nuevo/${sesion.user.id}/${crypto.randomUUID()}.${ext}`
+        const { error: e } = await supabase.storage
+          .from("terceros")
+          .upload(ruta, certificacion, { contentType: certificacion.type, upsert: false })
+        if (e) throw new Error(`No se pudo subir la certificación: ${e.message}`)
+        subida = { ruta, nombre: certificacion.name, mime: certificacion.type }
+      }
+      const creado = await crearTercero(datos, conCuenta ? cuenta : null, subida)
       setDatos(TERCERO_VACIO)
       setCuenta(CUENTA_VACIA)
       setConCuenta(true)
+      setCertificacion(null)
       onCreado(creado)
     } catch (e) {
+      if (subida) await supabase.storage.from("terceros").remove([subida.ruta])
       setError(e instanceof Error ? e.message : "No se pudo crear el tercero.")
     } finally {
       setOcupado(false)
@@ -736,8 +758,48 @@ export function NuevoTerceroDialogo({
             Agregar su cuenta bancaria ahora
           </label>
           {conCuenta && <CamposCuenta valores={cuenta} onCambiar={setCuenta} bancos={bancos} />}
+          {conCuenta && (
+            <div className="space-y-1.5">
+              <Label>Certificación bancaria (opcional, recomendada)</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={ocupado} onClick={() => archivoRef.current?.click()}>
+                  {certificacion ? "Cambiar archivo" : "Adjuntar archivo"}
+                </Button>
+                <span className="min-w-0 truncate text-sm text-muted-foreground">
+                  {certificacion ? certificacion.name : "PDF, JPG o PNG de hasta 10 MB"}
+                </span>
+                {certificacion && (
+                  <Button type="button" variant="ghost" size="sm" disabled={ocupado} onClick={() => setCertificacion(null)}>
+                    Quitar
+                  </Button>
+                )}
+              </div>
+              <input
+                ref={archivoRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ""
+                  if (!f) return
+                  if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) {
+                    setError("La certificación debe ser PDF, JPG o PNG.")
+                    return
+                  }
+                  if (f.size > 10 * 1024 * 1024) {
+                    setError("La certificación pesa más de 10 MB.")
+                    return
+                  }
+                  setError(null)
+                  setCertificacion(f)
+                }}
+              />
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Las cuentas nuevas quedan pendientes hasta que Financiera las verifique.
+            Las cuentas nuevas quedan pendientes hasta que Financiera las verifique
+            {conCuenta ? "; con la certificación adjunta la verifica más rápido." : "."}
           </p>
         </section>
 

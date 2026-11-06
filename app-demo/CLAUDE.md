@@ -1638,8 +1638,11 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   (`verificarCuentas`), subir la certificación (bucket privado `terceros`,
   `guardar_certificacion_cuenta`, columnas `terceros_cuentas.certificacion_*`)
   y Editar (abre `TerceroDialogo`). Solo con `editar_terceros` o
-  `verificar_terceros`; Contabilidad ve solo la lista de terceros. Crear un
-  tercero todavía no pide la certificación.
+  `verificar_terceros`; Contabilidad ve solo la lista de terceros. Al CREAR un
+  tercero (cualquiera) se puede adjuntar la certificación de la cuenta: el
+  navegador la sube a `terceros/nuevo/<uid>/` (política del bucket) y
+  `crear_tercero` la pega a la cuenta con `_certificacion_tercero_nuevo`
+  (`p_cuenta.certificacion`); si falla, se borra el archivo.
 - **Proveedores enlazados** (`20261223000000_proveedores_tercero.sql`):
   `proveedores.tercero_id` (único; 393 de 394 enlazados por documento; EQUINORTE
   PV0318 sin documento queda sin tercero). Nuevo proveedor = `SelectorTercero`

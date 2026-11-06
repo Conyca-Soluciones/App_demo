@@ -158,7 +158,9 @@ export async function buscarTerceroPorDocumento(documento: string): Promise<Terc
 // (PENDIENTE) en una transacción y vuelve a validar todo.
 export async function crearTercero(
   crudo: DatosTercero,
-  cuentaCruda: DatosCuenta | null
+  cuentaCruda: DatosCuenta | null,
+  // Certificación de la cuenta ya subida a `terceros/nuevo/<uid>/` (20261231200000).
+  certificacion: { ruta: string; nombre: string; mime: string } | null = null
 ): Promise<TerceroBasico> {
   const r = validarTercero(crudo)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del tercero.")
@@ -190,6 +192,7 @@ export async function crearTercero(
           numero_cuenta: cuenta.numeroCuenta,
           etiqueta: cuenta.etiqueta ?? "",
           observaciones: cuenta.observaciones ?? "",
+          ...(certificacion ? { certificacion } : {}),
         }
       : null,
   })

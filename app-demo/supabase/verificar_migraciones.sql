@@ -591,5 +591,6 @@ select * from (
          exists (select 1 from pg_proc where proname = 'cuentas_por_verificar')
          and exists (select 1 from storage.buckets where id = 'terceros')
          and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%vista=verificar%')
+         and exists (select 1 from pg_proc where proname = 'crear_tercero' and prosrc like '%_certificacion_tercero_nuevo%')
 ) t
 order by 1;

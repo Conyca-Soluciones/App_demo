@@ -9,6 +9,9 @@
 --   si no tiene, la del contratista del tercero, y cuántos pagos la esperan).
 -- * `guardar_certificacion_cuenta`: registra el archivo ya subido.
 -- * `url_certificacion_cuenta`: dónde está el archivo, para un enlace firmado.
+-- * Al CREAR un tercero (lo puede cualquiera) se puede adjuntar la
+--   certificación de su cuenta: el navegador la sube primero a
+--   `nuevo/<su usuario>/...` y `crear_tercero` la valida y la pega a la cuenta.
 -- Se puede correr dos veces. Va después de 20261231100000.
 
 alter table public.terceros_cuentas
@@ -29,18 +32,24 @@ create policy terceros_archivos_select on storage.objects for select to authenti
   using (bucket_id = 'terceros'
          and ((select public.tiene_accion((select auth.uid()), 'verificar_terceros'))
               or (select public.tiene_accion((select auth.uid()), 'editar_terceros'))));
+-- Insertar: quien edita o verifica (en cualquier carpeta), o cualquiera con
+-- sesión en SU carpeta `nuevo/<uid>/` (certificación al crear un tercero).
 drop policy if exists terceros_archivos_insert on storage.objects;
 create policy terceros_archivos_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'terceros'
               and ((select public.tiene_accion((select auth.uid()), 'verificar_terceros'))
-                   or (select public.tiene_accion((select auth.uid()), 'editar_terceros'))));
+                   or (select public.tiene_accion((select auth.uid()), 'editar_terceros'))
+                   or ((storage.foldername(name))[1] = 'nuevo'
+                       and (storage.foldername(name))[2] = (select auth.uid())::text)));
 -- Borrar solo lo que todavía no es la certificación de ninguna cuenta (si el
 -- registro falla, el navegador limpia lo que subió).
 drop policy if exists terceros_archivos_delete on storage.objects;
 create policy terceros_archivos_delete on storage.objects for delete to authenticated
   using (bucket_id = 'terceros'
          and ((select public.tiene_accion((select auth.uid()), 'verificar_terceros'))
-              or (select public.tiene_accion((select auth.uid()), 'editar_terceros')))
+              or (select public.tiene_accion((select auth.uid()), 'editar_terceros'))
+              or ((storage.foldername(name))[1] = 'nuevo'
+                  and (storage.foldername(name))[2] = (select auth.uid())::text))
          and not exists (select 1 from public.terceros_cuentas c where c.certificacion_ruta = name));
 
 create or replace function public._puede_revisar_cuentas(p_uid uuid)
@@ -178,4 +187,51 @@ begin
     raise exception '_pendientes_de no tiene el texto esperado.';
   end if;
   execute replace(d, a, b);
+end $$;
+
+-- ------------------------------------- certificación al crear el tercero
+-- La llama crear_tercero con p_cuenta.certificacion = {ruta, nombre, mime}.
+create or replace function public._certificacion_tercero_nuevo(p_tercero_id uuid, p_cert jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ruta text := p_cert ->> 'ruta';
+  v_mime text := p_cert ->> 'mime';
+begin
+  if v_ruta is null or v_ruta not like 'nuevo/' || auth.uid()::text || '/%' then
+    raise exception 'La certificación bancaria no se subió bien: vuelve a adjuntarla.';
+  end if;
+  if coalesce(v_mime, '') not in ('application/pdf', 'image/jpeg', 'image/png') then
+    raise exception 'La certificación debe ser PDF, JPG o PNG.';
+  end if;
+  if not exists (select 1 from storage.objects o where o.bucket_id = 'terceros' and o.name = v_ruta) then
+    raise exception 'No se encontró la certificación subida: vuelve a adjuntarla.';
+  end if;
+  update public.terceros_cuentas
+     set certificacion_ruta = v_ruta,
+         certificacion_nombre = left(coalesce(nullif(trim(p_cert ->> 'nombre'), ''), 'certificacion'), 200),
+         certificacion_mime = v_mime, certificacion_subida_en = now(), certificacion_subida_por = auth.uid()
+   where tercero_id = p_tercero_id;
+end;
+$$;
+revoke all on function public._certificacion_tercero_nuevo(uuid, jsonb) from public, anon, authenticated;
+
+do $$
+declare
+  d text := pg_get_functiondef('public.crear_tercero(jsonb, jsonb)'::regprocedure);
+  a text := 'nullif(btrim(coalesce(p_cuenta ->> ''observaciones'', '''')), ''''));';
+begin
+  if position('_certificacion_tercero_nuevo' in d) > 0 then
+    return;
+  end if;
+  if position(a in d) = 0 then
+    raise exception 'crear_tercero no tiene el texto esperado.';
+  end if;
+  execute replace(d, a, a || E'
+    if p_cuenta ? ''certificacion'' and jsonb_typeof(p_cuenta -> ''certificacion'') = ''object'' then
+      perform public._certificacion_tercero_nuevo(v_id, p_cuenta -> ''certificacion'');
+    end if;');
 end $$;
