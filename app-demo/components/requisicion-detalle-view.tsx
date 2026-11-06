@@ -168,7 +168,7 @@ export function RequisicionDetalleView({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">Requisición #{req.numero}</h1>
+          <h1 className="text-2xl font-semibold">Requisición {req.codigo}</h1>
           <BadgeEstadoRequisicion estado={req.estado} />
           {req.extraordinaria && <BadgeExtraordinaria />}
           {req.urgente && <Badge variant="destructive">Urgente</Badge>}
@@ -358,7 +358,7 @@ export function RequisicionDetalleView({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancelar requisición #{req.numero}</DialogTitle>
+            <DialogTitle>Cancelar requisición {req.codigo}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Se cancela la requisición completa ({req.nLineas}{" "}

@@ -42,11 +42,11 @@ export default function RegistroRequisiciones() {
         titulo: "Requisición",
         ancho: 200,
         fija: true,
-        texto: (r) => `Requisición ${r.numero}`,
-        valorOrden: (r) => r.numero,
+        texto: (r) => r.codigo,
+        valorOrden: (r) => r.codigo,
         celda: (r) => (
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-medium">Requisición {r.numero}</span>
+            <span className="truncate font-medium">{r.codigo}</span>
             {r.extraordinaria && <BadgeExtraordinaria />}
             {r.urgente && <Badge variant="destructive">Urgente</Badge>}
           </span>
@@ -183,7 +183,7 @@ export default function RegistroRequisiciones() {
                 tituloFila={AYUDA_DOBLE_CLIC}
                 fondoFila={(r) => (r.urgente && r.estado === "pendiente" ? "bg-amber-50" : undefined)}
                 tarjeta={{
-                  titulo: (r) => `Requisición ${r.numero}`,
+                  titulo: (r) => r.codigo,
                   subtitulo: (r) => `${r.proyectoCodigo ?? "—"} · ${r.proyectoNombre ?? ""}`,
                   esquina: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
                   campos: ["solicitante", "creada", "requerida", "insumos", "compra"],

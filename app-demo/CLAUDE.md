@@ -1427,6 +1427,10 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (disparadores `trg_oc_codigo` y `_asignar_numero_contrato`). El número del
   contrato aprobado (`numero_contrato`) es el mismo código, sin año; las
   minutas imprimen "No. CJ-001-0001". Actas: "Acta 01" (`numeroActa`).
+  Requisiciones igual desde `20261231400000`: `requisiciones.numero` es el
+  consecutivo del proyecto y `codigo` = 'RQ-001-0001' (`trg_requisicion_codigo`,
+  contador tipo 'requisicion'; `requisiciones_vista` lo trae al final). Las
+  listas de varios proyectos se ordenan por fecha, no por número.
 - **ITEM del consolidado** (ANTES de `20261231000000`): consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
@@ -3790,7 +3794,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
 `20261231100000` campanita: no leídas arriba y borrar notificaciones propias ·
 `20261231200000` Terceros › Cuentas por verificar (tabla, certificación por cuenta) ·
-`20261231300000` proyecto de los pagos para A&F (soporte del dispersor y columnas Proyecto).
+`20261231300000` proyecto de los pagos para A&F (soporte del dispersor y columnas Proyecto) ·
+`20261231400000` requisiciones con código RQ-001-0001.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

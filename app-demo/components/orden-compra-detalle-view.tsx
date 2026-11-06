@@ -261,7 +261,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                           className="text-primary underline-offset-2 hover:underline"
                           onClick={() => setRequisicionAbierta(linea.requisicion!.id)}
                         >
-                          N° {linea.requisicion.numero}
+                          {linea.requisicion.codigo}
                         </button>
                       ) : (
                         "—"
@@ -347,7 +347,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   className="block text-left text-primary underline-offset-2 hover:underline"
                   onClick={() => setRequisicionAbierta(r.id)}
                 >
-                  N° {r.numero}
+                  {r.codigo}
                   <span className="text-muted-foreground"> · solicitada por {r.solicitante ?? "—"}</span>
                 </button>
               ))

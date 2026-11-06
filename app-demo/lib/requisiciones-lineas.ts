@@ -12,6 +12,7 @@ export type EstadoCompra = "completa" | "pendiente" | "rechazada_compras" | null
 export type RequisicionResumen = {
   id: string
   numero: number
+  codigo: string // RQ-001-0001 (20261231400000)
   proyectoId: string | null
   proyectoCodigo: string | null
   proyectoNombre: string | null
@@ -155,6 +156,7 @@ export function mapResumen(r: any): RequisicionResumen {
   return {
     id: r.id,
     numero: Number(r.numero),
+    codigo: r.codigo ?? `N° ${r.numero}`,
     proyectoId: r.proyecto_id,
     proyectoCodigo: r.proyecto_codigo,
     proyectoNombre: r.proyecto_nombre,

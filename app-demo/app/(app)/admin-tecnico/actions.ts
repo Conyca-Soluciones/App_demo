@@ -58,8 +58,8 @@ export async function verRequisicionesAprobacion(
       ? query
           .order("urgente", { ascending: false })
           .order("created_at", { ascending: true })
-          .order("numero", { ascending: true })
-      : query.order("created_at", { ascending: false }).order("numero", { ascending: false })
+          .order("id", { ascending: true })
+      : query.order("created_at", { ascending: false }).order("id", { ascending: false })
 
   const { data, error } = await ordenada.range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)

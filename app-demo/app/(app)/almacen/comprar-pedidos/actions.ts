@@ -95,6 +95,7 @@ export type PedidoParaComprar = {
   // Requisición (agrupada) a la que pertenece esta línea.
   requisicionId: string
   requisicionNumero: number | null
+  requisicionCodigo: string | null
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
@@ -125,7 +126,7 @@ export type PedidoParaComprar = {
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
   id, grupo_pedido_id, proyecto_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
-  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
+  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   proyecto:proyectos!pedidos_insumos_proyecto_id_fkey(numero, codigo, nombre),
@@ -142,8 +143,8 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
 // trae todo el histórico del proyecto; el filtro por línea de abajo sigue
 // quitando las líneas ya completas de esas requisiciones.
 const SELECT_PENDIENTES_POR_COMPRAR = SELECT_PEDIDO_PARA_COMPRAR.replace(
-  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero)",
-  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, estado_compra)"
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo)",
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, codigo, estado_compra)"
 )
 
 // Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
@@ -169,6 +170,7 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     id: f.id,
     requisicionId: f.grupo_pedido_id,
     requisicionNumero: f.requisicion?.numero ?? null,
+    requisicionCodigo: f.requisicion?.codigo ?? null,
     insumoId: f.insumo?.id,
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
@@ -292,6 +294,7 @@ export type SaldoPendiente = {
   pedidoId: string
   requisicionId: string
   requisicionNumero: number | null
+  requisicionCodigo: string | null
   proyectoId: string
   proyectoCodigo: string | null
   proyectoNombre: string
@@ -324,11 +327,20 @@ export async function listarSaldosPendientes(
   })
   if (error) throw new Error(error.message)
   const { filas, hayMas } = cortarPagina((data ?? []) as any[])
+  // Código de cada requisición (RQ-001-0001): una consulta por página (≤ 51 ids).
+  const ids = [...new Set(filas.map((f: any) => f.requisicion_id).filter(Boolean))] as string[]
+  const codigos = new Map<string, string>()
+  if (ids.length > 0) {
+    const { data: rq, error: e } = await supabase.from("requisiciones").select("id, codigo").in("id", ids)
+    if (e) throw new Error(e.message)
+    for (const r of (rq ?? []) as { id: string; codigo: string }[]) codigos.set(r.id, r.codigo)
+  }
   return {
     saldos: filas.map((f: any) => ({
       pedidoId: f.pedido_id,
       requisicionId: f.requisicion_id,
       requisicionNumero: f.requisicion_numero != null ? Number(f.requisicion_numero) : null,
+      requisicionCodigo: codigos.get(f.requisicion_id) ?? null,
       proyectoId: f.proyecto_id,
       proyectoCodigo: f.proyecto_codigo,
       proyectoNombre: f.proyecto_nombre,
@@ -680,7 +692,7 @@ export type LineaOrdenCompraDetalle = {
   requisicion: RequisicionDeOrden | null
 }
 
-export type RequisicionDeOrden = { id: string; numero: number; solicitante: string | null }
+export type RequisicionDeOrden = { id: string; numero: number; codigo: string; solicitante: string | null }
 
 export type OrdenCompraDetalle = {
   id: string
@@ -759,7 +771,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
           unidad,
           insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m),
           requisicion:requisiciones!pedidos_insumos_requisicion_fkey(
-            id, numero, solicitante:perfiles!requisiciones_solicitado_por_fkey(nombre)
+            id, numero, codigo, solicitante:perfiles!requisiciones_solicitado_por_fkey(nombre)
           )
         )
       )
@@ -844,6 +856,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
         ? {
             id: l.pedido.requisicion.id,
             numero: l.pedido.requisicion.numero,
+            codigo: l.pedido.requisicion.codigo ?? `N° ${l.pedido.requisicion.numero}`,
             solicitante: l.pedido.requisicion.solicitante?.nombre ?? null,
           }
         : null,

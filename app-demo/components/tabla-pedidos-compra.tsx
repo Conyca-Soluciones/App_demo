@@ -77,17 +77,17 @@ export function TablaPedidosCompra({
   // conservan el orden en que llegan). Un solo ordenamiento: O(n log n).
   const SIN_NUMERO = Number.MAX_SAFE_INTEGER
   const ordenados = [...pedidos].sort(
-    (x, y) => (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
+    (x, y) => (x.requisicionCodigo ?? "￿").localeCompare(y.requisicionCodigo ?? "￿") || (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
   )
 
   const columnas: ColumnaExcel<PedidoParaComprar>[] = [
     {
       clave: "requisicion",
-      titulo: "# Requisición",
+      titulo: "Requisición",
       ancho: 120,
       fija: true,
-      texto: (p) => (p.requisicionNumero != null ? String(p.requisicionNumero) : ""),
-      valorOrden: (p) => p.requisicionNumero,
+      texto: (p) => p.requisicionCodigo ?? (p.requisicionNumero != null ? String(p.requisicionNumero) : ""),
+      valorOrden: (p) => p.requisicionCodigo ?? "",
       claseCelda: "font-medium tabular-nums",
     },
     { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (p) => p.proyectoTexto ?? "", claseCelda: "tabular-nums" },
@@ -219,7 +219,7 @@ export function TablaPedidosCompra({
         fondoFila={(p) => (p.urgente ? "bg-amber-50" : undefined)}
         tarjeta={{
           titulo: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
-          subtitulo: (p) => `Requisición # ${p.requisicionNumero ?? "—"}`,
+          subtitulo: (p) => `Requisición ${p.requisicionCodigo ?? "—"}`,
           esquina: (p) => columnas.find((c) => c.clave === "comprar")!.celda!(p),
           campos: ["proyecto", "solicitante", "um", "cantidad", "valor", "requerida", "urgente", "rechazar"],
         }}
@@ -229,7 +229,7 @@ export function TablaPedidosCompra({
         abierta={viendo !== null}
         onCerrar={() => setViendo(null)}
         titulo={viendo ? `${viendo.insumoCodigo} · ${viendo.insumoDescripcion}` : ""}
-        subtitulo={viendo ? `Requisición # ${viendo.requisicionNumero ?? "—"}` : undefined}
+        subtitulo={viendo ? `Requisición ${viendo.requisicionCodigo ?? "—"}` : undefined}
         campos={
           viendo
             ? [

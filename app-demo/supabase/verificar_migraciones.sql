@@ -595,5 +595,11 @@ select * from (
   union all
   select '20261231300000_proyectos_de_pagos',
          exists (select 1 from pg_proc where proname = 'proyectos_de_pagos')
+  union all
+  select '20261231400000_codigo_requisiciones',
+         exists (select 1 from pg_trigger where tgname = 'trg_requisicion_codigo')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'requisiciones_vista' and column_name = 'codigo')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%r.codigo%')
 ) t
 order by 1;

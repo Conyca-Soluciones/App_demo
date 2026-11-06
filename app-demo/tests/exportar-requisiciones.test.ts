@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { formatoCantidadExcel, valoresFilaExcel, type FilaExcelRequisicion } from "@/lib/exportar-requisiciones"
 
 const fila = (cambios: Partial<FilaExcelRequisicion> = {}): FilaExcelRequisicion => ({
-  numero: 34,
+  codigo: "RQ-001-0034",
   proyecto: "P-01 — Obra",
   solicitadoPor: "Ana",
   insumoCodigo: 559,

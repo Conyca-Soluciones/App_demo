@@ -72,7 +72,7 @@ export default function AdminTecnico() {
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
 
   const columnas: ColumnaExcel<RequisicionParaAprobar>[] = [
-    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (r) => String(r.numero), valorOrden: (r) => r.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "Requisición", ancho: 120, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 190, flexible: true, texto: (r) => r.proyectoCodigo ?? r.proyectoNombre ?? "" },
     { clave: "solicitante", titulo: "Solicitado por", ancho: 170, texto: (r) => r.solicitanteNombre ?? "" },
     { clave: "creada", titulo: "Fecha requisición", ancho: 130, alinear: "center", texto: (r) => formatearFechaSinHora(r.createdAt), valorOrden: (r) => r.createdAt, claseCelda: "tabular-nums" },
@@ -127,7 +127,7 @@ export default function AdminTecnico() {
                     setAccion({ tipo: "desaprobar", req })
                     setMotivo("")
                   }}
-                  aria-label={`Desaprobar requisición ${req.numero}`}
+                  aria-label={`Desaprobar requisición ${req.codigo}`}
                 >
                   <Undo2 className="mr-1.5 h-4 w-4" />
                   Desaprobar
@@ -141,7 +141,7 @@ export default function AdminTecnico() {
                     className="h-8 flex-1 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                     disabled={procesando}
                     onClick={() => setPorAprobar(req)}
-                    aria-label={`Aprobar requisición ${req.numero}`}
+                    aria-label={`Aprobar requisición ${req.codigo}`}
                   >
                     {procesando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   </Button>
@@ -154,7 +154,7 @@ export default function AdminTecnico() {
                       setAccion({ tipo: "rechazar", req })
                       setMotivo("")
                     }}
-                    aria-label={`Rechazar requisición ${req.numero}`}
+                    aria-label={`Rechazar requisición ${req.codigo}`}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -281,7 +281,7 @@ export default function AdminTecnico() {
               tituloFila={AYUDA_DOBLE_CLIC}
               fondoFila={(r) => (r.urgente && r.estado === "pendiente" ? "bg-amber-50" : undefined)}
               tarjeta={{
-                titulo: (r) => `Requisición ${r.numero}`,
+                titulo: (r) => r.codigo,
                 subtitulo: (r) => `${r.proyectoCodigo ?? r.proyectoNombre ?? "—"} · ${r.solicitanteNombre ?? "—"}`,
                 esquina: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
                 campos: ["creada", "requerida", "insumos", "acciones"],
@@ -311,7 +311,7 @@ export default function AdminTecnico() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {accion ? `${TEXTO_ACCION[accion.tipo].titulo} #${accion.req.numero}` : ""}
+              {accion ? `${TEXTO_ACCION[accion.tipo].titulo} ${accion.req.codigo}` : ""}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
@@ -366,7 +366,7 @@ export default function AdminTecnico() {
 
       <ConfirmarAprobacion
         abierta={porAprobar !== null}
-        titulo={`¿Aprobar la requisición #${porAprobar?.numero ?? ""}?`}
+        titulo={`¿Aprobar la requisición ${porAprobar?.codigo ?? ""}?`}
         detalle={
           porAprobar
             ? `${porAprobar.nLineas} ${porAprobar.nLineas === 1 ? "insumo" : "insumos"}, solicitada por ${

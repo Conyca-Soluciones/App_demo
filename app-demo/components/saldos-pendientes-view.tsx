@@ -110,7 +110,7 @@ export function SaldosPendientesView() {
       titulo: "Requisición",
       ancho: 110,
       fija: true,
-      texto: (s) => (s.requisicionNumero != null ? `#${s.requisicionNumero}` : ""),
+      texto: (s) => s.requisicionCodigo ?? (s.requisicionNumero != null ? `#${s.requisicionNumero}` : ""),
     },
     {
       clave: "insumo",
@@ -236,7 +236,7 @@ export function SaldosPendientesView() {
               tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
                 titulo: (s) => s.insumoDescripcion,
-                subtitulo: (s) => `Requisición #${s.requisicionNumero ?? "—"} · ${s.proyectoCodigo ?? s.proyectoNombre}`,
+                subtitulo: (s) => `Requisición ${s.requisicionCodigo ?? "—"} · ${s.proyectoCodigo ?? s.proyectoNombre}`,
                 esquina: (s) => <EtiquetaDias dias={s.diasSinCompra} />,
                 campos: ["pedido", "comprado", "pendiente", "ultima", "solicitante", "acciones"],
               }}
@@ -253,7 +253,7 @@ export function SaldosPendientesView() {
         abierta={viendo !== null}
         onCerrar={() => setViendo(null)}
         titulo={viendo?.insumoDescripcion}
-        subtitulo={viendo ? `Requisición #${viendo.requisicionNumero ?? "—"} · ${viendo.proyectoCodigo ?? viendo.proyectoNombre}` : undefined}
+        subtitulo={viendo ? `Requisición ${viendo.requisicionCodigo ?? "—"} · ${viendo.proyectoCodigo ?? viendo.proyectoNombre}` : undefined}
         campos={viendo ? camposDesdeColumnas(columnas, viendo) : []}
         acciones={
           viendo && (
@@ -285,7 +285,7 @@ export function SaldosPendientesView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cerrar saldo de la requisición #{cerrando?.requisicionNumero ?? ""}</DialogTitle>
+            <DialogTitle>Cerrar saldo de la requisición {cerrando?.requisicionCodigo ?? ""}</DialogTitle>
           </DialogHeader>
           {cerrando && (
             <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
