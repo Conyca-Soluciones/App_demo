@@ -586,5 +586,10 @@ select * from (
   union all
   select '20261231100000_notificaciones_borrar',
          exists (select 1 from pg_policy where polname = 'notificaciones_delete_propias')
+  union all
+  select '20261231200000_cuentas_por_verificar',
+         exists (select 1 from pg_proc where proname = 'cuentas_por_verificar')
+         and exists (select 1 from storage.buckets where id = 'terceros')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%vista=verificar%')
 ) t
 order by 1;

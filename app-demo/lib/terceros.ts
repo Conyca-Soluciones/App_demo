@@ -77,6 +77,27 @@ export type Tercero = {
   cuentas: CuentaTercero[]
 }
 
+// Una fila de "Cuentas por verificar" (20261231200000): la cuenta PENDIENTE con
+// su tercero, quién la creó, su certificación (la de la cuenta o, si no tiene,
+// la del contratista del tercero) y cuántos pagos la esperan.
+export type CuentaPorVerificar = {
+  cuentaId: string
+  terceroId: string
+  razonSocial: string
+  tipoDocumento: TipoDocumentoTercero
+  numeroDocumento: string
+  dv: string | null
+  banco: string
+  tipoCuenta: TipoCuentaTercero
+  numeroCuenta: string
+  etiqueta: string | null
+  observaciones: string | null
+  creadoEn: string | null
+  creadoPor: string | null
+  certificacion: { origen: "cuenta" | "contratista"; nombre: string; mime: string } | null
+  pagos: number
+}
+
 export type FiltrosTerceros = {
   documento?: string
   nombre?: string

@@ -1628,6 +1628,18 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   y `listar_bancos_admin` también van por `tercero_id`; `guardar_banco` ya no toca
   contratistas. Los contratistas de prueba se enlazaron (o se les creó el tercero,
   sin cuenta).
+- **Cuentas por verificar** (`20261231200000`, decisión del usuario 2026-11-06):
+  pestaña en Terceros (`components/terceros-pestanas.tsx`,
+  `components/cuentas-por-verificar.tsx`; `?vista=verificar`, a donde lleva
+  Mis pendientes). Lista de las PENDIENTES (`cuentas_por_verificar()`, las con
+  pagos esperando primero) y, al lado, la certificación de la elegida
+  (`url_certificacion_cuenta`: la de la cuenta o, si no tiene, la del
+  contratista) con "Verificar y seguir", verificar varias marcadas
+  (`verificarCuentas`), subir la certificación (bucket privado `terceros`,
+  `guardar_certificacion_cuenta`, columnas `terceros_cuentas.certificacion_*`)
+  y Editar (abre `TerceroDialogo`). Solo con `editar_terceros` o
+  `verificar_terceros`; Contabilidad ve solo la lista de terceros. Crear un
+  tercero todavía no pide la certificación.
 - **Proveedores enlazados** (`20261223000000_proveedores_tercero.sql`):
   `proveedores.tercero_id` (único; 393 de 394 enlazados por documento; EQUINORTE
   PV0318 sin documento queda sin tercero). Nuevo proveedor = `SelectorTercero`
@@ -3765,7 +3777,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha ·
 `20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
 `20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
-`20261231100000` campanita: no leídas arriba y borrar notificaciones propias.
+`20261231100000` campanita: no leídas arriba y borrar notificaciones propias ·
+`20261231200000` Terceros › Cuentas por verificar (tabla, certificación por cuenta).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

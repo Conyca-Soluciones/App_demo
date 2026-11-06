@@ -9,6 +9,7 @@ import {
   validarCuenta,
   validarTercero,
   type Banco,
+  type CuentaPorVerificar,
   type CuentaTercero,
   type DatosCuenta,
   type DatosTercero,
@@ -340,4 +341,77 @@ async function cambiarEstado(
   if (error) throw new Error(error.message)
   if (!data || data.length === 0) throw new Error("No se pudo cambiar el estado de la cuenta (¿tienes permiso?).")
   return await obtenerTercero(terceroId)
+}
+
+// ------------------------------------------------- cuentas por verificar
+
+// Todas las cuentas PENDIENTES (pocas: se verifican a diario), las que tienen
+// pagos esperando primero. 20261231200000.
+export async function listarCuentasPorVerificar(): Promise<CuentaPorVerificar[]> {
+  await requerirPestana(PESTANA)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("cuentas_por_verificar")
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as any[]).map((f) => ({
+    cuentaId: f.cuenta_id,
+    terceroId: f.tercero_id,
+    razonSocial: f.razon_social,
+    tipoDocumento: f.tipo_documento,
+    numeroDocumento: f.numero_documento,
+    dv: f.dv ?? null,
+    banco: f.banco ?? "",
+    tipoCuenta: f.tipo_cuenta,
+    numeroCuenta: f.numero_cuenta,
+    etiqueta: f.etiqueta ?? null,
+    observaciones: f.observaciones ?? null,
+    creadoEn: f.creado_en ?? null,
+    creadoPor: f.creado_por ?? null,
+    certificacion: f.certificacion ?? null,
+    pagos: Number(f.pagos ?? 0),
+  }))
+}
+
+// Enlace firmado de 2 minutos para VER la certificación (sin descarga), o null.
+export async function urlCertificacionCuenta(cuentaId: string): Promise<{ url: string; nombre: string; mime: string } | null> {
+  await requerirPestana(PESTANA)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("url_certificacion_cuenta", { p_cuenta_id: cuentaId })
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  const d = data as { bucket: string; ruta: string; nombre: string; mime: string }
+  const { data: firmado, error: e } = await supabase.storage.from(d.bucket).createSignedUrl(d.ruta, 120)
+  if (e || !firmado) throw new Error(e?.message ?? "No se pudo abrir la certificación.")
+  return { url: firmado.signedUrl, nombre: d.nombre, mime: d.mime }
+}
+
+// Registra la certificación que el navegador ya subió al bucket `terceros`.
+export async function guardarCertificacionCuenta(cuentaId: string, ruta: string, nombre: string, mime: string): Promise<void> {
+  await requerirPestana(PESTANA)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("guardar_certificacion_cuenta", {
+    p_cuenta_id: cuentaId,
+    p_ruta: ruta,
+    p_nombre: nombre,
+    p_mime: mime,
+  })
+  if (error) throw new Error(error.message)
+}
+
+// Verificar varias a la vez (la base guarda quién y cuándo; solo las PENDIENTES).
+export async function verificarCuentas(ids: string[]): Promise<number> {
+  await requerirAccion("verificar_terceros")
+  if (ids.length === 0) return 0
+  const supabase = await createClient()
+  let n = 0
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase
+      .from("terceros_cuentas")
+      .update({ estado: "ACTIVO" })
+      .in("id", ids.slice(i, i + 100))
+      .eq("estado", "PENDIENTE")
+      .select("id")
+    if (error) throw new Error(error.message)
+    n += data?.length ?? 0
+  }
+  return n
 }
