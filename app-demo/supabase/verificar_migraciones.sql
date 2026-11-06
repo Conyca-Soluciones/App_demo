@@ -601,5 +601,9 @@ select * from (
          and exists (select 1 from information_schema.columns
                       where table_schema = 'public' and table_name = 'requisiciones_vista' and column_name = 'codigo')
          and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%r.codigo%')
+  union all
+  select '20261231500000_codigos_textos_restantes',
+         exists (select 1 from pg_proc where proname = '_resolver_requisicion_sin_proyecto' and prosrc like '%v_h.codigo%')
+         and exists (select 1 from pg_proc where proname = '_historial_entrada' and prosrc like '%o.codigo%')
 ) t
 order by 1;

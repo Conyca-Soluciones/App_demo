@@ -3795,7 +3795,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231100000` campanita: no leídas arriba y borrar notificaciones propias ·
 `20261231200000` Terceros › Cuentas por verificar (tabla, certificación por cuenta) ·
 `20261231300000` proyecto de los pagos para A&F (soporte del dispersor y columnas Proyecto) ·
-`20261231400000` requisiciones con código RQ-001-0001.
+`20261231400000` requisiciones con código RQ-001-0001 ·
+`20261231500000` avisos e historial que quedaban con el número viejo (requisición, OC).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
