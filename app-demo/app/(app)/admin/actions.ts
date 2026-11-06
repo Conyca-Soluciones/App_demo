@@ -227,7 +227,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
 }
 
 export type CrearProyectoInput = {
-  numero?: number | null // vacío = el siguiente libre
+  numero?: number | null // vacío = el siguiente libre; 0 = 000 (Funcionamiento)
   codigo?: string | null
   nombre: string
   ciudad?: string | null
@@ -241,7 +241,7 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
   const { data, error } = await supabase
     .from("proyectos")
     .insert({
-      ...(input.numero ? { numero: input.numero } : {}),
+      ...(input.numero != null ? { numero: input.numero } : {}),
       codigo: input.codigo?.trim() || null,
       nombre: input.nombre,
       ciudad: input.ciudad?.trim() || null,

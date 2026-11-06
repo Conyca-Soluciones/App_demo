@@ -50,7 +50,7 @@ update public.proyectos p set numero = x.n
  where x.id = p.id and p.numero is null;
 alter table public.proyectos alter column numero set not null;
 alter table public.proyectos drop constraint if exists proyectos_numero_rango;
-alter table public.proyectos add constraint proyectos_numero_rango check (numero between 1 and 999);
+alter table public.proyectos add constraint proyectos_numero_rango check (numero between 0 and 999);  -- 000 = FUNCIONAMIENTO (decisión del usuario)
 create unique index if not exists proyectos_numero_unico on public.proyectos (numero);
 
 -- (Después de crear la columna: una función SQL revisa sus columnas al crearse.)
