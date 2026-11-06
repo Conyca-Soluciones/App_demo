@@ -73,7 +73,8 @@ export async function buscarUsuarios(termino: string): Promise<UsuarioSugerido[]
 }
 
 export type FiltrosPedidosCompra = {
-  proyectoId: string
+  // null = todos los proyectos que la persona ve (la RLS decide cuáles).
+  proyectoId: string | null
   usuarioId?: string | null
   insumoId?: string | null
   observacion?: string | null
@@ -116,13 +117,14 @@ export type PedidoParaComprar = {
   observaciones: string | null
   soporteUrl: string | null
   solicitadoPorNombre: string | null
+  proyectoId: string
   // Proyecto de la requisición: "001 · ZZ-PRUEBA" (número y código).
   proyectoTexto: string | null
   resueltoAt: string | null
 }
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
-  id, grupo_pedido_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
+  id, grupo_pedido_id, proyecto_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
   requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
@@ -184,6 +186,7 @@ function mapPedidoParaComprar(f: any): PedidoParaComprar {
     observaciones: f.observaciones,
     soporteUrl: f.soporte_url,
     solicitadoPorNombre: f.solicitante?.nombre ?? null,
+    proyectoId: f.proyecto_id,
     proyectoTexto: f.proyecto
       ? [f.proyecto.numero != null ? String(f.proyecto.numero).padStart(3, "0") : null, f.proyecto.codigo ?? f.proyecto.nombre]
           .filter(Boolean)
@@ -206,13 +209,13 @@ export async function listarPedidosParaComprar(
     let query = supabase
       .from("pedidos_insumos")
       .select(soloPendientes ? SELECT_PENDIENTES_POR_COMPRAR : SELECT_PEDIDO_PARA_COMPRAR)
-      .eq("proyecto_id", filtros.proyectoId)
       .eq("estado", "aprobado")
       .is("rechazado_compras_at", null)
       .order("urgente", { ascending: false })
       .order("fecha_requerida", { ascending: true })
       .order("id", { ascending: true })
 
+    if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
     if (soloPendientes) query = query.eq("requisicion.estado_compra", "pendiente")
     if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
     if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
