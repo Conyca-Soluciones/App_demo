@@ -65,6 +65,7 @@ const celdaCandidato = "border-r px-3 py-2 text-sm last:border-r-0"
 // búsqueda nueva (InsumoSimilar) sin necesitar casts.
 type FilaCandidatoInsumo = {
   id: string
+  codigo?: number | null
   descripcion: string
   u_m: string | null
   vr_unitario: number | null
@@ -209,6 +210,7 @@ function TablaCandidatos({
                 >
                   <td className={celdaCandidato}>
                     {sel && <span className="mr-1 text-primary">✓</span>}
+                    {c.codigo != null && <span className="mr-1.5 text-muted-foreground tabular-nums">{c.codigo}</span>}
                     {c.descripcion}
                   </td>
                   <td className={`${celdaCandidato} text-muted-foreground`}>
@@ -640,7 +642,7 @@ type Eleccion =
 // solo ítem que nombrar -- se deja el título genérico.
 function tituloRevision(
   itemIds: string[],
-  itemsPorId: Record<string, { codigo: string; descripcion: string }> | undefined
+  itemsPorId: Record<string, { codigo: string; descripcion: string; unidad?: string | null }> | undefined
 ): string {
   if (itemIds.length !== 1) return "Revisión de APU"
   const item = itemsPorId?.[itemIds[0]]
@@ -1739,6 +1741,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                               <div>
                                 <p className="text-sm font-medium text-muted-foreground">
                                   {textoItem("Mano de obra para", item)}
+                                  {item?.unidad && (
+                                    <span className="ml-2 rounded border bg-muted px-1.5 py-0.5 text-xs font-semibold text-foreground">
+                                      Unidad del ítem: {nombreUnidad(item.unidad) || item.unidad}
+                                    </span>
+                                  )}
                                 </p>
                                 <p className="text-xs italic text-muted-foreground/70">
                                   Está en el presupuesto como: {fila.descripcionOriginal}
@@ -1847,6 +1854,11 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                           <div>
                             <p className="text-sm font-medium text-muted-foreground">
                               {textoItem("Mano de obra para", item)}
+                              {item?.unidad && (
+                                <span className="ml-2 rounded border bg-muted px-1.5 py-0.5 text-xs font-semibold text-foreground">
+                                  Unidad del ítem: {nombreUnidad(item.unidad) || item.unidad}
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs italic text-muted-foreground/70">
                               Está en el presupuesto como: {fila.descripcionOriginal}
@@ -2271,7 +2283,7 @@ function GrupoInsumoPendiente({
 }: {
   clave: string
   filasGrupo: FilaRevisionImport[]
-  itemsPorId: Record<string, { codigo: string; descripcion: string }>
+  itemsPorId: Record<string, { codigo: string; descripcion: string; unidad?: string | null }>
   elecciones: Record<string, Eleccion>
   guardandoIds: Set<string>
   onElegirCandidato: (insumoId: string) => void
@@ -2489,7 +2501,7 @@ function GrupoEquipoPendiente({
 }: {
   clave: string
   filasGrupo: FilaRevisionImport[]
-  itemsPorId: Record<string, { codigo: string; descripcion: string }>
+  itemsPorId: Record<string, { codigo: string; descripcion: string; unidad?: string | null }>
   elecciones: Record<string, Eleccion>
   guardandoIds: Set<string>
   onElegirEquipo: (equipoId: string) => void

@@ -71,7 +71,6 @@ export const PESTANAS: Pestana[] = [
 
   { clave: "tecnico.pedidos", titulo: "Elaboración de requisiciones", seccion: "Requisiciones", url: "/almacen", rutas: ["/almacen"] },
   { clave: "tecnico.registro_pedidos", titulo: "Registro de requisiciones", seccion: "Requisiciones", url: "/almacen/registro-requisiciones", rutas: ["/almacen/registro-requisiciones"] },
-  { clave: "tecnico.aprobar_pedidos", titulo: "Aprobación de requisiciones", seccion: "Requisiciones", url: "/admin-tecnico", rutas: ["/admin-tecnico"] },
   // Lo que se pide por encima del presupuesto ("Solicitar requisición extraordinaria a Gerencia"); la
   // aprueba Gerencia (20261226000000_requisiciones_extraordinarias.sql).
   { clave: "tecnico.aprobar_extraordinarias", titulo: "Aprobación de requisiciones extraordinarias", seccion: "Requisiciones", url: "/almacen/requisiciones-extraordinarias", rutas: ["/almacen/requisiciones-extraordinarias"], nota: "Requisiciones por encima del presupuesto; las aprueba Gerencia." },

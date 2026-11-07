@@ -642,5 +642,9 @@ select * from (
   union all
   select '20261231950000_control_gasto_administrativo',
          exists (select 1 from pg_proc where proname = 'control_proyecto' and prosrc like '%administrativo_pagos%')
+  union all
+  select '20261231960000_requisiciones_sin_aprobacion',
+         exists (select 1 from pg_proc where proname = 'crear_requisicion' and prosrc like '%''aprobado'', now()%')
+         and not exists (select 1 from rol_permisos where permiso = 'tab.tecnico.aprobar_pedidos')
 ) t
 order by 1;

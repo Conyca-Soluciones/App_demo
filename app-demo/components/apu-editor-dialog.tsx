@@ -212,6 +212,7 @@ export function ApuEditorDialog({
   presupuestoItemId,
   codigo,
   descripcion,
+  unidad,
   guardado,
   apuIdPendiente,
   onValorActualizado,
@@ -222,6 +223,9 @@ export function ApuEditorDialog({
   presupuestoItemId: string
   codigo: string
   descripcion: string
+  // unidad del ítem, para elegir mano de obra en la misma unidad (por
+  // unidad vs. por m2, etc.)
+  unidad?: string | null
   // false si el ítem todavía no se ha guardado en presupuesto_items --
   // en ese caso el APU se arma "suelto" (standalone) y solo se enlaza
   // al ítem cuando se guarde el presupuesto completo.
@@ -407,6 +411,11 @@ export function ApuEditorDialog({
         <DialogHeader className="border-b px-8 py-5">
           <DialogTitle className="flex items-center gap-2 text-xl">
             APU — {codigo} · {descripcion}
+            {unidad && (
+              <span className="rounded border bg-muted px-2 py-0.5 text-sm font-semibold">
+                Unidad: {nombreUnidad(unidad) || unidad}
+              </span>
+            )}
             {guardadoReciente && (
               <span className="animate-in fade-in text-sm font-normal text-emerald-600">
                 ✓ Guardado
@@ -551,6 +560,7 @@ function SeccionCategoria({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-t bg-muted/30 text-left text-xs text-muted-foreground">
+              <th className="px-4 py-2 font-medium">Código</th>
               <th className="px-4 py-2 font-medium">Descripción</th>
               <th className="px-4 py-2 font-medium">Unidad</th>
               <th className="px-4 py-2 font-medium text-right">Cantidad</th>
@@ -563,6 +573,7 @@ function SeccionCategoria({
           <tbody>
             {items.map((it) => (
               <tr key={it.id} className="border-t">
+                <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{it.codigo ?? ""}</td>
                 <td className="px-4 py-2.5">{it.descripcion}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">
                   {it.uM ?? "—"}

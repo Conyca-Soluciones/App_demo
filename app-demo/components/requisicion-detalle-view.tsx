@@ -159,9 +159,13 @@ export function RequisicionDetalleView({
     )
   }
 
-  // Quien la hizo puede modificarla o cancelarla mientras esté pendiente.
+  // Quien la hizo puede modificarla mientras esté pendiente (extraordinarias) y
+  // cancelarla también aprobada, mientras nada esté comprado (la base revisa
+  // que no esté en una orden de compra vigente).
   const esDueno = usuarioId !== null && req.solicitanteId === usuarioId
   const puedeEditar = esDueno && req.estado === "pendiente"
+  const puedeCancelar =
+    puedeEditar || (esDueno && req.estado === "aprobada" && req.lineas.every((l) => l.comprado === 0))
   const mostrarCompra = req.estado === "aprobada"
 
   return (
@@ -177,10 +181,10 @@ export function RequisicionDetalleView({
               Compra: <BadgeCompraRequisicion estadoCompra={req.estadoCompra} />
             </span>
           )}
-          {puedeEditar && (
+          {puedeCancelar && (
             <>
               {/* Una extraordinaria no se modifica: se cancela y se pide otra. */}
-              {!req.extraordinaria && (
+              {puedeEditar && !req.extraordinaria && (
                 <Button variant="outline" disabled={procesando} onClick={abrirEdicion}>
                   Modificar
                 </Button>

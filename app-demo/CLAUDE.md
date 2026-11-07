@@ -2512,6 +2512,19 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 
+## Requisiciones técnicas sin aprobación (2026-11-07)
+
+`20261231960000_requisiciones_sin_aprobacion.sql` (decisión del usuario). La
+requisición normal NACE APROBADA (`crear_requisicion` inserta las líneas en
+'aprobado') y pasa de una vez a Requisiciones por comprar; el control queda en
+la OC (Aprobación de pagos). Se quitó la pestaña Aprobación de requisiciones
+(`tecnico.aprobar_pedidos`, de `PESTANAS` y de `rol_permisos`); las acciones
+`aprobar_pedidos` / `desaprobar_pedidos` se dejaron porque `aprobar_pedidos`
+también da lectura en políticas. Quien la hizo la cancela mientras ninguna línea
+esté en una OC vigente (`cancelar_requisicion`). Modificar sigue solo para
+pendientes, o sea que ya no aplica: se cancela y se pide otra. Las
+extraordinarias no cambiaron (las aprueba Gerencia).
+
 ## Requisiciones extraordinarias (2026-11-05)
 
 `20261226000000_requisiciones_extraordinarias.sql` (decisión del usuario). Lo que
@@ -3882,7 +3895,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231700000` firmas que faltaban al registrar Mi firma y fin vigente del contrato ·
 `20261231800000` pagos administrativos con método por ítem ·
 `20261231900000` requisiciones administrativas (FUNCIONAMIENTO o proyecto) ·
-`20261231950000` Control del proyecto: gasto administrativo aparte.
+`20261231950000` Control del proyecto: gasto administrativo aparte ·
+`20261231960000` requisiciones técnicas sin aprobación (nacen aprobadas).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

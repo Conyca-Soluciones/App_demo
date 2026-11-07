@@ -274,12 +274,12 @@ export function SolicitudExtraordinariaDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !guardando && onOpenChange(v)}>
-      <DialogContent className="w-[95vw] max-w-3xl p-0">
+      <DialogContent className="w-[95vw] max-w-[1200px] sm:max-w-[1200px] p-0">
         <DialogHeader className="border-b px-8 py-5">
           <DialogTitle className="text-xl">{TITULO_EXTRAORDINARIA}</DialogTitle>
         </DialogHeader>
 
-        <div className="max-h-[75vh] space-y-5 overflow-y-auto px-8 py-6">
+        <div className="max-h-[82vh] space-y-5 overflow-y-auto px-8 py-6">
           <p className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             Requisición extraordinaria: pide más de lo que contempla el presupuesto, o un material que el ítem no tiene

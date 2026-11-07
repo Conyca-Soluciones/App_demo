@@ -360,7 +360,7 @@ export function FormularioRequisicion({
                 placeholder={
                   limiteAlcanzado
                     ? "Llegaste al máximo de insumos por requisición"
-                    : "Buscar por código o descripción..."
+                    : "Buscar por código de insumo, nombre o código de ítem..."
                 }
                 disabled={limiteAlcanzado}
                 className="h-11"

@@ -592,8 +592,8 @@ export async function obtenerRequisicion(id: string): Promise<RequisicionDetalle
   }
 }
 
-// Solo quien la hizo, y solo mientras está pendiente de aprobación (lo valida
-// la base). El cupo de todas sus líneas vuelve al presupuesto.
+// Solo quien la hizo, y solo mientras no esté en una orden de compra vigente
+// (lo valida la base). El cupo de todas sus líneas vuelve al presupuesto.
 export async function cancelarRequisicion(id: string, motivo: string) {
   if (!motivo.trim()) throw new Error("El motivo de cancelación es obligatorio.")
   const supabase = await createClient()

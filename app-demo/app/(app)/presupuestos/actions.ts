@@ -3792,7 +3792,7 @@ export type LoteRevisionInfo = {
   filas: FilaRevisionImport[]
   // código + descripción del ítem, para mostrar contexto en la pestaña
   // (una fila de apu_import_revision no trae esto directo)
-  itemsPorId: Record<string, { codigo: string; descripcion: string }>
+  itemsPorId: Record<string, { codigo: string; descripcion: string; unidad?: string | null }>
   // capítulo (ancestro de nivel 1 en presupuesto_items) de cada ítem --
   // para agrupar/ordenar "Pendientes" por capítulo en el diálogo de
   // revisión (ver revision-apu-dialog.tsx). Se resuelve subiendo la
@@ -3801,7 +3801,7 @@ export type LoteRevisionInfo = {
 }
  
 const SELECT_REVISION_CON_MOTIVO =
-  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, presupuesto_items(id, codigo, descripcion, padre_id, nivel), transporte_precios(id, valor_unitario)"
+  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
  
 export async function listarRevisionLote(loteImportId: string): Promise<LoteRevisionInfo> {
   const supabase = await createClient()
@@ -3909,7 +3909,7 @@ async function mapearFilasConItems(
   const filas = data.map(mapearFilaRevision)
   await anotarUnidadesCandidatos(filas)
  
-  const itemsPorId: Record<string, { codigo: string; descripcion: string }> = {}
+  const itemsPorId: Record<string, { codigo: string; descripcion: string; unidad?: string | null }> = {}
   // Nodos que ya trajo el select principal (sin round trip extra) --
   // clave = presupuesto_items.id, que es el mismo valor que
   // apu_import_revision.presupuesto_item_id.
@@ -3917,7 +3917,7 @@ async function mapearFilasConItems(
   for (const fila of data) {
     const item = fila.presupuesto_items
     if (!item) continue
-    itemsPorId[fila.presupuesto_item_id] = { codigo: item.codigo, descripcion: item.descripcion }
+    itemsPorId[fila.presupuesto_item_id] = { codigo: item.codigo, descripcion: item.descripcion, unidad: item.unidad ?? null }
     nodos.set(item.id, {
       id: item.id,
       padre_id: item.padre_id,

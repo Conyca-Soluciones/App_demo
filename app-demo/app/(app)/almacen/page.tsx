@@ -80,7 +80,7 @@ function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; pro
             <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               {creada.extraordinaria
                 ? `Requisición extraordinaria ${creada.codigo} enviada a Gerencia.`
-                : `Requisición ${creada.codigo} creada.`}{" "}
+                : `Requisición ${creada.codigo} creada y enviada a Compras.`}{" "}
               <Link
                 href={`/almacen/registro-requisiciones/${creada.requisicionId}`}
                 className="font-medium underline underline-offset-2"

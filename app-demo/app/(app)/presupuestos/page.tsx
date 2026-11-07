@@ -2109,6 +2109,7 @@ function PresupuestoDeProyecto() {
           presupuestoItemId={itemApuAbierto.id}
           codigo={itemApuAbierto.codigo}
           descripcion={itemApuAbierto.descripcion}
+          unidad={itemApuAbierto.unidad}
           guardado={
             presupuesto.find((i) => i.id === itemApuAbierto.id)?.guardado ??
             itemApuAbierto.guardado
