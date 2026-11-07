@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { Download, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -131,9 +132,9 @@ export function OtrosiEditor({ detalle, puedeEditar }: { detalle: OtrosiDetalle;
     }
   }
 
-  function restablecer() {
+  async function restablecer() {
     if (!datos) return
-    if (!confirm("¿Volver a llenar el otrosí con los datos del contrato y de la solicitud? Se pierde lo que se haya editado (hasta que guardes, lo guardado no cambia).")) return
+    if (!(await confirmar("¿Volver a llenar el otrosí con los datos del contrato y de la solicitud? Se pierde lo que se haya editado (hasta que guardes, lo guardado no cambia).", { boton: "Volver a llenar" }))) return
     setM(datos.porDefecto)
     setCambios(true)
     setAviso(null)

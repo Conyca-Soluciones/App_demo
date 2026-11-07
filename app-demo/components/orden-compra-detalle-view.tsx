@@ -1,6 +1,7 @@
 "use client"
 
 import { formatearFechaSinHora } from "@/lib/fechas"
+import { TituloPestana } from "@/components/titulo-pestana"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -162,6 +163,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <TituloPestana titulo={`Orden de compra ${orden.codigo}`} />
           <h1 className="text-2xl font-semibold">Orden de compra {orden.codigo}</h1>
           <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
 
@@ -240,7 +242,8 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               <TableRow>
                 <TableHead>Cod</TableHead>
                 <TableHead>Insumo</TableHead>
-                <TableHead>Requisición</TableHead>
+                <TableHead>Ítem</TableHead>
+                <TableHead>REF</TableHead>
                 <TableHead>UM</TableHead>
                 <TableHead className="text-right">Cantidad</TableHead>
                 <TableHead className="text-right">Precio unit.</TableHead>
@@ -254,6 +257,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   <TableRow key={linea.id}>
                     <TableCell className="text-muted-foreground">{linea.insumoCodigo}</TableCell>
                     <TableCell>{linea.insumoDescripcion}</TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">{linea.itemCodigo ?? "—"}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       {linea.requisicion ? (
                         <button
@@ -293,7 +297,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={5} className="text-right text-muted-foreground">
+                <TableCell colSpan={6} className="text-right text-muted-foreground">
                   Subtotal
                 </TableCell>
                 <TableCell colSpan={2} className="text-right text-muted-foreground">
@@ -301,7 +305,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={5} className="text-right text-muted-foreground">
+                <TableCell colSpan={6} className="text-right text-muted-foreground">
                   Descuento
                 </TableCell>
                 <TableCell colSpan={2} className="text-right text-muted-foreground">
@@ -309,7 +313,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={5} className="text-right text-muted-foreground">
+                <TableCell colSpan={6} className="text-right text-muted-foreground">
                   IVA
                 </TableCell>
                 <TableCell colSpan={2} className="text-right text-muted-foreground">
@@ -317,7 +321,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={5} className="text-right font-medium">
+                <TableCell colSpan={6} className="text-right font-medium">
                   Total orden
                 </TableCell>
                 <TableCell colSpan={2} className="text-right font-semibold">
@@ -356,6 +360,12 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           <div className="space-y-1">
             <p className="text-muted-foreground">Proveedor</p>
             <p>{orden.proveedorNombre}</p>
+            {/* El teléfono y el correo de la orden son los del proveedor (Generar OC). */}
+            {(orden.telefono || orden.email) && (
+              <p className="text-xs text-muted-foreground">
+                {[orden.telefono, orden.email].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <p className="text-muted-foreground">Forma de pago</p>
@@ -375,10 +385,15 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               <p>{textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito)}</p>
               {orden.tipoPago === "credito" && orden.fechaPagoCredito && (
                 <p className="text-xs text-muted-foreground">
-                  Aprobado por Gerencia, el pago espera hasta el {formatearFechaSinHora(lunesDeLaSemana(orden.fechaPagoCredito))} (lunes de esa semana) para pasar a pago.
+                  {orden.creditoPagado
+                    ? "El pago ya pasó a pago: la fecha ya no se cambia."
+                    : lunesDeLaSemana(orden.fechaPagoCredito) <= hoyColombia()
+                      ? `La fecha de pago ya llegó (semana del ${formatearFechaSinHora(lunesDeLaSemana(orden.fechaPagoCredito))}): el pago pasa a pago apenas Gerencia lo apruebe.`
+                      : `Aprobado por Gerencia, el pago espera hasta el ${formatearFechaSinHora(lunesDeLaSemana(orden.fechaPagoCredito))} (lunes de esa semana) para pasar a pago.`}
                 </p>
               )}
               {orden.tipoPago === "credito" &&
+                !orden.creditoPagado &&
                 permisos.puedeCambiarFechaCredito &&
                 orden.estado !== "cancelada" &&
                 orden.estado !== "rechazada" &&
@@ -422,11 +437,8 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <p>{formatearFechaSinHora(orden.fechaEntrega)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-muted-foreground">Contacto</p>
+            <p className="text-muted-foreground">Contacto del proyecto</p>
             <p>{orden.contactoNombre ?? "—"}</p>
-            <p className="text-xs text-muted-foreground">
-              {orden.telefono ?? "—"} · {orden.email ?? "—"}
-            </p>
           </div>
           <div className="space-y-1 border-t pt-3">
             <p className="text-muted-foreground">Total de la orden</p>

@@ -25,12 +25,21 @@ export function TercerosPestanas({
   ]
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b" role="tablist">
         {pestanas.map((p) => (
           <button
             key={p.valor}
             type="button"
-            onClick={() => setVista(p.valor)}
+            role="tab"
+            aria-selected={vista === p.valor}
+            onClick={() => {
+              setVista(p.valor)
+              // La URL sigue a la pestaña (al recargar se queda donde estaba).
+              const url = new URL(window.location.href)
+              if (p.valor === "verificar") url.searchParams.set("vista", "verificar")
+              else url.searchParams.delete("vista")
+              window.history.replaceState(null, "", url)
+            }}
             className={`-mb-px border-b-2 px-3 py-2 text-sm ${
               vista === p.valor ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}

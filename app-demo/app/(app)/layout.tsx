@@ -3,6 +3,7 @@ import { ShellSidebar } from "@/components/app-shell"
 import { AppSidebar } from "@/components/app-sidebar"
 import { BarraSuperior } from "@/components/barra-superior"
 import { ProyectoProvider } from "@/components/proyecto-provider"
+import { ConfirmarHost } from "@/components/ui/confirmar"
 import { obtenerPermisosRol, obtenerUsuarioId } from "@/lib/permisos"
 import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
@@ -47,6 +48,7 @@ export default async function Layout({
         <AppSidebar permisos={permisos} />
 
         <SidebarInset className="min-w-0 pt-[var(--alto-barra)]">{children}</SidebarInset>
+        <ConfirmarHost />
       </ShellSidebar>
     </ProyectoProvider>
   )

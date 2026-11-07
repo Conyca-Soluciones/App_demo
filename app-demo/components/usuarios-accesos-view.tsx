@@ -1,6 +1,7 @@
 "use client"
 
 import { COMODIN_LISTAR } from "@/lib/busqueda"
+import { createClient } from "@/lib/supabase/client"
 import { useEffect, useMemo, useState } from "react"
 import { KeyRound, Loader2, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,15 @@ const SIN_ROL = "__sin_rol__"
 
 export function UsuariosAccesosView() {
   const [usuarios, setUsuarios] = useState<UsuarioAcceso[] | null>(null)
+  // Quien está en sesión: su propio rol no se cambia desde aquí (la base
+  // tampoco deja quitarse el de Administrador).
+  const [miId, setMiId] = useState<string | null>(null)
+  useEffect(() => {
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => setMiId(data.user?.id ?? null))
+      .catch(() => setMiId(null))
+  }, [])
   const [roles, setRoles] = useState<RolConPermisos[]>([])
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [busqueda, setBusqueda] = useState("")
@@ -201,14 +211,17 @@ export function UsuariosAccesosView() {
       texto: (u) => (u.rolId ? (roles.find((r) => r.id === u.rolId)?.nombre ?? "") : "Sin rol"),
       celda: (u) => (
         <select
-          className="h-7 w-full rounded-md border bg-background px-2 text-sm"
+          className="h-7 w-full rounded-md border bg-background px-2 text-sm disabled:opacity-60"
+          aria-label={`Rol general de ${u.nombre}`}
           value={u.rolId ?? SIN_ROL}
-          disabled={guardandoRol === u.id}
+          disabled={guardandoRol === u.id || u.id === miId}
           onChange={(e) => cambiarRol(u, e.target.value)}
           title={
-            !u.rolId
-              ? `Permisos anteriores${u.banderasAnteriores.length > 0 ? `: ${u.banderasAnteriores.join(", ")}` : ": ninguno especial"}`
-              : undefined
+            u.id === miId
+              ? "Tu propio rol no se cambia desde tu usuario: pídeselo a otro administrador."
+              : !u.rolId
+                ? `Permisos anteriores${u.banderasAnteriores.length > 0 ? `: ${u.banderasAnteriores.join(", ")}` : ": ninguno especial"}`
+                : undefined
           }
         >
           <option value={SIN_ROL}>Sin rol</option>
@@ -419,22 +432,27 @@ export function UsuariosAccesosView() {
             Se crea la cuenta y tú le entregas el correo y la contraseña a la persona. Después asígnale
             sus proyectos desde la lista.
           </p>
-          <Input placeholder="Nombre" value={nuNombre} onChange={(e) => setNuNombre(e.target.value)} />
+          <Input aria-label="Nombre" placeholder="Nombre" value={nuNombre} onChange={(e) => setNuNombre(e.target.value)} />
           <Input
             type="email"
+            aria-label="Correo"
             placeholder="Correo"
             value={nuEmail}
             onChange={(e) => setNuEmail(e.target.value)}
           />
           <Input
             type="password"
+            aria-label="Contraseña"
             placeholder="Contraseña (mínimo 6 caracteres)"
             value={nuPassword}
             onChange={(e) => setNuPassword(e.target.value)}
           />
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Rol general</label>
+            <label htmlFor="nuevo-usuario-rol" className="text-xs text-muted-foreground">
+              Rol general
+            </label>
             <select
+              id="nuevo-usuario-rol"
               className="h-9 w-full rounded-md border bg-background px-2 text-sm"
               value={nuRol}
               onChange={(e) => setNuRol(e.target.value)}

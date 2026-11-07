@@ -63,7 +63,7 @@ const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; b
   },
   devolver: {
     titulo: "Devolver para corregir",
-    explicacion: "Vuelve al director con este motivo; la corrige y la reenvía con el mismo número. Mientras tanto sigue reservando su cantidad del presupuesto.",
+    explicacion: "Vuelve al director con este motivo; la corrige y la reenvía con el mismo código. Mientras tanto sigue reservando su cantidad del presupuesto.",
     boton: "Devolver",
     pideMotivo: true,
   },
@@ -80,6 +80,15 @@ const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; b
     boton: "Enviar",
     pideMotivo: false,
   },
+}
+
+// El contrato general no reserva presupuesto ni tiene pestaña Minuta: su hoja es la minuta.
+const EXPLICACION_GENERAL: Partial<Record<AccionVista, string>> = {
+  aprobar:
+    "El contrato queda pre-aprobado y pasa a Subgerencia (Aprobación de contratos). Mientras Subgerencia lo revisa no se puede editar.",
+  devolver: "Vuelve al director con este motivo; lo corrige y lo reenvía con el mismo código.",
+  rechazar: "Es definitivo: el contrato se cierra.",
+  enviar: "Mientras Subgerencia lo revisa no se puede editar; si lo devuelve, lo corriges y lo envías otra vez.",
 }
 
 export function PreaprobacionContratosView({ puedeResolver, verInicial }: { puedeResolver: boolean; verInicial: string | null }) {
@@ -332,11 +341,12 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {TEXTO_ACCION[accion.tipo].titulo} N° {accion.detalle.numero}
+                  {TEXTO_ACCION[accion.tipo].titulo} · {accion.detalle.codigo}
                 </DialogTitle>
               </DialogHeader>
               <p className="text-sm text-muted-foreground">
-                {accion.detalle.contratistaNombre} · {pesos(accion.detalle.valor)}. {TEXTO_ACCION[accion.tipo].explicacion}
+                {accion.detalle.contratistaNombre} · {pesos(accion.detalle.valor)}.{" "}
+                {(accion.detalle.clase === "general" && EXPLICACION_GENERAL[accion.tipo]) || TEXTO_ACCION[accion.tipo].explicacion}
               </p>
               {TEXTO_ACCION[accion.tipo].pideMotivo && (
                 <div className="space-y-1">

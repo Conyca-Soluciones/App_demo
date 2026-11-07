@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useMemo, useState } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { Loader2, Lock, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -110,7 +111,7 @@ export function RolesPermisosView() {
   }
 
   async function handleEliminar(rol: RolConPermisos) {
-    if (!confirm(`¿Eliminar el rol "${rol.nombre}"?`)) return
+    if (!(await confirmar(`¿Eliminar el rol "${rol.nombre}"?`, { boton: "Eliminar", peligro: true }))) return
     setError(null)
     try {
       await eliminarRol(rol.id)

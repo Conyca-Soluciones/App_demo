@@ -21,6 +21,8 @@ import { defGrupo, diasDesde, textoEspera, type GrupoPendientes, type PendienteI
 // porque varias pantallas trabajan sobre él.
 // ---------------------------------------------------------------------------
 
+const CLAVE_CERRADOS = "mis-pendientes:cerrados"
+
 export function MisPendientesView() {
   const router = useRouter()
   const { proyecto, proyectos } = useProyectoActual()
@@ -28,7 +30,16 @@ export function MisPendientesView() {
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [abriendo, setAbriendo] = useState<string | null>(null)
-  const [cerrados, setCerrados] = useState<Set<string>>(new Set())
+  // Los grupos que la persona cerró se recuerdan en este navegador (comodidad;
+  // si el navegador no guarda nada, todos salen abiertos).
+  const [cerrados, setCerrados] = useState<Set<string>>(() => {
+    try {
+      const guardado = typeof window !== "undefined" ? window.localStorage.getItem(CLAVE_CERRADOS) : null
+      return new Set(guardado ? (JSON.parse(guardado) as string[]) : [])
+    } catch {
+      return new Set()
+    }
+  })
   const [version, setVersion] = useState(0)
 
   useEffect(() => {
@@ -81,6 +92,11 @@ export function MisPendientesView() {
       const n = new Set(c)
       if (n.has(tipo)) n.delete(tipo)
       else n.add(tipo)
+      try {
+        window.localStorage.setItem(CLAVE_CERRADOS, JSON.stringify([...n]))
+      } catch {
+        // sin almacenamiento: solo dura mientras la página esté abierta
+      }
       return n
     })
   }

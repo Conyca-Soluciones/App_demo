@@ -149,6 +149,7 @@ const EVENTOS_TERCERO: Record<string, { etiqueta: string; tono: "ok" | "malo" | 
   cuenta_pendiente: { etiqueta: "Cuenta pendiente de verificar", tono: "aviso" },
   cuenta_modificada: { etiqueta: "Cuenta modificada", tono: "aviso" },
   cuenta_editada: { etiqueta: "Cuenta editada", tono: "neutro" },
+  cuenta_certificacion: { etiqueta: "Certificación bancaria adjuntada", tono: "neutro" },
   cuenta_borrada: { etiqueta: "Cuenta borrada", tono: "malo" },
 }
 
@@ -376,6 +377,9 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   if (tipo === "tercero") {
     if (e.evento === "tercero_editado") return lineasCambios(d.cambios)
     if (e.evento === "cuenta_modificada" && d.cuenta_antes) return [`${d.cuenta_antes} → ${d.cuenta}`]
+    if (e.evento === "cuenta_certificacion")
+      return [d.cuenta ? String(d.cuenta) : "", d.certificacion ? `Archivo: ${d.certificacion}` : ""].filter(Boolean)
+    if (e.evento === "cuenta_editada") return [...(d.cuenta ? [String(d.cuenta)] : []), ...lineasCambios(d.cambios)]
     if (d.cuenta) return [String(d.cuenta)]
     return []
   }

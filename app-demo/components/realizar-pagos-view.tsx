@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { confirmar as preguntar } from "@/components/ui/confirmar"
 import { AlertTriangle, Download, FileText, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -214,14 +215,14 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
   async function generar() {
     const ids = tandas.flatMap((g) => g.pagos.map((p) => p.id))
     const n = tandas.length
-    if (!window.confirm(`Se van a generar ${n} ${n === 1 ? "dispersor" : "dispersores"} con ${ids.length} pagos por ${formatoMoneda(totalAsignado)}. Los pagos quedan dispersados. ¿Seguir?`)) return
+    if (!(await preguntar(`Se van a generar ${n} ${n === 1 ? "dispersor" : "dispersores"} con ${ids.length} ${ids.length === 1 ? "pago" : "pagos"} por ${formatoMoneda(totalAsignado)}. Los pagos quedan dispersados. ¿Seguir?`, { titulo: "Generar dispersores", boton: "Generar" }))) return
     setOcupado("generar")
     setError(null)
     setAviso(null)
     try {
       const r = await generarDispersores(ids)
       setGeneradas(r)
-      setAviso(`Se generaron ${r.length} ${r.length === 1 ? "dispersor" : "dispersores"}. Los pagos quedaron dispersados.`)
+      setAviso(r.length === 1 ? "Se generó 1 dispersor. Los pagos quedaron dispersados." : `Se generaron ${r.length} dispersores. Los pagos quedaron dispersados.`)
       if (ultimos) cargar(ultimos)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron generar los dispersores.")
@@ -259,7 +260,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
               (p.estado === "dispersado" && paso !== 2) || (vista === "otros" && p.esPse) ? null : (
                 <Checkbox
                   checked={seleccion.has(p.id)}
-                  aria-label="Elegir el pago"
+                  aria-label={`Elegir el pago ${p.item ?? ""} de ${p.beneficiario?.razonSocial ?? p.factura ?? "sin tercero"}`.replace(/\s+/g, " ")}
                   onCheckedChange={(v) =>
                     setSeleccion((s) => {
                       const n = new Set(s)
@@ -452,7 +453,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
               setCuentaId("")
             }}
           >
-            <SelectTrigger className="w-44 bg-background">
+            <SelectTrigger className="w-44 bg-background" aria-label="Banco a debitar">
               <SelectValue placeholder="Banco a debitar" />
             </SelectTrigger>
             <SelectContent>
@@ -464,7 +465,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
             </SelectContent>
           </Select>
           <Select value={cuentaId} onValueChange={(v) => setCuentaId(v ?? "")} disabled={!banco}>
-            <SelectTrigger className="w-60 bg-background">
+            <SelectTrigger className="w-60 bg-background" aria-label="Cuenta a debitar">
               <SelectValue placeholder="Cuenta a debitar" />
             </SelectTrigger>
             <SelectContent>
@@ -476,7 +477,13 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
             </SelectContent>
           </Select>
           <Button size="sm" disabled={ocupado !== null || !cuentaId || idsDe(["listo", "asignado"]).length === 0} onClick={asignar}>
-            Aplicar
+            {ocupado === "asignar" ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Asignando…
+              </>
+            ) : (
+              "Aplicar"
+            )}
           </Button>
           <Button size="sm" variant="outline" disabled={ocupado !== null || idsDe(["asignado"]).length === 0} onClick={quitarAsignacion}>
             Quitar asignación

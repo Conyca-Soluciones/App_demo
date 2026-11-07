@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { Download, Eye, Loader2, PencilLine, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -106,8 +107,8 @@ export function ActaPolizaEditor({
     }
   }
 
-  function restablecer() {
-    if (!confirm("¿Volver a llenar el acta con los datos del contrato? Se pierde lo que se haya editado (lo guardado no cambia hasta que guardes).")) return
+  async function restablecer() {
+    if (!(await confirmar("¿Volver a llenar el acta con los datos del contrato? Se pierde lo que se haya editado (lo guardado no cambia hasta que guardes).", { boton: "Volver a llenar" }))) return
     onChange(defecto)
     setAviso(null)
   }

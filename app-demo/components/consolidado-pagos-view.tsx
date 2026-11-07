@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { confirmar, pedirTexto } from "@/components/ui/confirmar"
 import { Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
 import * as XLSX from "xlsx"
 import { HistorialDialog } from "@/components/historial-timeline"
@@ -301,9 +302,9 @@ export function ConsolidadoPagosView({
 
   const devolverSeleccionados = () =>
     correr("devolver", async () => {
-      const motivo = window.prompt(
-        `¿Devolver ${plural(seleccion.size, "pago", "pagos")} a Preparación? Conservan su REF. Motivo (opcional):`,
-        ""
+      const motivo = await pedirTexto(
+        `Se devuelven ${plural(seleccion.size, "pago", "pagos")} a Preparación. Conservan su REF.`,
+        { titulo: "Devolver a Preparación", etiqueta: "Motivo (opcional)", boton: "Devolver", minimo: 0 }
       )
       if (motivo === null) return null
       const n = await devolverPagosAPreparacion([...seleccion], motivo.trim() || null)
@@ -314,7 +315,7 @@ export function ConsolidadoPagosView({
   const enviarFiltrados = () =>
     correr("enviar_todos", async () => {
       if (!ultimosFiltros) return null
-      if (!window.confirm(`¿Enviar a liquidar los ${conteo?.preparacion ?? ""} pagos en preparación de estos filtros?`)) return null
+      if (!(await confirmar(`¿Enviar a liquidar los ${conteo?.preparacion ?? ""} pagos en preparación de estos filtros?`, { titulo: "Enviar todos a liquidar", boton: "Enviar" }))) return null
       const n = await enviarFiltradosALiquidar(clave, ultimosFiltros)
       recargar()
       return `${plural(n, "pago enviado", "pagos enviados")} a liquidar.`

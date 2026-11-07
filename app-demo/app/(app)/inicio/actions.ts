@@ -15,7 +15,7 @@ export async function listarMisProyectos(): Promise<ProyectoLanding[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("proyectos")
-    .select("id, codigo, nombre, cliente, ciudad")
+    .select("id, numero, codigo, nombre, cliente, ciudad")
     .order("codigo", { ascending: false, nullsFirst: false })
 
   if (error) throw new Error(error.message)

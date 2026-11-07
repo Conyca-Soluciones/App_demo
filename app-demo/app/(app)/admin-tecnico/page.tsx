@@ -72,7 +72,7 @@ export default function AdminTecnico() {
   const [filtros, setFiltros] = useState<FiltrosRequisiciones>({})
 
   const columnas: ColumnaExcel<RequisicionParaAprobar>[] = [
-    { clave: "numero", titulo: "Requisición", ancho: 120, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.codigo, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "REF", ancho: 130, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 190, flexible: true, texto: (r) => r.proyectoCodigo ?? r.proyectoNombre ?? "" },
     { clave: "solicitante", titulo: "Solicitado por", ancho: 170, texto: (r) => r.solicitanteNombre ?? "" },
     { clave: "creada", titulo: "Fecha requisición", ancho: 130, alinear: "center", texto: (r) => formatearFechaSinHora(r.createdAt), valorOrden: (r) => r.createdAt, claseCelda: "tabular-nums" },

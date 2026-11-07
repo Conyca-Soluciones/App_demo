@@ -213,9 +213,8 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
               <Dato label="Sitio de entrega" value={orden.sitioEntrega ?? "—"} />
               <Dato label="Fecha de entrega" value={formatearFechaSinHora(orden.fechaEntrega)} />
               <Dato label="Ciudad" value={orden.ciudad ?? "—"} />
+              {/* El teléfono y el correo de la orden son los del proveedor (van arriba). */}
               <Dato label="Contacto" value={orden.contactoNombre ?? "—"} />
-              <Dato label="Teléfono" value={orden.telefono ?? "—"} />
-              <Dato label="Email" value={orden.email ?? "—"} />
             </View>
           </View>
         </View>

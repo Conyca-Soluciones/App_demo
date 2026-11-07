@@ -83,7 +83,7 @@ export function conEstado(p: PagoDispersor): PagoConEstado {
   let estado: EstadoDispersor
   if (p.estadoPago === "dispersado" || p.dispersion) {
     estado = "dispersado"
-    alertas.push({ nivel: "AVISO", mensaje: "ya se disperso", detalle: p.dispersion ? `en ${p.dispersion.nombreBase} (${p.dispersion.apodo})` : "" })
+    alertas.push({ nivel: "AVISO", mensaje: "ya se dispersó", detalle: p.dispersion ? `en ${p.dispersion.nombreBase} (${p.dispersion.apodo})` : "" })
   } else if (p.esPse) {
     estado = "fuera"
     alertas.push({ nivel: "AVISO", mensaje: "se paga por Pse", detalle: "" })

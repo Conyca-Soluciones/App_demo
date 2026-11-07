@@ -1,6 +1,7 @@
 "use client"
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
+import { confirmar } from "@/components/ui/confirmar"
 import { useEffect, useState } from "react"
 import {
   listarProyectosAdmin,
@@ -446,7 +447,7 @@ function TabEmpresas({
   }
 
   async function handleEliminar(e: Empresa) {
-    if (!confirm(`¿Eliminar la empresa "${e.razonSocial}"?`)) return
+    if (!(await confirmar(`¿Eliminar la empresa "${e.razonSocial}"?`, { boton: "Eliminar", peligro: true }))) return
     setEliminandoId(e.id)
     setError(null)
     try {
