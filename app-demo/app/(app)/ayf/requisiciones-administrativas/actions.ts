@@ -3,124 +3,81 @@
 import { createClient } from "@/lib/supabase/server"
 import { obtenerUsuarioId } from "@/lib/permisos"
 import { TAMANO_PAGINA, cortarPagina } from "@/lib/paginacion"
-import { limiteBusqueda } from "@/lib/busqueda"
-import { documentoFormateado } from "@/lib/terceros"
+import { hoyColombia } from "@/lib/fechas"
 import {
-  itemParaGuardar,
-  mapDetalleReqAdmin,
-  mapFilaReqAdmin,
-  mapOpciones,
-  validarRequisicionAdmin,
-  type CuentaReqAdmin,
-  type EstadoReqAdmin,
-  type ItemFormReqAdmin,
-  type MetodoReqAdmin,
-  type OpcionesReqAdmin,
-  type RequisicionAdminDetalle,
-  type RequisicionAdminFila,
-} from "@/lib/requisiciones-admin"
+  lineasParaGuardar,
+  mapDetalleReqAdministrativa,
+  mapFilaReqAdministrativa,
+  mapProyectoReqAdministrativa,
+  validarReqAdministrativa,
+  type LineaFormReqAdministrativa,
+  type ProyectoReqAdministrativa,
+  type ReqAdministrativaDetalle,
+  type ReqAdministrativaFila,
+} from "@/lib/requisiciones-administrativas"
 
-// Requisiciones administrativas: las hace cualquier usuario con sesión (no hay
-// pestaña ni acción en la matriz). Todo pasa por funciones de la base
-// (20261202000000), que vuelven a validar y exigen la sesión.
+// Requisiciones administrativas (FUNCIONAMIENTO o un proyecto, 20261231900000): las hace
+// cualquier usuario con sesión; todo pasa por funciones de la base, que vuelven
+// a validar y exigen la sesión.
 
 async function clienteConSesion() {
   if (!(await obtenerUsuarioId())) throw new Error("Inicia sesión.")
   return createClient()
 }
 
-export async function opcionesRequisicionAdmin(): Promise<OpcionesReqAdmin> {
+// FUNCIONAMIENTO primero y luego los proyectos que la persona ve con presupuesto.
+export async function listarProyectosReqAdministrativa(): Promise<ProyectoReqAdministrativa[]> {
   const supabase = await clienteConSesion()
-  const { data, error } = await supabase.rpc("opciones_requisicion_admin")
+  const { data, error } = await supabase.rpc("proyectos_requisicion_administrativa")
   if (error) throw new Error(error.message)
-  return mapOpciones(data)
+  return ((data as unknown[]) ?? []).map(mapProyectoReqAdministrativa)
 }
 
-// Terceros inscritos (transferencia): por nombre o documento.
-export async function buscarTercerosRequisicionAdmin(
-  termino: string
-): Promise<{ id: string; etiqueta: string; subetiqueta: string }[]> {
+export async function crearRequisicionAdministrativa(datos: {
+  proyectoId: string
+  lineas: LineaFormReqAdministrativa[]
+  fechaRequerida: string
+  urgente: boolean
+  observaciones: string
+}): Promise<{ id: string; numero: number }> {
+  const error = validarReqAdministrativa(datos.lineas, datos.fechaRequerida, hoyColombia(), datos.proyectoId)
+  if (error) throw new Error(error)
   const supabase = await clienteConSesion()
-  const { data, error } = await supabase.rpc("buscar_terceros_requisicion_admin", {
-    p_q: termino,
-    p_limite: limiteBusqueda(termino),
+  const { data, error: e } = await supabase.rpc("crear_requisicion_administrativa", {
+    p_proyecto_id: datos.proyectoId,
+    p_lineas: lineasParaGuardar(datos.lineas),
+    p_fecha_requerida: datos.fechaRequerida,
+    p_urgente: datos.urgente,
+    p_observaciones: datos.observaciones.trim() || null,
   })
-  if (error) throw new Error(error.message)
-  return ((data ?? []) as any[]).map((t) => ({
-    id: t.id,
-    etiqueta: t.razon_social,
-    subetiqueta: `${t.tipo_documento} ${documentoFormateado({ tipoDocumento: t.tipo_documento, numeroDocumento: t.numero_documento, dv: t.dv })}`,
-  }))
+  if (e) throw new Error(e.message)
+  const r = data as { id: string; numero: number }
+  return { id: r.id, numero: Number(r.numero) }
 }
 
-export async function cuentasTerceroRequisicionAdmin(terceroId: string): Promise<CuentaReqAdmin[]> {
-  const supabase = await clienteConSesion()
-  const { data, error } = await supabase.rpc("cuentas_tercero_requisicion_admin", { p_tercero_id: terceroId })
-  if (error) throw new Error(error.message)
-  return ((data ?? []) as any[]).map((c) => ({
-    id: c.id,
-    banco: c.banco,
-    tipoCuenta: c.tipo_cuenta,
-    numeroCuenta: c.numero_cuenta,
-    verificada: Boolean(c.verificada),
-  }))
-}
-
-function revisar(items: ItemFormReqAdmin[], metodo: MetodoReqAdmin) {
-  if (metodo !== "transferencia" && metodo !== "pse") throw new Error("Elige el método de pago.")
-  const errores = validarRequisicionAdmin(items, metodo)
-  if (errores.length > 0) {
-    const e = errores[0]
-    throw new Error(e.indice >= 0 ? `Ítem ${e.indice + 1}: ${e.mensaje}` : e.mensaje)
-  }
-  return items.map((it) => itemParaGuardar(it, metodo))
-}
-
-export async function crearRequisicionAdmin(metodo: MetodoReqAdmin, items: ItemFormReqAdmin[]): Promise<string> {
-  const payload = revisar(items, metodo)
-  const supabase = await clienteConSesion()
-  const { data, error } = await supabase.rpc("crear_requisicion_admin", { p_metodo: metodo, p_items: payload })
-  if (error) throw new Error(error.message)
-  return data as string
-}
-
-// Por aprobar: la modifica. Rechazada: la corrige y vuelve a A&F (mismo número).
-export async function modificarRequisicionAdmin(id: string, metodo: MetodoReqAdmin, items: ItemFormReqAdmin[]): Promise<void> {
-  const payload = revisar(items, metodo)
-  const supabase = await clienteConSesion()
-  const { error } = await supabase.rpc("modificar_requisicion_admin", { p_id: id, p_metodo: metodo, p_items: payload })
-  if (error) throw new Error(error.message)
-}
-
-export async function cancelarRequisicionAdmin(id: string, motivo: string): Promise<void> {
-  if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
-  const supabase = await clienteConSesion()
-  const { error } = await supabase.rpc("cancelar_requisicion_admin", { p_id: id, p_motivo: motivo.trim() })
-  if (error) throw new Error(error.message)
-}
-
-// Mis requisiciones, una página de 50 (la más reciente primero).
-export async function listarMisRequisicionesAdmin(
-  filtros: { estado?: EstadoReqAdmin; numero?: number } = {},
+export async function listarMisRequisicionesAdministrativas(
   pagina = 0
-): Promise<{ filas: RequisicionAdminFila[]; hayMas: boolean }> {
+): Promise<{ filas: ReqAdministrativaFila[]; hayMas: boolean }> {
   const supabase = await clienteConSesion()
-  const { data, error } = await supabase.rpc("listar_requisiciones_admin", {
-    p_mias: true,
-    p_estado: filtros.estado ?? null,
-    p_numero: filtros.numero ?? null,
+  const { data, error } = await supabase.rpc("listar_requisiciones_administrativas", {
     p_offset: pagina * TAMANO_PAGINA,
     p_limite: TAMANO_PAGINA + 1,
   })
   if (error) throw new Error(error.message)
-  const { filas, hayMas } = cortarPagina((data ?? []) as any[])
-  return { filas: filas.map(mapFilaReqAdmin), hayMas }
+  const { filas, hayMas } = cortarPagina(((data as unknown[]) ?? []).map(mapFilaReqAdministrativa))
+  return { filas, hayMas }
 }
 
-// Quien la hizo o A&F (la base lo revisa).
-export async function obtenerRequisicionAdmin(id: string): Promise<RequisicionAdminDetalle> {
+export async function obtenerRequisicionAdministrativa(id: string): Promise<ReqAdministrativaDetalle> {
   const supabase = await clienteConSesion()
-  const { data, error } = await supabase.rpc("detalle_requisicion_admin", { p_id: id })
+  const { data, error } = await supabase.rpc("detalle_requisicion_administrativa", { p_id: id })
   if (error) throw new Error(error.message)
-  return mapDetalleReqAdmin(data)
+  return mapDetalleReqAdministrativa(data)
+}
+
+export async function cancelarRequisicionAdministrativa(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
+  const supabase = await clienteConSesion()
+  const { error } = await supabase.rpc("cancelar_requisicion_administrativa", { p_id: id, p_motivo: motivo.trim() })
+  if (error) throw new Error(error.message)
 }

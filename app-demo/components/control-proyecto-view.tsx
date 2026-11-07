@@ -16,6 +16,7 @@ import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
 import {
   buscarInsumosPrecios,
   comparacionPrecio,
+  gastoAdministrativo,
   indexarPrecios,
   inicioDeMes,
   partesBarraPlata,
@@ -48,6 +49,7 @@ const fecha = (iso: string) => formatearFechaSinHora(iso)
 const COLOR = {
   compras: "bg-sky-500",
   actas: "bg-emerald-500",
+  administrativo: "bg-violet-500",
 }
 
 type Pestana = "capitulos" | "proveedores" | "contratos" | "ordenes"
@@ -213,15 +215,17 @@ function Resumen({ datos }: { datos: ControlProyecto }) {
         <div className="flex h-4 overflow-hidden rounded bg-muted" aria-hidden="true">
           <div className={COLOR.compras} style={{ width: `${barra.compras}%` }} />
           <div className={COLOR.actas} style={{ width: `${barra.actas}%` }} />
+          <div className={COLOR.administrativo} style={{ width: `${barra.administrativo}%` }} />
         </div>
-        <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-4">
           <Leyenda color={COLOR.compras} texto={`Compras ${pesosCortos(datos.compras)}`} />
           <Leyenda color={COLOR.actas} texto={`Actas (bruto) ${pesosCortos(datos.actas)}`} />
+          <Leyenda color={COLOR.administrativo} texto={`Administrativo ${pesosCortos(gastoAdministrativo(datos))}`} />
           <Leyenda color="bg-muted-foreground/20" texto={`Disponible ${pesosCortos(t.disponible)}`} />
         </div>
         <p className="text-xs text-muted-foreground">
           Compras = órdenes de compra aprobadas (con IVA){datos.excedentes > 0 && `; de eso, ${pesosCortos(datos.excedentes)} son excedentes de compras`}.
-          Actas = valor bruto de las actas aprobadas, antes de descuentos (anticipo, retención en garantía, retenciones); en A&F el pago es el neto. Disponible = presupuesto − compras − actas aprobadas (las requisiciones sin orden de compra no se descuentan).
+          Actas = valor bruto de las actas aprobadas, antes de descuentos (anticipo, retención en garantía, retenciones); en A&F el pago es el neto. Administrativo = requisiciones administrativas compradas ({pesosCortos(datos.administrativoCompras)}) y pagos administrativos aprobados ({pesosCortos(datos.administrativoPagos)}) del proyecto; no van contra un capítulo. Disponible = presupuesto − todo lo anterior (las requisiciones sin orden de compra no se descuentan).
           {datos.presupuestoManoObra > 0 && ` Contratado: ${pct(t.pctContratadoMo)} del presupuesto de mano de obra.`}
           {barra.sobrepasa && " Lo gastado ya supera el presupuesto."}
         </p>
@@ -261,6 +265,11 @@ function Capitulos({ datos }: { datos: ControlProyecto }) {
           )
         })}
       </ul>
+      {gastoAdministrativo(datos) > 0 && (
+        <p className="px-1 text-xs text-muted-foreground">
+          Además, {pesosCortos(gastoAdministrativo(datos))} en gasto administrativo (requisiciones y pagos administrativos), que no va contra un capítulo.
+        </p>
+      )}
       {datos.sinItem > 0 && (
         <p className="px-1 text-xs text-muted-foreground">
           {pesosCortos(datos.sinItem)} de lo gastado viene de ítems que ya no están en la versión vigente del presupuesto.

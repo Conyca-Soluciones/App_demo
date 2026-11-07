@@ -14,13 +14,13 @@ export async function obtenerRequisicionAdminDePago(itemId: string): Promise<Req
     permisos?.esAdministrador ||
     (!permisos?.sinRol &&
       (permisos?.pestanas.includes("ayf.aprobacion_pagos") || permisos?.pestanas.some((p) => p.startsWith("ayf.consolidado_"))))
-  if (!ok) throw new Error("No tienes permiso para ver esta requisición.")
+  if (!ok) throw new Error("No tienes permiso para ver este pago administrativo.")
 
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("requisicion_admin_items")
     .select(
-      `factura_nombre, factura_nit, titular_nombre, titular_tipo_documento, titular_documento, concepto, valor, observaciones,
+      `metodo, factura_nombre, factura_nit, titular_nombre, titular_tipo_documento, titular_documento, concepto, valor, observaciones,
        empresa:empresas(razon_social),
        proyecto:proyectos(codigo, nombre),
        cuenta:terceros_cuentas(numero_cuenta, tipo_cuenta, banco:bancos(nombre)),
@@ -30,12 +30,12 @@ export async function obtenerRequisicionAdminDePago(itemId: string): Promise<Req
     .eq("id", itemId)
     .maybeSingle()
   if (error) throw new Error(error.message)
-  if (!data) throw new Error("La requisición no existe o no tienes acceso.")
+  if (!data) throw new Error("El pago administrativo no existe o no tienes acceso.")
   const f = data as any
   const r = f.requisicion
   return {
     numero: r?.numero ?? null,
-    metodo: r?.metodo ?? "",
+    metodo: f.metodo ?? r?.metodo ?? "",
     estado: r?.estado ?? "",
     creadoPorNombre: r?.creador?.nombre ?? null,
     enviadaEn: r?.enviada_en ?? null,

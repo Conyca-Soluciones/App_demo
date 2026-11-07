@@ -28,12 +28,12 @@ export function EtiquetaEstadoReqAdmin({ estado }: { estado: EstadoReqAdmin }) {
 
 const vacio = <span className="text-muted-foreground/60">—</span>
 
-// Columnas del formato GF-F-018 (B-J, L-N y observaciones). En PSE no van
-// banco, tipo ni número de cuenta.
+// Columnas del formato GF-F-018 (B-J, L-N y observaciones) + el método de cada
+// ítem. Los de PSE no llevan banco, tipo ni número de cuenta.
 export function columnasItemsReqAdmin<T>(
-  metodo: MetodoReqAdmin,
   leer: (fila: T) => {
     orden: number
+    metodo: MetodoReqAdmin
     empresa: string
     facturaNombre: string
     facturaNit: string
@@ -54,6 +54,17 @@ export function columnasItemsReqAdmin<T>(
 ): ColumnaExcel<T>[] {
   const columnas: ColumnaExcel<T>[] = [
     { clave: "orden", titulo: "Ítem", ancho: 56, alinear: "center", fija: true, texto: (f) => String(leer(f).orden) },
+    {
+      clave: "metodo",
+      titulo: "Se paga por",
+      ancho: 120,
+      texto: (f) => ETIQUETA_METODO_REQ_ADMIN[leer(f).metodo],
+      celda: (f) => (
+        <Badge variant="outline" className={`h-6 px-2 text-xs ${leer(f).metodo === "pse" ? "border-sky-300 bg-sky-50 text-sky-800" : ""}`}>
+          {ETIQUETA_METODO_REQ_ADMIN[leer(f).metodo]}
+        </Badge>
+      ),
+    },
     { clave: "empresa", titulo: "Grupo empresarial", ancho: 200, texto: (f) => leer(f).empresa },
     { clave: "factura", titulo: "Empresa que factura", ancho: 220, texto: (f) => leer(f).facturaNombre },
     { clave: "nit", titulo: "NIT empresa que factura", ancho: 140, texto: (f) => leer(f).facturaNit },
@@ -61,7 +72,7 @@ export function columnasItemsReqAdmin<T>(
     { clave: "tipoDocumento", titulo: "Tipo de documento", ancho: 100, alinear: "center", texto: (f) => leer(f).titularTipoDocumento },
     { clave: "documento", titulo: "NIT o CC titular", ancho: 130, texto: (f) => leer(f).titularDocumento },
   ]
-  if (metodo === "transferencia") {
+  {
     columnas.push(
       { clave: "banco", titulo: "Banco", ancho: 150, texto: (f) => leer(f).banco ?? "", celda: (f) => leer(f).banco ?? vacio },
       {
@@ -138,6 +149,7 @@ export function columnasItemsReqAdmin<T>(
 
 const leerItem = (i: ItemReqAdmin) => ({
   orden: i.orden,
+  metodo: i.metodo,
   empresa: i.empresaNombre,
   facturaNombre: i.facturaNombre,
   facturaNit: i.facturaNit,
@@ -178,10 +190,10 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
   )
 }
 
-// Detalle de una requisición administrativa (quien la hizo y A&F). Los
+// Detalle de un cuadro de pagos administrativos (quien lo hizo y A&F). Los
 // botones los pone cada pantalla.
 export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdminDetalle }) {
-  const columnas = columnasItemsReqAdmin<ItemReqAdmin>(detalle.metodo, leerItem)
+  const columnas = columnasItemsReqAdmin<ItemReqAdmin>(leerItem)
   // Pago de cada ítem (una fila del consolidado); A&F los aprueba o rechaza
   // juntos, con la requisición.
   columnas.push({
@@ -218,7 +230,7 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
         <Dato etiqueta="Estado">
           <EtiquetaEstadoReqAdmin estado={detalle.estado} />
         </Dato>
-        <Dato etiqueta="Método de pago">{ETIQUETA_METODO_REQ_ADMIN[detalle.metodo]}</Dato>
+        <Dato etiqueta="Se paga por">{ETIQUETA_METODO_REQ_ADMIN[detalle.metodo]}</Dato>
         <Dato etiqueta="Solicita">{detalle.creadoPorNombre ?? "—"}</Dato>
         <Dato etiqueta="Enviada">{formatearFechaHora(detalle.enviadaEn)}</Dato>
         <Dato etiqueta="Ítems">{detalle.nItems}</Dato>
@@ -253,7 +265,7 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
           titulo: (i) => `${i.orden}. ${i.facturaNombre}`,
           subtitulo: (i) => i.concepto,
           esquina: (i) => <span className="text-sm font-medium tabular-nums">{formatoMoneda(i.valor)}</span>,
-          campos: ["empresa", "titular", "documento", ...(detalle.metodo === "transferencia" ? ["banco", "numeroCuenta"] : []), "proyecto", "observaciones", "pago"],
+          campos: ["metodo", "empresa", "titular", "documento", "banco", "numeroCuenta", "proyecto", "observaciones", "pago"],
         }}
       />
       <p className="text-right text-sm">

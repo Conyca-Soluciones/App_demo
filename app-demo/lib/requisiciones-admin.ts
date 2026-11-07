@@ -1,12 +1,15 @@
 // ---------------------------------------------------------------------------
-// Requisiciones administrativas (A&F), formato GF-F-018 "Relación de pagos"
-// (20261202000000_requisiciones_administrativas.sql). Las hace cualquier
-// usuario; A&F las aprueba o rechaza completas en Aprobación de pagos y, al
-// aprobarse, cada ítem es un pago aprobado en el consolidado.
+// Pagos administrativos (A&F; antes "requisiciones administrativas", en la
+// base y en el código siguen con ese nombre: requisiciones_admin), formato
+// GF-F-018 "Relación de pagos" (20261202000000_requisiciones_administrativas.sql).
+// Los hace cualquier usuario; A&F aprueba o rechaza el cuadro completo en
+// Aprobación de pagos y, al aprobarse, cada ítem es un pago aprobado en el
+// consolidado.
 //
-// Transferencia: el tercero que factura y el titular de la cuenta están en
-// Terceros (columnas B-J, L-N y observaciones). PSE: los datos se escriben y
-// no lleva banco, tipo ni número de cuenta (H-J).
+// Cada ÍTEM es por transferencia o PSE (20261231800000; antes todo el cuadro
+// era de un solo método). Transferencia: el tercero que factura y el titular
+// de la cuenta están en Terceros (columnas B-J, L-N y observaciones). PSE: los
+// datos se escriben y no lleva banco, tipo ni número de cuenta (H-J).
 //
 // Se aprueba en Aprobación de pagos como una orden de compra, el cuadro
 // completo (20261203000000): cada ítem es un pago (una fila del consolidado),
@@ -19,13 +22,21 @@
 import { leerNumero } from "@/lib/contratos"
 
 export type MetodoReqAdmin = "transferencia" | "pse"
+// Del cuadro: el de sus ítems, o "mixto" si tiene de los dos.
+export type MetodoCuadroReqAdmin = MetodoReqAdmin | "mixto"
 export type EstadoReqAdmin = "por_aprobar" | "aprobada" | "rechazada" | "cancelada"
 
 export const MAX_ITEMS_REQ_ADMIN = 50
 
-export const ETIQUETA_METODO_REQ_ADMIN: Record<MetodoReqAdmin, string> = {
+export const ETIQUETA_METODO_REQ_ADMIN: Record<MetodoCuadroReqAdmin, string> = {
   transferencia: "Transferencia",
   pse: "PSE",
+  mixto: "Transferencia y PSE",
+}
+
+export function metodoDelCuadro(items: { metodo: MetodoReqAdmin }[]): MetodoCuadroReqAdmin {
+  const hay = new Set(items.map((i) => i.metodo))
+  return hay.size > 1 ? "mixto" : hay.has("pse") ? "pse" : "transferencia"
 }
 
 export const ETIQUETA_ESTADO_REQ_ADMIN: Record<EstadoReqAdmin, string> = {
@@ -99,6 +110,7 @@ export type SoporteReqAdmin = { ruta: string; nombre: string; mime: string | nul
 
 export type ItemFormReqAdmin = {
   clave: string // llave de React
+  metodo: MetodoReqAdmin
   empresaId: string // B
   terceroFacturaId: string | null // transferencia
   facturaNombre: string // C
@@ -124,9 +136,10 @@ export type ItemFormReqAdmin = {
 let contadorClaves = 0
 export const nuevaClaveItem = () => `item-${Date.now().toString(36)}-${(contadorClaves++).toString(36)}`
 
-export function itemVacio(): ItemFormReqAdmin {
+export function itemVacio(metodo: MetodoReqAdmin = "transferencia"): ItemFormReqAdmin {
   return {
     clave: nuevaClaveItem(),
+    metodo,
     empresaId: "",
     terceroFacturaId: null,
     facturaNombre: "",
@@ -148,11 +161,11 @@ export function itemVacio(): ItemFormReqAdmin {
   }
 }
 
-// Al cambiar de método se conservan grupo, proyecto, concepto, valor y
+// Al cambiar el método del ítem se conservan grupo, proyecto, concepto, valor y
 // observaciones; los datos del tercero y la cuenta se vuelven a llenar.
-export function itemParaMetodo(item: ItemFormReqAdmin): ItemFormReqAdmin {
+export function itemParaMetodo(item: ItemFormReqAdmin, metodo: MetodoReqAdmin): ItemFormReqAdmin {
   return {
-    ...itemVacio(),
+    ...itemVacio(metodo),
     clave: item.clave,
     empresaId: item.empresaId,
     concepto: item.concepto,
@@ -179,9 +192,10 @@ export const valorItem = (item: Pick<ItemFormReqAdmin, "valor">): number | null 
 
 // Primer error del ítem (null = completo). Mismas reglas que
 // _guardar_requisicion_admin.
-export function validarItemReqAdmin(item: ItemFormReqAdmin, metodo: MetodoReqAdmin): string | null {
+export function validarItemReqAdmin(item: ItemFormReqAdmin): string | null {
   if (!item.empresaId) return "Elige el grupo empresarial."
-  if (metodo === "transferencia") {
+  if (item.metodo !== "transferencia" && item.metodo !== "pse") return "Elige cómo se paga: transferencia o PSE."
+  if (item.metodo === "transferencia") {
     if (!item.terceroFacturaId) return "Elige la empresa que factura (tiene que estar inscrita en Terceros)."
     if (!item.cuentaId) return "Elige la cuenta del titular (registrada en Terceros)."
   } else {
@@ -203,13 +217,13 @@ export function validarItemReqAdmin(item: ItemFormReqAdmin, metodo: MetodoReqAdm
 
 export type ErroresItems = { indice: number; mensaje: string }[]
 
-export function validarRequisicionAdmin(items: ItemFormReqAdmin[], metodo: MetodoReqAdmin): ErroresItems {
+export function validarRequisicionAdmin(items: ItemFormReqAdmin[]): ErroresItems {
   if (items.length === 0) return [{ indice: -1, mensaje: "Agrega al menos un ítem." }]
   if (items.length > MAX_ITEMS_REQ_ADMIN)
-    return [{ indice: -1, mensaje: `Una requisición tiene como máximo ${MAX_ITEMS_REQ_ADMIN} ítems.` }]
+    return [{ indice: -1, mensaje: `Un cuadro de pagos tiene como máximo ${MAX_ITEMS_REQ_ADMIN} ítems.` }]
   const errores: ErroresItems = []
   items.forEach((it, i) => {
-    const e = validarItemReqAdmin(it, metodo)
+    const e = validarItemReqAdmin(it)
     if (e) errores.push({ indice: i, mensaje: e })
   })
   return errores
@@ -219,8 +233,9 @@ export const totalItems = (items: Pick<ItemFormReqAdmin, "valor">[]) =>
   Math.round(items.reduce((s, it) => s + (valorItem(it) ?? 0), 0) * 100) / 100
 
 // Lo que se manda a crear_requisicion_admin / modificar_requisicion_admin.
-export function itemParaGuardar(item: ItemFormReqAdmin, metodo: MetodoReqAdmin) {
+export function itemParaGuardar(item: ItemFormReqAdmin) {
   const comun = {
+    metodo: item.metodo,
     empresa_id: item.empresaId,
     proyecto_id: item.proyectoId,
     concepto: item.concepto.trim(),
@@ -230,7 +245,7 @@ export function itemParaGuardar(item: ItemFormReqAdmin, metodo: MetodoReqAdmin) 
       ? { ruta: item.soporte.ruta, nombre: item.soporte.nombre, mime: item.soporte.mime, tamano: item.soporte.tamano, tipo: item.soporte.tipo }
       : null,
   }
-  if (metodo === "transferencia") {
+  if (item.metodo === "transferencia") {
     return {
       ...comun,
       tercero_factura_id: item.terceroFacturaId,
@@ -252,7 +267,7 @@ export function itemParaGuardar(item: ItemFormReqAdmin, metodo: MetodoReqAdmin) 
 export type RequisicionAdminFila = {
   id: string
   numero: number | null
-  metodo: MetodoReqAdmin
+  metodo: MetodoCuadroReqAdmin
   estado: EstadoReqAdmin
   nItems: number
   valorTotal: number
@@ -269,6 +284,7 @@ export type RequisicionAdminFila = {
 export type ItemReqAdmin = {
   id: string
   orden: number
+  metodo: MetodoReqAdmin
   empresaId: string
   empresaNombre: string
   terceroFacturaId: string | null
@@ -312,7 +328,7 @@ export function mapFilaReqAdmin(r: any): RequisicionAdminFila {
   return {
     id: String(r.id),
     numero: r.numero == null ? null : Number(r.numero),
-    metodo: r.metodo,
+    metodo: r.metodo === "pse" || r.metodo === "mixto" ? r.metodo : "transferencia",
     estado: r.estado,
     nItems: Number(r.n_items ?? 0),
     valorTotal: Number(r.valor_total ?? 0),
@@ -337,6 +353,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
     items: (Array.isArray(r.items) ? r.items : []).map((i: any) => ({
       id: String(i.id),
       orden: Number(i.orden),
+      metodo: (i.metodo ?? r.metodo) === "pse" ? "pse" : "transferencia",
       empresaId: String(i.empresa_id),
       empresaNombre: String(i.empresa_nombre ?? ""),
       terceroFacturaId: i.tercero_factura_id ?? null,
@@ -381,6 +398,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
 export function itemFormDesdeDetalle(i: ItemReqAdmin): ItemFormReqAdmin {
   return {
     clave: nuevaClaveItem(),
+    metodo: i.metodo,
     empresaId: i.empresaId,
     terceroFacturaId: i.terceroFacturaId,
     facturaNombre: i.facturaNombre,

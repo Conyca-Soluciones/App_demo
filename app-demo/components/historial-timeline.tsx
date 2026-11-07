@@ -64,12 +64,12 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
 }
 
 const EVENTOS_REQUISICION_ADMIN: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
-  creada: { etiqueta: "Requisición enviada a Aprobación de pagos", tono: "neutro" },
-  modificada: { etiqueta: "Requisición modificada", tono: "aviso" },
-  reenviada: { etiqueta: "Requisición corregida y enviada otra vez", tono: "neutro" },
+  creada: { etiqueta: "Cuadro de pagos enviado a Aprobación de pagos", tono: "neutro" },
+  modificada: { etiqueta: "Cuadro de pagos modificado", tono: "aviso" },
+  reenviada: { etiqueta: "Cuadro de pagos corregido y enviado otra vez", tono: "neutro" },
   aprobada: { etiqueta: "Aprobada por A&F", tono: "ok" },
   rechazada: { etiqueta: "Rechazada por A&F", tono: "malo" },
-  cancelada: { etiqueta: "Requisición cancelada", tono: "malo" },
+  cancelada: { etiqueta: "Cuadro de pagos cancelado", tono: "malo" },
 }
 
 const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
@@ -246,7 +246,7 @@ export const NOMBRE_TIPO_HISTORIAL: Record<TipoHistorial, string> = {
   contrato: "Contrato",
   acta: "Acta",
   otrosi: "Otrosí",
-  requisicion_admin: "Requisición administrativa",
+  requisicion_admin: "Pago administrativo",
   pago: "Pago",
   tercero: "Tercero",
   proveedor: "Proveedor",

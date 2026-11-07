@@ -265,6 +265,9 @@ export type SolicitudContratoFila = {
   liquidadoAt: string | null
   // Otrosí aprobados (columna calculada otrosis_aprobados, 20261121000000).
   otrosisAprobados?: number
+  // Fin del plazo con la última prórroga aprobada por otrosí (columna
+  // calculada fecha_fin_vigente = _fecha_fin_contrato, 20261231700000).
+  fechaFinVigente?: string | null
   // Póliza (20261126000000_polizas.sql): null hasta que Gerencia aprueba;
   // "no_aplica" si el contrato no la pide (20261208000000).
   polizaEstado?: "pendiente" | "recibida" | "aprobada" | "no_aplica" | null
@@ -785,10 +788,12 @@ export function contratoVencido(
     estado: EstadoContrato
     minutaEstado: EstadoMinuta | null
     liquidadoAt: string | null
+    fechaFinVigente?: string | null
   },
   hoy: string
 ): { vencido: boolean; fechaFin: string | null } {
-  const fechaFin = fechaFinContrato(c)
+  // Con otrosí de prórroga aprobado vale la fecha nueva (la da la base).
+  const fechaFin = c.fechaFinVigente ?? fechaFinContrato(c)
   const vencido =
     c.estado === "aprobada" && c.minutaEstado === "aprobada" && !c.liquidadoAt && fechaFin != null && fechaFin < hoy
   return { vencido, fechaFin }

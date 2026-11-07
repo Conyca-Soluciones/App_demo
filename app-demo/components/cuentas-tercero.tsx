@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { textoCuenta, type CuentaReqAdmin } from "@/lib/requisiciones-admin"
-import { cuentasTerceroRequisicionAdmin } from "@/app/(app)/ayf/requisiciones-administrativas/actions"
+import { cuentasTerceroRequisicionAdmin } from "@/app/(app)/ayf/pagos-administrativos/actions"
 
 // Cuentas bancarias de un tercero (no inactivas, número enmascarado), tal como
 // las tiene Terceros: ahí vive la cuenta de contratistas y proveedores

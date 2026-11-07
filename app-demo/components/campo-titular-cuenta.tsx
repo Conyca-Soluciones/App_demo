@@ -11,7 +11,7 @@ import { titularVacio, type TitularCuenta } from "@/lib/titular-cuenta"
 import {
   buscarTercerosRequisicionAdmin,
   cuentasTerceroRequisicionAdmin,
-} from "@/app/(app)/ayf/requisiciones-administrativas/actions"
+} from "@/app/(app)/ayf/pagos-administrativos/actions"
 
 // Casilla "El titular de la cuenta es otro tercero" (como en la requisición
 // administrativa): sin marcar, el pago va a la cuenta de quien factura; marcada,

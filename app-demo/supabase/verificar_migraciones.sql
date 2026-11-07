@@ -608,5 +608,20 @@ select * from (
          exists (select 1 from pg_proc where proname = 'subir_poliza' and prosrc like '%numero_contrato, codigo, poliza_estado%')
          and exists (select 1 from pg_proc where proname = 'listar_ordenes_entradas' and pg_get_function_result(oid) like '%codigo text%')
          and not exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and prosrc like '%Subgerencia%')
+  union all
+  select '20261231700000_firmas_pendientes_y_fin_vigente',
+         exists (select 1 from pg_trigger where tgname = 'trg_completar_firmas_pendientes')
+         and exists (select 1 from pg_proc where proname = 'fecha_fin_vigente')
+  union all
+  select '20261231800000_pagos_administrativos_metodo_por_item',
+         exists (select 1 from information_schema.columns where table_name = 'requisicion_admin_items' and column_name = 'metodo')
+  union all
+  select '20261231900000_requisiciones_administrativas',
+         exists (select 1 from proyectos where funcionamiento)
+         and exists (select 1 from pg_proc where proname = 'proyectos_requisicion_administrativa')
+         and exists (select 1 from pg_proc where proname = 'crear_requisicion_administrativa' and pronargs = 5)
+  union all
+  select '20261231950000_control_gasto_administrativo',
+         exists (select 1 from pg_proc where proname = 'control_proyecto' and prosrc like '%administrativo_pagos%')
 ) t
 order by 1;

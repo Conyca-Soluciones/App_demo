@@ -20,7 +20,7 @@ export const CAMPOS_PAGO = `
   orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
-  req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre, titular_tipo_documento, titular_documento),
+  req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(metodo, titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros!pagos_tercero_id_fkey(razon_social, tipo_documento, numero_documento, dv),
@@ -63,7 +63,9 @@ export function mapPago(f: any): Pago {
   const ocPse = f.orden?.metodo_pago === "pse"
   // Acta de un contrato por PSE (20261220000000): igual, sin cuenta.
   const actaPse = f.acta?.contrato?.metodo_pago === "pse"
-  const pse = ocPse || actaPse || f.req?.metodo === "pse"
+  // Pagos administrativos: el método es de cada ítem (20261231800000).
+  const reqPse = (f.req_item?.metodo ?? f.req?.metodo) === "pse"
+  const pse = ocPse || actaPse || reqPse
   // Tipo de pago de la OC (20261228400000): de contado, crédito con su fecha o fiducia.
   const tipoOC = textoTipoPagoOC(f.orden?.tipo_pago, f.orden?.fecha_pago_credito)
   return {
@@ -103,7 +105,7 @@ export function mapPago(f: any): Pago {
         : f.fuente === "acta"
           ? "Acta"
           : f.fuente === "requisicion_admin"
-            ? `Req. admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${f.req?.metodo === "pse" ? " · PSE" : ""}`
+            ? `Pago admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${reqPse ? " · PSE" : ""}`
             : "",
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
     // no es de acta o quien consulta no lee el acta (RLS).

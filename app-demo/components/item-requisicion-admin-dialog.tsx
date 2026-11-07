@@ -16,6 +16,7 @@ import {
   ETIQUETA_SOPORTE_REQ_ADMIN,
   TIPOS_DOCUMENTO_PSE,
   etiquetaProyecto,
+  itemParaMetodo,
   textoCuenta,
   validarItemReqAdmin,
   valorItem,
@@ -27,7 +28,7 @@ import {
 import {
   buscarTercerosRequisicionAdmin,
   cuentasTerceroRequisicionAdmin,
-} from "@/app/(app)/ayf/requisiciones-administrativas/actions"
+} from "@/app/(app)/ayf/pagos-administrativos/actions"
 
 // Tipo y número de documento desde la subetiqueta del buscador ("NIT 800.123.456-7").
 function partesDocumento(sub: string | null | undefined): { tipo: string; numero: string; nit: string } {
@@ -46,12 +47,11 @@ function Campo({ etiqueta, children, ayuda }: { etiqueta: string; children: Reac
   )
 }
 
-// Un ítem (una fila del formato GF-F-018). En transferencia el tercero que
-// factura y el titular salen de Terceros, con la cuenta del titular; en PSE se
-// escribe todo y no hay cuenta.
+// Un ítem (una fila del formato GF-F-018) con su método: en transferencia el
+// tercero que factura y el titular salen de Terceros, con la cuenta del
+// titular; en PSE se escribe todo y no hay cuenta.
 export function ItemRequisicionAdminDialog({
   abierto,
-  metodo,
   opciones,
   inicial,
   numero,
@@ -59,7 +59,6 @@ export function ItemRequisicionAdminDialog({
   onCerrar,
 }: {
   abierto: boolean
-  metodo: MetodoReqAdmin
   opciones: OpcionesReqAdmin
   inicial: ItemFormReqAdmin
   numero: number
@@ -67,6 +66,7 @@ export function ItemRequisicionAdminDialog({
   onCerrar: () => void
 }) {
   const [item, setItem] = useState<ItemFormReqAdmin>(inicial)
+  const metodo = item.metodo
   const [error, setError] = useState<string | null>(null)
   // Cuentas del titular, guardadas con el tercero al que pertenecen.
   const [cuentas, setCuentas] = useState<{ terceroId: string; lista: CuentaReqAdmin[] } | null>(null)
@@ -170,7 +170,7 @@ export function ItemRequisicionAdminDialog({
   }
 
   function guardar() {
-    const e = validarItemReqAdmin(item, metodo)
+    const e = validarItemReqAdmin(item)
     if (e) {
       setError(e)
       return
@@ -191,6 +191,29 @@ export function ItemRequisicionAdminDialog({
               : "Pago por PSE: escribe los datos de quien factura y del titular (no lleva cuenta bancaria)."}
           </DialogDescription>
         </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label>¿Cómo se paga este ítem?</Label>
+          <div className="flex gap-1.5 rounded-md border p-0.5">
+            {(["transferencia", "pse"] as MetodoReqAdmin[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  if (m === metodo) return
+                  // Se conservan grupo, proyecto, concepto, valor, observaciones y soporte.
+                  setItem((it) => itemParaMetodo(it, m))
+                  setTitularDistinto(false)
+                  setTipoFactura("")
+                  setError(null)
+                }}
+                className={`flex-1 rounded px-3 py-1.5 text-sm ${metodo === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {m === "transferencia" ? "Transferencia" : "PSE"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Código de proyecto">

@@ -57,8 +57,12 @@ export type ControlProyecto = {
   presupuesto: number
   presupuestoMateriales: number
   presupuestoManoObra: number
-  compras: number
+  compras: number // de obra (sin las requisiciones administrativas)
   actas: number
+  // Gasto administrativo del proyecto (20261231950000): OC de requisiciones
+  // administrativas y pagos administrativos aprobados. No va contra un ítem.
+  administrativoCompras: number
+  administrativoPagos: number
   excedentes: number
   salidasValor: number
   contratado: number
@@ -88,6 +92,8 @@ export function mapControlProyecto(datos: unknown): ControlProyecto {
     presupuestoManoObra: n(r.presupuesto_mano_obra),
     compras: n(r.compras),
     actas: n(r.actas),
+    administrativoCompras: n(r.administrativo_compras),
+    administrativoPagos: n(r.administrativo_pagos),
     excedentes: n(r.excedentes),
     salidasValor: n(r.salidas_valor),
     contratado: n(r.contratado),
@@ -146,8 +152,10 @@ export function mapControlProyecto(datos: unknown): ControlProyecto {
 // Porcentaje entero seguro (0 si no hay base).
 export const porcentaje = (parte: number, total: number) => (total > 0 ? (parte / total) * 100 : 0)
 
+export const gastoAdministrativo = (c: ControlProyecto) => c.administrativoCompras + c.administrativoPagos
+
 export function totalesControl(c: ControlProyecto) {
-  const gastado = c.compras + c.actas
+  const gastado = c.compras + c.actas + gastoAdministrativo(c)
   return {
     gastado,
     pctGastado: porcentaje(gastado, c.presupuesto),
@@ -162,12 +170,13 @@ export function totalesControl(c: ControlProyecto) {
 // presupuesto; si lo gastado lo supera, la base es lo gastado (la barra se
 // llena y no se sale). Solo cuenta lo aprobado (decisión del usuario).
 export function partesBarraPlata(c: ControlProyecto) {
-  const gastado = c.compras + c.actas
+  const gastado = c.compras + c.actas + gastoAdministrativo(c)
   const base = Math.max(c.presupuesto, gastado)
   const pct = (v: number) => (base > 0 ? (v / base) * 100 : 0)
   return {
     compras: pct(c.compras),
     actas: pct(c.actas),
+    administrativo: pct(gastoAdministrativo(c)),
     disponible: pct(Math.max(c.presupuesto - gastado, 0)),
     sobrepasa: gastado > c.presupuesto && c.presupuesto > 0,
   }

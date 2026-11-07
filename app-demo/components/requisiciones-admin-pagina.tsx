@@ -29,7 +29,7 @@ import {
   listarMisRequisicionesAdmin,
   obtenerRequisicionAdmin,
   opcionesRequisicionAdmin,
-} from "@/app/(app)/ayf/requisiciones-administrativas/actions"
+} from "@/app/(app)/ayf/pagos-administrativos/actions"
 
 type Pestana = "nueva" | "mias"
 
@@ -61,7 +61,6 @@ export function RequisicionesAdminPagina({ verInicial }: { verInicial: string | 
       id: d.id,
       numero: d.numero,
       rechazada: d.estado === "rechazada",
-      metodo: d.metodo,
       items: d.items.map(itemFormDesdeDetalle),
     })
     setVerId(null)
@@ -80,8 +79,8 @@ export function RequisicionesAdminPagina({ verInicial }: { verInicial: string | 
       <div className="flex gap-1.5 border-b">
         {(
           [
-            { valor: "nueva", etiqueta: edicion ? `Corregir requisición N° ${edicion.numero}` : "Realizar requisición" },
-            { valor: "mias", etiqueta: "Mis requisiciones" },
+            { valor: "nueva", etiqueta: edicion ? `Corregir pago N° ${edicion.numero}` : "Realizar pago administrativo" },
+            { valor: "mias", etiqueta: "Mis pagos administrativos" },
           ] as const
         ).map((p) => (
           <button
@@ -152,7 +151,7 @@ function MisRequisicionesAdmin({
         setPagina(pag)
         setHayMas(r.hayMas)
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los pagos administrativos."))
       .finally(() => setCargando(false))
   }
 
@@ -235,7 +234,7 @@ function MisRequisicionesAdmin({
         {error && <p className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</p>}
         {filas === null && !cargando ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            Presiona Consultar para ver tus requisiciones administrativas.
+            Presiona Consultar para ver tus pagos administrativos.
           </div>
         ) : filas === null ? (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -243,7 +242,7 @@ function MisRequisicionesAdmin({
           </div>
         ) : filas.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            Ninguna requisición coincide con los filtros.
+            Ningún pago administrativo coincide con los filtros.
           </div>
         ) : (
           <TablaExcel
@@ -252,7 +251,7 @@ function MisRequisicionesAdmin({
             claveFila={(r) => r.id}
             onDobleClickFila={(r) => onVer(r.id)}
             tarjeta={{
-              titulo: (r) => `Requisición N° ${r.numero ?? ""}`,
+              titulo: (r) => `Pago administrativo N° ${r.numero ?? ""}`,
               subtitulo: (r) => `${ETIQUETA_METODO_REQ_ADMIN[r.metodo]} · ${r.nItems} ítem(s)`,
               esquina: (r) => <EtiquetaEstadoReqAdmin estado={r.estado} />,
               campos: ["total", "empresas", "enviada", "acciones"],
@@ -328,7 +327,7 @@ function VerRequisicionAdmin({
     <Dialog open onOpenChange={(a) => !a && onCerrar()}>
       <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Requisición administrativa {d?.numero != null ? `N° ${d.numero}` : ""}</DialogTitle>
+          <DialogTitle>Pago administrativo {d?.numero != null ? `N° ${d.numero}` : ""}</DialogTitle>
           <DialogDescription>Formato GF-F-018 · Relación de pagos</DialogDescription>
         </DialogHeader>
         {!actual ? (
@@ -350,7 +349,7 @@ function VerRequisicionAdmin({
                 Volver
               </Button>
               <Button size="sm" variant="destructive" onClick={cancelar} disabled={procesando || !motivo.trim()}>
-                {procesando && <Loader2 className="size-4 animate-spin" />} Cancelar requisición
+                {procesando && <Loader2 className="size-4 animate-spin" />} Cancelar pago administrativo
               </Button>
             </div>
           </div>
@@ -360,7 +359,7 @@ function VerRequisicionAdmin({
         {d && editable && !cancelando && (
           <DialogFooter>
             <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => setCancelando(true)}>
-              <X className="size-4" /> Cancelar requisición
+              <X className="size-4" /> Cancelar pago administrativo
             </Button>
             <Button onClick={() => onEditar(d)}>
               <Pencil className="size-4" /> {d.estado === "rechazada" ? "Corregir y enviar otra vez" : "Modificar"}

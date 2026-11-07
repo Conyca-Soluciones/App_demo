@@ -22,6 +22,7 @@ import {
   datosTipoParaMostrar,
   nombreTipoContrato,
   plazoTexto,
+  fechaFinContrato,
   contratoVencido,
   type SolicitudContratoDetalle,
 } from "@/lib/contratos"
@@ -242,7 +243,10 @@ export function DetalleSolicitudContrato({
                   [
                     "Plazo",
                     plazoTexto(detalle, formatearFechaSinHora) +
-                      (detalle.plazoTipo === "duracion" && detalle.fechaInicio ? ` desde ${formatearFechaSinHora(detalle.fechaInicio)} (estimado)` : ""),
+                      (detalle.plazoTipo === "duracion" && detalle.fechaInicio ? ` desde ${formatearFechaSinHora(detalle.fechaInicio)} (estimado)` : "") +
+                      (detalle.fechaFinVigente && detalle.fechaFinVigente !== fechaFinContrato(detalle)
+                        ? ` · prorrogado por otrosí hasta el ${formatearFechaSinHora(detalle.fechaFinVigente)}`
+                        : ""),
                   ],
                 ]}
               />

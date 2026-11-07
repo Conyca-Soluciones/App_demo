@@ -54,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
+import { aplicarItemsGlobales } from "@/lib/items-globales"
 
 // ---------------------------------------------------------------------------
 // El tipo del ítem (ItemPresupuesto) vive en ./actions -- se comparte con
@@ -377,7 +378,7 @@ async function procesarPresupuesto(
   const nombreHojaApu = encontrarHojaApu(workbook)
   if (!nombreHojaApu) {
     return {
-      items,
+      items: aplicarItemsGlobales(items, new Set(), false).items,
       bloquesApu: [],
       avisoApu:
         `No se encontró página de APUs -- ninguna hoja de este archivo se llama "APU" ` +
@@ -395,7 +396,17 @@ async function procesarPresupuesto(
     )
   }
 
-  return { items, bloquesApu: bloques, avisoApu: null }
+  // Ítems globales (GL sin bloque APU): su valor es el Valor unitario del Excel.
+  const globales = aplicarItemsGlobales(items, new Set(bloques.map((b) => b.codigoItem)), true)
+  if (globales.errores.length > 0) {
+    throw new Error(
+      `${globales.errores.length} ítem(s) global(es) sin valor: escribe su Valor unitario en la hoja del presupuesto ` +
+        `o agrega su bloque en la hoja APU.\n` +
+        globales.errores.join("\n")
+    )
+  }
+
+  return { items: globales.items, bloquesApu: bloques, avisoApu: null }
 }
 
 // ---------------------------------------------------------------------------

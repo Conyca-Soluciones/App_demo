@@ -253,7 +253,7 @@ export function AprobacionPagosView({
           <button
             type="button"
             className="truncate text-left text-primary underline-offset-2 hover:underline"
-            title="Ver la requisición administrativa"
+            title="Ver el pago administrativo"
             onClick={() => setRequisicionDe(p)}
           >
             {p.origen}
@@ -412,7 +412,7 @@ export function AprobacionPagosView({
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}
-          ayuda="Aquí se aprueban las órdenes de compra: aprobar su pago único o su anticipo aprueba la orden y rechazarlo la rechaza (el origen la abre). También los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y las requisiciones administrativas (una fila por requisición, que se aprueba completa; el origen la abre)."
+          ayuda="Aquí se aprueban las órdenes de compra: aprobar su pago único o su anticipo aprueba la orden y rechazarlo la rechaza (el origen la abre). También los saldos, los pagos de las actas de contratos (aprobar o rechazar el pago aprueba o rechaza el acta) y los pagos administrativos (una fila por cuadro de pagos, que se aprueba completo; el origen lo abre)."
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>
@@ -623,7 +623,7 @@ function VerRequisicionAdminPago({ id, onCerrar, acciones }: { id: string; onCer
       <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>
-            Requisición administrativa {actual?.detalle?.numero != null ? `N° ${actual.detalle.numero}` : ""}
+            Pago administrativo {actual?.detalle?.numero != null ? `N° ${actual.detalle.numero}` : ""}
           </DialogTitle>
         </DialogHeader>
         {!actual ? (

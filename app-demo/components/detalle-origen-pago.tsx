@@ -178,7 +178,7 @@ function DetalleRequisicionAdmin({
         { etiqueta: "Cuenta", valor: req.cuentaTexto ?? "" },
         { etiqueta: "Valor", valor: formatoMoneda(req.valor) },
         { etiqueta: "Método", valor: req.metodo === "pse" ? "PSE" : "Transferencia" },
-        { etiqueta: "Estado de la requisición", valor: ETIQUETA_ESTADO_REQ[req.estado] ?? req.estado },
+        { etiqueta: "Estado del cuadro de pagos", valor: ETIQUETA_ESTADO_REQ[req.estado] ?? req.estado },
         { etiqueta: "Solicitada por", valor: req.creadoPorNombre ?? "" },
         { etiqueta: "Enviada", valor: req.enviadaEn ? formatearFechaHora(req.enviadaEn) : "" },
         { etiqueta: "Resuelta", valor: req.resueltaEn ? formatearFechaHora(req.resueltaEn) : "" },
@@ -191,7 +191,7 @@ function DetalleRequisicionAdmin({
       abierta
       onCerrar={onCerrar}
       ancha
-      titulo={req ? `Requisición administrativa${req.numero != null ? ` N° ${req.numero}` : ""}` : "Requisición administrativa"}
+      titulo={req ? `Pago administrativo${req.numero != null ? ` N° ${req.numero}` : ""}` : "Pago administrativo"}
       subtitulo={pago.referencia ? `REF ${pago.referencia}` : undefined}
       campos={campos}
     >

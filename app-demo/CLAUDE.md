@@ -3290,7 +3290,54 @@ otrosí.
   la usan. Probada en Postgres local (guardar, reemplazar, aprobar sin/con
   firma, verificar por código y huella, copia del contratista, correr dos veces).
 
-## Requisiciones administrativas `/ayf/requisiciones-administrativas` (2026-10-21)
+## Requisiciones administrativas de Compras `/ayf/requisiciones-administrativas` (2026-11-06)
+
+`20261231900000_requisiciones_administrativas.sql` (decisiones del usuario). Pedidos
+de insumos que compra Compras sin presupuesto: cualquiera las hace (A&F ›
+Administrativo, `PESTANAS_PARA_TODOS`), con el formulario de las técnicas (fecha
+requerida, insumos del maestro o solicitud de insumo nuevo, urgente,
+observaciones) y eligiendo **FUNCIONAMIENTO o uno de sus proyectos con
+presupuesto** (`proyectos_requisicion_administrativa`). Nadie las aprueba: nacen
+aprobadas (`requisiciones.administrativa`) y van a Requisiciones por comprar
+(etiqueta "Admin."); `resolver_requisicion` / `desaprobar_requisicion` las
+rechazan. Quien la hizo la cancela mientras no haya OC vigente.
+- **FUNCIONAMIENTO**: `proyectos.funcionamiento`, código 000, número 0, Conyca
+  Soluciones SAS. Compras y Almacén (acciones `comprar` / `gestionar_almacen`) lo
+  ven sin asignárselo (`proyectos_visibles`, `usuario_puede_ver_proyecto`).
+- **Ítem oculto**: `pedidos_insumos` exige un ítem, así que cada presupuesto tiene
+  uno "000" con `version_id` NULL (`_item_requisicion_administrativa`, se crea al
+  primer uso): no sale en la tabla del presupuesto ni se copia a versiones nuevas,
+  no tiene cupo y en Control del proyecto lo comprado sale "sin ítem". Un
+  proyecto sin presupuesto no puede recibirlas.
+- Avisa a quien tiene `comprar` y ve el proyecto (`requisicion_administrativa`).
+  Sus compras entran al precio dinámico como cualquier OC aprobada.
+
+## Ítems globales y gasto administrativo (2026-11-06)
+
+Decisiones del usuario (sin AIU en el presupuesto):
+- **Ítem global**: ítem hoja con unidad GL / GLB / GLOBAL **sin bloque en la hoja
+  APU** (`lib/items-globales.ts`, `aplicarItemsGlobales` en `procesarPresupuesto`).
+  Su valor es el Valor unitario del Excel (la columna que ya se leía como
+  `precioOriginal`); no tiene APU ni pasa por la revisión de insumos. Ej.:
+  certificados RETIE/RETILAP, PMA, PMT, PGIO/SST, compensación ambiental. Un GL
+  con bloque APU sigue con su APU. Con hoja APU, un global sin valor unitario
+  corta el import. Se contrata con contratos por grupos (cantidad = proporción
+  del GL) y se compra con requisiciones extraordinarias sobre el ítem.
+- **Gasto administrativo** (`20261231950000`): `control_proyecto` devuelve
+  `administrativo_compras` (OC aprobadas de requisiciones administrativas, que ya
+  no cuentan en `compras` ni en "sin ítem") y `administrativo_pagos` (pagos
+  administrativos aprobados/dispersados cuyo ítem es del proyecto). Gastado =
+  compras + actas + administrativo (`gastoAdministrativo`). Las extraordinarias
+  NO son administrativas: cuentan en su ítem.
+
+## Pagos administrativos `/ayf/pagos-administrativos` (antes "requisiciones administrativas", 2026-10-21)
+
+**Renombrado el 2026-11-06** (`20261231800000`): en pantalla son "Pagos
+administrativos" / "cuadro de pagos"; tablas y funciones conservan el nombre
+`requisiciones_admin` / `*_requisicion_admin`. Cada ÍTEM elige transferencia o
+PSE (`requisicion_admin_items.metodo`); el cuadro queda `transferencia`, `pse` o
+`mixto`. Lo de abajo describe el diseño original.
+
 
 `20261202000000_requisiciones_administrativas.sql` +
 `20261203000000_requisiciones_admin_aprobacion_conjunta.sql`, formato GF-F-018
@@ -3800,7 +3847,11 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha ·
 `20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
 `20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
-`20261231100000` campanita: no leídas arriba y borrar notificaciones propias.
+`20261231100000` campanita: no leídas arriba y borrar notificaciones propias. ·
+`20261231700000` firmas que faltaban al registrar Mi firma y fin vigente del contrato ·
+`20261231800000` pagos administrativos con método por ítem ·
+`20261231900000` requisiciones administrativas (FUNCIONAMIENTO o proyecto) ·
+`20261231950000` Control del proyecto: gasto administrativo aparte.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

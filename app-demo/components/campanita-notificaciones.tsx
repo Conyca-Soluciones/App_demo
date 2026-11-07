@@ -24,7 +24,9 @@ function rutaDestino(n: Notificacion): string {
     // A Gerencia, la bandeja de extraordinarias; lo demás, al detalle.
     return n.tipo === "requisicion_extraordinaria"
       ? "/almacen/requisiciones-extraordinarias"
-      : `/almacen/registro-requisiciones/${n.entidadId}`
+      : n.tipo === "requisicion_administrativa"
+        ? "/almacen/comprar-pedidos"
+        : `/almacen/registro-requisiciones/${n.entidadId}`
   // Contratos: a quien aprueba, a Pre-aprobación; a Gerencia, a Aprobación
   // de minutas; a Jurídica (minuta aprobada o devuelta), a Pre-aprobación; a
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.
@@ -54,7 +56,7 @@ function rutaDestino(n: Notificacion): string {
     return aJuridicaOGerencia ? `/contratos/aprobacion-otrosi?ver=${n.entidadId}` : `/contratos/otrosi?ver=${n.entidadId}`
   }
   // Requisición administrativa aprobada o rechazada: a quien la hizo.
-  if (n.entidadTipo === "requisicion_admin") return `/ayf/requisiciones-administrativas?ver=${n.entidadId}`
+  if (n.entidadTipo === "requisicion_admin") return `/ayf/pagos-administrativos?ver=${n.entidadId}`
   // Insumo nuevo rechazado: al presupuesto (del proyecto actual).
   if (n.entidadTipo === "presupuesto") return "/presupuestos"
   return "/almacen/registro-requisiciones"

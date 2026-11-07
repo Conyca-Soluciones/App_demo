@@ -130,10 +130,12 @@ export const PESTANAS: Pestana[] = [
 ]
 
 // Pestañas de TODOS los usuarios con sesión (no están en la matriz de roles y
-// su ruta es libre): las requisiciones administrativas las hace cualquiera
-// (20261202000000_requisiciones_administrativas.sql).
+// su ruta es libre): los pagos administrativos (20261202000000, antes
+// "requisiciones administrativas") y las requisiciones administrativas de
+// FUNCIONAMIENTO que compra Compras (20261231900000) las hace cualquiera.
 export const PESTANAS_PARA_TODOS: { titulo: string; modulo: ModuloClave; seccion: string; url: string }[] = [
-  { titulo: "Realizar requisiciones administrativas", modulo: "ayf", seccion: "Requisiciones", url: "/ayf/requisiciones-administrativas" },
+  { titulo: "Pagos administrativos", modulo: "ayf", seccion: "Administrativo", url: "/ayf/pagos-administrativos" },
+  { titulo: "Requisiciones administrativas", modulo: "ayf", seccion: "Administrativo", url: "/ayf/requisiciones-administrativas" },
 ]
 
 // Pestañas que SOLO ve el Administrador (no aparecen en la matriz): el módulo

@@ -94,6 +94,9 @@ export type PedidoParaComprar = {
   // Requisición (agrupada) a la que pertenece esta línea.
   requisicionId: string
   requisicionNumero: number | null
+  // Requisición administrativa (FUNCIONAMIENTO, 20261231900000): sin presupuesto
+  // ni aprobación, la pidió alguien de la empresa.
+  administrativa: boolean
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
@@ -123,7 +126,7 @@ export type PedidoParaComprar = {
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
   id, grupo_pedido_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
-  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero),
+  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, administrativa),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   proyecto:proyectos!pedidos_insumos_proyecto_id_fkey(numero, codigo, nombre),
@@ -140,8 +143,8 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
 // trae todo el histórico del proyecto; el filtro por línea de abajo sigue
 // quitando las líneas ya completas de esas requisiciones.
 const SELECT_PENDIENTES_POR_COMPRAR = SELECT_PEDIDO_PARA_COMPRAR.replace(
-  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero)",
-  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, estado_compra)"
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, administrativa)",
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, administrativa, estado_compra)"
 )
 
 // Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
@@ -169,6 +172,7 @@ function mapPedidoParaComprar(f: any, excluirOrdenId?: string): PedidoParaCompra
     id: f.id,
     requisicionId: f.grupo_pedido_id,
     requisicionNumero: f.requisicion?.numero ?? null,
+    administrativa: Boolean(f.requisicion?.administrativa),
     insumoId: f.insumo?.id,
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
@@ -1335,6 +1339,7 @@ export type NotificacionTipo =
   | "requisicion_admin_aprobada"
   | "requisicion_admin_rechazada"
   | "requisicion_extraordinaria"
+  | "requisicion_administrativa"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"

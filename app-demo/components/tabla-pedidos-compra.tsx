@@ -86,7 +86,17 @@ export function TablaPedidosCompra({
       titulo: "# Requisición",
       ancho: 120,
       fija: true,
-      texto: (p) => (p.requisicionNumero != null ? String(p.requisicionNumero) : ""),
+      texto: (p) => (p.requisicionNumero != null ? String(p.requisicionNumero) : "") + (p.administrativa ? " · Administrativa" : ""),
+      celda: (p) => (
+        <span className="flex items-center gap-1.5">
+          {p.requisicionNumero ?? ""}
+          {p.administrativa && (
+            <span className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-normal text-sky-800" title="Requisición administrativa (FUNCIONAMIENTO): sin presupuesto ni aprobación">
+              Admin.
+            </span>
+          )}
+        </span>
+      ),
       valorOrden: (p) => p.requisicionNumero,
       claseCelda: "font-medium tabular-nums",
     },

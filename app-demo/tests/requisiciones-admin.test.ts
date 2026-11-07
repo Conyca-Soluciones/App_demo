@@ -6,6 +6,7 @@ import {
   itemParaMetodo,
   itemVacio,
   limpiarNit,
+  metodoDelCuadro,
   mapDetalleReqAdmin,
   totalItems,
   validarItemReqAdmin,
@@ -38,7 +39,7 @@ const transferencia = (p: Partial<ItemFormReqAdmin> = {}): ItemFormReqAdmin => (
 })
 
 const pse = (p: Partial<ItemFormReqAdmin> = {}): ItemFormReqAdmin => ({
-  ...itemVacio(),
+  ...itemVacio("pse"),
   empresaId: "e1",
   facturaNombre: "Secretaría de Hacienda",
   facturaNit: "899.999.061-9",
@@ -54,34 +55,43 @@ const pse = (p: Partial<ItemFormReqAdmin> = {}): ItemFormReqAdmin => ({
 
 describe("validación de ítems", () => {
   it("transferencia completa no tiene errores y exige tercero y cuenta", () => {
-    expect(validarItemReqAdmin(transferencia(), "transferencia")).toBeNull()
-    expect(validarItemReqAdmin(transferencia({ terceroFacturaId: null }), "transferencia")).toMatch(/Terceros/)
-    expect(validarItemReqAdmin(transferencia({ cuentaId: null }), "transferencia")).toMatch(/cuenta/)
+    expect(validarItemReqAdmin(transferencia())).toBeNull()
+    expect(validarItemReqAdmin(transferencia({ terceroFacturaId: null }))).toMatch(/Terceros/)
+    expect(validarItemReqAdmin(transferencia({ cuentaId: null }))).toMatch(/cuenta/)
   })
 
   it("PSE: datos escritos, sin cuenta; tipo de documento de la lista del formato", () => {
-    expect(validarItemReqAdmin(pse(), "pse")).toBeNull()
-    expect(validarItemReqAdmin(pse({ titularTipoDocumento: "PA" }), "pse")).toMatch(/CC, NIT, PPT o CE/)
-    expect(validarItemReqAdmin(pse({ facturaNit: "abc" }), "pse")).toMatch(/NIT/)
-    expect(validarItemReqAdmin(pse({ facturaNombre: " " }), "pse")).toMatch(/empresa que factura/)
+    expect(validarItemReqAdmin(pse())).toBeNull()
+    expect(validarItemReqAdmin(pse({ titularTipoDocumento: "PA" }))).toMatch(/CC, NIT, PPT o CE/)
+    expect(validarItemReqAdmin(pse({ facturaNit: "abc" }))).toMatch(/NIT/)
+    expect(validarItemReqAdmin(pse({ facturaNombre: " " }))).toMatch(/empresa que factura/)
   })
 
   it("comunes: grupo, concepto, proyecto y valor > 0", () => {
-    expect(validarItemReqAdmin(pse({ empresaId: "" }), "pse")).toMatch(/grupo empresarial/)
-    expect(validarItemReqAdmin(pse({ concepto: "" }), "pse")).toMatch(/concepto/)
-    expect(validarItemReqAdmin(pse({ proyectoId: "" }), "pse")).toMatch(/proyecto/)
-    expect(validarItemReqAdmin(pse({ valor: "0" }), "pse")).toMatch(/mayor que cero/)
-    expect(validarItemReqAdmin(pse({ valor: "abc" }), "pse")).toMatch(/mayor que cero/)
-    expect(validarItemReqAdmin(pse({ soporte: null }), "pse")).toMatch(/soporte/)
-    expect(validarItemReqAdmin(pse({ soporte: null, archivoSoporte: new File(["x"], "f.pdf") }), "pse")).toBeNull()
+    expect(validarItemReqAdmin(pse({ empresaId: "" }))).toMatch(/grupo empresarial/)
+    expect(validarItemReqAdmin(pse({ concepto: "" }))).toMatch(/concepto/)
+    expect(validarItemReqAdmin(pse({ proyectoId: "" }))).toMatch(/proyecto/)
+    expect(validarItemReqAdmin(pse({ valor: "0" }))).toMatch(/mayor que cero/)
+    expect(validarItemReqAdmin(pse({ valor: "abc" }))).toMatch(/mayor que cero/)
+    expect(validarItemReqAdmin(pse({ soporte: null }))).toMatch(/soporte/)
+    expect(validarItemReqAdmin(pse({ soporte: null, archivoSoporte: new File(["x"], "f.pdf") }))).toBeNull()
   })
 
-  it("requisición: al menos uno y como mucho 50; errores por ítem", () => {
-    expect(validarRequisicionAdmin([], "pse")[0].mensaje).toMatch(/al menos un ítem/)
+  it("cada ítem con su método: un cuadro puede tener de los dos", () => {
+    expect(validarRequisicionAdmin([transferencia(), pse()])).toEqual([])
+    expect(metodoDelCuadro([transferencia(), pse()])).toBe("mixto")
+    expect(metodoDelCuadro([pse(), pse()])).toBe("pse")
+    expect(metodoDelCuadro([transferencia()])).toBe("transferencia")
+    // Un PSE con los datos de transferencia (sin escribir quién factura) no pasa.
+    expect(validarItemReqAdmin(transferencia({ metodo: "pse", facturaNombre: "" }))).toMatch(/empresa que factura/)
+  })
+
+  it("cuadro: al menos uno y como mucho 50; errores por ítem", () => {
+    expect(validarRequisicionAdmin([])[0].mensaje).toMatch(/al menos un ítem/)
     const muchos = Array.from({ length: MAX_ITEMS_REQ_ADMIN + 1 }, () => pse())
-    expect(validarRequisicionAdmin(muchos, "pse")[0].mensaje).toMatch(/50/)
-    expect(validarRequisicionAdmin(Array.from({ length: 50 }, () => pse()), "pse")).toEqual([])
-    const errores = validarRequisicionAdmin([pse(), pse({ concepto: "" })], "pse")
+    expect(validarRequisicionAdmin(muchos)[0].mensaje).toMatch(/50/)
+    expect(validarRequisicionAdmin(Array.from({ length: 50 }, () => pse()))).toEqual([])
+    const errores = validarRequisicionAdmin([pse(), pse({ concepto: "" })])
     expect(errores).toEqual([{ indice: 1, mensaje: "Escribe el concepto de la factura." }])
   })
 })
@@ -99,8 +109,9 @@ describe("valores y lo que se guarda", () => {
   })
 
   it("transferencia manda ids; el titular por omisión es quien factura", () => {
-    const g = itemParaGuardar(transferencia({ observaciones: "  urgente " }), "transferencia")
+    const g = itemParaGuardar(transferencia({ observaciones: "  urgente " }))
     expect(g).toEqual({
+      metodo: "transferencia",
       empresa_id: "e1",
       proyecto_id: "p1",
       concepto: "Papelería",
@@ -111,11 +122,11 @@ describe("valores y lo que se guarda", () => {
       cuenta_tercero_id: "c1",
       soporte: { ruta: "u1/item-1.pdf", nombre: "factura.pdf", mime: "application/pdf", tamano: 1000, tipo: "factura" },
     })
-    expect(itemParaGuardar(transferencia({ titularTerceroId: "t2" }), "transferencia")).toMatchObject({ titular_tercero_id: "t2" })
+    expect(itemParaGuardar(transferencia({ titularTerceroId: "t2" }))).toMatchObject({ titular_tercero_id: "t2" })
   })
 
   it("PSE manda los datos escritos, limpios", () => {
-    expect(itemParaGuardar(pse(), "pse")).toMatchObject({
+    expect(itemParaGuardar(pse())).toMatchObject({
       factura_nombre: "Secretaría de Hacienda",
       factura_nit: "899999061-9",
       titular_tipo_documento: "NIT",
@@ -124,8 +135,8 @@ describe("valores y lo que se guarda", () => {
   })
 
   it("cambiar de método conserva grupo, proyecto, concepto, valor y observaciones", () => {
-    const it = itemParaMetodo(transferencia({ observaciones: "x" }))
-    expect(it).toMatchObject({ empresaId: "e1", proyectoId: "p1", concepto: "Papelería", valor: "1.250.000,50", observaciones: "x" })
+    const it = itemParaMetodo(transferencia({ observaciones: "x" }), "pse")
+    expect(it).toMatchObject({ metodo: "pse", empresaId: "e1", proyectoId: "p1", concepto: "Papelería", valor: "1.250.000,50", observaciones: "x" })
     expect(it.terceroFacturaId).toBeNull()
     expect(it.cuentaId).toBeNull()
   })
@@ -182,7 +193,7 @@ describe("detalle", () => {
     expect(f.titularTerceroId).toBeNull()
     expect(f.cuentaTexto).toBe("BANCOLOMBIA · Ahorros · •••••8901")
     expect(valorItem(f)).toBe(150000.5)
-    expect(validarItemReqAdmin(f, "transferencia")).toBeNull()
+    expect(validarItemReqAdmin(f)).toBeNull()
   })
 })
 
@@ -226,7 +237,7 @@ describe("plantilla PSE", () => {
     })
     expect(r.items[1]).toMatchObject({ empresaId: "e2", proyectoId: "p2", valor: "1250000" })
     // Del Excel no viene el soporte: se adjunta en cada ítem.
-    for (const it of r.items) expect(validarItemReqAdmin(it, "pse")).toMatch(/soporte/)
+    for (const it of r.items) expect(validarItemReqAdmin(it)).toMatch(/soporte/)
     expect(r.errores.map((e) => e.fila)).toEqual([7, 8, 9, 10])
     expect(r.errores[0].mensaje).toMatch(/grupo empresarial/)
     expect(r.errores[1].mensaje).toMatch(/tipo de documento/)
@@ -275,10 +286,11 @@ describe("menú y ruta", () => {
     todosProyectos: false,
   }
 
-  it("cualquier usuario ve Requisiciones en A&F y la ruta es libre", () => {
+  it("cualquier usuario ve Pagos y Requisiciones administrativas en A&F y las rutas son libres", () => {
     const ayf = construirModulos(sinPestanas).find((m) => m.clave === "ayf")!
-    expect(ayf.grupos.map((g) => g.titulo)).toContain("Requisiciones")
-    expect(ayf.grupos.find((g) => g.titulo === "Requisiciones")!.items[0].url).toBe("/ayf/requisiciones-administrativas")
+    const grupo = ayf.grupos.find((g) => g.titulo === "Administrativo")!
+    expect(grupo.items.map((i) => i.url)).toEqual(["/ayf/pagos-administrativos", "/ayf/requisiciones-administrativas"])
+    expect(evaluarRuta("/ayf/pagos-administrativos")).toEqual({ tipo: "libre" })
     expect(evaluarRuta("/ayf/requisiciones-administrativas")).toEqual({ tipo: "libre" })
   })
 })
@@ -299,11 +311,18 @@ describe("pago de una requisición administrativa", () => {
       req_item: { titular_nombre: "Distrito", titular_tipo_documento: "NIT", titular_documento: "899999061" },
       tercero: null,
     })
-    expect(p.origen).toBe("Req. admin. N° 4 · PSE")
+    expect(p.origen).toBe("Pago admin. N° 4 · PSE")
     expect(p.requisicionAdminId).toBe("r4")
     expect(p.requisicionAdminLote).toEqual({ items: 3, total: 1500.5 })
     expect(mapPago({ id: "g2", fuente: "requisicion_admin", requisicion_admin_principal: false, lote: { items: 3, total: 1 } }).requisicionAdminLote).toBeNull()
     expect(p.terceroNombre).toBe("Distrito")
     expect(p.terceroDocumento).toBe("NIT 899999061")
+  })
+
+  it("en un cuadro mixto vale el método del ítem", () => {
+    const base = { id: "g3", fuente: "requisicion_admin", req: { numero: 5, metodo: "mixto" } }
+    expect(mapPago({ ...base, req_item: { metodo: "transferencia" } }).origen).toBe("Pago admin. N° 5")
+    expect(mapPago({ ...base, req_item: { metodo: "pse" } }).origen).toBe("Pago admin. N° 5 · PSE")
+    expect(mapPago({ ...base, req_item: { metodo: "pse" } }).metodoPago).toBe("pse")
   })
 })

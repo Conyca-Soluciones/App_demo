@@ -40,6 +40,17 @@ describe("totalesControl", () => {
   })
 })
 
+describe("gasto administrativo", () => {
+  it("suma al gastado y a la barra, aparte de compras y actas", () => {
+    const c = mapControlProyecto({ presupuesto: 1000, compras: 200, actas: 100, administrativo_compras: 50, administrativo_pagos: 150 })
+    expect(c.administrativoCompras).toBe(50)
+    expect(totalesControl(c).gastado).toBe(500)
+    const p = partesBarraPlata(c)
+    expect(p.administrativo).toBe(20)
+    expect(p.compras + p.actas + p.administrativo + p.disponible).toBeCloseTo(100)
+  })
+})
+
 describe("partesBarraPlata", () => {
   it("dentro del presupuesto, las partes suman 100", () => {
     const p = partesBarraPlata(base)

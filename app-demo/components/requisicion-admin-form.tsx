@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { Banknote, Download, FileSpreadsheet, Globe, Loader2, Pencil, Plus, Send, Trash2, Upload } from "lucide-react"
+import { Download, FileSpreadsheet, Loader2, Pencil, Plus, Send, Trash2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
@@ -12,16 +12,15 @@ import { descargarPlantillaReqAdminPse, leerFilasReqAdminPse, type ErrorFilaReqA
 import {
   ETIQUETA_METODO_REQ_ADMIN,
   MAX_ITEMS_REQ_ADMIN,
-  itemParaMetodo,
   itemVacio,
+  metodoDelCuadro,
   totalItems,
   validarRequisicionAdmin,
   valorItem,
   type ItemFormReqAdmin,
-  type MetodoReqAdmin,
   type OpcionesReqAdmin,
 } from "@/lib/requisiciones-admin"
-import { crearRequisicionAdmin, modificarRequisicionAdmin } from "@/app/(app)/ayf/requisiciones-administrativas/actions"
+import { crearRequisicionAdmin, modificarRequisicionAdmin } from "@/app/(app)/ayf/pagos-administrativos/actions"
 import { createClient } from "@/lib/supabase/client"
 import { rutaSoporte } from "@/lib/soportes"
 
@@ -29,28 +28,12 @@ export type EdicionReqAdmin = {
   id: string
   numero: number | null
   rechazada: boolean
-  metodo: MetodoReqAdmin
   items: ItemFormReqAdmin[]
 }
 
-const METODOS: { valor: MetodoReqAdmin; titulo: string; descripcion: string; icono: typeof Banknote }[] = [
-  {
-    valor: "transferencia",
-    titulo: "Transferencia",
-    descripcion: "El tercero tiene que estar inscrito en Terceros, con su cuenta bancaria.",
-    icono: Banknote,
-  },
-  {
-    valor: "pse",
-    titulo: "PSE",
-    descripcion: "Se escriben los datos de quien factura; no lleva banco ni cuenta.",
-    icono: Globe,
-  },
-]
-
-// Formulario de una requisición administrativa (formato GF-F-018): primero el
-// método de pago, luego los ítems (máximo 50). En PSE los ítems también se
-// pueden subir con la plantilla de Excel.
+// Formulario de un cuadro de pagos administrativos (formato GF-F-018): ítems
+// (máximo 50), cada uno por transferencia o PSE. Los de PSE también se pueden
+// subir con la plantilla de Excel.
 export function RequisicionAdminForm({
   opciones,
   edicion,
@@ -62,9 +45,7 @@ export function RequisicionAdminForm({
   onEnviada: (id: string) => void
   onCancelarEdicion?: () => void
 }) {
-  const [metodo, setMetodo] = useState<MetodoReqAdmin | null>(edicion?.metodo ?? null)
-  const [cambioMetodo, setCambioMetodo] = useState<MetodoReqAdmin | null>(null)
-  const [modoPse, setModoPse] = useState<"llenar" | "excel">("llenar")
+  const [verExcel, setVerExcel] = useState(false)
   const [items, setItems] = useState<ItemFormReqAdmin[]>(edicion?.items ?? [])
   // Ítem abierto en el diálogo: su posición, o -1 para uno nuevo.
   const [editando, setEditando] = useState<{ indice: number; item: ItemFormReqAdmin } | null>(null)
@@ -81,24 +62,8 @@ export function RequisicionAdminForm({
 
   const total = totalItems(items)
   const lleno = items.length >= MAX_ITEMS_REQ_ADMIN
-  const errores = metodo ? validarRequisicionAdmin(items, metodo) : []
+  const errores = validarRequisicionAdmin(items)
   const erroresPorIndice = new Map(errores.filter((e) => e.indice >= 0).map((e) => [e.indice, e.mensaje]))
-
-  function elegirMetodo(m: MetodoReqAdmin) {
-    if (m === metodo) return
-    if (items.length > 0) {
-      setCambioMetodo(m)
-      return
-    }
-    setMetodo(m)
-  }
-
-  function confirmarCambioMetodo() {
-    if (!cambioMetodo) return
-    setItems((lista) => lista.map(itemParaMetodo))
-    setMetodo(cambioMetodo)
-    setCambioMetodo(null)
-  }
 
   function guardarItem(item: ItemFormReqAdmin) {
     if (!editando) return
@@ -134,7 +99,7 @@ export function RequisicionAdminForm({
       }
       if (items.length + r.items.length > MAX_ITEMS_REQ_ADMIN) {
         setError(
-          `Con este archivo la requisición quedaría con ${items.length + r.items.length} ítems; el máximo es ${MAX_ITEMS_REQ_ADMIN}. Divide los pagos en varias requisiciones.`
+          `Con este archivo el cuadro quedaría con ${items.length + r.items.length} ítems; el máximo es ${MAX_ITEMS_REQ_ADMIN}. Divide los pagos en varios cuadros.`
         )
         return
       }
@@ -179,34 +144,33 @@ export function RequisicionAdminForm({
   }
 
   async function enviar() {
-    if (!metodo) return
     setEnviando(true)
     setError(null)
     const subidas: string[] = []
     try {
       const listos = await itemsConSoportes(subidas)
       if (edicion) {
-        await modificarRequisicionAdmin(edicion.id, metodo, listos)
+        await modificarRequisicionAdmin(edicion.id, listos)
         onEnviada(edicion.id)
       } else {
-        onEnviada(await crearRequisicionAdmin(metodo, listos))
+        onEnviada(await crearRequisicionAdmin(listos))
       }
     } catch (e) {
       // Lo que se alcanzó a subir no quedó en ningún ítem: se borra.
       if (subidas.length > 0) await createClient().storage.from("requisiciones_admin").remove(subidas)
-      setError(e instanceof Error ? e.message : "No se pudo enviar la requisición.")
+      setError(e instanceof Error ? e.message : "No se pudo enviar el cuadro de pagos.")
     } finally {
       setEnviando(false)
       setConfirmar(false)
     }
   }
 
-  const columnas: ColumnaExcel<{ item: ItemFormReqAdmin; indice: number }>[] = metodo
-    ? [
-        ...columnasItemsReqAdmin<{ item: ItemFormReqAdmin; indice: number }>(metodo, ({ item: it, indice }) => {
+  const columnas: ColumnaExcel<{ item: ItemFormReqAdmin; indice: number }>[] = [
+        ...columnasItemsReqAdmin<{ item: ItemFormReqAdmin; indice: number }>(({ item: it, indice }) => {
           const [banco = null, tipoCuenta = null, numeroCuenta = null] = it.cuentaTexto ? it.cuentaTexto.split(" · ") : []
           return {
             orden: indice + 1,
+            metodo: it.metodo,
             empresa: empresaPorId.get(it.empresaId) ?? "",
             facturaNombre: it.facturaNombre,
             facturaNit: it.facturaNit,
@@ -254,14 +218,13 @@ export function RequisicionAdminForm({
           ),
         },
       ]
-    : []
 
   return (
     <div className="space-y-5">
       {edicion && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span>
-            {edicion.rechazada ? "Corrigiendo" : "Modificando"} la requisición administrativa N° {edicion.numero}. Al enviarla vuelve a A&F con
+            {edicion.rechazada ? "Corrigiendo" : "Modificando"} el pago administrativo N° {edicion.numero}. Al enviarlo vuelve a A&F con
             el mismo número; sus pagos por aprobar se reemplazan por los nuevos.
           </span>
           {onCancelarEdicion && (
@@ -272,82 +235,25 @@ export function RequisicionAdminForm({
         </div>
       )}
 
-      <section className="space-y-2">
-        <p className="text-sm font-medium">1. ¿Cómo se paga?</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {METODOS.map((m) => {
-            const Icono = m.icono
-            const activo = metodo === m.valor
-            return (
-              <button
-                key={m.valor}
-                type="button"
-                onClick={() => elegirMetodo(m.valor)}
-                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
-                  activo ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50"
-                }`}
-              >
-                <Icono className={`mt-0.5 size-5 shrink-0 ${activo ? "text-primary" : "text-muted-foreground"}`} />
-                <span>
-                  <span className="block font-medium">{m.titulo}</span>
-                  <span className="block text-sm text-muted-foreground">{m.descripcion}</span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-        {cambioMetodo && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <span>
-              Al cambiar a {ETIQUETA_METODO_REQ_ADMIN[cambioMetodo]} se borran los datos del tercero y de la cuenta de los {items.length}{" "}
-              ítems (se conservan grupo, proyecto, concepto, valor y observaciones).
-            </span>
-            <Button size="sm" onClick={confirmarCambioMetodo}>
-              Cambiar
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setCambioMetodo(null)}>
-              No
-            </Button>
-          </div>
-        )}
-      </section>
-
-      {metodo && (
-        <section className="space-y-3">
+      <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium">
-              2. Ítems{" "}
+              Ítems{" "}
               <span className="font-normal text-muted-foreground">
                 ({items.length} de {MAX_ITEMS_REQ_ADMIN})
               </span>
             </p>
-            {metodo === "pse" && (
-              <div className="flex gap-1.5 rounded-md border p-0.5">
-                {(
-                  [
-                    { valor: "llenar", etiqueta: "Llenar la información" },
-                    { valor: "excel", etiqueta: "Subir Excel (muchos pagos)" },
-                  ] as const
-                ).map((o) => (
-                  <button
-                    key={o.valor}
-                    type="button"
-                    onClick={() => setModoPse(o.valor)}
-                    className={`rounded px-3 py-1 text-sm ${modoPse === o.valor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    {o.etiqueta}
-                  </button>
-                ))}
-              </div>
-            )}
+            <Button size="sm" variant="outline" onClick={() => setVerExcel((v) => !v)}>
+              <FileSpreadsheet className="size-4" /> {verExcel ? "Ocultar Excel" : "Subir Excel de pagos PSE"}
+            </Button>
           </div>
 
-          {metodo === "pse" && modoPse === "excel" && (
+          {verExcel && (
             <div className="space-y-2 rounded-lg border border-dashed p-3">
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <FileSpreadsheet className="size-4" />
-                Descarga la plantilla, llena una fila por pago (máximo {MAX_ITEMS_REQ_ADMIN}) y súbela. Los ítems se agregan a la tabla para
-                revisarlos antes de enviar.
+                Para muchos pagos por PSE: descarga la plantilla, llena una fila por pago (máximo {MAX_ITEMS_REQ_ADMIN}) y súbela. Los ítems
+                se agregan a la tabla como PSE para revisarlos antes de enviar.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={descargarPlantilla} disabled={descargando}>
@@ -394,12 +300,12 @@ export function RequisicionAdminForm({
                 titulo: (f) => `${f.indice + 1}. ${f.item.facturaNombre || "Sin empresa que factura"}`,
                 subtitulo: (f) => f.item.concepto,
                 esquina: (f) => <span className="text-sm font-medium tabular-nums">{formatoMoneda(valorItem(f.item) ?? 0)}</span>,
-                campos: ["empresa", "titular", ...(metodo === "transferencia" ? ["banco", "numeroCuenta"] : []), "proyecto", "acciones"],
+                campos: ["metodo", "empresa", "titular", "banco", "numeroCuenta", "proyecto", "acciones"],
               }}
             />
           ) : (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Todavía no hay ítems. {metodo === "pse" && modoPse === "excel" ? "Sube la plantilla llena o agrégalos uno a uno." : "Agrega el primero."}
+              Todavía no hay ítems. {verExcel ? "Sube la plantilla llena o agrégalos uno a uno." : "Agrega el primero."}
             </div>
           )}
 
@@ -411,14 +317,12 @@ export function RequisicionAdminForm({
               Total: <span className="text-base font-semibold tabular-nums">{formatoMoneda(total)}</span>
             </p>
           </div>
-          {lleno && <p className="text-xs text-muted-foreground">Llegaste al máximo de {MAX_ITEMS_REQ_ADMIN} ítems por requisición.</p>}
+          {lleno && <p className="text-xs text-muted-foreground">Llegaste al máximo de {MAX_ITEMS_REQ_ADMIN} ítems por cuadro.</p>}
         </section>
-      )}
 
       {error && <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-      {metodo && (
-        <div className="flex justify-end border-t pt-4">
+      <div className="flex justify-end border-t pt-4">
           <Button
             onClick={() => {
               if (errores.length > 0) {
@@ -434,13 +338,11 @@ export function RequisicionAdminForm({
             <Send className="size-4" /> {edicion ? "Enviar otra vez a A&F" : "Enviar a A&F"}
           </Button>
         </div>
-      )}
 
-      {editando && metodo && (
+      {editando && (
         <ItemRequisicionAdminDialog
           key={editando.item.clave}
           abierto
-          metodo={metodo}
           opciones={opciones}
           inicial={editando.item}
           numero={editando.indice < 0 ? items.length + 1 : editando.indice + 1}
@@ -452,9 +354,9 @@ export function RequisicionAdminForm({
       <Dialog open={confirmar} onOpenChange={(a) => !a && !enviando && setConfirmar(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Enviar la requisición a A&F?</DialogTitle>
+            <DialogTitle>¿Enviar el cuadro de pagos a A&F?</DialogTitle>
             <DialogDescription>
-              {metodo ? ETIQUETA_METODO_REQ_ADMIN[metodo] : ""} · {items.length} {items.length === 1 ? "ítem" : "ítems"} ·{" "}
+              {items.length > 0 ? ETIQUETA_METODO_REQ_ADMIN[metodoDelCuadro(items)] : ""} · {items.length} {items.length === 1 ? "ítem" : "ítems"} ·{" "}
               {formatoMoneda(total)}. Pasa a Aprobación de pagos (A&F), que la aprueba o rechaza completa.
             </DialogDescription>
           </DialogHeader>

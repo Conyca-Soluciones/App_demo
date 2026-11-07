@@ -145,7 +145,7 @@ export function leerFilasReqAdminPse(
     }
 
     items.push({
-      ...itemVacio(),
+      ...itemVacio("pse"),
       empresaId,
       facturaNombre: texto(celda(f, "factura")),
       facturaNit: nit,
@@ -169,7 +169,7 @@ export async function construirPlantillaReqAdminPse(opciones: OpcionesReqAdmin, 
   const n = ORDEN.length
 
   const primera = agregarEncabezadoMarca(libro, hoja, {
-    titulo: "Requisición administrativa · PSE",
+    titulo: "Pagos administrativos · PSE",
     numColumnas: n,
     bufferLogo,
   })

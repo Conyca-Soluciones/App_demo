@@ -45,4 +45,8 @@ describe("contrato vencido (como _avisar_contratos_vencidos)", () => {
     expect(contratoVencido(contrato({ estado: "pre_aprobacion", minutaEstado: null }), "2026-10-16").vencido).toBe(false)
     expect(contratoVencido(contrato({ liquidadoAt: "2026-10-10T15:00:00Z" }), "2026-10-16").vencido).toBe(false)
   })
+  it("con otrosí de prórroga aprobado vale la fecha nueva", () => {
+    expect(contratoVencido(contrato({ fechaFinVigente: "2026-11-15" }), "2026-10-16")).toEqual({ vencido: false, fechaFin: "2026-11-15" })
+    expect(contratoVencido(contrato({ fechaFinVigente: "2026-11-15" }), "2026-11-16").vencido).toBe(true)
+  })
 })
