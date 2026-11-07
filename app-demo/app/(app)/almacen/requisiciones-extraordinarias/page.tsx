@@ -153,7 +153,7 @@ export default function RequisicionesExtraordinarias() {
   }
 
   const columnas: ColumnaExcel<RequisicionExtraordinaria>[] = [
-    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (r) => String(r.numero), valorOrden: (r) => r.numero, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "Requisición", ancho: 120, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (r) => r.proyectoCodigo ?? r.proyectoNombre ?? "" },
     {
       clave: "insumos",
@@ -254,7 +254,7 @@ export default function RequisicionesExtraordinarias() {
             tituloFila={AYUDA_DOBLE_CLIC}
             fondoFila={(r) => (r.urgente && r.estado === "pendiente" ? "bg-amber-50" : undefined)}
             tarjeta={{
-              titulo: (r) => `Extraordinaria ${r.numero}`,
+              titulo: (r) => `Extraordinaria ${r.codigo}`,
               subtitulo: (r) => `${r.proyectoCodigo ?? r.proyectoNombre ?? "—"} · ${r.solicitanteNombre ?? "—"}`,
               esquina: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
               campos: ["insumos", "requerida", "acciones"],
@@ -269,7 +269,7 @@ export default function RequisicionesExtraordinarias() {
       <VentanaDetalle
         abierta={abierta !== null}
         onCerrar={() => setAbierta(null)}
-        titulo={abierta ? `Requisición extraordinaria #${abierta.numero}` : ""}
+        titulo={abierta ? `Requisición extraordinaria ${abierta.codigo}` : ""}
         subtitulo={abierta ? `${abierta.proyectoCodigo ?? ""} ${abierta.proyectoNombre ?? ""}`.trim() : undefined}
         campos={
           abierta
@@ -301,7 +301,7 @@ export default function RequisicionesExtraordinarias() {
 
       <ConfirmarAprobacion
         abierta={porAprobar !== null}
-        titulo={`¿Aprobar la requisición extraordinaria #${porAprobar?.numero ?? ""}?`}
+        titulo={`¿Aprobar la requisición extraordinaria ${porAprobar?.codigo ?? ""}?`}
         detalle={
           porAprobar
             ? `${porAprobar.lineas.length} ${porAprobar.lineas.length === 1 ? "insumo" : "insumos"} por encima del presupuesto. Pasa a Compras y se le avisa a ${
@@ -317,7 +317,7 @@ export default function RequisicionesExtraordinarias() {
       <Dialog open={porRechazar !== null} onOpenChange={(v) => !v && !procesando && setPorRechazar(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar requisición extraordinaria #{porRechazar?.numero}</DialogTitle>
+            <DialogTitle>Rechazar requisición extraordinaria {porRechazar?.codigo}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Quien la pidió recibe una notificación con este motivo.

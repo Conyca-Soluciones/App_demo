@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, conProyectos, mapPago } from "@/lib/pagos-db"
 import type { FiltrosAprobacionPagos, Pago } from "@/lib/pagos"
 import { mapDetalleReqAdmin, type RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
@@ -41,7 +41,7 @@ export async function listarPagosAprobacion(
   const { data, error } = await query.range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
   const { filas, hayMas } = cortarPagina((data ?? []) as any[])
-  return { pagos: filas.map(mapPago), hayMas }
+  return { pagos: await conProyectos(supabase, filas.map(mapPago)), hayMas }
 }
 
 async function obtenerPago(id: string): Promise<Pago> {
@@ -49,7 +49,7 @@ async function obtenerPago(id: string): Promise<Pago> {
   const { data, error } = await supabase.from("pagos").select(CAMPOS_PAGO).eq("id", id).maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) throw new Error("El pago no existe o no tienes acceso.")
-  return mapPago(data)
+  return (await conProyectos(supabase, [mapPago(data)]))[0]
 }
 
 export async function aprobarPago(pagoId: string): Promise<Pago> {

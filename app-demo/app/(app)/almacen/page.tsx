@@ -41,7 +41,7 @@ export default function Almacen() {
 
 function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; proyectoNombre: string }) {
   // Aviso tras crear: "Requisición N creada" con enlace a su detalle.
-  const [creada, setCreada] = useState<{ requisicionId: string; numero: number; extraordinaria?: boolean } | null>(null)
+  const [creada, setCreada] = useState<{ requisicionId: string; numero: number; codigo: string; extraordinaria?: boolean } | null>(null)
   // "Solicitar requisición extraordinaria a Gerencia" (requisición extraordinaria): null = cerrado.
   const [extraordinaria, setExtraordinaria] = useState<{ inicial: InicialExtraordinaria | null } | null>(null)
   // null = todavía cargando el presupuesto del proyecto.
@@ -79,8 +79,8 @@ function Requisiciones({ proyectoId, proyectoNombre }: { proyectoId: string; pro
           {creada && (
             <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               {creada.extraordinaria
-                ? `Requisición extraordinaria ${creada.numero} enviada a Gerencia.`
-                : `Requisición ${creada.numero} creada.`}{" "}
+                ? `Requisición extraordinaria ${creada.codigo} enviada a Gerencia.`
+                : `Requisición ${creada.codigo} creada.`}{" "}
               <Link
                 href={`/almacen/registro-requisiciones/${creada.requisicionId}`}
                 className="font-medium underline underline-offset-2"

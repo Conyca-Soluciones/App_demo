@@ -587,6 +587,25 @@ select * from (
   select '20261231100000_notificaciones_borrar',
          exists (select 1 from pg_policy where polname = 'notificaciones_delete_propias')
   union all
+  select '20261231200000_cuentas_por_verificar',
+         exists (select 1 from pg_proc where proname = 'cuentas_por_verificar')
+         and exists (select 1 from storage.buckets where id = 'terceros')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%vista=verificar%')
+         and exists (select 1 from pg_proc where proname = 'crear_tercero' and prosrc like '%_certificacion_tercero_nuevo%')
+  union all
+  select '20261231300000_proyectos_de_pagos',
+         exists (select 1 from pg_proc where proname = 'proyectos_de_pagos')
+  union all
+  select '20261231400000_codigo_requisiciones',
+         exists (select 1 from pg_trigger where tgname = 'trg_requisicion_codigo')
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'requisiciones_vista' and column_name = 'codigo')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%r.codigo%')
+  union all
+  select '20261231500000_codigos_textos_restantes',
+         exists (select 1 from pg_proc where proname = '_resolver_requisicion_sin_proyecto' and prosrc like '%v_h.codigo%')
+         and exists (select 1 from pg_proc where proname = '_historial_entrada' and prosrc like '%o.codigo%')
+  union all
   select '20261231200000_import_abandonado_al_cerrar',
          exists (select 1 from pg_proc where proname = 'abandonar_import_presupuesto')
   union all

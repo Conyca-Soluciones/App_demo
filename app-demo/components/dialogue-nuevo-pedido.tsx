@@ -36,7 +36,7 @@ interface FormularioRequisicionProps {
   open?: boolean
   versionId: string
   // Al crear, recibe el número de la requisición nueva (al modificar, nada).
-  onPedidoCreado?: (creada?: { requisicionId: string; numero: number }) => void
+  onPedidoCreado?: (creada?: { requisicionId: string; numero: number; codigo: string }) => void
   // Si se pasa, el formulario MODIFICA esa requisición pendiente (precargada con
   // sus insumos) en vez de crear una nueva.
   edicion?: EdicionRequisicion | null
@@ -54,7 +54,7 @@ interface SolicitudInsumoDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   versionId: string
-  onPedidoCreado?: (creada?: { requisicionId: string; numero: number }) => void
+  onPedidoCreado?: (creada?: { requisicionId: string; numero: number; codigo: string }) => void
   edicion?: EdicionRequisicion | null
 }
 
@@ -284,7 +284,7 @@ export function FormularioRequisicion({
           observaciones: observaciones.trim() || null,
           soporteUrl: null, // subida de archivo a Storage: pendiente de implementar
         })
-        onPedidoCreado?.({ requisicionId: creada.requisicionId, numero: creada.numero })
+        onPedidoCreado?.({ requisicionId: creada.requisicionId, numero: creada.numero, codigo: creada.codigo })
         setReinicio((r) => r + 1)
         onTerminar?.()
         return
@@ -590,7 +590,7 @@ export function SolicitudInsumoDialog({
       <DialogContent className="w-[95vw] max-w-3xl p-0">
         <DialogHeader className="border-b px-8 py-5">
           <DialogTitle className="text-xl">
-            {edicion ? `Modificar requisición #${edicion.numero}` : "Nueva requisición"}
+            {edicion ? `Modificar requisición ${edicion.codigo}` : "Nueva requisición"}
           </DialogTitle>
         </DialogHeader>
         <FormularioRequisicion

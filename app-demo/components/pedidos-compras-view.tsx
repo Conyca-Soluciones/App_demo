@@ -25,7 +25,6 @@ export function PedidosCompraView() {
 function PedidosCompraDeProyecto() {
   const router = useRouter()
   const [pedidos, setPedidos] = useState<PedidoParaComprar[] | null>(null)
-  const [proyectoConsultado, setProyectoConsultado] = useState<string | null>(null)
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +35,6 @@ function PedidosCompraDeProyecto() {
     try {
       const data = await listarPedidosParaComprar(filtros)
       setPedidos(data)
-      setProyectoConsultado(filtros.proyectoId)
       setSeleccionados(new Set())
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones.")
@@ -64,11 +62,17 @@ function PedidosCompraDeProyecto() {
     })
   }
 
+  // Una orden de compra es de UN proyecto: el de las líneas elegidas (con
+  // "Todos los proyectos" se pueden marcar de varios, pero no generar).
+  const proyectosElegidos = new Set((pedidos ?? []).filter((p) => seleccionados.has(p.id)).map((p) => p.proyectoId))
+  const variosProyectos = proyectosElegidos.size > 1
+  const proyectoDeLaOrden = proyectosElegidos.size === 1 ? [...proyectosElegidos][0] : null
+
   function handleGenerarOC() {
-    if (!proyectoConsultado || seleccionados.size === 0) return
+    if (!proyectoDeLaOrden || seleccionados.size === 0) return
     sessionStorage.setItem(
       CLAVE_SELECCION,
-      JSON.stringify({ proyectoId: proyectoConsultado, pedidoIds: Array.from(seleccionados) })
+      JSON.stringify({ proyectoId: proyectoDeLaOrden, pedidoIds: Array.from(seleccionados) })
     )
     router.push("/almacen/generar-oc")
   }
@@ -87,7 +91,7 @@ function PedidosCompraDeProyecto() {
 
           {pedidos === null ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-              Elige un proyecto y presiona Consultar para ver los pedidos aprobados listos para comprar.
+              Elige un proyecto (o todos) y presiona Consultar para ver las requisiciones aprobadas listas para comprar.
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto">
@@ -107,8 +111,13 @@ function PedidosCompraDeProyecto() {
           <span className="text-sm">
             <strong>{seleccionados.size}</strong> {seleccionados.size === 1 ? "requisición" : "requisiciones"} seleccionada
             {seleccionados.size === 1 ? "" : "s"} para comprar
+            {variosProyectos && (
+              <span className="ml-2 text-destructive">
+                · Son de {proyectosElegidos.size} proyectos: una orden de compra es de un solo proyecto.
+              </span>
+            )}
           </span>
-          <Button onClick={handleGenerarOC}>
+          <Button onClick={handleGenerarOC} disabled={!proyectoDeLaOrden}>
             <ShoppingCart className="mr-2 h-4 w-4" />
             Generar Orden de Compra
           </Button>

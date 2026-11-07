@@ -143,7 +143,7 @@ export function SolicitudExtraordinariaDialog({
   onOpenChange: (open: boolean) => void
   versionId: string
   inicial?: InicialExtraordinaria | null
-  onCreada?: (creada: { requisicionId: string; numero: number }) => void
+  onCreada?: (creada: { requisicionId: string; numero: number; codigo: string }) => void
 }) {
   const [lineas, setLineas] = useState<Linea[]>([])
   // Cómo se arma la línea nueva: "presupuesto" = un insumo de los APU (busca el

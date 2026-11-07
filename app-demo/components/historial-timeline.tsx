@@ -410,7 +410,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   }
   if (tipo === "contrato" && e.evento === "minuta_guardada") return lineasCambios(d.cambios)
   if (tipo === "entrada") {
-    if (e.evento === "registrada" && d.numero != null) return [`Entrada ${d.numero}${d.orden != null ? ` · OC ${d.orden}` : ""}${d.remision ? ` · remisión ${d.remision}` : ""}`]
+    if (e.evento === "registrada" && d.numero != null) return [`Entrada ${d.numero}${d.orden != null ? ` · ${typeof d.orden === "string" ? d.orden : `OC ${d.orden}`}` : ""}${d.remision ? ` · remisión ${d.remision}` : ""}`]
     if (e.evento === "linea_editada") return [`${formatoValor(d.insumo)}: ${formatoValor(d.de)} → ${formatoValor(d.a)}`]
     if (e.evento === "editada") return lineasCambios(d.cambios)
     return []

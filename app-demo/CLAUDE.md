@@ -1461,6 +1461,10 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   (disparadores `trg_oc_codigo` y `_asignar_numero_contrato`). El número del
   contrato aprobado (`numero_contrato`) es el mismo código, sin año; las
   minutas imprimen "No. CJ-001-0001". Actas: "Acta 01" (`numeroActa`).
+  Requisiciones igual desde `20261231400000`: `requisiciones.numero` es el
+  consecutivo del proyecto y `codigo` = 'RQ-001-0001' (`trg_requisicion_codigo`,
+  contador tipo 'requisicion'; `requisiciones_vista` lo trae al final). Las
+  listas de varios proyectos se ordenan por fecha, no por número.
 - **ITEM del consolidado** (ANTES de `20261231000000`): consecutivo por consolidado y semana
   (`pagos_contadores`), se da al aprobar y nunca se reutiliza: un pago anulado
   conserva su ITEM y uno borrado a mano en la base deja el hueco.
@@ -1662,6 +1666,29 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   y `listar_bancos_admin` también van por `tercero_id`; `guardar_banco` ya no toca
   contratistas. Los contratistas de prueba se enlazaron (o se les creó el tercero,
   sin cuenta).
+- **Proyecto de los pagos para A&F** (`20261231300000`): Financiera y
+  Contabilidad no tienen proyectos asignados y la RLS de `proyectos` les dejaba
+  el embed vacío (soporte del dispersor "(sin proyecto)", columna Proyecto en
+  blanco). `proyectos_de_pagos(ids)` da número, código y nombre solo de
+  proyectos de pagos que ya ven (`_ve_pago`); lo usan `conProyectos`
+  (`lib/pagos-db.ts`: consolidados, Gerencia, Aprobación de pagos) y
+  `completarProyectos` (Realizar Pagos). No toca la RLS de `proyectos` (el
+  selector de proyecto de A&F sigue vacío).
+- **Cuentas por verificar** (`20261231200000`, decisión del usuario 2026-11-06):
+  pestaña en Terceros (`components/terceros-pestanas.tsx`,
+  `components/cuentas-por-verificar.tsx`; `?vista=verificar`, a donde lleva
+  Mis pendientes). Lista de las PENDIENTES (`cuentas_por_verificar()`, las con
+  pagos esperando primero) y, al lado, la certificación de la elegida
+  (`url_certificacion_cuenta`: la de la cuenta o, si no tiene, la del
+  contratista) con "Verificar y seguir", verificar varias marcadas
+  (`verificarCuentas`), subir la certificación (bucket privado `terceros`,
+  `guardar_certificacion_cuenta`, columnas `terceros_cuentas.certificacion_*`)
+  y Editar (abre `TerceroDialogo`). Solo con `editar_terceros` o
+  `verificar_terceros`; Contabilidad ve solo la lista de terceros. Al CREAR un
+  tercero (cualquiera) se puede adjuntar la certificación de la cuenta: el
+  navegador la sube a `terceros/nuevo/<uid>/` (política del bucket) y
+  `crear_tercero` la pega a la cuenta con `_certificacion_tercero_nuevo`
+  (`p_cuenta.certificacion`); si falla, se borra el archivo.
 - **Proveedores enlazados** (`20261223000000_proveedores_tercero.sql`):
   `proveedores.tercero_id` (único; 393 de 394 enlazados por documento; EQUINORTE
   PV0318 sin documento queda sin tercero). Nuevo proveedor = `SelectorTercero`
@@ -3847,7 +3874,11 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261229000000` crédito en espera hasta la semana de su fecha y cambiar esa fecha ·
 `20261230000000` número del proyecto y códigos OC-001-0001 / CJ-001-0001 ·
 `20261231000000` REF de los pagos al enviar a liquidar, mover de semana y devolver a preparación ·
-`20261231100000` campanita: no leídas arriba y borrar notificaciones propias. ·
+`20261231100000` campanita: no leídas arriba y borrar notificaciones propias ·
+`20261231200000` Terceros › Cuentas por verificar (tabla, certificación por cuenta) ·
+`20261231300000` proyecto de los pagos para A&F (soporte del dispersor y columnas Proyecto) ·
+`20261231400000` requisiciones con código RQ-001-0001 ·
+`20261231500000` avisos e historial que quedaban con el número viejo (requisición, OC) ·
 `20261231700000` firmas que faltaban al registrar Mi firma y fin vigente del contrato ·
 `20261231800000` pagos administrativos con método por ítem ·
 `20261231900000` requisiciones administrativas (FUNCIONAMIENTO o proyecto) ·

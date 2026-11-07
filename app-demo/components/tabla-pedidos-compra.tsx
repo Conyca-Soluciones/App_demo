@@ -77,19 +77,19 @@ export function TablaPedidosCompra({
   // conservan el orden en que llegan). Un solo ordenamiento: O(n log n).
   const SIN_NUMERO = Number.MAX_SAFE_INTEGER
   const ordenados = [...pedidos].sort(
-    (x, y) => (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
+    (x, y) => (x.requisicionCodigo ?? "￿").localeCompare(y.requisicionCodigo ?? "￿") || (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
   )
 
   const columnas: ColumnaExcel<PedidoParaComprar>[] = [
     {
       clave: "requisicion",
-      titulo: "# Requisición",
-      ancho: 120,
+      titulo: "REF",
+      ancho: 130,
       fija: true,
-      texto: (p) => (p.requisicionNumero != null ? String(p.requisicionNumero) : "") + (p.administrativa ? " · Administrativa" : ""),
+      texto: (p) => (p.requisicionCodigo ?? (p.requisicionNumero != null ? String(p.requisicionNumero) : "")) + (p.administrativa ? " · Administrativa" : ""),
       celda: (p) => (
         <span className="flex items-center gap-1.5">
-          {p.requisicionNumero ?? ""}
+          {p.requisicionCodigo ?? p.requisicionNumero ?? ""}
           {p.administrativa && (
             <span className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-normal text-sky-800" title="Requisición administrativa (FUNCIONAMIENTO): sin presupuesto ni aprobación">
               Admin.
@@ -97,7 +97,7 @@ export function TablaPedidosCompra({
           )}
         </span>
       ),
-      valorOrden: (p) => p.requisicionNumero,
+      valorOrden: (p) => p.requisicionCodigo ?? "",
       claseCelda: "font-medium tabular-nums",
     },
     { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (p) => p.proyectoTexto ?? "", claseCelda: "tabular-nums" },
@@ -229,7 +229,7 @@ export function TablaPedidosCompra({
         fondoFila={(p) => (p.urgente ? "bg-amber-50" : undefined)}
         tarjeta={{
           titulo: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
-          subtitulo: (p) => `Requisición # ${p.requisicionNumero ?? "—"}`,
+          subtitulo: (p) => `Requisición ${p.requisicionCodigo ?? "—"}`,
           esquina: (p) => columnas.find((c) => c.clave === "comprar")!.celda!(p),
           campos: ["proyecto", "solicitante", "um", "cantidad", "valor", "requerida", "urgente", "rechazar"],
         }}
@@ -239,7 +239,7 @@ export function TablaPedidosCompra({
         abierta={viendo !== null}
         onCerrar={() => setViendo(null)}
         titulo={viendo ? `${viendo.insumoCodigo} · ${viendo.insumoDescripcion}` : ""}
-        subtitulo={viendo ? `Requisición # ${viendo.requisicionNumero ?? "—"}` : undefined}
+        subtitulo={viendo ? `Requisición ${viendo.requisicionCodigo ?? "—"}` : undefined}
         campos={
           viendo
             ? [

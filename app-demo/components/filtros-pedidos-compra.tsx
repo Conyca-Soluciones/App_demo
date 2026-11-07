@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { etiquetaProyecto } from "@/lib/proyecto-actual"
@@ -15,6 +16,8 @@ import {
   type FiltrosPedidosCompra,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { CampoFecha } from "@/components/ui/campo-fecha"
+
+const TODOS = "todos"
 
 type FiltrosPedidosCompraPanelProps = {
   onConsultar: (filtros: FiltrosPedidosCompra) => void
@@ -39,15 +42,12 @@ async function buscarInsumosAdaptado(termino: string): Promise<OpcionBuscador[]>
 
 export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedidosCompraPanelProps) {
   const [abierto, setAbierto] = useState(true)
-  // El proyecto ya no se elige acá: es el proyecto actual (se elige en /inicio).
-  const { proyecto: proyectoActual } = useProyectoActual()
-  const proyecto: OpcionBuscador | null = proyectoActual
-    ? {
-        id: proyectoActual.id,
-        etiqueta: proyectoActual.codigo ?? proyectoActual.nombre,
-        subetiqueta: proyectoActual.codigo ? proyectoActual.nombre : null,
-      }
-    : null
+  // Por omisión el proyecto actual; se puede elegir otro de los suyos o todos
+  // (decisión del usuario 2026-11-06). Una orden sigue siendo de UN proyecto.
+  const { proyecto: proyectoActual, proyectos } = useProyectoActual()
+  const [proyectoId, setProyectoId] = useState<string>(proyectoActual?.id ?? TODOS)
+  const elegido = proyectos.find((p) => p.id === proyectoId) ?? null
+  const proyecto = { etiqueta: elegido ? (elegido.codigo ?? elegido.nombre) : "Todos los proyectos" }
   const [usuario, setUsuario] = useState<OpcionBuscador | null>(null)
   const [insumo, setInsumo] = useState<OpcionBuscador | null>(null)
   const [observacion, setObservacion] = useState("")
@@ -61,12 +61,11 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
   // Marcado de entrada: solo lo que todavía falta comprar.
   const [soloPendientes, setSoloPendientes] = useState(true)
 
-  const puedeConsultar = proyecto !== null && !cargando
+  const puedeConsultar = !cargando
 
   function handleConsultar() {
-    if (!proyecto) return
     onConsultar({
-      proyectoId: proyecto.id,
+      proyectoId: proyectoId === TODOS ? null : proyectoId,
       usuarioId: usuario?.id ?? null,
       insumoId: insumo?.id ?? null,
       observacion: observacion.trim() || null,
@@ -128,9 +127,19 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
       <div className="space-y-4 p-4">
         <div className="space-y-1.5">
           <Label>Proyecto</Label>
-          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-            {proyectoActual ? etiquetaProyecto(proyectoActual) : "Sin proyecto seleccionado"}
-          </p>
+          <Select value={proyectoId} onValueChange={(v) => setProyectoId(v ?? TODOS)}>
+            <SelectTrigger className="w-full">
+              <SelectValue>{elegido ? etiquetaProyecto(elegido) : "Todos los proyectos"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos los proyectos</SelectItem>
+              {proyectos.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {etiquetaProyecto(p)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-1.5">

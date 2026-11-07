@@ -50,11 +50,11 @@ function enteros(lista: number[] | undefined, min: number, max: number, nombre: 
 const CAMPOS_TERCERO = "razon_social, tipo_documento, numero_documento, dv, nombre_banco, nombres, apellidos"
 const CAMPOS = `
   id, referencia, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id, dispersion_id,
-  cuenta_confirmada_en, cuenta_modificada, etiquetas, tercero_id, titular_tercero_id,
+  cuenta_confirmada_en, cuenta_modificada, etiquetas, tercero_id, titular_tercero_id, proyecto_id,
   consolidado:consolidados!pagos_consolidado_id_fkey(nombre),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre),
-  proyecto:proyectos!pagos_proyecto_id_fkey(codigo),
+  proyecto:proyectos!pagos_proyecto_id_fkey(codigo, nombre),
   empresa:empresas!pagos_empresa_id_fkey(razon_social),
   tercero:terceros!pagos_tercero_id_fkey(${CAMPOS_TERCERO}),
   titular:terceros!pagos_titular_tercero_id_fkey(${CAMPOS_TERCERO}),
@@ -91,6 +91,18 @@ function reboteDe(intentos: any[]): { fecha: string; motivo: string } | null {
   return ultimo ? { fecha: ultimo.rebotado_en, motivo: ultimo.motivo_rebote ?? "" } : null
 }
 
+// Financiera no tiene proyectos asignados: el embed de proyectos le llega
+// vacío (RLS) y el soporte del dispersor decía "(sin proyecto)". Se completa
+// con proyectos_de_pagos (20261231300000), una consulta por lista.
+async function completarProyectos(supabase: any, filas: any[]): Promise<any[]> {
+  const ids = [...new Set(filas.filter((f) => f.proyecto_id && !f.proyecto).map((f) => f.proyecto_id as string))]
+  if (ids.length === 0) return filas
+  const { data, error } = await supabase.rpc("proyectos_de_pagos", { p_ids: ids })
+  if (error) throw new Error(error.message)
+  const porId = new Map<string, any>(((data ?? []) as any[]).map((p) => [p.id, p]))
+  return filas.map((f) => (f.proyecto_id && !f.proyecto && porId.has(f.proyecto_id) ? { ...f, proyecto: porId.get(f.proyecto_id) } : f))
+}
+
 function mapPagoDispersor(f: any): PagoDispersor {
   const valorOriginal = Number(f.valor_a_pagar ?? 0)
   const banco = f.cuenta?.banco?.nombre ?? ""
@@ -101,7 +113,7 @@ function mapPagoDispersor(f: any): PagoDispersor {
     anio: f.anio ?? null,
     consolidado: f.consolidado?.nombre ?? "",
     grupo: f.empresa?.razon_social ?? "",
-    proyecto: f.proyecto?.codigo ?? "",
+    proyecto: f.proyecto?.codigo || f.proyecto?.nombre || "",
     valorOriginal,
     valor: aPesos(valorOriginal),
     estadoPago: f.estado,
@@ -167,7 +179,7 @@ export async function listarRealizarPagos(
     traerTodo<any>((desde, hasta) => consulta(supabase, filtros).range(desde, hasta)),
     cuentasEmpresa(supabase),
   ])
-  return { pagos: filas.map((f) => conEstado(mapPagoDispersor(f))), cuentas }
+  return { pagos: (await completarProyectos(supabase, filas)).map((f) => conEstado(mapPagoDispersor(f))), cuentas }
 }
 
 // ------------------------------------------------------------- pasos 1 y 2
@@ -246,7 +258,7 @@ async function pagosPorId(supabase: any, ids: string[]): Promise<PagoConEstado[]
   for (let i = 0; i < ids.length; i += 100) {
     const { data, error } = await supabase.from("pagos").select(CAMPOS).in("id", ids.slice(i, i + 100))
     if (error) throw new Error(error.message)
-    for (const f of (data ?? []) as any[]) salida.push(conEstado(mapPagoDispersor(f)))
+    for (const f of await completarProyectos(supabase, (data ?? []) as any[])) salida.push(conEstado(mapPagoDispersor(f)))
   }
   return salida
 }

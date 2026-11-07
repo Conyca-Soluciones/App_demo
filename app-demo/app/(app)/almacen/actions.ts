@@ -284,8 +284,8 @@ export async function crearPedido(input: NuevoPedidoInput) {
   })
   if (error) throw new Error(error.message)
 
-  const r = creada as { id: string; numero: number }
-  return { requisicionId: r.id, numero: r.numero, insumosCreados: input.insumos.length }
+  const r = creada as { id: string; numero: number; codigo?: string }
+  return { requisicionId: r.id, numero: r.numero, codigo: r.codigo ?? `N° ${r.numero}`, insumosCreados: input.insumos.length }
 }
 
 // ---------------------------------------------------------------------------
@@ -401,8 +401,8 @@ export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtr
     p_justificacion: input.justificacion.trim(),
   })
   if (error) throw new Error(error.message)
-  const r = data as { id: string; numero: number }
-  return { requisicionId: r.id, numero: Number(r.numero) }
+  const r = data as { id: string; numero: number; codigo?: string }
+  return { requisicionId: r.id, numero: Number(r.numero), codigo: r.codigo ?? `N° ${r.numero}` }
 }
 
 // ---------------------------------------------------------------------------
@@ -460,7 +460,8 @@ async function consultaRequisiciones(filtros: FiltrosRequisiciones) {
     let query = supabase
       .from("requisiciones_vista")
       .select(filtros.insumoId ? SELECT_REQUISICIONES_CON_INSUMO : SELECT_REQUISICIONES)
-      .order("numero", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
 
     if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
     else if (!permisos.veTodosProyectos) query = query.in("proyecto_id", idsPermitidos)
@@ -537,7 +538,7 @@ export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Prom
   for (const r of requisiciones) {
     for (const l of lineasPorRequisicion.get(r.id) ?? []) {
       filas.push({
-        numero: r.numero,
+        codigo: r.codigo,
         proyecto: [r.proyectoCodigo, r.proyectoNombre].filter(Boolean).join(" — "),
         solicitadoPor: r.solicitanteNombre ?? "",
         insumoCodigo: l.insumo?.codigo ?? null,
@@ -607,6 +608,7 @@ export async function cancelarRequisicion(id: string, motivo: string) {
 export type EdicionRequisicion = {
   requisicionId: string
   numero: number
+  codigo: string
   creadaAt: string // fecha de la requisición: no se modifica
   modificadaAt: string | null
   versionId: string
@@ -687,6 +689,7 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   return {
     requisicionId: id,
     numero: detalle.numero,
+    codigo: detalle.codigo,
     creadaAt: detalle.createdAt,
     modificadaAt: detalle.modificadaAt,
     versionId,

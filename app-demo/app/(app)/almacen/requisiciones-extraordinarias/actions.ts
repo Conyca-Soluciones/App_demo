@@ -42,6 +42,7 @@ export type LineaExtraordinaria = {
 export type RequisicionExtraordinaria = {
   id: string
   numero: number
+  codigo: string
   proyectoCodigo: string | null
   proyectoNombre: string | null
   solicitanteNombre: string | null
@@ -94,6 +95,7 @@ export async function listarRequisicionesExtraordinarias(
     filas: filas.map((f) => ({
       id: f.id,
       numero: Number(f.numero),
+      codigo: f.codigo ?? `N° ${f.numero}`,
       proyectoCodigo: f.proyecto_codigo,
       proyectoNombre: f.proyecto_nombre,
       solicitanteNombre: f.solicitante_nombre,

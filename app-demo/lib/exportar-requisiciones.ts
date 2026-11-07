@@ -7,7 +7,7 @@ import { fechaIsoEnZona, hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
 export type FilaExcelRequisicion = {
-  numero: number
+  codigo: string // RQ-001-0001
   proyecto: string
   solicitadoPor: string
   insumoCodigo: number | null
@@ -37,7 +37,7 @@ export const ETIQUETA_COMPRA_EXCEL: Record<NonNullable<EstadoCompra>, string> = 
 }
 
 export const COLUMNAS_EXCEL_REQUISICIONES = [
-  { titulo: "N° requisición", ancho: 14 },
+  { titulo: "Requisición", ancho: 15 },
   { titulo: "Proyecto", ancho: 34 },
   { titulo: "Solicitado por", ancho: 24 },
   { titulo: "Insumo solicitado", ancho: 48 },
@@ -63,7 +63,7 @@ export const diaColombia = (iso: string) => fechaIsoEnZona(new Date(iso))
 // Valores de cada fila en el orden de COLUMNAS_EXCEL_REQUISICIONES.
 export function valoresFilaExcel(f: FilaExcelRequisicion): (string | number | Date | null)[] {
   return [
-    f.numero,
+    f.codigo,
     f.proyecto,
     f.solicitadoPor,
     f.insumoCodigo != null ? `${f.insumoCodigo} - ${f.insumo}` : f.insumo,

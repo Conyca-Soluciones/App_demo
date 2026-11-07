@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, mapPago, filtrarSemanaCreacion } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, conProyectos, mapPago, filtrarSemanaCreacion } from "@/lib/pagos-db"
 import { buscarSoportesDePagos, type PagoParaSoporte } from "@/lib/soportes-pagos-db"
 import {
   PESTANA_CONSOLIDADO_GERENCIA,
@@ -81,7 +81,7 @@ export async function listarConsolidadoGerencia(
   const { data, error } = await query.range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
   const { filas, hayMas } = cortarPagina((data ?? []) as any[])
-  return { pagos: filas.map(mapPago), hayMas }
+  return { pagos: await conProyectos(supabase, filas.map(mapPago)), hayMas }
 }
 
 // El soporte original de cada pago de la página (lib/soportes-pagos-db).

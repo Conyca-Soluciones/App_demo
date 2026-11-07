@@ -160,14 +160,14 @@ export function FiltrosRequisicionesPanel({
 
       <div className="space-y-4 p-4">
         <div className="space-y-1.5">
-          <Label htmlFor="numero-requisicion">Número de requisición</Label>
+          <Label htmlFor="numero-requisicion">Consecutivo de la requisición</Label>
           <Input
             id="numero-requisicion"
             type="number"
             min="1"
             step="1"
             inputMode="numeric"
-            placeholder="Ej. 12"
+            placeholder="Ej. 12 (de RQ-001-0012)"
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && consultar()}

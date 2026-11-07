@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Eye, FileUp, History, Loader2, Pencil, Plus, X } from "lucide-react"
+import { CheckCircle2, Download, Eye, FileUp, History, Loader2, Pencil, Plus, X } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +51,9 @@ import {
 
 
 const ETIQUETA_PERSONA: Record<TipoPersona, string> = { natural: "Natural", juridica: "Jurídica" }
+
+// Formato en blanco de la autorización de datos personales (public/plantillas).
+const PLANTILLA_AUTORIZACION_DATOS = "/plantillas/GA-F-025-V4-autorizacion-tratamiento-datos-personales.pdf"
 
 // Documentos obligatorios entregados / exigidos, para la columna y el detalle.
 // Sin permiso de datos bancarios la certificación bancaria no se ve: no cuenta.
@@ -805,6 +808,18 @@ function ContratistaFormDialog({
                         )
                       )}
                     </div>
+                    {/* Formato GA-F-025 en blanco: se descarga, se firma y se adjunta aquí mismo. */}
+                    {d.tipo === "autorizacion_datos" && (
+                      <a
+                        href={PLANTILLA_AUTORIZACION_DATOS}
+                        download="GA-F-025 V4 Autorizacion de tratamiento de datos personales.pdf"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted"
+                        title="Formato GA-F-025 V4 en blanco: el contratista lo llena y lo firma"
+                      >
+                        <Download className="size-4" />
+                        Descargar plantilla
+                      </a>
+                    )}
                     <input
                       id={id}
                       type="file"

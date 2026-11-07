@@ -92,7 +92,7 @@ function TabProyectos({
   }
 
   async function handleGuardarEdicion(proyectoId: string) {
-    if (!nombreEditando.trim() || !Number(numeroEditando)) return
+    if (!nombreEditando.trim() || numeroEditando.trim() === "") return
     try {
       await editarProyecto(proyectoId, {
         numero: Number(numeroEditando),
@@ -199,7 +199,7 @@ function TabProyectos({
                   className="h-8 w-16"
                   inputMode="numeric"
                   placeholder="N°"
-                  title="Número del proyecto (001-999). No se cambia si ya tiene órdenes, contratos o pagos con REF."
+                  title="Número del proyecto (000-999). No se cambia si ya tiene requisiciones, órdenes, contratos o pagos con REF."
                 />
                 <Input
                   value={codigoEditando}
