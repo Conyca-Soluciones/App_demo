@@ -1,4 +1,5 @@
 "use client"
+import { confirmar } from "@/components/ui/confirmar"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { FileUpload } from "@/components/file-upload"
 import { PresupuestoTable,excedePresupuestoOriginal } from "@/components/presupuesto-table"
@@ -388,13 +389,21 @@ async function procesarPresupuesto(
     }
   }
 
-  const { bloques, erroresEstructura } = parseApuSheet(workbook, nombreHojaApu)
+  const { bloques, erroresEstructura, avisos } = parseApuSheet(workbook, nombreHojaApu)
   if (erroresEstructura.length > 0) {
     throw new Error(
       `La hoja "${nombreHojaApu}" tiene ${erroresEstructura.length} error(es) de estructura:\n` +
         erroresEstructura.join("\n")
     )
   }
+
+  // Lo que se corrigió o conviene revisar, sin cortar la importación (máx. 20 líneas).
+  const avisoApu =
+    avisos.length > 0
+      ? `La hoja "${nombreHojaApu}" tiene ${avisos.length} detalle(s) para revisar:\n` +
+        avisos.slice(0, 20).join("\n") +
+        (avisos.length > 20 ? `\n… y ${avisos.length - 20} más.` : "")
+      : null
 
   // Ítems globales (GL sin bloque APU): su valor es el Valor unitario del Excel.
   const globales = aplicarItemsGlobales(items, new Set(bloques.map((b) => b.codigoItem)), true)
@@ -406,7 +415,7 @@ async function procesarPresupuesto(
     )
   }
 
-  return { items: globales.items, bloquesApu: bloques, avisoApu: null }
+  return { items: globales.items, bloquesApu: bloques, avisoApu }
 }
 
 // ---------------------------------------------------------------------------
@@ -1732,7 +1741,7 @@ function PresupuestoDeProyecto() {
 
           {avisoImportApu && (
             <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <span>{avisoImportApu}</span>
+              <span className="whitespace-pre-line">{avisoImportApu}</span>
               <button
                 type="button"
                 onClick={() => setAvisoImportApu(null)}
@@ -2050,8 +2059,9 @@ function PresupuestoDeProyecto() {
                       // completo (todas las versiones): antes lo hacía sin preguntar
                       // y limpiaba la pantalla aunque el borrado fallara.
                       if (presupuestoDbId) {
-                        const seguro = window.confirm(
-                          "Esto BORRA de la base el presupuesto completo de este proyecto, con todas sus versiones e ítems. No se puede deshacer.\n\n¿Seguro que quieres borrarlo?"
+                        const seguro = await confirmar(
+                          "Esto BORRA de la base el presupuesto completo de este proyecto, con todas sus versiones e ítems. No se puede deshacer.\n\n¿Seguro que quieres borrarlo?",
+                          { titulo: "Borrar el presupuesto", boton: "Borrar", peligro: true }
                         )
                         if (!seguro) return
                         try {

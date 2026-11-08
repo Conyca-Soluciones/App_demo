@@ -551,7 +551,8 @@ export function FormularioRequisicion({
 
           {/* Acciones */}
           <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-5">
-            {!guardando && motivoNoGuardar && (
+            {/* Con el formulario vacío no se regaña: el aviso sale cuando ya se empezó a llenar. */}
+            {!guardando && motivoNoGuardar && (lineas.length > 0 || !!fechaRequerida) && (
               <p className="mr-auto text-xs text-amber-800">{motivoNoGuardar}</p>
             )}
             <Button

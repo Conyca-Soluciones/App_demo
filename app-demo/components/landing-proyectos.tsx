@@ -26,7 +26,9 @@ export function LandingProyectos({
     const q = busqueda.trim().toLowerCase()
     if (!q || q === COMODIN_LISTAR) return proyectos
     return proyectos.filter((p) =>
-      [p.codigo, p.nombre, p.cliente, p.ciudad].some((x) => (x ?? "").toLowerCase().includes(q))
+      [p.numero != null ? String(p.numero).padStart(3, "0") : null, p.codigo, p.nombre, p.cliente, p.ciudad].some((x) =>
+        (x ?? "").toLowerCase().includes(q)
+      )
     )
   }, [proyectos, busqueda])
 
@@ -67,7 +69,7 @@ export function LandingProyectos({
               <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 className="pl-8"
-                placeholder="Buscar por código, nombre, cliente o ciudad"
+                placeholder="Buscar por número, código, nombre, cliente o ciudad"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
               />
@@ -99,7 +101,11 @@ export function LandingProyectos({
                     ) : null}
                   </div>
                   <div>
-                    {p.codigo && <p className="font-mono text-xs text-muted-foreground">{p.codigo}</p>}
+                    {(p.codigo || p.numero != null) && (
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {[p.numero != null ? String(p.numero).padStart(3, "0") : null, p.codigo].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                     <p className="text-base font-semibold leading-snug">{p.nombre}</p>
                   </div>
                   {(p.cliente || p.ciudad) && (

@@ -130,8 +130,11 @@ describe("tiposPermitidos", () => {
     expect(tiposPermitidos(info({ polizaEstado: "pendiente" }))).toEqual({ tipos: [], motivo: expect.stringMatching(/Falta la póliza/) })
     expect(tiposPermitidos(info({ polizaEstado: "recibida" })).tipos).toEqual([])
   })
-  it("normal: parcial, final y liquidación", () => {
-    expect(tiposPermitidos(info()).tipos).toEqual(["parcial", "final", "liquidacion"])
+  it("sin actas: parcial y final (no hay qué liquidar)", () => {
+    expect(tiposPermitidos(info()).tipos).toEqual(["parcial", "final"])
+  })
+  it("con actas anteriores: parcial, final y liquidación", () => {
+    expect(tiposPermitidos(info({ brutoOtras: 1_000_000 })).tipos).toEqual(["parcial", "final", "liquidacion"])
   })
   it("vencido: solo liquidación", () => {
     const t = tiposPermitidos(info({ vencido: true }))

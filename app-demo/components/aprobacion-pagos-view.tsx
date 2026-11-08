@@ -360,7 +360,13 @@ export function AprobacionPagosView({
           </Button>
           {puedeAprobar && p.estado === "solicitado" ? (
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-8 w-24" disabled={procesandoId === p.id} onClick={() => setPorAprobar(p)}>
+            <Button
+              size="sm"
+              className="h-8 w-24"
+              disabled={procesandoId === p.id}
+              onClick={() => setPorAprobar(p)}
+              aria-label={`Aprobar el pago de ${p.origen || "—"}`}
+            >
               <Check className="mr-1.5 h-4 w-4" />
               Aprobar
             </Button>
@@ -373,6 +379,7 @@ export function AprobacionPagosView({
                 setRechazando(p)
                 setMotivo("")
               }}
+              aria-label={`Rechazar el pago de ${p.origen || "—"}`}
             >
               <X className="mr-1.5 h-4 w-4" />
               Rechazar

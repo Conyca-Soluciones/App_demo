@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { Eraser, ImageUp, Loader2, PenLine, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -88,7 +89,7 @@ export function MiFirmaDialog({ abierto, onCerrar }: { abierto: boolean; onCerra
   }
 
   async function borrar() {
-    if (!window.confirm("¿Borrar tu firma? Los documentos ya firmados no cambian, pero no podrás aprobar pólizas hasta registrar otra.")) return
+    if (!(await confirmar("¿Borrar tu firma? Los documentos ya firmados no cambian, pero no podrás aprobar pólizas hasta registrar otra.", { boton: "Borrar", peligro: true }))) return
     setOcupado(true)
     setError(null)
     try {

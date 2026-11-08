@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { CheckCircle2, ExternalLink, FileUp, Loader2, Pencil, RefreshCw, ShieldCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { TerceroDialogo } from "@/components/tercero-dialogo"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaHora } from "@/lib/fechas"
@@ -46,6 +48,7 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [bancos, setBancos] = useState<Banco[]>([])
   const [terceroAbierto, setTerceroAbierto] = useState<Tercero | null>(null)
+  const [busqueda, setBusqueda] = useState("")
 
   useEffect(() => {
     let activo = true
@@ -76,7 +79,13 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
     setVersion((v) => v + 1)
   }
 
-  const lista = cuentas ?? []
+  // Búsqueda por tercero, documento, banco o número de cuenta (sin tildes).
+  const sinTildes = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  const q = sinTildes(busqueda.trim())
+  const todas = cuentas ?? []
+  const lista = q
+    ? todas.filter((c) => sinTildes(`${c.razonSocial} ${c.numeroDocumento} ${c.banco} ${c.numeroCuenta} ${c.etiqueta ?? ""}`).includes(q))
+    : todas
   const indice = lista.findIndex((c) => c.cuentaId === elegidaId)
   const elegida = indice >= 0 ? lista[indice] : null
 
@@ -114,7 +123,13 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
   const verificarMarcadas = () =>
     correr("varias", async () => {
       const ids = [...marcadas]
-      if (!window.confirm(`¿Verificar ${ids.length} ${ids.length === 1 ? "cuenta" : "cuentas"}? Revisa antes la certificación de cada una.`)) return null
+      if (
+        !(await confirmar(
+          `¿Verificar ${ids.length} ${ids.length === 1 ? "cuenta" : "cuentas"}? Confirma que revisaste la certificación bancaria de cada una: una cuenta verificada ya puede recibir pagos.`,
+          { titulo: "Verificar cuentas", boton: `Verificar ${ids.length}` }
+        ))
+      )
+        return null
       const n = await verificarCuentas(ids)
       quitar(ids)
       return `${n} ${n === 1 ? "cuenta verificada" : "cuentas verificadas"}.`
@@ -132,8 +147,22 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm text-muted-foreground">
-          {cuentas === null ? "Buscando cuentas…" : `${lista.length} ${lista.length === 1 ? "cuenta pendiente" : "cuentas pendientes"} de verificar`}
+          {cuentas === null
+            ? "Buscando cuentas…"
+            : `${todas.length} ${todas.length === 1 ? "cuenta pendiente" : "cuentas pendientes"} de verificar${q ? ` · ${lista.length} con «${busqueda.trim()}»` : ""}`}
         </p>
+        <Input
+          type="search"
+          aria-label="Buscar cuenta"
+          placeholder="Buscar tercero, documento o cuenta"
+          className="h-8 w-64"
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value)
+            // Lo marcado que deja de verse no se verifica a ciegas.
+            setMarcadas(new Set())
+          }}
+        />
         <div className="ml-auto flex flex-wrap gap-2">
           {puedeVerificar && (
             <Button size="sm" disabled={marcadas.size === 0 || ocupado !== null} onClick={verificarMarcadas}>
@@ -151,7 +180,7 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
       {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</div>}
       {aviso && <div className="rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-800">{aviso}</div>}
 
-      {cuentas !== null && lista.length === 0 ? (
+      {cuentas !== null && todas.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-center text-muted-foreground">
           <CheckCircle2 className="size-8 text-emerald-600" />
           <p className="font-medium text-foreground">No hay cuentas por verificar</p>
@@ -166,8 +195,11 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
                 disabled={lista.length === 0}
                 onCheckedChange={() => setMarcadas(todasMarcadas ? new Set() : new Set(lista.map((c) => c.cuentaId)))}
               />
-              Marcar todas
+              {q ? "Marcar todas las de la búsqueda" : "Marcar todas"}
             </label>
+            {cuentas !== null && lista.length === 0 && (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">Ninguna cuenta coincide con la búsqueda.</p>
+            )}
             <div className="min-h-0 flex-1 overflow-auto">
               {cuentas === null && (
                 <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">

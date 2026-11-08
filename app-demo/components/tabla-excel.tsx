@@ -4,6 +4,13 @@ import { useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { alDobleClic } from "@/components/ventana-detalle"
 
+// Enter (o espacio) sobre la fila/tarjeta enfocada, no sobre un botón de adentro.
+const alEnter = (abrir: () => void) => (e: React.KeyboardEvent) => {
+  if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return
+  e.preventDefault()
+  abrir()
+}
+
 // ---------------------------------------------------------------------------
 // Tabla "tipo Excel" compartida (mismo diseño que /almacen/proveedores):
 //   * table-fixed + ancho fijo por columna + truncate: los textos nunca se
@@ -163,8 +170,11 @@ export function TablaExcel<T>({
             {filas.map((fila) => (
               <tr
                 key={claveFila(fila)}
-                className={`group ${onDobleClickFila ? "cursor-pointer" : ""}`}
+                className={`group ${onDobleClickFila ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-ring" : ""}`}
                 onDoubleClick={onDobleClickFila ? alDobleClic(() => onDobleClickFila(fila)) : undefined}
+                // Con teclado: Tab hasta la fila y Enter la abre.
+                tabIndex={onDobleClickFila ? 0 : undefined}
+                onKeyDown={onDobleClickFila ? alEnter(() => onDobleClickFila(fila)) : undefined}
                 title={tituloFila}
               >
                 {columnas.map((c) => {
@@ -207,8 +217,15 @@ export function TablaExcel<T>({
         {filas.map((fila) => (
           <li
             key={claveFila(fila)}
-            className={`overflow-hidden rounded-lg border ${fondoFila?.(fila) ?? ""} ${onDobleClickFila ? "cursor-pointer" : ""}`}
-            onDoubleClick={onDobleClickFila ? alDobleClic(() => onDobleClickFila(fila)) : undefined}
+            className={`overflow-hidden rounded-lg border ${fondoFila?.(fila) ?? ""} ${
+              onDobleClickFila ? "cursor-pointer focus-visible:outline-2 focus-visible:outline-ring" : ""
+            }`}
+            // Las tarjetas salen en pantallas angostas (celular, tablet): ahí el
+            // doble toque no es natural, así que un toque las abre.
+            onClick={onDobleClickFila ? alDobleClic(() => onDobleClickFila(fila)) : undefined}
+            role={onDobleClickFila ? "button" : undefined}
+            tabIndex={onDobleClickFila ? 0 : undefined}
+            onKeyDown={onDobleClickFila ? alEnter(() => onDobleClickFila(fila)) : undefined}
             title={tituloFila}
           >
             <div className="flex items-start gap-2 border-b bg-muted/40 px-3 py-2">

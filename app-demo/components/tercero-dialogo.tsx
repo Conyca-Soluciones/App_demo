@@ -1,7 +1,7 @@
 "use client"
 
 import { formatearFechaSinHora } from "@/lib/fechas"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
@@ -31,6 +31,8 @@ import {
   TIPOS_DOCUMENTO_TERCERO,
   documentoFormateado,
   soloDigitos,
+  validarCuenta,
+  validarTercero,
   type Banco,
   type CuentaTercero,
   type DatosCuenta,
@@ -51,6 +53,10 @@ function Etiqueta({ estado }: { estado: CuentaTercero["estado"] }) {
   )
 }
 
+function ErrorCampo({ texto }: { texto?: string }) {
+  return texto ? <p className="text-xs text-destructive">{texto}</p> : null
+}
+
 function Banner({ error }: { error: string | null }) {
   if (!error) return null
   return (
@@ -65,33 +71,40 @@ function CamposCuenta({
   valores,
   onCambiar,
   bancos,
+  errores,
 }: {
   valores: DatosCuenta
   onCambiar: (v: DatosCuenta) => void
   bancos: Banco[]
+  errores?: Partial<Record<keyof DatosCuenta, string>>
 }) {
+  const id = useId()
   const poner = (campo: keyof DatosCuenta, valor: string) => onCambiar({ ...valores, [campo]: valor })
+  // PSE no es un banco donde se tenga cuenta (es un método de pago): no se
+  // ofrece, salvo que la cuenta que se edita ya lo tenga.
+  const opciones = bancos.filter((b) => b.nombre.trim().toUpperCase() !== "PSE" || b.id === valores.bancoId)
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-1.5">
-        <Label>Banco</Label>
+        <Label htmlFor={`${id}-banco`}>Banco</Label>
         <Select value={valores.bancoId} onValueChange={(v) => poner("bancoId", v ?? "")}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id={`${id}-banco`} className="w-full" aria-invalid={!!errores?.bancoId}>
             <SelectValue placeholder="Escoge el banco" />
           </SelectTrigger>
           <SelectContent>
-            {bancos.map((b) => (
+            {opciones.map((b) => (
               <SelectItem key={b.id} value={b.id}>
                 {b.nombre}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <ErrorCampo texto={errores?.bancoId} />
       </div>
       <div className="space-y-1.5">
-        <Label>Tipo de cuenta</Label>
+        <Label htmlFor={`${id}-tipo`}>Tipo de cuenta</Label>
         <Select value={valores.tipoCuenta} onValueChange={(v) => poner("tipoCuenta", v ?? "")}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger id={`${id}-tipo`} className="w-full" aria-invalid={!!errores?.tipoCuenta}>
             <SelectValue placeholder="Escoge el tipo" />
           </SelectTrigger>
           <SelectContent>
@@ -102,19 +115,24 @@ function CamposCuenta({
             ))}
           </SelectContent>
         </Select>
+        <ErrorCampo texto={errores?.tipoCuenta} />
       </div>
       <div className="space-y-1.5">
-        <Label>Número de cuenta</Label>
+        <Label htmlFor={`${id}-numero`}>Número de cuenta</Label>
         <Input
+          id={`${id}-numero`}
+          aria-invalid={!!errores?.numeroCuenta}
           inputMode="numeric"
           placeholder="Solo números"
           value={valores.numeroCuenta}
           onChange={(e) => poner("numeroCuenta", soloDigitos(e.target.value))}
         />
+        <ErrorCampo texto={errores?.numeroCuenta} />
       </div>
       <div className="space-y-1.5">
-        <Label>Etiqueta (opcional)</Label>
+        <Label htmlFor={`${id}-etiqueta`}>Etiqueta (opcional)</Label>
         <Input
+          id={`${id}-etiqueta`}
           placeholder="Ej. Cuenta de nómina"
           value={valores.etiqueta}
           onChange={(e) => poner("etiqueta", e.target.value)}
@@ -603,14 +621,39 @@ export function NuevoTerceroDialogo({
   const archivoRef = useRef<HTMLInputElement>(null)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Errores por campo (todos a la vez); cada uno se borra al corregir su campo.
+  const [errores, setErrores] = useState<Record<string, string>>({})
+  const [erroresCuenta, setErroresCuenta] = useState<Partial<Record<keyof DatosCuenta, string>>>({})
+  const uid = useId()
 
   const esNit = datos.tipoDocumento === "NIT"
+
+  // Cambia los datos y quita el error de los campos tocados.
+  function ponerDatos(cambio: Partial<typeof datos>) {
+    setDatos({ ...datos, ...cambio })
+    setError(null)
+    setErrores((e) => {
+      const n = { ...e }
+      for (const k of Object.keys(cambio)) delete n[k]
+      if ("tipoDocumento" in cambio || "numeroDocumento" in cambio) delete n.dv
+      return n
+    })
+  }
+  function ponerCuenta(c: DatosCuenta) {
+    setError(null)
+    setErroresCuenta((e) => {
+      const n = { ...e }
+      for (const k of Object.keys(c) as (keyof DatosCuenta)[]) if (c[k] !== cuenta[k]) delete n[k]
+      return n
+    })
+    setCuenta(c)
+  }
 
   function cambiarDocumento(numero: string) {
     const digitos = soloDigitos(numero)
     // Para un NIT se propone el dígito de verificación (se puede corregir).
     const dv = datos.tipoDocumento === "NIT" && digitos ? String(calcularDvNit(digitos)) : datos.dv
-    setDatos({ ...datos, numeroDocumento: digitos, dv })
+    ponerDatos({ numeroDocumento: digitos, dv })
   }
 
   function cerrar() {
@@ -619,13 +662,28 @@ export function NuevoTerceroDialogo({
     setConCuenta(true)
     setCertificacion(null)
     setError(null)
+    setErrores({})
+    setErroresCuenta({})
     setRevision(null)
     onCerrar()
   }
 
   async function guardar() {
-    setOcupado(true)
     setError(null)
+    // Se revisa todo antes de enviar y se muestran todos los errores juntos
+    // (la base vuelve a validar).
+    const vt = validarTercero(datos)
+    const vc = conCuenta ? validarCuenta(cuenta) : null
+    const et = vt.ok ? {} : (vt.errores as Record<string, string>)
+    const ec = vc && !vc.ok ? vc.errores : {}
+    setErrores(et)
+    setErroresCuenta(ec)
+    const total = Object.keys(et).length + Object.keys(ec).length
+    if (total > 0) {
+      setError(total === 1 ? "Falta corregir 1 dato (marcado en rojo)." : `Faltan corregir ${total} datos (marcados en rojo).`)
+      return
+    }
+    setOcupado(true)
     // La certificación se sube primero (a la carpeta del usuario); si el
     // tercero no se crea, se borra.
     const supabase = createClient()
@@ -667,16 +725,16 @@ export function NuevoTerceroDialogo({
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label>Tipo de documento</Label>
+            <Label htmlFor={`${uid}-tipo`}>Tipo de documento</Label>
             <Select
               value={datos.tipoDocumento}
               onValueChange={(v) => {
                 const tipo = v ?? ""
                 const dv = tipo === "NIT" && datos.numeroDocumento ? String(calcularDvNit(datos.numeroDocumento)) : ""
-                setDatos({ ...datos, tipoDocumento: tipo, dv })
+                ponerDatos({ tipoDocumento: tipo, dv })
               }}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id={`${uid}-tipo`} className="w-full" aria-invalid={!!errores.tipoDocumento}>
                 <SelectValue placeholder="Escoge" />
               </SelectTrigger>
               <SelectContent>
@@ -687,20 +745,31 @@ export function NuevoTerceroDialogo({
                 ))}
               </SelectContent>
             </Select>
+            <ErrorCampo texto={errores.tipoDocumento} />
           </div>
           <div className="space-y-1.5">
-            <Label>Número {esNit ? "(sin dígito de verificación)" : ""}</Label>
-            <Input inputMode="numeric" value={datos.numeroDocumento} onChange={(e) => cambiarDocumento(e.target.value)} />
+            <Label htmlFor={`${uid}-numero`}>Número {esNit ? "(sin dígito de verificación)" : ""}</Label>
+            <Input
+              id={`${uid}-numero`}
+              aria-invalid={!!errores.numeroDocumento}
+              inputMode="numeric"
+              value={datos.numeroDocumento}
+              onChange={(e) => cambiarDocumento(e.target.value)}
+            />
+            <ErrorCampo texto={errores.numeroDocumento} />
           </div>
           {esNit && (
             <div className="space-y-1.5">
-              <Label>Dígito de verificación</Label>
+              <Label htmlFor={`${uid}-dv`}>Dígito de verificación</Label>
               <Input
+                id={`${uid}-dv`}
+                aria-invalid={!!errores.dv}
                 inputMode="numeric"
                 maxLength={1}
                 value={datos.dv}
-                onChange={(e) => setDatos({ ...datos, dv: soloDigitos(e.target.value) })}
+                onChange={(e) => ponerDatos({ dv: soloDigitos(e.target.value) })}
               />
+              <ErrorCampo texto={errores.dv} />
             </div>
           )}
           {existente && (
@@ -726,30 +795,39 @@ export function NuevoTerceroDialogo({
             </div>
           )}
           <div className="space-y-1.5 sm:col-span-3">
-            <Label>{esNit ? "Razón social" : "Nombre completo"}</Label>
-            <Input value={datos.razonSocial} onChange={(e) => setDatos({ ...datos, razonSocial: e.target.value })} />
+            <Label htmlFor={`${uid}-razon`}>{esNit ? "Razón social" : "Nombre completo"}</Label>
+            <Input
+              id={`${uid}-razon`}
+              aria-invalid={!!errores.razonSocial}
+              value={datos.razonSocial}
+              onChange={(e) => ponerDatos({ razonSocial: e.target.value })}
+            />
+            <ErrorCampo texto={errores.razonSocial} />
           </div>
           {datos.tipoDocumento && !esNit && (
             <>
               <div className="space-y-1.5 sm:col-span-3 sm:grid sm:grid-cols-2 sm:gap-3 sm:space-y-0">
                 <div className="space-y-1.5">
-                  <Label>Nombres (opcional)</Label>
-                  <Input value={datos.nombres} onChange={(e) => setDatos({ ...datos, nombres: e.target.value })} />
+                  <Label htmlFor={`${uid}-nombres`}>Nombres (opcional)</Label>
+                  <Input id={`${uid}-nombres`} value={datos.nombres} onChange={(e) => ponerDatos({ nombres: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Apellidos (opcional)</Label>
-                  <Input value={datos.apellidos} onChange={(e) => setDatos({ ...datos, apellidos: e.target.value })} />
+                  <Label htmlFor={`${uid}-apellidos`}>Apellidos (opcional)</Label>
+                  <Input id={`${uid}-apellidos`} value={datos.apellidos} onChange={(e) => ponerDatos({ apellidos: e.target.value })} />
                 </div>
               </div>
             </>
           )}
           <div className="space-y-1.5 sm:col-span-3">
-            <Label>Nombre para el banco (opcional)</Label>
+            <Label htmlFor={`${uid}-nombre-banco`}>Nombre para el banco (opcional)</Label>
             <Input
+              id={`${uid}-nombre-banco`}
+              aria-invalid={!!errores.nombreBanco}
               placeholder="Si se deja vacío se usa el nombre"
               value={datos.nombreBanco}
-              onChange={(e) => setDatos({ ...datos, nombreBanco: e.target.value })}
+              onChange={(e) => ponerDatos({ nombreBanco: e.target.value })}
             />
+            <ErrorCampo texto={errores.nombreBanco} />
           </div>
         </div>
 
@@ -758,7 +836,7 @@ export function NuevoTerceroDialogo({
             <input type="checkbox" checked={conCuenta} onChange={(e) => setConCuenta(e.target.checked)} />
             Agregar su cuenta bancaria ahora
           </label>
-          {conCuenta && <CamposCuenta valores={cuenta} onCambiar={setCuenta} bancos={bancos} />}
+          {conCuenta && <CamposCuenta valores={cuenta} onCambiar={ponerCuenta} bancos={bancos} errores={erroresCuenta} />}
           {conCuenta && (
             <div className="space-y-1.5">
               <Label>Certificación bancaria (opcional, recomendada)</Label>

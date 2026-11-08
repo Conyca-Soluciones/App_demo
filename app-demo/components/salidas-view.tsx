@@ -221,6 +221,7 @@ function SalidasDeProyecto({ proyectoId }: { proyectoId: string | null }) {
                     <th className="h-11 w-10 px-3 text-center font-medium">#</th>
                     <th className="h-11 px-3 font-medium">Insumo</th>
                     <th className="h-11 w-24 px-3 font-medium">UM</th>
+                    <th className="h-11 w-28 px-3 text-right font-medium">Disponible</th>
                     <th className="h-11 w-44 px-3 text-right font-medium">Cantidad a sacar</th>
                     <th className="h-11 w-12 px-3" />
                   </tr>
@@ -239,9 +240,18 @@ function SalidasDeProyecto({ proyectoId }: { proyectoId: string | null }) {
                         />
                       </td>
                       <td className="px-3 py-3">{l.insumo ? l.um ?? "—" : ""}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">
+                        {l.insumo ? formatoNumero.format(inventarioPorId.get(l.insumo.id)?.cantidadDisponible ?? 0) : ""}
+                      </td>
                       <td className="px-3 py-2 text-right">
                         <Input
                           id={`salida-cant-${l.key}`}
+                          aria-label={l.insumo ? `Cantidad a sacar de ${l.insumo.etiqueta}` : `Cantidad a sacar, línea ${idx + 1}`}
+                          aria-invalid={
+                            !!l.insumo &&
+                            leerCantidadEntera(l.cantidad).ok &&
+                            (leerCantidadEntera(l.cantidad) as { valor: number }).valor > (inventarioPorId.get(l.insumo.id)?.cantidadDisponible ?? 0)
+                          }
                           inputMode="numeric"
                           className="ml-auto h-9 w-28 text-right"
                           placeholder="0"
@@ -282,11 +292,13 @@ function SalidasDeProyecto({ proyectoId }: { proyectoId: string | null }) {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
+                aria-label="Quién retira el material"
                 placeholder="¿Quién retira el material?"
                 value={retira}
                 onChange={(e) => setRetira(e.target.value)}
               />
               <Textarea
+                aria-label="Observaciones"
                 placeholder="Observaciones (opcional)"
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}

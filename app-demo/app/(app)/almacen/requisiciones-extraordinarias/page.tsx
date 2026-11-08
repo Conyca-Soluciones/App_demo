@@ -153,7 +153,7 @@ export default function RequisicionesExtraordinarias() {
   }
 
   const columnas: ColumnaExcel<RequisicionExtraordinaria>[] = [
-    { clave: "numero", titulo: "Requisición", ancho: 120, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.codigo, claseCelda: "font-medium tabular-nums" },
+    { clave: "numero", titulo: "REF", ancho: 130, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.codigo, claseCelda: "font-medium tabular-nums" },
     { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (r) => r.proyectoCodigo ?? r.proyectoNombre ?? "" },
     {
       clave: "insumos",

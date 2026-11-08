@@ -1,5 +1,6 @@
 "use client"
 
+import { CampoFecha } from "@/components/ui/campo-fecha"
 import { useEffect, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -121,6 +122,17 @@ export function CampoMinuta(props: {
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           className={`${claseArea} ${ORIGEN[origen].borde}`}
+        />
+      ) : tipo === "date" ? (
+        // dd/mm/aaaa siempre (el calendario nativo sale en el idioma del navegador).
+        <CampoFecha
+          id={id}
+          data-foco={foco ?? focoDeId(id)}
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          sinEstilo
+          className={`${claseCampo} ${ORIGEN[origen].borde}`}
         />
       ) : (
         <input

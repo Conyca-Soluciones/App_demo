@@ -59,7 +59,21 @@ export interface BloqueApu {
 export interface ResultadoParseoApu {
   bloques: BloqueApu[];
   erroresEstructura: string[]; // insumo sin ítem abierto, Tipo inválido, etc.
+  // No cortan la importación: se muestran para que el director revise el Excel.
+  avisos: string[];
 }
+
+// Celdas copiadas de un PDF: la cantidad, el valor unitario y el total quedan
+// pegados dentro del nombre ("... y 4 3.0000 6,373.00 19,119.00 arandelas").
+// Solo se quitan tres números seguidos con decimales; "4 tuercas" no se toca.
+const NUMEROS_PEGADOS = /\s+\d+[.,]\d{2,}\s+[\d.,]*\d[.,]\d{2}\s+[\d.,]*\d[.,]\d{2}(?=\s|$)/g;
+
+export function limpiarNombreApu(nombre: string): string {
+  return nombre.replace(NUMEROS_PEGADOS, " ").replace(/\s{2,}/g, " ").trim();
+}
+
+// Unidades que en realidad son el Tipo copiado en la columna equivocada.
+const UNIDADES_SOSPECHOSAS = new Set(["ins", "insumo", "insumos", "mo", "equipo", "eq", "transporte"]);
 
 // Normaliza "Tipo" tolerando espacios y typos comunes vistos en archivos
 // reales de entidades (ej. "INSUMO " con espacio, "ISUMO" mal escrito).
@@ -145,6 +159,7 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
 
   const bloques: BloqueApu[] = [];
   const erroresEstructura: string[] = [];
+  const avisos: string[] = [];
   let bloqueActual: BloqueApu | null = null;
 
   for (let i = filaHeaderIdx + 1; i < filas.length; i++) {
@@ -185,8 +200,15 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
         );
         continue;
       }
+      const descripcion = limpiarNombreApu(nombre);
+      if (descripcion !== nombre) {
+        avisos.push(`Fila ${numeroFilaExcel}: el nombre traía números pegados (cantidad y valores); quedó "${descripcion}".`);
+      }
+      if (unidad && UNIDADES_SOSPECHOSAS.has(unidad.toLowerCase())) {
+        avisos.push(`Fila ${numeroFilaExcel}: "${descripcion}" tiene la unidad "${unidad}", que parece el tipo y no una unidad. Revísala en el Excel.`);
+      }
       bloqueActual.lineas.push({
-        descripcion: nombre,
+        descripcion,
         tipo,
         unidad,
         cantidad: cantidad ?? 0,
@@ -218,5 +240,5 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
 
   if (bloqueActual) bloques.push(bloqueActual);
 
-  return { bloques, erroresEstructura };
+  return { bloques, erroresEstructura, avisos };
 }

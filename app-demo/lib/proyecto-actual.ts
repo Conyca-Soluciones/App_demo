@@ -11,6 +11,8 @@ export const DIAS_COOKIE_PROYECTO = 30
 
 export type ProyectoLanding = {
   id: string
+  // Número del proyecto (000–999): va en los códigos OC-001-0001, RQ-001-0001...
+  numero?: number | null
   codigo: string | null
   nombre: string
   cliente: string | null

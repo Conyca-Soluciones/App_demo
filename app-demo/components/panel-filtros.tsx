@@ -25,9 +25,17 @@ export function PanelFiltros({ children, onConsultar, onLimpiar, cargando = fals
   if (!abierto) {
     return (
       <div className="flex h-fit w-12 shrink-0 flex-col items-center gap-2 rounded-lg border bg-card py-3">
-        <Button variant="ghost" size="icon" onClick={() => setAbierto(true)} title="Mostrar filtros">
+        {/* Plegado al consultar (deja espacio a la tabla); se ve que ahí están los filtros. */}
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          title="Mostrar filtros"
+          aria-label="Mostrar filtros"
+          className="flex flex-col items-center gap-2 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
           <Filter className="h-4 w-4" />
-        </Button>
+          <span className="text-xs font-medium [writing-mode:vertical-rl]">Filtros</span>
+        </button>
       </div>
     )
   }

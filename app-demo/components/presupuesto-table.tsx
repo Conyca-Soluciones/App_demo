@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { Trash2 } from "lucide-react"
 import {
   Table,
@@ -602,15 +603,16 @@ export function PresupuestoTable({
                   {onEliminarItem && !soloLectura && (
                     <button
                       type="button"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         // si no, el click también dispara el onDoubleClick
                         // de la fila (abre el editor de APU) al segundo click
                         e.stopPropagation()
                         const tieneHijos = data.some((i) => i.padreId === item.id)
                         if (
-                          confirm(
+                          await confirmar(
                             `¿Eliminar "${item.descripcion}"?` +
-                              (tieneHijos ? " Sus sub-ítems también se eliminan." : "")
+                              (tieneHijos ? " Sus sub-ítems también se eliminan." : ""),
+                            { boton: "Eliminar", peligro: true }
                           )
                         ) {
                           onEliminarItem(item.id)

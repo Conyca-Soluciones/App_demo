@@ -102,6 +102,8 @@ export type PedidoParaComprar = {
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
+  // Ítem del presupuesto de la línea (el mismo insumo puede venir de varios ítems).
+  itemCodigo: string | null
   // Unidad de COMPRA (la u_m del insumo): en esta unidad van `cantidad`,
   // `cantidadPendiente`, la orden de compra y su precio.
   um: string | null
@@ -130,6 +132,7 @@ export type PedidoParaComprar = {
 const SELECT_PEDIDO_PARA_COMPRAR = `
   id, grupo_pedido_id, proyecto_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
   requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo, administrativa),
+  item:presupuesto_items!pedidos_insumos_presupuesto_item_id_fkey(codigo),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
   proyecto:proyectos!pedidos_insumos_proyecto_id_fkey(numero, codigo, nombre),
@@ -180,6 +183,7 @@ function mapPedidoParaComprar(f: any, excluirOrdenId?: string): PedidoParaCompra
     insumoId: f.insumo?.id,
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
+    itemCodigo: f.item?.codigo ?? null,
     um: f.insumo?.u_m ?? null,
     cantidad: cantidadCompra,
     cantidadPendiente: pendienteUso > 0 ? unidadesDeCompra(pendienteUso, factor) : 0,
@@ -704,6 +708,8 @@ export type LineaOrdenCompraDetalle = {
   presentacion: PresentacionLinea | null
   // Requisición de donde salió la línea (null si quien consulta no la puede ver).
   requisicion: RequisicionDeOrden | null
+  // Ítem del presupuesto (el mismo insumo puede venir de varios ítems).
+  itemCodigo: string | null
 }
 
 export type RequisicionDeOrden = { id: string; numero: number; codigo: string; solicitante: string | null }
@@ -756,6 +762,8 @@ export type OrdenCompraDetalle = {
   pagoObservaciones: string | null
   pseTitular: { nombre: string; tipoDocumento: string; documento: string } | null
   lineas: LineaOrdenCompraDetalle[]
+  // A crédito: el pago ya pasó a pago (aprobado o dispersado): la fecha ya no se cambia.
+  creditoPagado: boolean
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
   const supabase = await createClient()
@@ -783,6 +791,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
         um_compra, conversion_compra, cantidad_compra, precio_compra,
         pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(
           unidad,
+          item:presupuesto_items!pedidos_insumos_presupuesto_item_id_fkey(codigo),
           insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(codigo, descripcion, u_m),
           requisicion:requisiciones!pedidos_insumos_requisicion_fkey(
             id, numero, codigo, solicitante:perfiles!requisiciones_solicitado_por_fkey(nombre)
@@ -797,6 +806,18 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
   if (error) throw new Error(error.message)
 
   const d = data as any
+  // Lo mismo que valida cambiar_fecha_credito_oc. Si la RLS no deja ver el
+  // pago, queda en false y la base sigue bloqueando el cambio.
+  let creditoPagado = false
+  if (d.tipo_pago === "credito") {
+    const { data: pagos } = await supabase
+      .from("pagos")
+      .select("estado")
+      .eq("orden_compra_id", ordenId)
+      .in("estado", ["aprobado", "dispersado"])
+      .limit(1)
+    creditoPagado = (pagos?.length ?? 0) > 0
+  }
   const nitProveedor = d.proveedor?.numero_documento
     ? `${d.proveedor.numero_documento}${d.proveedor.digito_verificacion ? `-${d.proveedor.digito_verificacion}` : ""}`
     : null
@@ -830,6 +851,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     condicionesPago: d.condiciones_pago,
     tipoPago: d.tipo_pago ?? null,
     fechaPagoCredito: d.fecha_pago_credito ?? null,
+    creditoPagado,
     observaciones: d.observaciones,
     creadaPorNombre: d.creado_por?.nombre ?? null,
     creadaPorId: d.created_by ?? null,
@@ -874,6 +896,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
             solicitante: l.pedido.requisicion.solicitante?.nombre ?? null,
           }
         : null,
+      itemCodigo: l.pedido?.item?.codigo ?? null,
     })),
   }
 }
@@ -1425,6 +1448,15 @@ export async function borrarNotificacionesLeidas(): Promise<void> {
   const userId = await obtenerUsuarioId()
   if (!userId) throw new Error("No autenticado.")
   const { error } = await supabase.from("notificaciones").delete().eq("usuario_id", userId).eq("leida", true)
+  if (error) throw new Error(error.message)
+}
+
+// Todas las no leídas de quien está en sesión (la RLS deja tocar solo las propias).
+export async function marcarTodasNotificacionesLeidas(): Promise<void> {
+  const supabase = await createClient()
+  const userId = await obtenerUsuarioId()
+  if (!userId) throw new Error("No autenticado.")
+  const { error } = await supabase.from("notificaciones").update({ leida: true }).eq("usuario_id", userId).eq("leida", false)
   if (error) throw new Error(error.message)
 }
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { COMODIN_LISTAR } from "@/lib/busqueda"
+import { TituloPestana } from "@/components/titulo-pestana"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, History, Loader2, Plus, Search, X } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
@@ -540,6 +541,7 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
       <header className="flex min-h-16 flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-3 sm:px-6">
         <SidebarTrigger />
         <div className="min-w-0">
+          <TituloPestana titulo="Proveedores" />
           <h1 className="text-2xl font-semibold tracking-tight">Proveedores</h1>
           <p className="text-sm text-muted-foreground">
             {puedeEditar

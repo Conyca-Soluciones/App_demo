@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { TituloPestana } from "@/components/titulo-pestana"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -65,6 +66,7 @@ export default function LoginPage() {
             className="h-auto w-[260px]"
           />
           <div className="space-y-1">
+            <TituloPestana titulo="Iniciar sesión" />
             <h1 className="text-2xl font-semibold tracking-tight text-[#1f2f4d] dark:text-foreground">Bienvenido</h1>
             <p className="text-sm text-muted-foreground">Ingresa con tu correo y contraseña.</p>
           </div>

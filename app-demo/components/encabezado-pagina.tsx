@@ -1,4 +1,5 @@
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { TituloPestana } from "@/components/titulo-pestana"
 
 // Encabezado estándar de TODAS las páginas: botón del menú, título, subtítulo y
 // acciones a la derecha. El proyecto se cambia solo en la barra de arriba.
@@ -21,6 +22,7 @@ export function EncabezadoPagina({
     <header
       className={`flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3 sm:px-6 ${className}`}
     >
+      <TituloPestana titulo={titulo} />
       <SidebarTrigger />
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>

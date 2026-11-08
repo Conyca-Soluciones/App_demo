@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { confirmar } from "@/components/ui/confirmar"
 import { useRouter } from "next/navigation"
 import { ClipboardList, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -453,9 +454,10 @@ export function GenerarOCView({
       .filter((x): x is string => x !== null)
     if (
       sospechosos.length > 0 &&
-      !window.confirm(
-        `Revisa estos precios antes de crear la orden:\n\n${sospechosos.join("\n")}\n\nUn precio equivocado en una orden aprobada afecta el precio promedio con el que se valoran los APU. ¿Los precios son correctos?`
-      )
+      !(await confirmar(
+        `Revisa estos precios antes de crear la orden:\n\n${sospechosos.join("\n")}\n\nUn precio equivocado en una orden aprobada afecta el precio promedio con el que se valoran los APU. ¿Los precios son correctos?`,
+        { titulo: "Precios fuera de lo normal", boton: "Sí, son correctos" }
+      ))
     ) {
       return
     }
@@ -579,7 +581,7 @@ export function GenerarOCView({
   if (!modificar && seleccion === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-        <p>No hay requisiciones seleccionadas para generar una orden de compra.</p>
+        <p>No hay líneas seleccionadas para generar una orden de compra.</p>
         <Button variant="outline" onClick={() => router.push("/almacen/comprar-pedidos")}>
           Volver a Requisiciones por comprar
         </Button>
@@ -615,6 +617,7 @@ export function GenerarOCView({
                     {modificar && <TableHead className="w-10">En OC</TableHead>}
                     <TableHead>Cod</TableHead>
                     <TableHead>Insumo</TableHead>
+                    <TableHead>Ítem</TableHead>
                     <TableHead className="text-right">Solicitado</TableHead>
                     <TableHead className="w-40">UM disponible</TableHead>
                     <TableHead className="w-44">Conversión</TableHead>
@@ -660,6 +663,7 @@ export function GenerarOCView({
                             {pedido.insumoDescripcion}
                           </span>
                         </TableCell>
+                        <TableCell className="tabular-nums text-muted-foreground">{pedido.itemCodigo ?? "—"}</TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           {formatoCantidad(pedido.pendienteUso)} {nombreUnidad(pedido.unidadUso)}
                           {pedido.pendienteUso < pedido.cantidadUso && (

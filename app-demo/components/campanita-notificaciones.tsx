@@ -1,6 +1,6 @@
 "use client"
 
-import { formatearFechaSinHora } from "@/lib/fechas"
+import { formatearFechaHora } from "@/lib/fechas"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Bell, X } from "lucide-react"
@@ -10,11 +10,12 @@ import {
   borrarNotificacionesLeidas,
   listarNotificaciones,
   marcarNotificacionLeida,
+  marcarTodasNotificacionesLeidas,
   type Notificacion,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
-// Fecha sin hora o marca de tiempo: dd/mm/aaaa en hora de Colombia (lib/fechas).
-const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
+// Fecha y hora en la de Colombia: "06/11/2026, 3:45 p. m." (lib/fechas).
+const formatoFecha = (iso: string) => formatearFechaHora(iso)
 
 // A dónde navega cada tipo de notificación al hacer click: las órdenes de
 // compra a su detalle, y las requisiciones al registro de requisiciones.
@@ -113,6 +114,14 @@ export function CampanitaNotificaciones() {
     })
   }
 
+  function handleMarcarTodas() {
+    setNotificaciones((prev) => prev?.map((x) => (x.leida ? x : { ...x, leida: true })) ?? prev)
+    void marcarTodasNotificacionesLeidas().catch((e) => {
+      setError(e instanceof Error ? e.message : "No se pudieron marcar las notificaciones.")
+      cargar()
+    })
+  }
+
   function handleBorrarLeidas() {
     setNotificaciones((prev) => prev?.filter((x) => !x.leida) ?? prev)
     void borrarNotificacionesLeidas().catch((e) => {
@@ -147,6 +156,16 @@ export function CampanitaNotificaciones() {
       <PopoverContent side="bottom" align="end" className="w-80 max-w-[calc(100vw-1rem)] gap-0 rounded-md p-1 shadow-lg">
         <div className="flex items-center justify-between gap-2 px-2 pt-1.5 pb-1">
           <p className="text-xs font-semibold text-muted-foreground">Notificaciones</p>
+          <div className="flex-1" />
+          {noLeidas > 0 && (
+            <button
+              type="button"
+              onClick={handleMarcarTodas}
+              className="rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              Marcar todas como leídas
+            </button>
+          )}
           {leidas > 0 && (
             <button
               type="button"

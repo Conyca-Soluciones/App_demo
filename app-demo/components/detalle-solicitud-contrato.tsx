@@ -103,7 +103,7 @@ export function DetalleSolicitudContrato({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {detalle
-              ? `${detalle.clase === "general" ? "Contrato general" : "Solicitud"} N° ${detalle.numero} · ${nombreTipoContrato(detalle)}`
+              ? `${detalle.clase === "general" ? "Contrato general" : "Solicitud"} ${detalle.codigo} · ${nombreTipoContrato(detalle)}`
               : "Solicitud de contrato"}
             {detalle && (
               <Badge variant="outline" className={CLASE_ETAPA_CONTRATO[etapaContrato(detalle)]}>

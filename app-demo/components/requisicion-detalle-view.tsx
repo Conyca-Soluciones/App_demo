@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { TituloPestana } from "@/components/titulo-pestana"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -172,6 +173,7 @@ export function RequisicionDetalleView({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
+          <TituloPestana titulo={`Requisición ${req.codigo}`} />
           <h1 className="text-2xl font-semibold">Requisición {req.codigo}</h1>
           <BadgeEstadoRequisicion estado={req.estado} />
           {req.extraordinaria && <BadgeExtraordinaria />}

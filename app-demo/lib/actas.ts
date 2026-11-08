@@ -161,7 +161,9 @@ export function tiposPermitidos(info: InfoContratoActa): { tipos: TipoActa[]; mo
   if (info.vencido) motivo = "El contrato está vencido: solo se puede hacer el acta de liquidación (para ampliar el plazo hará falta un otrosí)."
   else if (info.tieneFinal) motivo = "El contrato ya tiene acta final: sigue el acta de liquidación."
   else tipos.push("parcial", "final")
-  if (!info.tieneLiquidacion && info.actasPorAprobar === 0) tipos.push("liquidacion")
+  // Liquidar pide algo que liquidar: alguna acta, el acta final o el contrato vencido.
+  const hayQueLiquidar = info.tieneFinal || info.vencido || info.brutoOtras > 0
+  if (!info.tieneLiquidacion && info.actasPorAprobar === 0 && hayQueLiquidar) tipos.push("liquidacion")
   else if (!info.tieneLiquidacion && tipos.length === 0) motivo = `${motivo ?? ""} Antes de liquidar hay que aprobar o rechazar las actas por aprobar.`.trim()
   return { tipos, motivo }
 }

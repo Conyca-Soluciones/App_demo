@@ -2,6 +2,7 @@
 
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { leerCantidadEntera } from "@/lib/numeros"
+import { TituloPestana } from "@/components/titulo-pestana"
 
 
 import { useEffect, useState } from "react"
@@ -592,6 +593,7 @@ function DetalleEntrada({
         <Button variant="outline" size="sm" onClick={onVolver}>
           <ArrowLeft className="mr-1 h-4 w-4" /> Volver
         </Button>
+        <TituloPestana titulo={`Entrada — ${detalle.codigo}`} />
         <h1 className="text-2xl font-semibold">Entrada — {detalle.codigo}</h1>
         <Badge variant="outline" className={badge.clase}>{badge.label}</Badge>
       </div>
@@ -638,6 +640,7 @@ function DetalleEntrada({
                     <div className="flex items-center justify-end gap-1">
                       <Input
                         inputMode="numeric"
+                        aria-label={`Cantidad a recibir de ${l.insumoDescripcion}`}
                         className="h-8 w-24 text-right"
                         placeholder="0"
                         value={cantidades[l.id] ?? ""}
@@ -650,6 +653,7 @@ function DetalleEntrada({
                         variant="ghost"
                         size="sm"
                         title="Recibir todo lo pendiente"
+                        aria-label={`Recibir todo lo pendiente de ${l.insumoDescripcion}`}
                         onClick={() =>
                           setCantidades((prev) => ({
                             ...prev,
@@ -788,6 +792,7 @@ function DetalleEntrada({
                 </span>
                 <Input
                   inputMode="numeric"
+                  aria-label={`Cantidad recibida de ${l.insumoDescripcion}`}
                   className="h-8 w-28 text-right"
                   value={edCantidades[l.id] ?? ""}
                   onChange={(ev) => setEdCantidades((prev) => ({ ...prev, [l.id]: ev.target.value }))}
@@ -796,6 +801,7 @@ function DetalleEntrada({
             ))}
           </div>
           <Input
+            aria-label="N° de remisión o factura del proveedor"
             placeholder="N° de remisión / factura del proveedor"
             value={edRemision}
             onChange={(ev) => setEdRemision(ev.target.value)}

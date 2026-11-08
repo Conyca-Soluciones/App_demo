@@ -101,6 +101,7 @@ export function TablaPedidosCompra({
       claseCelda: "font-medium tabular-nums",
     },
     { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (p) => p.proyectoTexto ?? "", claseCelda: "tabular-nums" },
+    { clave: "item", titulo: "Ítem", ancho: 90, texto: (p) => p.itemCodigo ?? "—", claseCelda: "tabular-nums" },
     { clave: "insumo", titulo: "Insumo", ancho: 280, flexible: true, texto: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}` },
     { clave: "um", titulo: "UM", ancho: 120, texto: (p) => p.um ?? "" },
     {

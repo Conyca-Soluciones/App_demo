@@ -550,7 +550,7 @@ export function SolicitudExtraordinariaDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-5">
-            {!guardando && motivoNoGuardar && <p className="mr-auto text-xs text-amber-800">{motivoNoGuardar}</p>}
+            {!guardando && motivoNoGuardar && (lineas.length > 0 || !!fechaRequerida) && <p className="mr-auto text-xs text-amber-800">{motivoNoGuardar}</p>}
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={guardando}>
               Cancelar
             </Button>
