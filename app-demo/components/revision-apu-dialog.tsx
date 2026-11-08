@@ -1381,7 +1381,6 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
         { header: "Descripción transporte", key: "descripcionTransporte", width: 40 },
         { header: "Unidad transporte", key: "unidadTransporte", width: 16 },
         { header: "Cantidad transporte", key: "cantidadTransporte", width: 18 },
-        { header: "Valor actual", key: "valorActual", width: 16 },
         // El encabezado debe seguir conteniendo "Valor transporte": así lo
         // encuentra la subida (también en Excel descargados antes).
         { header: "Valor transporte por unidad del ítem (cantidad × precio unitario)", key: "valorTransporte", width: 30 },
@@ -1404,7 +1403,6 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
           descripcionTransporte: f.descripcionTransporte,
           unidadTransporte: f.unidadTransporte ?? "",
           cantidadTransporte: f.cantidadTransporte,
-          valorActual: f.valorActual ?? "",
           // Prellenado con el valor actual (si lo hay) -- facilita
           // corregir sin tener que escribir todo de nuevo.
           valorTransporte: f.valorActual ?? "",
