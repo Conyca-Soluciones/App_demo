@@ -1382,7 +1382,9 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
         { header: "Unidad transporte", key: "unidadTransporte", width: 16 },
         { header: "Cantidad transporte", key: "cantidadTransporte", width: 18 },
         { header: "Valor actual", key: "valorActual", width: 16 },
-        { header: "Valor transporte", key: "valorTransporte", width: 18 },
+        // El encabezado debe seguir conteniendo "Valor transporte": así lo
+        // encuentra la subida (también en Excel descargados antes).
+        { header: "Valor transporte por unidad del ítem (cantidad × precio unitario)", key: "valorTransporte", width: 30 },
         // Columna oculta -- ES la clave real del roundtrip (ver
         // importarPreciosTransporte en actions.ts). No se borra ni se
         // edita -- por eso además de ocultarla, el encabezado lo dice
@@ -2109,8 +2111,16 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                       <p className="text-sm">
                         El transporte se cotiza por Excel, no dentro de este diálogo -- cada ítem
                         puede necesitar un precio distinto según el lugar. Descarga el Excel,
-                        complétalo (columna <span className="font-medium">&quot;Valor transporte&quot;</span>,
-                        valor unitario, sin multiplicar por cantidad) y súbelo de vuelta.
+                        complétalo (columna <span className="font-medium">&quot;Valor transporte&quot;</span>)
+                        y súbelo de vuelta.
+                      </p>
+                      <p className="text-sm">
+                        El valor es lo que cuesta el transporte por{" "}
+                        <span className="font-medium">una unidad del ítem</span> (el valor parcial de
+                        la línea del APU): cantidad de transporte × precio unitario. Ej.: 0,2 viajes
+                        por m² × $100.000 el viaje = <span className="font-medium">$20.000</span>.
+                        No pongas el precio del viaje ni el total del ítem: la app suma este valor al
+                        precio unitario del ítem y luego multiplica por la cantidad del presupuesto.
                       </p>
                       <p className="text-xs text-muted-foreground">
                         El Excel trae una columna oculta con el identificador interno de cada
