@@ -85,10 +85,10 @@ const TEXTO_ACCION: Record<AccionVista, { titulo: string; explicacion: string; b
 // El contrato general no reserva presupuesto ni tiene pestaña Minuta: su hoja es la minuta.
 const EXPLICACION_GENERAL: Partial<Record<AccionVista, string>> = {
   aprobar:
-    "El contrato queda pre-aprobado y pasa a Subgerencia (Aprobación de contratos). Mientras Subgerencia lo revisa no se puede editar.",
+    "El contrato queda pre-aprobado y pasa a Gerencia (Aprobación de contratos). Mientras Gerencia lo revisa no se puede editar.",
   devolver: "Vuelve al director con este motivo; lo corrige y lo reenvía con el mismo código.",
   rechazar: "Es definitivo: el contrato se cierra.",
-  enviar: "Mientras Subgerencia lo revisa no se puede editar; si lo devuelve, lo corriges y lo envías otra vez.",
+  enviar: "Mientras Gerencia lo revisa no se puede editar; si lo devuelve, lo corriges y lo envías otra vez.",
 }
 
 export function PreaprobacionContratosView({ puedeResolver, verInicial }: { puedeResolver: boolean; verInicial: string | null }) {
