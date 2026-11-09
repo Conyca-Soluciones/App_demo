@@ -3371,6 +3371,11 @@ Decisiones del usuario (sin AIU en el presupuesto):
   con bloque APU sigue con su APU. Con hoja APU, un global sin valor unitario
   corta el import. Se contrata con contratos por grupos (cantidad = proporción
   del GL) y se compra con requisiciones extraordinarias sobre el ítem.
+- **Excel de transporte** (decisión del usuario, 2026-11-09): se escribe lo que
+  cuesta el transporte para hacer 1 unidad del ítem (viaje de $350.000 que lleva
+  7 m³ = $50.000), no el precio del viaje ni el total del ítem. La app lo suma
+  tal cual al precio unitario (no usa "Cantidad transporte"). Se probó pedir el
+  total del ítem y dividir, y se descartó.
 - **Ítems sin APU en naranja** (decisión del usuario, 2026-11-09): en la tabla
   del presupuesto, todo ítem hoja sin `apu_id` que no sea global (GL con valor)
   sale en naranja con la etiqueta "SIN APU", y arriba un aviso con cuántos son
