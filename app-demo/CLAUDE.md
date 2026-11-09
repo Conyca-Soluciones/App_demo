@@ -919,11 +919,13 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   campos numéricos: `step="1"` + `Number.isInteger`. Las server actions lo
   revalidan con `esCantidadEnteraPositiva`. Precios y porcentajes sí admiten
   decimales. Las cantidades del APU (por unidad) también.
-- **Generar OC avisa precios sospechosos**: 3 veces o más por encima o por
-  debajo del `vr_unitario` del maestro (no del precio efectivo, que ya puede
-  estar contaminado). Un precio malo en una orden aprobada entra al promedio
-  de `precios_efectivos_insumos` (caso real: Amarre teja valorado a $8.000
-  con referencia $325, por la OC #26).
+- **Generar OC avisa sobrecosto** (decisión del usuario, 2026-11-08; antes
+  avisaba con 3 veces el `vr_unitario` del maestro): en cada línea y al crear
+  la orden (confirmación) si el precio, por unidad del insumo, pasa más de 10 %
+  el precio promedio de compra (`precioPromedio`, de `precios_efectivos_insumos`:
+  últimos 6 meses, si no todo el histórico, si no el maestro; sin IVA). Mismo
+  umbral que la notificación a quien aprueba pagos
+  (`trg_notificar_precio_sobre_efectivo_oc_item`). Ya no avisa precios por debajo.
 - **Retirar una OC pendiente**: `cancelar_orden_compra` acepta órdenes
   pendientes de quien las creó o de quien tenga `cancelar_oc`
   (`20261006400000_retirar_oc_pendiente.sql`); en pantalla el botón dice

@@ -104,19 +104,16 @@ type LineaForm = {
 const formatoMoneda = (n: number) =>
   n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
 
-// Precio muy lejos del de referencia del maestro (3 veces o más, por encima o
-// por debajo). Un precio mal digitado en una orden aprobada entra al precio
-// promedio con el que se valoran los APU (caso real: Amarre teja a $8.000 con
-// referencia $325). Se compara contra vr_unitario del maestro y no contra el
-// precio efectivo, porque ese puede estar ya contaminado por compras malas.
-const FACTOR_ALERTA_PRECIO = 3
-function alertaPrecio(precio: number, referencia: number | null): string | null {
-  if (referencia == null || referencia <= 1 || !Number.isFinite(precio)) return null
-  if (precio >= referencia * FACTOR_ALERTA_PRECIO) {
-    return `${Math.round(precio / referencia)} veces el precio de referencia (${formatoMoneda(referencia)})`
-  }
-  if (precio <= referencia / FACTOR_ALERTA_PRECIO) {
-    return `muy por debajo del precio de referencia (${formatoMoneda(referencia)})`
+// Sobrecosto: precio más de 10 % por encima del precio promedio de compra del
+// insumo (precioPromedio, sin IVA; decisión del usuario 2026-11-08, reemplaza
+// el aviso de "3 veces el precio del maestro"). Mismo umbral que la
+// notificación a quien aprueba pagos (trg_notificar_precio_sobre_efectivo_oc_item).
+const SOBRECOSTO_MAXIMO = 0.1
+function alertaPrecio(precio: number, promedio: number | null): string | null {
+  if (promedio == null || promedio <= 0 || !Number.isFinite(precio)) return null
+  if (precio > promedio * (1 + SOBRECOSTO_MAXIMO)) {
+    const pct = Math.round((precio / promedio - 1) * 100)
+    return `${pct} % por encima del precio promedio (${formatoMoneda(promedio)})`
   }
   return null
 }
@@ -445,18 +442,24 @@ export function GenerarOCView({
 
   async function handleGenerar() {
     if ((!modificar && !seleccion) || !proveedor || !todasLasLineasValidas) return
-    // Precios sospechosos: confirmar antes de crear la orden (ver alertaPrecio).
+    // Sobrecosto: confirmar antes de crear la orden (ver alertaPrecio). Con una
+    // presentación se compara el equivalente por unidad del insumo, igual que
+    // el aviso de cada línea.
     const sospechosos = lineasOrden
       .map((p) => {
-        const alerta = alertaPrecio(Number(lineas[p.id]?.precioUnitario), p.valorUnitarioProyectado)
+        const l = lineas[p.id]
+        if (!l) return null
+        const conv = numeroConversion(l.conversion)
+        const porUm = l.umCompra && conv != null ? cantidadPorPresentacion(conv, p.factor) : 1
+        const alerta = porUm > 0 ? alertaPrecio(Number(l.precioUnitario) / porUm, p.precioPromedio) : null
         return alerta ? `• ${p.insumoDescripcion}: ${alerta}` : null
       })
       .filter((x): x is string => x !== null)
     if (
       sospechosos.length > 0 &&
       !(await confirmar(
-        `Revisa estos precios antes de crear la orden:\n\n${sospechosos.join("\n")}\n\nUn precio equivocado en una orden aprobada afecta el precio promedio con el que se valoran los APU. ¿Los precios son correctos?`,
-        { titulo: "Precios fuera de lo normal", boton: "Sí, son correctos" }
+        `Estos precios están más de 10 % por encima del precio promedio de compra:\n\n${sospechosos.join("\n")}\n\nUn precio equivocado en una orden aprobada afecta el precio promedio con el que se valoran los APU. ¿Los precios son correctos?`,
+        { titulo: "Sobrecosto", boton: "Sí, son correctos" }
       ))
     ) {
       return
@@ -755,14 +758,14 @@ export function GenerarOCView({
                             </p>
                           )}
                           {(() => {
-                            // El precio de referencia del maestro es por unidad del
-                            // insumo: con una presentación se compara el equivalente.
+                            // El precio promedio es por unidad del insumo: con una
+                            // presentación se compara el equivalente.
                             const conv = numeroConversion(l.conversion)
                             const precio = Number(l.precioUnitario)
                             const porUm = l.umCompra && conv != null ? cantidadPorPresentacion(conv, pedido.factor) : 1
                             const alerta =
                               l.precioUnitario.trim() && porUm > 0
-                                ? alertaPrecio(precio / porUm, pedido.valorUnitarioProyectado)
+                                ? alertaPrecio(precio / porUm, pedido.precioPromedio)
                                 : null
                             return alerta ? (
                               <p className="mt-0.5 text-right text-[10px] leading-tight text-amber-700">{alerta}</p>

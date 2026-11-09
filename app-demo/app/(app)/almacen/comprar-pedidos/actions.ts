@@ -117,6 +117,11 @@ export type PedidoParaComprar = {
   unidadUso: string | null
   factor: number
   valorUnitarioProyectado: number | null
+  // Precio promedio de compra del insumo (precios_efectivos_insumos: últimos 6
+  // meses, si no todo el histórico, si no el maestro), sin IVA. Solo lo trae
+  // Generar OC (obtenerPedidosPorId / obtenerOrdenParaModificar) para avisar
+  // de un precio más de 10 % por encima; en las listas va null.
+  precioPromedio: number | null
   fechaPedido: string
   fechaRequerida: string
   urgente: boolean
@@ -192,6 +197,7 @@ function mapPedidoParaComprar(f: any, excluirOrdenId?: string): PedidoParaCompra
     unidadUso: f.unidad ?? f.insumo?.u_m ?? null,
     factor,
     valorUnitarioProyectado: f.insumo?.vr_unitario ?? null,
+    precioPromedio: null,
     fechaPedido: f.created_at,
     fechaRequerida: f.fecha_requerida,
     urgente: f.urgente,
@@ -206,6 +212,24 @@ function mapPedidoParaComprar(f: any, excluirOrdenId?: string): PedidoParaCompra
       : null,
     resueltoAt: f.resuelto_at,
   }
+}
+
+// Llena precioPromedio con precios_efectivos_insumos (mismo precio contra el
+// que avisa trg_notificar_precio_sobre_efectivo_oc_item), una llamada por
+// tanda de insumos distintos.
+async function conPrecioPromedio(pedidos: PedidoParaComprar[]): Promise<PedidoParaComprar[]> {
+  const ids = [...new Set(pedidos.map((p) => p.insumoId).filter(Boolean))]
+  if (ids.length === 0) return pedidos
+  const supabase = await createClient()
+  const precios = new Map<string, number>()
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data, error } = await supabase.rpc("precios_efectivos_insumos", { p_insumo_ids: ids.slice(i, i + 500) })
+    if (error) throw new Error(error.message)
+    for (const f of (data ?? []) as any[]) {
+      if (f.precio_efectivo != null) precios.set(f.insumo_id, Number(f.precio_efectivo))
+    }
+  }
+  return pedidos.map((p) => ({ ...p, precioPromedio: precios.get(p.insumoId) ?? null }))
 }
 
 export async function listarPedidosParaComprar(
@@ -271,7 +295,7 @@ export async function obtenerPedidosPorId(ids: string[]): Promise<PedidoParaComp
       })
     )
   ).flat()
-  return data.map((f) => mapPedidoParaComprar(f)).filter((p) => p.cantidadPendiente > 0)
+  return conPrecioPromedio(data.map((f) => mapPedidoParaComprar(f)).filter((p) => p.cantidadPendiente > 0))
 }
 
 export async function rechazarPedidoCompras(pedidoId: string, motivo: string): Promise<void> {
@@ -1079,7 +1103,7 @@ export async function obtenerOrdenParaModificar(ordenId: string): Promise<OrdenP
           }
         : null,
     })),
-    pedidos,
+    pedidos: await conPrecioPromedio(pedidos),
   }
 }
 
