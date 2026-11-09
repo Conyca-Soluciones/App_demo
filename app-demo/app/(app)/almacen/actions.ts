@@ -547,6 +547,7 @@ export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Prom
         cantidad: Number(l.cantidad),
         fechaRequisicion: r.createdAt,
         fechaRequerida: r.fechaRequerida,
+        fechaEstimada: r.fechaEstimada,
         estado: r.estado,
         estadoCompra: r.estadoCompra,
         extraordinaria: r.extraordinaria,

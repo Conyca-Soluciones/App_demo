@@ -72,6 +72,16 @@ export default function RegistroRequisiciones() {
         valorOrden: (r) => r.fechaRequerida,
         claseCelda: "tabular-nums",
       },
+      {
+        clave: "estimada",
+        titulo: "Fecha estimada",
+        ancho: 130,
+        alinear: "center",
+        // la más tardía de sus órdenes de compra vigentes (Generar OC)
+        texto: (r) => (r.fechaEstimada ? formatearFechaSinHora(r.fechaEstimada) : ""),
+        valorOrden: (r) => r.fechaEstimada,
+        claseCelda: "tabular-nums",
+      },
       { clave: "insumos", titulo: "Insumos", ancho: 90, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
       {
         clave: "estado",

@@ -11,6 +11,7 @@ const fila = (cambios: Partial<FilaExcelRequisicion> = {}): FilaExcelRequisicion
   cantidad: 96,
   fechaRequisicion: "2026-10-14T15:00:00Z",
   fechaRequerida: "2026-10-20",
+  fechaEstimada: null,
   estado: "aprobada",
   estadoCompra: "pendiente",
   extraordinaria: false,
@@ -26,6 +27,10 @@ describe("Excel del registro de requisiciones", () => {
     expect(valoresFilaExcel(fila()).slice(-3, -1)).toEqual(["Aprobada", "Pendiente"])
     expect(valoresFilaExcel(fila({ estado: "rechazada", estadoCompra: null })).slice(-3, -1)).toEqual(["Rechazada", ""])
     expect(valoresFilaExcel(fila({ estadoCompra: "rechazada_compras" })).at(-2)).toBe("Rechazada por Compras")
+  })
+  it("fecha estimada de entrega después de la requerida; vacía si no hay", () => {
+    expect(valoresFilaExcel(fila()).at(8)).toBeNull()
+    expect(valoresFilaExcel(fila({ fechaEstimada: "2026-10-25" })).at(8)).toEqual(new Date(Date.UTC(2026, 9, 25)))
   })
   it("tipo al final: normal o extraordinaria", () => {
     expect(valoresFilaExcel(fila()).at(-1)).toBe("Normal")

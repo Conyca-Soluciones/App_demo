@@ -16,6 +16,7 @@ export type FilaExcelRequisicion = {
   cantidad: number
   fechaRequisicion: string // timestamptz
   fechaRequerida: string | null // AAAA-MM-DD
+  fechaEstimada: string | null // AAAA-MM-DD, fecha estimada de entrega (OC)
   estado: EstadoRequisicion
   estadoCompra: EstadoCompra
   // Por encima del presupuesto (la aprueba Gerencia).
@@ -45,6 +46,7 @@ export const COLUMNAS_EXCEL_REQUISICIONES = [
   { titulo: "Cantidad solicitada", ancho: 14 },
   { titulo: "Fecha de requisición", ancho: 14 },
   { titulo: "Fecha requerida", ancho: 14 },
+  { titulo: "Fecha estimada de entrega", ancho: 14 },
   { titulo: "Estado", ancho: 12 },
   { titulo: "Estado de la compra", ancho: 20 },
   { titulo: "Tipo", ancho: 16 },
@@ -71,6 +73,7 @@ export function valoresFilaExcel(f: FilaExcelRequisicion): (string | number | Da
     f.cantidad,
     fechaExcel(diaColombia(f.fechaRequisicion)),
     f.fechaRequerida ? fechaExcel(f.fechaRequerida) : null,
+    f.fechaEstimada ? fechaExcel(f.fechaEstimada) : null,
     ETIQUETA_ESTADO_EXCEL[f.estado],
     f.estadoCompra ? ETIQUETA_COMPRA_EXCEL[f.estadoCompra] : "",
     f.extraordinaria ? "Extraordinaria" : "Normal",
@@ -110,6 +113,7 @@ export async function descargarExcelRequisiciones(filas: FilaExcelRequisicion[])
   })
   hoja.getColumn(7).numFmt = "dd/mm/yyyy"
   hoja.getColumn(8).numFmt = "dd/mm/yyyy"
+  hoja.getColumn(9).numFmt = "dd/mm/yyyy"
 
   // Encabezados fijos al bajar y filtro de Excel sobre la tabla.
   hoja.views = [{ state: "frozen", ySplit: primera }]

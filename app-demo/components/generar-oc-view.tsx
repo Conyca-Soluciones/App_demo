@@ -468,6 +468,14 @@ export function GenerarOCView({
       setError("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
       return
     }
+    if (!fechaEntrega) {
+      setError("Escribe la fecha estimada de entrega.")
+      return
+    }
+    if (!modificar && fechaEntrega < hoyColombia()) {
+      setError("La fecha estimada de entrega no puede ser anterior a hoy.")
+      return
+    }
     const conTitularAparte = pago.metodo === "transferencia" && titular !== null
     const errorTipo = validarTipoPagoOC(tipoPago, fechaCredito, hoyColombia())
     if (errorTipo) {
@@ -892,10 +900,13 @@ export function GenerarOCView({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="fecha-entrega">Fecha de entrega (opcional)</Label>
+            <Label htmlFor="fecha-entrega">
+              Fecha estimada de entrega <span className="text-destructive">*</span>
+            </Label>
             <CampoFecha
               id="fecha-entrega"
               value={fechaEntrega}
+              min={modificar ? undefined : hoy}
               onChange={(e) => setFechaEntrega(e.target.value)}
             />
           </div>

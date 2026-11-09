@@ -203,7 +203,7 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
             <View style={styles.cardBody}>
               <Dato label="Proyecto" value={orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"} />
               <Dato label="Sitio de entrega" value={orden.sitioEntrega ?? "—"} />
-              <Dato label="Fecha de entrega" value={formatearFechaSinHora(orden.fechaEntrega)} />
+              <Dato label="Fecha estimada de entrega" value={formatearFechaSinHora(orden.fechaEntrega)} />
               <Dato label="Ciudad" value={orden.ciudad ?? "—"} />
               {/* El teléfono y el correo de la orden son los del proveedor (van arriba). */}
               <Dato label="Contacto" value={orden.contactoNombre ?? "—"} />

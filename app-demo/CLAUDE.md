@@ -2515,6 +2515,14 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   consulta en la vista elegida (`exportarOrdenesCompra` +
   `lib/exportar-ordenes-compra.ts`, mismo formato que el de requisiciones; la
   detallada, una fila por insumo).
+- **Fecha estimada de entrega** (decisión del usuario, 2026-11-09,
+  `20261231996000`): es `ordenes_compra.fecha_entrega` (Generar OC, OBLIGATORIA
+  y no antes de hoy al crear; la revisan la pantalla y `validarDatosOrden`; en
+  pantalla y PDF "Fecha estimada de entrega"). El Registro de
+  requisiciones (columna, detalle y Excel) muestra la MÁS TARDÍA de las
+  órdenes vigentes (pendientes o aprobadas) de la requisición:
+  `requisiciones_vista.fecha_estimada` por `_fecha_estimada_requisicion`
+  (SECURITY DEFINER: el ingeniero no lee órdenes de compra).
 - Las funciones por línea anteriores (`cancelar_pedido`, `modificar_pedido`,
   `desaprobar_pedido`) siguen en la base pero la app ya no las usa.
 
@@ -3932,6 +3940,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231960000` requisiciones técnicas sin aprobación (nacen aprobadas).
 `20261231970000` contratos de obra y mano de obra solo por valores unitarios.
 `20261231995000` línea del APU "No aplica" (sin insumo, en $ 0).
+`20261231996000` fecha estimada de entrega en el registro de requisiciones.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

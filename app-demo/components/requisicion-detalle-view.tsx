@@ -322,6 +322,10 @@ export function RequisicionDetalleView({
             <p className="text-muted-foreground">Fecha requerida</p>
             <p>{req.fechaRequerida ? formatearFechaSinHora(req.fechaRequerida) : "—"}</p>
           </div>
+          <div className="space-y-1">
+            <p className="text-muted-foreground">Fecha estimada de entrega</p>
+            <p>{req.fechaEstimada ? formatearFechaSinHora(req.fechaEstimada) : "—"}</p>
+          </div>
           {req.resueltoPorNombre && (
             <div className="space-y-1">
               <p className="text-muted-foreground">

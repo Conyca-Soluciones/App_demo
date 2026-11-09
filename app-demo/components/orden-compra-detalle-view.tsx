@@ -444,7 +444,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             <p>{orden.sitioEntrega ?? "—"}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-muted-foreground">Fecha de entrega</p>
+            <p className="text-muted-foreground">Fecha estimada de entrega</p>
             <p>{formatearFechaSinHora(orden.fechaEntrega)}</p>
           </div>
           <div className="space-y-1">

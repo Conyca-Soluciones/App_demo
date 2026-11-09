@@ -3,6 +3,7 @@
 import { unidadesDeCompra } from "@/lib/unidades"
 import { conversionValida, type PresentacionLinea } from "@/lib/presentacion-compra"
 import { esCantidadEnteraPositiva } from "@/lib/numeros"
+import { hoyColombia } from "@/lib/fechas"
 import { calcularLinea } from "@/lib/ordenes-compra-calculos"
 import type { SoporteGuardado, SoporteSubidoArchivo, TipoSoporteOrden } from "@/lib/soportes"
 import type { CuentasProveedorOC, MetodoPagoOC } from "@/lib/metodo-pago-oc"
@@ -540,6 +541,11 @@ export type DatosOrdenCompra = {
 // Devuelve los parámetros del anticipo: solo se mandan si hay anticipo, así una
 // orden sin anticipo llama a la función exactamente como antes.
 function validarDatosOrden(datos: DatosOrdenCompra) {
+  // Obligatoria (decisión del usuario, 2026-11-09): el Registro de
+  // requisiciones la muestra como fecha estimada de entrega.
+  if (!datos.fechaEntrega || !/^\d{4}-\d{2}-\d{2}$/.test(datos.fechaEntrega)) {
+    throw new Error("Escribe la fecha estimada de entrega.")
+  }
   if (datos.pago?.metodo !== "transferencia" && datos.pago?.metodo !== "pse") {
     throw new Error("Elige cómo se paga la orden: Transferencia o PSE.")
   }
@@ -622,6 +628,7 @@ export async function crearOrdenCompra(
   await requerirScope("rol_compras")
   if (!soporte?.ruta) throw new Error("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
   const anticipo = validarDatosOrden(datos)
+  if (datos.fechaEntrega! < hoyColombia()) throw new Error("La fecha estimada de entrega no puede ser anterior a hoy.")
 
   const supabase = await createClient()
 

@@ -19,6 +19,9 @@ export type RequisicionResumen = {
   solicitanteId: string | null
   solicitanteNombre: string | null
   fechaRequerida: string | null
+  // Fecha estimada de entrega: la más tardía de sus órdenes de compra vigentes
+  // (Generar OC). null = sin orden o la orden no la trae.
+  fechaEstimada: string | null
   urgente: boolean
   observaciones: string | null
   soporteUrl: string | null
@@ -163,6 +166,7 @@ export function mapResumen(r: any): RequisicionResumen {
     solicitanteId: r.solicitado_por,
     solicitanteNombre: r.solicitante_nombre,
     fechaRequerida: r.fecha_requerida,
+    fechaEstimada: r.fecha_estimada ?? null,
     urgente: r.urgente,
     observaciones: r.observaciones,
     soporteUrl: r.soporte_url,
