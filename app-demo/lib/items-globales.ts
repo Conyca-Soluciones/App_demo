@@ -61,3 +61,22 @@ export function aplicarItemsGlobales<T extends ItemImport>(
   })
   return { items: resultado, errores }
 }
+
+// Ítem que debería tener APU y no lo tiene (decisión del usuario, 2026-11-09:
+// avisar con color para que no se quede sin armar). Solo ítems hoja (sin
+// sub-ítems); un ítem global (unidad GL con valor unitario) no lleva APU.
+// `conHijos` = ids de los ítems que son padre de otro.
+export function itemSinApu(
+  item: { id: string; apuId?: string | null; unidad: string | null; valorUnitario?: number | null },
+  conHijos: Set<string>
+): boolean {
+  if (conHijos.has(item.id) || item.apuId) return false
+  if (esUnidadGlobal(item.unidad) && (item.valorUnitario ?? 0) > 0) return false
+  return true
+}
+
+export function idsConHijos(items: { padreId: string | null }[]): Set<string> {
+  const s = new Set<string>()
+  for (const it of items) if (it.padreId) s.add(it.padreId)
+  return s
+}

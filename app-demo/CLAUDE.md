@@ -3371,6 +3371,11 @@ Decisiones del usuario (sin AIU en el presupuesto):
   con bloque APU sigue con su APU. Con hoja APU, un global sin valor unitario
   corta el import. Se contrata con contratos por grupos (cantidad = proporción
   del GL) y se compra con requisiciones extraordinarias sobre el ítem.
+- **Ítems sin APU en naranja** (decisión del usuario, 2026-11-09): en la tabla
+  del presupuesto, todo ítem hoja sin `apu_id` que no sea global (GL con valor)
+  sale en naranja con la etiqueta "SIN APU", y arriba un aviso con cuántos son
+  (`itemSinApu` / `idsConHijos` en `lib/items-globales.ts`). Solo avisa, no
+  bloquea guardar.
 - **Gasto administrativo** (`20261231950000`): `control_proyecto` devuelve
   `administrativo_compras` (OC aprobadas de requisiciones administrativas, que ya
   no cuentan en `compras` ni en "sin ítem") y `administrativo_pagos` (pagos

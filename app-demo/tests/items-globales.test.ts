@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { aplicarItemsGlobales, esUnidadGlobal } from "@/lib/items-globales"
+import { aplicarItemsGlobales, esUnidadGlobal, idsConHijos, itemSinApu } from "@/lib/items-globales"
 
 const item = (p: Partial<Parameters<typeof aplicarItemsGlobales>[0][number]> & { id: string; codigo: string }) => ({
   padreId: "cap",
@@ -45,5 +45,19 @@ describe("ítems globales del presupuesto", () => {
     const sinValor = item({ id: "a", codigo: "20.3", descripcion: "PMA" })
     expect(aplicarItemsGlobales([sinValor], new Set(), true).errores[0]).toMatch(/20\.3.*PMA/)
     expect(aplicarItemsGlobales([sinValor], new Set(), false).errores).toEqual([])
+  })
+})
+
+describe("itemSinApu", () => {
+  const items = [
+    { id: "c", padreId: null, apuId: null, unidad: null, valorUnitario: null },
+    { id: "a", padreId: "c", apuId: null, unidad: "M2", valorUnitario: 0 },
+    { id: "b", padreId: "c", apuId: "apu1", unidad: "M2", valorUnitario: 5000 },
+    { id: "g", padreId: "c", apuId: null, unidad: "GL", valorUnitario: 1_000_000 },
+    { id: "g0", padreId: "c", apuId: null, unidad: "GLB", valorUnitario: 0 },
+  ]
+  const conHijos = idsConHijos(items)
+  it("marca solo los ítems hoja sin APU que no son globales con valor", () => {
+    expect(items.filter((i) => itemSinApu(i, conHijos)).map((i) => i.id)).toEqual(["a", "g0"])
   })
 })

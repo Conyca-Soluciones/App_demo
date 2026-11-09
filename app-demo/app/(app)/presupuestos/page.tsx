@@ -55,7 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
-import { aplicarItemsGlobales } from "@/lib/items-globales"
+import { aplicarItemsGlobales, idsConHijos, itemSinApu } from "@/lib/items-globales"
 
 // ---------------------------------------------------------------------------
 // El tipo del ítem (ItemPresupuesto) vive en ./actions -- se comparte con
@@ -702,6 +702,8 @@ function PresupuestoDeProyecto() {
     .map(([id]) => id)
 
 
+  const conHijosPresupuesto = idsConHijos(presupuesto)
+  const cantidadSinApu = presupuesto.filter((item) => itemSinApu(item, conHijosPresupuesto)).length
   const idsConSobrecosto = presupuesto
     .filter((item) => excedePresupuestoOriginal(item.valorUnitario, item.precioOriginal))
     .map((item) => item.id)
@@ -1865,6 +1867,13 @@ function PresupuestoDeProyecto() {
           </div>
         )}
  
+        {cantidadSinApu > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
+          <div className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+            {cantidadSinApu} ítem(s) no tienen APU (marcados en naranja, &ldquo;SIN APU&rdquo;). Ármalos con
+            &ldquo;Agregar APU&rdquo; para que su valor no se quede sin análisis.
+          </div>
+        )}
+
         {puedeEditar && (idsConRechazados.length > 0 || idsConSobrecosto.length > 0) && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
             {idsConRechazados.length > 0 && (

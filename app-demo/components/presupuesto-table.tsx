@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { idsConHijos, itemSinApu } from "@/lib/items-globales"
 import type { ItemPresupuesto, EstadoApuItem, MotivoRechazoPorItem } from "@/app/(app)/presupuestos/actions"
 
 const inputClasses =
@@ -399,6 +400,9 @@ export function PresupuestoTable({
   // Solo se recalcula cuando cambian los datos, no en cada render (antes
   // corría con cada tecla o clic en la tabla).
   const rollupsPorCapitulo = useMemo(() => calcularRollupsPorCapitulo(data), [data])
+  // Ítems hoja sin APU (no globales): se marcan en naranja para que no se
+  // queden sin armar.
+  const conHijos = useMemo(() => idsConHijos(data), [data])
 
   return (
     // overflow-hidden -> overflow-x-auto: antes el scroll horizontal de
@@ -425,7 +429,8 @@ export function PresupuestoTable({
         <TableBody>
           {data.map((item) => {
             const estadoApu = estadoApuDeFila(item, estadosApu?.[item.id])
-            const estiloEstado = FILA_ESTILO_POR_ESTADO[estadoApu]
+            const sinApu = itemSinApu(item, conHijos)
+            const estiloEstado = sinApu ? "bg-orange-100 hover:bg-orange-200/70" : FILA_ESTILO_POR_ESTADO[estadoApu]
 
             const rollup = rollupsPorCapitulo.get(item.id)
             // La alerta y el valor de "precio unitario oficial" mostrado
@@ -447,7 +452,9 @@ export function PresupuestoTable({
                   : excedePresupuesto
                     ? "bg-red-600/25 hover:bg-red-600/35 cursor-pointer transition-colors"
                     : soloLectura
-                      ? "bg-muted/20 hover:bg-muted/20"
+                      ? sinApu
+                        ? "bg-orange-100 hover:bg-orange-100"
+                        : "bg-muted/20 hover:bg-muted/20"
                       : `cursor-pointer ${estiloEstado || (item.guardado ? "bg-muted/20 hover:bg-muted/20" : "hover:bg-accent/60")}`
               }
             >
@@ -561,6 +568,14 @@ export function PresupuestoTable({
                   >
                     {item.apuId ? "Editar APU" : "Agregar APU"}
                   </button>
+                  {sinApu && (
+                    <span
+                      title="Este ítem no tiene APU: su valor no sale de ningún análisis. Ármalo con Agregar APU."
+                      className="rounded-full bg-orange-200 inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-orange-900"
+                    >
+                      SIN APU
+                    </span>
+                  )}
                   <EtiquetaEstadoApu
                     estado={estadoApu}
                     motivos={motivosRechazo?.[item.id]}
