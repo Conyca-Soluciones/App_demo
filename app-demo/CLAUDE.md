@@ -1725,7 +1725,7 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   Liquidados (titular y cuenta, valor a pagar, comentarios, soporte) y Todos.
   Sin columnas de Novedad ni Acciones (decisión del usuario): la novedad, el
   historial y "Tercero y cuenta" están en la ventana del pago; Soporte al final.
-- **Acciones**: `gestionar_pagos` (Financiera, Gerencia) = enviar a liquidar
+- **Acciones**: `gestionar_pagos` (Financiera; Gerencia ya no lo tiene) = enviar a liquidar
   (elegidos o todos los filtrados, `enviar_pagos_a_liquidar`) y responder
   ("Responder y devolver a Contabilidad"); `liquidar_pagos` (nueva: Contabilidad
   Bogotá y Barranquilla) = liquidar y observar.
@@ -3678,7 +3678,7 @@ liquidación; contrato vencido = sin actas de avance + aviso.
   y aviso a quien la hizo, que la corrige y reenvía: pago nuevo). Neto
   redondeado <= 0: no hay pago y el acta se aprueba sola. `resolver_acta`
   quedó lanzando un error; la acción `aprobar_actas` se quitó de la matriz.
-  "Aprobación de actas" es solo CONSULTA. Estado "pendiente" se muestra como
+  "Aprobación de actas" es solo CONSULTA (en pantalla "Consulta de actas" desde 20261231990000; la clave `contratos.aprobar_actas` no cambió). Estado "pendiente" se muestra como
   "Pago por aprobar". Neto negativo de la liquidación: se deja así (lo maneja
   la aseguradora del contratista, decisión del usuario).
 - **Prueba completa (2026-10-14)** con CJ-17-2026 (valores unitarios, anticipo

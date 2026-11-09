@@ -486,9 +486,10 @@ export function GenerarOCView({
     }
     if (
       modificar &&
-      !window.confirm(
-        "La orden vuelve a quedar por aprobar y su pago se reemplaza en Aprobación de pagos (A&F lo aprueba otra vez). ¿Guardar los cambios?"
-      )
+      !(await confirmar(
+        "La orden vuelve a quedar por aprobar y su pago se reemplaza en Aprobación de pagos (A&F lo aprueba otra vez). ¿Guardar los cambios?",
+        { titulo: "Modificar la orden", boton: "Guardar" }
+      ))
     ) {
       return
     }

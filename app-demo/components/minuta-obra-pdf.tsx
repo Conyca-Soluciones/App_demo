@@ -276,8 +276,8 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, f
         </Clausula>
 
         <Clausula titulo="VIGÉSIMA. DOCUMENTOS DEL CONTRATO:">
-          Forman parte integral del presente contrato el formato de solicitud de contrato elaborado por el director de obra y aprobado por la subgerencia
-          administrativa{mo ? "," : ""} el cronograma de cumplimiento de ejecución de actividades y todos los documentos que se produzcan durante el desarrollo del mismo.
+          Forman parte integral del presente contrato el formato de solicitud de contrato elaborado por el director de obra y aprobado por la gerencia
+          {mo ? "," : ""} el cronograma de cumplimiento de ejecución de actividades y todos los documentos que se produzcan durante el desarrollo del mismo.
         </Clausula>
 
         <Clausula titulo="VIGÉSIMA PRIMERA. SOLUCIÓN DE CONTROVERSIAS:">

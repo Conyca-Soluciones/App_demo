@@ -14,7 +14,7 @@ import { CLASE_ESTADO_ACTA, ETIQUETA_ESTADO_ACTA, ETIQUETA_TIPO_ACTA, numeroActa
 import { listarActasAprobacion } from "@/app/(app)/contratos/aprobacion-actas/actions"
 
 // ---------------------------------------------------------------------------
-// Aprobación de actas: CONSULTA de las actas de todos los proyectos que el
+// Consulta de actas: las actas de todos los proyectos que el
 // usuario ve (no depende del proyecto actual). Las actas no se aprueban aquí:
 // se aprueban o rechazan al aprobar o rechazar su pago en A&F (Aprobación de
 // pagos, 20261112100000_actas_aprobacion_por_pago.sql).
@@ -95,7 +95,7 @@ export function AprobacionActasView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <EncabezadoPagina titulo="Aprobación de actas" subtitulo="Consulta las actas de los contratos. Se aprueban o rechazan al aprobar o rechazar su pago en A&F (Aprobación de pagos)." />
+      <EncabezadoPagina titulo="Consulta de actas" subtitulo="Consulta las actas de los contratos. Se aprueban o rechazan al aprobar o rechazar su pago en A&F (Aprobación de pagos)." />
       <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1" role="tablist" aria-label="Estado">
