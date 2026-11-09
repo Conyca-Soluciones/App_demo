@@ -104,6 +104,11 @@ export const TIPO_CONTRATO_POR_VALOR = new Map(TIPOS_CONTRATO.map((t) => [t.valo
 // la casilla de la solicitud (20261208000000, igual que _fijar_requiere_poliza).
 export const polizaObligatoria = (tipo: string): boolean => tipo === "obra" || tipo === "mano_obra"
 
+// Obra y mano de obra van siempre por valores unitarios (ítems del
+// presupuesto), así el precio queda limitado por el presupuesto. La base
+// repite la regla en _guardar_solicitud_contrato (20261231970000).
+export const soloValoresUnitarios = (tipo: string): boolean => tipo === "obra" || tipo === "mano_obra"
+
 // Tipos que, además del valor del contrato, llevan un valor de pago mensual
 // obligatorio (la base repite la regla en _guardar_solicitud_contrato,
 // 20261016000001_solicitud_valor_mensual.sql).
@@ -583,7 +588,10 @@ export function validarSolicitud(
   // Valor: en valores unitarios es la suma del anexo.
   const items: SolicitudContratoValida["items"] = []
   let valor: number | null
-  if (f.anexoTipo === "valores_unitarios") {
+  if (soloValoresUnitarios(f.tipo) && f.anexoTipo !== "valores_unitarios") {
+    errores.items = "Los contratos de obra y de mano de obra van por valores unitarios (ítems del presupuesto)."
+    valor = null
+  } else if (f.anexoTipo === "valores_unitarios") {
     const llenos = f.items.filter((it) => it.presupuestoItemId || it.cantidad.trim() || it.valorUnitario.trim())
     if (llenos.length === 0) errores.items = "Agrega al menos una actividad del presupuesto."
     const vistos = new Set<string>()

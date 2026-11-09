@@ -2730,6 +2730,12 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   los contratos; cuando existan estados rechazado/anulado, excluirlos en
   `_contratado_item` e `items_presupuesto_para_contrato`. Un ítem del
   presupuesto con contratos no se puede borrar (FK).
+- **Obra y mano de obra solo por valores unitarios** (`20261231970000`, decisión
+  del usuario 2026-11-08): con valor global no había control de precio contra el
+  presupuesto. El formulario no ofrece "Valor global" para esos tipos (una
+  devuelta se corrige pasando a valores unitarios); `soloValoresUnitarios` en
+  `lib/contratos.ts` y `_guardar_solicitud_contrato` lo exigen. Los contratos ya
+  creados no cambian.
 - **Números** en formato colombiano con `leerNumero` (`lib/contratos.ts`):
   "1.250,5" = 1250,5; "38.500" = 38500; "2.5" = 2,5.
 - **Permisos**: pestaña `contratos.solicitar` (ver las del proyecto) y acción
@@ -3897,6 +3903,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231900000` requisiciones administrativas (FUNCIONAMIENTO o proyecto) ·
 `20261231950000` Control del proyecto: gasto administrativo aparte ·
 `20261231960000` requisiciones técnicas sin aprobación (nacen aprobadas).
+`20261231970000` contratos de obra y mano de obra solo por valores unitarios.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

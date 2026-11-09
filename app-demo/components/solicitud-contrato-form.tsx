@@ -22,6 +22,7 @@ import {
   pesosEnLetras,
   pideValorMensual,
   polizaObligatoria,
+  soloValoresUnitarios,
   leerNumero,
   pesos,
   numero,
@@ -103,7 +104,9 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     tipo: d.tipo,
     contratistaId: d.contratistaId,
     objeto: d.objeto,
-    anexoTipo: d.anexoTipo,
+    // Obra y mano de obra ya no van por valor global: una devuelta así se
+    // corrige pasando a valores unitarios.
+    anexoTipo: soloValoresUnitarios(d.tipo) ? "valores_unitarios" : d.anexoTipo,
     valor: d.anexoTipo === "valor_global" ? numero(d.valor) : "",
     valorMensual: d.valorMensual !== null ? numero(d.valorMensual) : "",
     items:
@@ -405,6 +408,8 @@ export function SolicitudContratoForm({
 
   function elegirTipo(valor: TipoContrato) {
     cambiar("tipo", valor)
+    // Obra y mano de obra solo por valores unitarios.
+    if (soloValoresUnitarios(valor)) cambiar("anexoTipo", "valores_unitarios", "items")
     // Los documentos de otro tipo no aplican (salvo los que se repiten).
     const validos = new Set(TIPO_CONTRATO_POR_VALOR.get(valor)!.documentos.map((d) => d.tipo))
     setArchivos((a) => Object.fromEntries(Object.entries(a).filter(([t]) => validos.has(t as TipoDocumentoContrato))))
@@ -699,7 +704,9 @@ export function SolicitudContratoForm({
               ["valor_global", "Valor global"],
               ["valores_unitarios", "Valores unitarios"],
             ] as const
-          ).map(([valor, titulo]) => (
+          )
+            .filter(([valor]) => valor === "valores_unitarios" || !soloValoresUnitarios(f.tipo))
+            .map(([valor, titulo]) => (
             <Button
               key={valor}
               type="button"

@@ -14,15 +14,16 @@ import {
   type SolicitudContratoForm,
 } from "@/lib/contratos"
 
-// Solicitud válida de valor global; cada prueba cambia solo lo que le importa.
+// Solicitud válida (mano de obra por valores unitarios, $ 25.000.000); cada
+// prueba cambia solo lo que le importa.
 const base: SolicitudContratoForm = {
   tipo: "mano_obra",
   contratistaId: "c1",
   objeto: "Ejecutar la mampostería del bloque 2",
-  anexoTipo: "valor_global",
-  valor: "25.000.000",
+  anexoTipo: "valores_unitarios",
+  valor: "",
   valorMensual: "",
-  items: [],
+  items: [{ presupuestoItemId: "p1", cantidad: "1.000", valorUnitario: "25.000" }],
   tieneAnticipo: false,
   anticipoPorcentaje: "",
   requierePoliza: true,
@@ -79,6 +80,12 @@ describe("leerNumero (formato colombiano)", () => {
 })
 
 describe("validarSolicitud", () => {
+  it("obra y mano de obra no aceptan valor global; los demás tipos sí", () => {
+    const global = { anexoTipo: "valor_global" as const, valor: "25.000.000", items: [] }
+    expect(errores({ ...global, tipo: "mano_obra" }).items).toMatch(/valores unitarios/)
+    expect(errores({ ...global, tipo: "obra", pagoCadaDias: "15", retencionGarantia: "no" }).items).toMatch(/valores unitarios/)
+    expect(errores({ ...global, tipo: "suministro_instalacion" }).items).toBeUndefined()
+  })
   it("acepta una solicitud completa y limpia los datos", () => {
     const r = validarSolicitud(base)
     expect(r.ok).toBe(true)

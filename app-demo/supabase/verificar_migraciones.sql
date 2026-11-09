@@ -646,5 +646,8 @@ select * from (
   select '20261231960000_requisiciones_sin_aprobacion',
          exists (select 1 from pg_proc where proname = 'crear_requisicion' and prosrc like '%''aprobado'', now()%')
          and not exists (select 1 from rol_permisos where permiso = 'tab.tecnico.aprobar_pedidos')
+  union all
+  select '20261231970000_obra_mano_obra_solo_valores_unitarios',
+         exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%van por valores unitarios (ítems del presupuesto)%')
 ) t
 order by 1;
