@@ -55,6 +55,8 @@ export function RolesPermisosView() {
   const [creando, setCreando] = useState(false)
 
   const filas = useMemo(() => construirFilas(), [])
+  // Permisos de cada rol como Set: la matriz consulta rol × permiso.
+  const permisosPorRol = useMemo(() => new Map((roles ?? []).map((r) => [r.id, new Set(r.permisos)])), [roles])
 
   function cargar() {
     listarRolesConPermisos()
@@ -200,7 +202,7 @@ export function RolesPermisosView() {
                     </td>
                     {roles.map((r) => {
                       const esAdmin = r.clave === "administrador"
-                      const marcado = esAdmin || r.permisos.includes(f.permiso)
+                      const marcado = esAdmin || !!permisosPorRol.get(r.id)?.has(f.permiso)
                       const llave = `${r.id}|${f.permiso}`
                       return (
                         <Fragment key={r.id}>

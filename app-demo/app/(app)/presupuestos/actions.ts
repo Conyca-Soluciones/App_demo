@@ -1184,15 +1184,25 @@ export async function aprobarSolicitudInsumo(
       .not("item_apu_id", "is", null)
     if (errorRevisadas) throw new Error(errorRevisadas.message)
     const apusAfectados = new Set<string>()
+    // Un UPDATE por factor (casi siempre uno), no uno por línea: un insumo
+    // pedido en muchos ítems del import tiene muchas líneas.
+    const lineasPorFactor = new Map<number, string[]>()
     for (const r of revisadas ?? []) {
       const comp = compararUnidad(r.unidad, presentacionFinal)
       if (comp.estado !== "conversion") continue
-      const { error } = await supabase
-        .from("item_apu")
-        .update({ factor_unidad: comp.factor, unidad: presentacionFinal.unidad_uso })
-        .eq("id", r.item_apu_id)
-      if (error) throw new Error(error.message)
+      const ids = lineasPorFactor.get(comp.factor) ?? []
+      ids.push(r.item_apu_id)
+      lineasPorFactor.set(comp.factor, ids)
       apusAfectados.add(r.apu_id)
+    }
+    for (const [factor, ids] of lineasPorFactor) {
+      for (const lote of trocear(ids, 200)) {
+        const { error } = await supabase
+          .from("item_apu")
+          .update({ factor_unidad: factor, unidad: presentacionFinal.unidad_uso })
+          .in("id", lote)
+        if (error) throw new Error(error.message)
+      }
     }
     if (apusAfectados.size > 0) {
       const { error } = await supabase.rpc("recalcular_valor_apus", { p_apu_ids: Array.from(apusAfectados) })

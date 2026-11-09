@@ -373,6 +373,9 @@ export function SolicitudContratoForm({
     )
   }, [catalogo, edicion])
   const catalogoAjustado = useMemo(() => [...catalogoPorId.values()], [catalogoPorId])
+  // Ítems ya elegidos: el selector solo sale en filas sin ítem válido, así que
+  // un solo Set sirve para todas (antes uno por fila: filas × filas).
+  const itemsUsados = useMemo(() => new Set(f.items.map((x) => x.presupuestoItemId).filter(Boolean)), [f.items])
 
   useEffect(() => {
     listarContratistas()
@@ -784,7 +787,6 @@ export function SolicitudContratoForm({
                         f.items.map((x, j) => (j === i ? { ...x, ...cambios } : x)),
                         "items"
                       )
-                    const usados = new Set(f.items.filter((_, j) => j !== i).map((x) => x.presupuestoItemId))
                     return (
                       <tr key={i} className="border-t align-top">
                         <td className="p-1">
@@ -825,7 +827,7 @@ export function SolicitudContratoForm({
                             <SelectorItemPresupuesto
                               etiqueta={`Ítem del presupuesto ${i + 1}`}
                               catalogo={catalogoParaSelector}
-                              excluir={usados}
+                              excluir={itemsUsados}
                               disabled={enviando}
                               onElegir={(item) =>
                                 cambiarItem({

@@ -58,8 +58,9 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
         setCuentas(lista)
         setError(null)
         // Sigue elegida la misma si todavía está; si no, la primera.
-        setElegidaId((id) => (id && lista.some((c) => c.cuentaId === id) ? id : (lista[0]?.cuentaId ?? null)))
-        setMarcadas((m) => new Set([...m].filter((id) => lista.some((c) => c.cuentaId === id))))
+        const enLista = new Set(lista.map((c) => c.cuentaId))
+        setElegidaId((id) => (id && enLista.has(id) ? id : (lista[0]?.cuentaId ?? null)))
+        setMarcadas((m) => new Set([...m].filter((id) => enLista.has(id))))
       })
       .catch((e) => activo && setError(e instanceof Error ? e.message : "No se pudieron cargar las cuentas."))
       .finally(() => activo && setCargando(false))

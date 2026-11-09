@@ -342,9 +342,10 @@ export function leerActividadesOtrosi(
     total -= Math.round(cantidad * a.valorUnitario * 100) / 100
   }
   const vistos = new Set<string>()
+  const catalogoPorId = new Map(datos.catalogo.map((c) => [c.id, c]))
   for (const [i, n] of f.nuevas.entries()) {
     if (!n.presupuestoItemId && !n.cantidad.trim() && !n.valorUnitario.trim()) continue
-    const item = datos.catalogo.find((c) => c.id === n.presupuestoItemId)
+    const item = catalogoPorId.get(n.presupuestoItemId)
     if (!item) return { ok: false, error: `Escoge el ítem del presupuesto de la actividad nueva ${i + 1}.` }
     if (vistos.has(item.id)) return { ok: false, error: `El ítem ${item.codigo} está repetido.` }
     vistos.add(item.id)
