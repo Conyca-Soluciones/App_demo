@@ -3380,6 +3380,17 @@ Decisiones del usuario (sin AIU en el presupuesto):
   7 m³ = $50.000), no el precio del viaje ni el total del ítem. La app lo suma
   tal cual al precio unitario (no usa "Cantidad transporte"). Se probó pedir el
   total del ítem y dividir, y se descartó.
+- **Línea "No aplica" en la revisión de insumos** (decisión del usuario,
+  2026-11-09; `20261231995000_apu_linea_no_aplica.sql`): botón "No aplica"
+  junto a "No existe — crear solicitud" para líneas de insumo que no se compran
+  (ej. relleno con material local). Queda en el APU por trazabilidad: fila de
+  `item_apu` sin recurso, con `no_aplica` = descripción del Excel, cantidad y
+  unidad, en $ 0 (el CHECK `item_apu_recurso_unico_check` acepta cero recursos
+  solo con `no_aplica`). La revisión queda `resuelto` (acción `no_aplica` de
+  `resolverLineasRevisionEnLote`). Se copia en versiones nuevas
+  (`crear_nueva_version`, `COLUMNAS_COPIA_ITEM_APU`), cuenta en "N de M
+  líneas", sale en el editor de APU (Materiales, etiqueta "No aplica") y en el
+  Excel exportado. Requisiciones y control no la ven (cruzan por insumo).
 - **Ítems sin APU en naranja** (decisión del usuario, 2026-11-09): en la tabla
   del presupuesto, todo ítem hoja sin `apu_id` que no sea global (GL con valor)
   sale en naranja con la etiqueta "SIN APU", y arriba un aviso con cuántos son
@@ -3920,6 +3931,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231950000` Control del proyecto: gasto administrativo aparte ·
 `20261231960000` requisiciones técnicas sin aprobación (nacen aprobadas).
 `20261231970000` contratos de obra y mano de obra solo por valores unitarios.
+`20261231995000` línea del APU "No aplica" (sin insumo, en $ 0).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

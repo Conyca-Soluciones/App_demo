@@ -649,5 +649,9 @@ select * from (
   union all
   select '20261231970000_obra_mano_obra_solo_valores_unitarios',
          exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%van por valores unitarios (ítems del presupuesto)%')
+  union all
+  select '20261231995000_apu_linea_no_aplica',
+         exists (select 1 from information_schema.columns where table_name = 'item_apu' and column_name = 'no_aplica')
+         and exists (select 1 from pg_proc where proname = 'crear_nueva_version' and prosrc like '%ia.no_aplica%')
 ) t
 order by 1;

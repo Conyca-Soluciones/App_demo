@@ -374,7 +374,7 @@ export async function crearVersionVacia(
 // líneas de mano de obra, equipo, transporte y herramienta menor: el APU
 // copiado valía menos en cuanto se recalculaba.
 const COLUMNAS_COPIA_ITEM_APU =
-  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad"
+  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica"
 
 function copiaLineaApu(linea: any, apuId: string) {
   return {
@@ -390,6 +390,7 @@ function copiaLineaApu(linea: any, apuId: string) {
     precio_unitario_congelado: linea.precio_unitario_congelado,
     unidad: linea.unidad ?? null,
     factor_unidad: linea.factor_unidad ?? 1,
+    no_aplica: linea.no_aplica ?? null,
   }
 }
 
@@ -1393,6 +1394,9 @@ export type ItemApu = {
   // demás IDs de arriba quedan null), así que sin esta bandera no hay
   // forma estructural de distinguirla de un insumo/línea huérfana.
   esHerramientaMenor: boolean
+  // Línea marcada "No aplica" en la revisión del import (ej. relleno con
+  // material local): queda en el APU por trazabilidad, sin insumo y en $ 0.
+  noAplica?: boolean
   codigo: number | null
   descripcion: string
   uM: string | null
@@ -1479,6 +1483,25 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
         }
       }
 
+      if (it.no_aplica != null) {
+        return {
+          id: it.id,
+          insumoId: null,
+          manoObraCategoriaId: null,
+          equipoCategoriaId: null,
+          transportePrecioId: null,
+          esHerramientaMenor: false,
+          noAplica: true,
+          codigo: null,
+          descripcion: it.no_aplica,
+          uM: it.unidad ?? null,
+          vrUnitario: 0,
+          cantidad: Number(it.cantidad),
+          rendimiento: Number(it.rendimiento ?? 1),
+          tipo: it.tipo ?? null,
+        }
+      }
+
       return {
         id: it.id,
         insumoId: it.insumo_id,
@@ -1526,7 +1549,7 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
 }
 
 const SELECT_APU =
-  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
+  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
 
 async function contarUsosDeApu(apuId: string): Promise<number> {
   const supabase = await createClient()
@@ -1606,6 +1629,7 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
         precio_unitario_congelado,
         unidad,
         factor_unidad,
+        no_aplica,
         maestro_insumos(codigo, descripcion, u_m, vr_unitario, vr_neto, tipo),
         mano_obra_categorias(categoria, grupo, unidad, valor_unitario),
         equipo_categorias(categoria, grupo, unidad, valor_unitario),
@@ -1650,6 +1674,20 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
           rendimiento: 1,
           valorUnitario: valorLinea,
           parcial: valorLinea,
+        }
+      }
+
+      if (item.no_aplica != null) {
+        return {
+          itemApuId: item.id,
+          tipo: item.tipo ?? null,
+          codigoInsumo: 0,
+          descripcionInsumo: `${item.no_aplica} (No aplica)`,
+          unidad: item.unidad ?? null,
+          cantidad: Number(item.cantidad ?? 0),
+          rendimiento: Number(item.rendimiento ?? 1),
+          valorUnitario: 0,
+          parcial: 0,
         }
       }
 
@@ -3968,7 +4006,7 @@ async function mapearFilasConItems(
  */
 export async function resolverLineaRevision(input: {
   revisionId: string
-  accion: "maestro" | "solicitud" | "mano_obra" | "solicitud_mano_obra" | "equipo" | "solicitud_equipo"
+  accion: "maestro" | "solicitud" | "mano_obra" | "solicitud_mano_obra" | "equipo" | "solicitud_equipo" | "no_aplica"
   insumoId?: string
   manoObraCategoriaId?: string
   equipoCategoriaId?: string
@@ -3982,7 +4020,7 @@ export async function resolverLineaRevision(input: {
   // Elegir insumo, categoría o equipo: mismo camino que "Guardar todos"
   // (precio, unidad, insert y marca de resuelto, con la misma protección
   // contra guardar dos veces la misma línea).
-  if (input.accion === "maestro" || input.accion === "mano_obra" || input.accion === "equipo") {
+  if (input.accion === "maestro" || input.accion === "mano_obra" || input.accion === "equipo" || input.accion === "no_aplica") {
     const { errores } = await resolverLineasRevisionEnLote([input])
     if (errores.length > 0) throw new Error(errores[0].mensaje)
     return
@@ -4099,7 +4137,7 @@ async function valoresCategorias(
 export async function resolverLineasRevisionEnLote(
   resoluciones: {
     revisionId: string
-    accion: "maestro" | "solicitud" | "mano_obra" | "solicitud_mano_obra" | "equipo" | "solicitud_equipo"
+    accion: "maestro" | "solicitud" | "mano_obra" | "solicitud_mano_obra" | "equipo" | "solicitud_equipo" | "no_aplica"
     insumoId?: string
     manoObraCategoriaId?: string
     equipoCategoriaId?: string
@@ -4284,6 +4322,26 @@ export async function resolverLineasRevisionEnLote(
     })
   }
 
+  // ---- "No aplica": la línea queda en el APU sin insumo y en $ 0 (ej.
+  // relleno con material local, que no se compra), por trazabilidad ----
+  for (const r of resoluciones.filter((r) => r.accion === "no_aplica")) {
+    const fila = filaAbierta(r.revisionId)
+    if (!fila) continue
+    porInsertar.push({
+      revisionId: r.revisionId,
+      presupuestoItemId: fila.presupuesto_item_id,
+      linea: {
+        apu_id: fila.apu_id,
+        no_aplica: fila.descripcion_original,
+        cantidad: Number(fila.cantidad),
+        rendimiento: 1,
+        tipo: fila.tipo ?? null,
+        unidad: fila.unidad ?? null,
+      },
+      asignado: {},
+    })
+  }
+
   // Inserts en bloques de 300 con el id ya generado (así cada línea de
   // revisión sabe cuál es su fila sin depender del orden de la respuesta),
   // y después el update de cada línea de revisión, 25 a la vez.
@@ -4298,6 +4356,7 @@ export async function resolverLineasRevisionEnLote(
     unidad: null,
     factor_unidad: 1,
     precio_unitario_congelado: null,
+    no_aplica: null,
     ...p.linea,
   })
   await procesarEnLotes(trocear(porInsertar, 300), 4, async (bloque) => {

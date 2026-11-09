@@ -625,6 +625,9 @@ interface Props {
   presupuestoId?: string | null
 }
 
+const TEXTO_NO_APLICA =
+  "No se compra nada (ej. material local): la línea queda en el APU por trazabilidad, sin insumo y en $ 0"
+
 type Eleccion =
   | { tipo: "maestro"; insumoId: string }
   | { tipo: "solicitud" }
@@ -632,6 +635,8 @@ type Eleccion =
   | { tipo: "solicitud_mano_obra" }
   | { tipo: "equipo"; equipoId: string }
   | { tipo: "solicitud_equipo" }
+  // la línea queda en el APU sin insumo y en $ 0 (ej. material local)
+  | { tipo: "no_aplica" }
   | null
 
 // Cuando la revisión es de UN solo ítem (ver handleAbrirRevisionDeItem
@@ -1028,6 +1033,14 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
       return nuevo
     })
   }
+  function marcarNoAplicaGrupo(filasGrupo: FilaRevisionImport[]) {
+    cambiarUnidad(filasGrupo.map((f) => f.id), null)
+    setElecciones((prev) => {
+      const nuevo = { ...prev }
+      for (const f of filasGrupo) nuevo[f.id] = { tipo: "no_aplica" }
+      return nuevo
+    })
+  }
   function elegirEquipoGrupo(filasGrupo: FilaRevisionImport[], equipoId: string) {
     setElecciones((prev) => {
       const nuevo = { ...prev }
@@ -1052,6 +1065,10 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   }
   function marcarSolicitud(revisionId: string) {
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "solicitud" } }))
+  }
+  function marcarNoAplica(revisionId: string) {
+    cambiarUnidad([revisionId], null)
+    setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "no_aplica" } }))
   }
   function elegirCategoriaManoObra(revisionId: string, categoriaId: string) {
     setElecciones((prev) => ({ ...prev, [revisionId]: { tipo: "mano_obra", categoriaId } }))
@@ -1149,6 +1166,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
         await resolverLineaRevision({ revisionId, accion: "equipo", equipoCategoriaId: eleccion.equipoId })
       } else if (eleccion.tipo === "solicitud_equipo") {
         await resolverLineaRevision({ revisionId, accion: "solicitud_equipo" })
+      } else if (eleccion.tipo === "no_aplica") {
+        await resolverLineaRevision({ revisionId, accion: "no_aplica" })
       } else {
         await resolverLineaRevision({ revisionId, accion: "solicitud" })
       }
@@ -1212,6 +1231,9 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
           }
           if (eleccion.tipo === "solicitud_equipo") {
             return { revisionId: id, accion: "solicitud_equipo" as const }
+          }
+          if (eleccion.tipo === "no_aplica") {
+            return { revisionId: id, accion: "no_aplica" as const }
           }
           return { revisionId: id, accion: "solicitud" as const }
         })
@@ -1691,6 +1713,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             guardandoIds={guardandoIds}
                             onElegirCandidato={(insumoId) => elegirCandidatoGrupo(filasGrupo, insumoId)}
                             onMarcarSolicitud={() => marcarSolicitudGrupo(filasGrupo)}
+                            onMarcarNoAplica={() => marcarNoAplicaGrupo(filasGrupo)}
                             onGuardarGrupo={() => guardarGrupo(filasGrupo)}
                             estadoUnidad={unidadesLinea[filasGrupo[0].id]}
                             onCambiarUnidad={(patch) => cambiarUnidad(filasGrupo.map((f) => f.id), patch)}
@@ -1813,6 +1836,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                         guardandoIds={guardandoIds}
                         onElegirCandidato={elegirCandidato}
                         onMarcarSolicitud={marcarSolicitud}
+                        onMarcarNoAplica={marcarNoAplica}
                         onGuardarLinea={guardarLinea}
                         unidadesLinea={unidadesLinea}
                         onCambiarUnidad={(id, patch) => cambiarUnidad([id], patch)}
@@ -2285,6 +2309,7 @@ function GrupoInsumoPendiente({
   guardandoIds,
   onElegirCandidato,
   onMarcarSolicitud,
+  onMarcarNoAplica,
   onGuardarGrupo,
   estadoUnidad,
   onCambiarUnidad,
@@ -2296,6 +2321,7 @@ function GrupoInsumoPendiente({
   guardandoIds: Set<string>
   onElegirCandidato: (insumoId: string) => void
   onMarcarSolicitud: () => void
+  onMarcarNoAplica: () => void
   onGuardarGrupo: () => void
   estadoUnidad: EstadoUnidad | undefined
   onCambiarUnidad: (patch: Partial<EstadoUnidad>) => void
@@ -2354,6 +2380,14 @@ function GrupoInsumoPendiente({
         >
           No existe — crear solicitud de aprobación
         </button>
+        <button
+          type="button"
+          onClick={onMarcarNoAplica}
+          title={TEXTO_NO_APLICA}
+          className={`text-sm px-2 py-1 rounded border ${eleccion?.tipo === "no_aplica" ? "border-primary bg-primary/10" : "border-muted"}`}
+        >
+          No aplica
+        </button>
         {eleccion && (
           <Button
             size="sm"
@@ -2387,6 +2421,7 @@ function FilaGrupoItem({
   guardandoIds,
   onElegirCandidato,
   onMarcarSolicitud,
+  onMarcarNoAplica,
   onGuardarLinea,
   unidadesLinea,
   onCambiarUnidad,
@@ -2398,6 +2433,7 @@ function FilaGrupoItem({
   guardandoIds: Set<string>
   onElegirCandidato: (revisionId: string, insumoId: string) => void
   onMarcarSolicitud: (revisionId: string) => void
+  onMarcarNoAplica: (revisionId: string) => void
   onGuardarLinea: (revisionId: string) => void
   unidadesLinea: Record<string, EstadoUnidad>
   onCambiarUnidad: (revisionId: string, patch: Partial<EstadoUnidad>) => void
@@ -2472,6 +2508,14 @@ function FilaGrupoItem({
                 className={`text-sm px-2 py-1 rounded border ${eleccion?.tipo === "solicitud" ? "border-primary bg-primary/10" : "border-muted"}`}
               >
                 No existe — crear solicitud de aprobación
+              </button>
+              <button
+                type="button"
+                onClick={() => onMarcarNoAplica(fila.id)}
+                title={TEXTO_NO_APLICA}
+                className={`text-sm px-2 py-1 rounded border ${eleccion?.tipo === "no_aplica" ? "border-primary bg-primary/10" : "border-muted"}`}
+              >
+                No aplica
               </button>
               {eleccion && (
                 <Button

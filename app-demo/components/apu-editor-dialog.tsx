@@ -114,6 +114,8 @@ function BadgesDiferencia({
 // desincronizarse. Solo para insumos de catálogo (maestro_insumos) el
 // `tipo` real SÍ es el valor correcto a consultar contra CATEGORIAS_APU.
 function categoriaDeItem(it: ItemApu): string {
+  // "No aplica" solo se ofrece en líneas de insumo (revisión del import)
+  if (it.noAplica) return "Materiales"
   if (it.manoObraCategoriaId) return "Mano de Obra"
   if (it.equipoCategoriaId) return "Equipo y Herramienta menor"
   if (it.transportePrecioId) return "Transporte"
@@ -131,7 +133,7 @@ function categoriaDeItem(it: ItemApu): string {
 // el cambio se guardaría en la base pero nunca se reflejaría en el
 // total, ni siquiera en la misma pantalla después de recargar.
 function rendimientoEsEditable(it: ItemApu): boolean {
-  return !it.manoObraCategoriaId && !it.transportePrecioId && !it.esHerramientaMenor
+  return !it.manoObraCategoriaId && !it.transportePrecioId && !it.esHerramientaMenor && !it.noAplica
 }
 
 // Celda de cantidad editable con doble click -- en toda la tabla del
@@ -574,7 +576,17 @@ function SeccionCategoria({
             {items.map((it) => (
               <tr key={it.id} className="border-t">
                 <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{it.codigo ?? ""}</td>
-                <td className="px-4 py-2.5">{it.descripcion}</td>
+                <td className="px-4 py-2.5">
+                  {it.descripcion}
+                  {it.noAplica && (
+                    <span
+                      className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                      title="Marcada No aplica en la revisión: no se compra nada (ej. material local). Queda por trazabilidad, en $ 0."
+                    >
+                      No aplica
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-muted-foreground">
                   {it.uM ?? "—"}
                   {it.presentacion && (
