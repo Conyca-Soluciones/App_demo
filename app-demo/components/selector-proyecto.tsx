@@ -48,7 +48,7 @@ export function SelectorProyecto({ className }: { className?: string }) {
           <SelectValue placeholder="Selecciona un proyecto">
             <span className="flex min-w-0 items-center gap-1.5">
               {cambiando && <Loader2 className="size-3.5 shrink-0 animate-spin" />}
-              <span className="truncate">{proyecto ? (proyecto.codigo ?? proyecto.nombre) : "Selecciona un proyecto"}</span>
+              <span className="truncate">{proyecto ? etiquetaProyecto(proyecto) : "Selecciona un proyecto"}</span>
             </span>
           </SelectValue>
         </SelectTrigger>

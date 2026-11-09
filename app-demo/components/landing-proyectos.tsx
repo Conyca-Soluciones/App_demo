@@ -7,6 +7,7 @@ import { Building2, CheckCircle2, Loader2, MapPin, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { seleccionarProyecto } from "@/app/(app)/inicio/actions"
+import { etiquetaProyecto } from "@/lib/proyecto-actual"
 
 // Landing: el ÚNICO lugar donde se elige el proyecto de trabajo.
 export function LandingProyectos({
@@ -101,12 +102,10 @@ export function LandingProyectos({
                     ) : null}
                   </div>
                   <div>
-                    {(p.codigo || p.numero != null) && (
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {[p.numero != null ? String(p.numero).padStart(3, "0") : null, p.codigo].filter(Boolean).join(" · ")}
-                      </p>
+                    <p className="text-base font-semibold leading-snug">{etiquetaProyecto(p)}</p>
+                    {p.codigo && p.nombre && p.nombre !== p.codigo && (
+                      <p className="text-xs text-muted-foreground">{p.nombre}</p>
                     )}
-                    <p className="text-base font-semibold leading-snug">{p.nombre}</p>
                   </div>
                   {(p.cliente || p.ciudad) && (
                     <div className="space-y-0.5 text-xs text-muted-foreground">

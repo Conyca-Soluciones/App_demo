@@ -19,6 +19,14 @@ export type ProyectoLanding = {
   ciudad: string | null
 }
 
-// Cómo se nombra un proyecto en pantalla: "CÓDIGO — Nombre" o solo el nombre.
-export const etiquetaProyecto = (p: Pick<ProyectoLanding, "codigo" | "nombre">) =>
-  p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre
+// Cómo se nombra un proyecto en pantalla: "001-900-CS-YOP-MALECÓN" (número y
+// código; decisión del usuario, 2026-11-09: en CONYCA se usa el código, no el
+// nombre). Sin código, el nombre.
+export const numeroProyecto = (numero: number | null | undefined) =>
+  numero != null ? String(numero).padStart(3, "0") : null
+
+export const etiquetaProyecto = (p: Pick<ProyectoLanding, "numero" | "codigo" | "nombre">) => {
+  const base = p.codigo || p.nombre
+  const n = numeroProyecto(p.numero)
+  return n ? `${n}-${base}` : base
+}

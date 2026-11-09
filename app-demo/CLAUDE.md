@@ -777,6 +777,10 @@ también dentro de `components/encabezado-pagina.tsx`): usa el mismo
 mecanismo (`seleccionarProyecto` + `router.refresh()`), es solo un atajo.
 Al hacer el merge con `lcpr` se descartó la landing propia de `spr`
 (`proyecto-actual-provider.tsx`, `inicio-view.tsx`).
+El proyecto se muestra como "001-900-CS-YOP-MALECÓN" (número + código,
+`etiquetaProyecto` en `lib/proyecto-actual.ts`; decisión del usuario,
+2026-11-09: en CONYCA se usa el código, no el nombre). El nombre solo sale en
+la tarjeta de /inicio si es distinto del código.
 
 ## Proveedores `/almacen/proveedores` (implementado)
 

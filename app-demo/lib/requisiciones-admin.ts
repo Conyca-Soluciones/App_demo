@@ -63,8 +63,8 @@ export type EmpresaOpcion = { id: string; razonSocial: string; nit: string | nul
 export type ProyectoOpcion = { id: string; codigo: string | null; nombre: string; empresaId: string | null }
 export type OpcionesReqAdmin = { empresas: EmpresaOpcion[]; proyectos: ProyectoOpcion[] }
 
-export const etiquetaProyecto = (p: Pick<ProyectoOpcion, "codigo" | "nombre">) =>
-  p.codigo ? `${p.codigo} — ${p.nombre}` : p.nombre
+// Solo el código (en CONYCA no se usa el nombre); sin código, el nombre.
+export const etiquetaProyecto = (p: Pick<ProyectoOpcion, "codigo" | "nombre">) => p.codigo || p.nombre
 
 export type CuentaReqAdmin = {
   id: string
