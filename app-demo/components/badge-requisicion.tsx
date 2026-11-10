@@ -9,6 +9,7 @@ const ESTADO: Record<EstadoRequisicion, { etiqueta: string; clase: string }> = {
 
 const COMPRA: Record<NonNullable<EstadoCompra>, { etiqueta: string; clase: string }> = {
   completa: { etiqueta: "Completa", clase: "bg-emerald-100 text-emerald-800" },
+  parcial: { etiqueta: "Compra parcial", clase: "bg-sky-100 text-sky-800" },
   pendiente: { etiqueta: "Pendiente", clase: "bg-amber-100 text-amber-800" },
   rechazada_compras: { etiqueta: "Rechazada por Compras", clase: "bg-red-100 text-red-800" },
 }
@@ -31,7 +32,8 @@ export function BadgeExtraordinaria() {
 }
 
 // Estado de COMPRA (solo requisiciones aprobadas): Completa = todos sus
-// insumos ya están en órdenes de compra; Pendiente = falta alguno.
+// insumos ya están en órdenes de compra; Compra parcial = ya se compró algo y
+// falta otra parte; Pendiente = no se ha comprado nada.
 export function BadgeCompraRequisicion({ estadoCompra }: { estadoCompra: EstadoCompra }) {
   if (!estadoCompra) return <span className="text-muted-foreground">—</span>
   const e = COMPRA[estadoCompra]

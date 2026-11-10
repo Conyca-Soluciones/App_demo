@@ -2463,6 +2463,10 @@ cualquier cantidad de insumos, como las órdenes de compra. Migración
   mantienen triggers por sentencia sobre `pedidos_insumos`,
   `ordenes_compra_items` y `ordenes_compra` (cambio de estado), que llaman a
   `_recalcular_estado_requisiciones`; la regla vive en `_estado_requisiciones`.
+  `estado_compra` = completa | **parcial** (ya hay compra de alguna línea pero
+  falta algo; `20261231998000`, decisión del usuario 2026-11-10) | pendiente
+  (nada comprado) | rechazada_compras. "Por comprar" = pendiente o parcial
+  (filtro de Compras, `_pendientes_de`).
   `requisiciones_vista` solo lee esas columnas. Si se agrega otra cosa que cambie
   el estado de una requisición, tiene que pasar por esas tablas o llamar a
   `_recalcular_estado_requisiciones`. `estado` = pendiente | aprobada | rechazada | cancelada;
@@ -3941,6 +3945,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231970000` contratos de obra y mano de obra solo por valores unitarios.
 `20261231995000` línea del APU "No aplica" (sin insumo, en $ 0).
 `20261231996000` fecha estimada de entrega en el registro de requisiciones.
+`20261231997000` índice de pólizas por proyecto.
+`20261231998000` estado de compra "parcial" de la requisición.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

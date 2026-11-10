@@ -64,7 +64,7 @@ export function lineasParaGuardar(lineas: LineaFormReqAdministrativa[]) {
 }
 
 // ---------------------------------------------------------------- lista y detalle
-export type EstadoCompraReqAdministrativa = "pendiente" | "completa" | "rechazada_compras" | null
+export type EstadoCompraReqAdministrativa = "pendiente" | "parcial" | "completa" | "rechazada_compras" | null
 
 export type ReqAdministrativaFila = {
   id: string
@@ -105,6 +105,7 @@ export function etapaReqAdministrativa(r: Pick<ReqAdministrativaFila, "estado" |
   if (r.estado === "cancelada") return { etiqueta: "Cancelada", clase: "border-gray-300 bg-gray-50 text-gray-500" }
   if (r.estadoCompra === "completa") return { etiqueta: "Comprada", clase: "border-green-300 bg-green-50 text-green-700" }
   if (r.estadoCompra === "rechazada_compras") return { etiqueta: "Rechazada por Compras", clase: "border-red-300 bg-red-50 text-red-700" }
+  if (r.estadoCompra === "parcial") return { etiqueta: "Compra parcial", clase: "border-sky-300 bg-sky-50 text-sky-700" }
   return { etiqueta: "En Compras", clase: "border-amber-300 bg-amber-50 text-amber-700" }
 }
 

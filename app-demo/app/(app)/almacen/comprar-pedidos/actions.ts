@@ -253,7 +253,8 @@ export async function listarPedidosParaComprar(
       .order("id", { ascending: true })
 
     if (filtros.proyectoId) query = query.eq("proyecto_id", filtros.proyectoId)
-    if (soloPendientes) query = query.eq("requisicion.estado_compra", "pendiente")
+    // "por comprar" = nada comprado todavía o compra parcial
+    if (soloPendientes) query = query.in("requisicion.estado_compra", ["pendiente", "parcial"])
     if (filtros.usuarioId) query = query.eq("solicitado_por", filtros.usuarioId)
     if (filtros.insumoId) query = query.eq("insumo_id", filtros.insumoId)
     if (filtros.observacion?.trim()) query = query.ilike("observaciones", `%${filtros.observacion.trim()}%`)

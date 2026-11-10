@@ -650,6 +650,10 @@ select * from (
   select '20261231970000_obra_mano_obra_solo_valores_unitarios',
          exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%van por valores unitarios (ítems del presupuesto)%')
   union all
+  select '20261231998000_requisicion_compra_parcial',
+         exists (select 1 from pg_proc where proname = '_estado_requisiciones' and prosrc like '%''parcial''%')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%in (''pendiente'', ''parcial'')%')
+  union all
   select '20261231997000_indice_polizas_proyecto',
          exists (select 1 from pg_indexes where indexname = 'idx_contrato_polizas_proyecto')
   union all

@@ -33,6 +33,7 @@ export const ETIQUETA_ESTADO_EXCEL: Record<EstadoRequisicion, string> = {
 // Igual que la columna "Compra" del registro (solo aplica a las aprobadas).
 export const ETIQUETA_COMPRA_EXCEL: Record<NonNullable<EstadoCompra>, string> = {
   completa: "Completa",
+  parcial: "Compra parcial",
   pendiente: "Pendiente",
   rechazada_compras: "Rechazada por Compras",
 }

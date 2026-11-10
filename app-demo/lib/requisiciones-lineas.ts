@@ -7,7 +7,8 @@ import { traerTodo } from "@/lib/supabase/traer-todo"
 // cliente puede invocar -- esto es solo ayuda interna del servidor.
 
 export type EstadoRequisicion = "pendiente" | "aprobada" | "rechazada" | "cancelada"
-export type EstadoCompra = "completa" | "pendiente" | "rechazada_compras" | null
+// parcial = ya hay compra de algo, pero falta (20261231998000)
+export type EstadoCompra = "completa" | "parcial" | "pendiente" | "rechazada_compras" | null
 
 export type RequisicionResumen = {
   id: string

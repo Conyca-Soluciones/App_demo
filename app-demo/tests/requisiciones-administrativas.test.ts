@@ -38,6 +38,7 @@ describe("requisición administrativa (FUNCIONAMIENTO)", () => {
   it("estado que ve quien la pidió", () => {
     expect(etapaReqAdministrativa({ estado: "aprobada", estadoCompra: "pendiente" }).etiqueta).toBe("En Compras")
     expect(etapaReqAdministrativa({ estado: "aprobada", estadoCompra: "completa" }).etiqueta).toBe("Comprada")
+    expect(etapaReqAdministrativa({ estado: "aprobada", estadoCompra: "parcial" }).etiqueta).toBe("Compra parcial")
     expect(etapaReqAdministrativa({ estado: "aprobada", estadoCompra: "rechazada_compras" }).etiqueta).toBe("Rechazada por Compras")
     expect(etapaReqAdministrativa({ estado: "cancelada", estadoCompra: null }).etiqueta).toBe("Cancelada")
   })

@@ -27,6 +27,7 @@ describe("Excel del registro de requisiciones", () => {
     expect(valoresFilaExcel(fila()).slice(-3, -1)).toEqual(["Aprobada", "Pendiente"])
     expect(valoresFilaExcel(fila({ estado: "rechazada", estadoCompra: null })).slice(-3, -1)).toEqual(["Rechazada", ""])
     expect(valoresFilaExcel(fila({ estadoCompra: "rechazada_compras" })).at(-2)).toBe("Rechazada por Compras")
+    expect(valoresFilaExcel(fila({ estadoCompra: "parcial" })).at(-2)).toBe("Compra parcial")
   })
   it("fecha estimada de entrega después de la requerida; vacía si no hay", () => {
     expect(valoresFilaExcel(fila()).at(8)).toBeNull()
