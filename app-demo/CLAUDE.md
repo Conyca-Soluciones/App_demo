@@ -3050,6 +3050,12 @@ hoja PDF (no minuta larga); actas generales después.
   observaciones y elaboró / pre-aprobó / aprobó con fecha y hora.
 - Contratos por grupos solo lista 'grupo'; Actas por grupos solo busca 'grupo'
   (`buscar_*_para_acta`).
+- **Descargar contrato** (decisión del usuario, 2026-11-10): Contratos por
+  grupos y Contratos generales tienen columna "PDF" y botón en el detalle
+  (`components/descargar-contrato.tsx`) SOLO cuando lo aprobaron todas las
+  partes (`estado = 'aprobada'` y `minuta_estado = 'aprobada'`). Usa la ruta
+  `/contratos/otrosi-pdf/contrato/[id]` (`contrato_para_ver_otrosi`, que exige
+  lo mismo): la minuta firmada y congelada, o la hoja si es general.
 - La campanita y Mis pendientes llevan a `/contratos/solicitar?ver=`: si el
   contrato es general, esa página redirige a `/contratos/generales?ver=`.
 - **Pendiente**: la tabla `empresas` no tiene dirección ni teléfono (la hoja

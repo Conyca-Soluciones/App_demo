@@ -10,6 +10,7 @@ import { ETIQUETA_POLIZA_CONTRATO } from "@/lib/polizas"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { SolicitudContratoForm } from "@/components/solicitud-contrato-form"
+import { BotonDescargarContrato } from "@/components/descargar-contrato"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
@@ -123,6 +124,15 @@ function Solicitudes({
       },
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
       { clave: "fecha", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },
+      {
+        // Solo cuando Jurídica y Gerencia ya lo aprobaron (minuta firmada).
+        clave: "descargar",
+        titulo: "PDF",
+        ancho: 60,
+        alinear: "center",
+        texto: () => "",
+        celda: (s) => <BotonDescargarContrato contrato={s} compacto />,
+      },
     ],
     []
   )
@@ -227,8 +237,10 @@ function Solicitudes({
       <DetalleSolicitudContrato
         id={detalleId}
         onCerrar={cerrarDetalle}
-        acciones={(d) =>
-          d.estado === "devuelta" && puedeSolicitar && d.proyectoId === proyectoId && d.clase === "grupo" ? (
+        acciones={(d) => (
+          <>
+          <BotonDescargarContrato contrato={d} />
+          {d.estado === "devuelta" && puedeSolicitar && d.proyectoId === proyectoId && d.clase === "grupo" ? (
             <Button
               onClick={() => {
                 cerrarDetalle()
@@ -238,8 +250,9 @@ function Solicitudes({
             >
               <PencilLine className="size-4" /> Corregir y reenviar
             </Button>
-          ) : null
-        }
+          ) : null}
+          </>
+        )}
       />
     </main>
   )
