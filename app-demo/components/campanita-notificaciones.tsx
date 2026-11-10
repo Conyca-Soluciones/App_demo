@@ -82,10 +82,22 @@ export function CampanitaNotificaciones() {
       )
   }
 
+  // Solo con la pestaña a la vista: cada recarga es un viaje al servidor (y
+  // pasa por el middleware), y una pestaña olvidada en segundo plano la
+  // repetía cada minuto todo el día. Al volver a la pestaña se recarga ya.
   useEffect(() => {
     cargar()
-    const t = setInterval(cargar, 60_000)
-    return () => clearInterval(t)
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") cargar()
+    }, 60_000)
+    function alVolver() {
+      if (document.visibilityState === "visible") cargar()
+    }
+    document.addEventListener("visibilitychange", alVolver)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener("visibilitychange", alVolver)
+    }
   }, [])
 
   function handleClicNotificacion(n: Notificacion) {

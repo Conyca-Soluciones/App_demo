@@ -1995,9 +1995,22 @@ cantidad; había 31 ítems descuadrados). Pendiente:
   `search_path = public`, y el import de APU falla ("operator does not exist").
   La de esta rama les agrega `extensions` al search_path en la misma corrida.
   `verificar_migraciones.sql` revisa todas.
-- **Región**: Supabase está en us-west-2 (Oregón); cada consulta tarda ~180 ms
-  (p50 medido en edge_logs) aunque sea trivial. Si la app está en Vercel,
-  poner las funciones en `pdx1`. Es la mejora más grande y no es código.
+- **Región**: Supabase está en us-west-2 (Oregón) y la app en producción corre
+  en Washington (edge_logs 2026-11-10: peticiones "node" desde IAD = Vercel
+  `iad1`). Cada consulta tarda ~280 ms (p50, p95 ~560) aunque sea trivial;
+  las que más suman son `permisos_rol_usuario` (middleware) y `notificaciones`
+  (campanita). Poner las funciones de Vercel en `pdx1` es la mejora más
+  grande y no es código.
+- **Plan Free de Supabase** (2026-11-10): sin respaldos descargables, el
+  proyecto se puede pausar tras 7 días de poca actividad y CPU compartida.
+  Base 103 MB, Storage 5 MB. Pendiente decidir Pro y respaldo externo
+  (`pg_dump` 17 + archivos de Storage, fuera del repo).
+- **El repositorio de GitHub es PÚBLICO**: no subir datos ni respaldos (ni
+  como artifacts de Actions). `maestro_insumos.csv` y
+  `codigos_eliminados.csv` están en el repo.
+- **Campanita**: recarga cada 60 s solo con la pestaña a la vista (antes
+  también en segundo plano, y cada recarga pagaba además el RPC de permisos
+  del middleware, cuyo caché dura 30 s).
 - **Import de APU** (~3,5 min el Malecón, 18 tandas de ~6,5 s): mano de obra
   ya trae el catálogo una vez por tanda y compara en memoria
   (`matchearManoDeObraApuImport`, 2026-10-22; antes un RPC por ítem, ~400);
