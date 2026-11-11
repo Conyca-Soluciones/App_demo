@@ -6,7 +6,7 @@ const listas = {
   agrupaciones: ["006 - 006 - CONCRETOS Y MORTEROS", "020 - 020 - FERRETERIA MENOR"],
 }
 
-const encabezado = [C.insumo, C.unidadPedida, C.cantidad, C.proyectos, C.tipo, C.uM, C.agrupacion, C.precio, C.iva, C.unidadUso, C.contenido, C.id]
+const encabezado = [C.insumo, C.unidadPedida, C.cantidad, C.proyectos, C.tipo, C.uM, C.agrupacion, C.precio, C.iva, C.id]
 
 // El archivo real trae el logo y el título arriba: 5 filas antes del encabezado.
 function hoja(...filas: unknown[][]): unknown[][] {
@@ -24,8 +24,6 @@ function fila(p: Partial<Record<keyof typeof C, unknown>>): unknown[] {
     agrupacion: "006 - 006 - CONCRETOS Y MORTEROS",
     precio: 25000,
     iva: 19,
-    unidadUso: "KG",
-    contenido: 50,
     id: "s1",
     ...p,
   }
@@ -33,7 +31,7 @@ function fila(p: Partial<Record<keyof typeof C, unknown>>): unknown[] {
 }
 
 describe("leerFilasPreciosInsumos", () => {
-  it("lee una fila completa con la fila del Excel y la presentación", () => {
+  it("lee una fila completa con la fila del Excel y el nombre", () => {
     const r = leerFilasPreciosInsumos(hoja(fila({})), listas)
     expect(r.errores).toEqual([])
     expect(r.filas).toEqual([
@@ -46,8 +44,6 @@ describe("leerFilasPreciosInsumos", () => {
         tipo: "MATERIAL - M",
         uM: "UNIDAD - UND",
         agrupacion: "006 - 006 - CONCRETOS Y MORTEROS",
-        unidadUso: "KG",
-        contenido: 50,
       },
     ])
   })
@@ -60,7 +56,7 @@ describe("leerFilasPreciosInsumos", () => {
 
   it("acepta texto en formato colombiano, IVA con % y nombres sin tildes ni mayúsculas", () => {
     const r = leerFilasPreciosInsumos(
-      hoja(fila({ precio: "1.250.000,50", iva: "5%", tipo: "material - m", uM: "und", agrupacion: "020 - 020 - ferreteria menor", unidadUso: "", contenido: null })),
+      hoja(fila({ precio: "1.250.000,50", iva: "5%", tipo: "material - m", uM: "und", agrupacion: "020 - 020 - ferreteria menor" })),
       listas
     )
     expect(r.errores).toEqual([])
@@ -70,8 +66,6 @@ describe("leerFilasPreciosInsumos", () => {
       tipo: "MATERIAL - M",
       uM: "UNIDAD - UND",
       agrupacion: "020 - 020 - FERRETERIA MENOR",
-      unidadUso: null,
-      contenido: null,
     })
   })
 
@@ -83,7 +77,7 @@ describe("leerFilasPreciosInsumos", () => {
         fila({ id: "c", tipo: "INSUMO" }),
         fila({ id: "d", uM: "bulto raro" }),
         fila({ id: "e", agrupacion: "999 - INVENTADA" }),
-        fila({ id: "f", unidadUso: "KG", contenido: null }),
+        fila({ id: "f", insumo: "" }),
         fila({ id: "g" }),
         fila({ id: "g" })
       ),
@@ -95,7 +89,7 @@ describe("leerFilasPreciosInsumos", () => {
       [9, "Elige"],
       [10, "Elige"],
       [11, "Elige"],
-      [12, "La"],
+      [12, "Escribe"],
       [14, "La"],
     ])
     expect(r.filas.map((f) => f.solicitudId)).toEqual(["g"])
@@ -141,7 +135,7 @@ describe("Excel de solicitudes: ida y vuelta", () => {
     expect(r.errores).toEqual([])
     expect(r.sinPrecio).toBe(1)
     expect(r.filas).toEqual([
-      expect.objectContaining({ solicitudId: "s1", vrUnitario: 95000, ivaPorcentaje: 19, uM: "METRO CUBICO - M3", unidadUso: null }),
+      expect.objectContaining({ solicitudId: "s1", vrUnitario: 95000, ivaPorcentaje: 19, uM: "METRO CUBICO - M3", descripcion: "ARENA LAVADA DE RIO" }),
     ])
   })
 })

@@ -5,6 +5,7 @@ import {
   nombreUnidad,
   normalizarUnidad,
   sugerirPresentacion,
+  presentacionDesdeNombre,
   unidadesDeCompra,
   validarPresentacion,
   textoConversionCompra,
@@ -102,6 +103,18 @@ describe("sugerirPresentacion", () => {
     expect(sugerirPresentacion('TUBERIA SANITARIA 2" X 6MTS', "UNIDAD - UND")).toEqual({ unidadUso: "M", contenido: 6 })
     expect(sugerirPresentacion("TUBO PARA CORTINA X 6 ML", "UNIDAD - UND")).toEqual({ unidadUso: "M", contenido: 6 })
     expect(sugerirPresentacion("CRUCETA PLASTICA JUNTAS 2MM X 300UND", "UNIDAD - UND")).toBeNull() // misma unidad
+  })
+
+  it("lee también 'POR 50 M'", () => {
+    expect(sugerirPresentacion("ALAMBRE GALVANIZADO POR 50M", "ROLLO - ROLL")).toEqual({ unidadUso: "M", contenido: 50 })
+    expect(sugerirPresentacion("ALAMBRE GALVANIZADO por 50 m", "ROLLO - ROLL")).toEqual({ unidadUso: "M", contenido: 50 })
+    expect(sugerirPresentacion("COSTO POR METRO", "UNIDAD - UND")).toBeNull()
+    expect(presentacionDesdeNombre("ALAMBRE GALVANIZADO X 50 M", "ROLLO - ROLL")).toEqual({
+      u_m: "ROLLO - ROLL",
+      unidad_uso: "M",
+      contenido: 50,
+    })
+    expect(presentacionDesdeNombre("ALAMBRE GALVANIZADO", "ROLLO - ROLL").contenido).toBeNull()
   })
 
   it("no confunde medidas con contenido", () => {

@@ -22,7 +22,7 @@
  * match esté bien, con opción de cambiarlo).
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,8 +50,7 @@ import type {
   CategoriaEquipo,
   FilaImportTransporte,
 } from "@/lib/apu-import-types"
-import { nombreUnidad } from "@/lib/unidades"
-import { puedeEditarPresentacion } from "@/app/(app)/presupuestos/insumos/actions"
+import { nombreUnidad, normalizarUnidad, sugerirPresentacion } from "@/lib/unidades"
 
 // Estilo "tipo Excel" -- mismo tratamiento que ya usa el resto de la app
 // (presupuesto-table.tsx, admin-insumos/page.tsx): encabezado azul de
@@ -90,8 +89,8 @@ function candidatoNoCuadra(fila: FilaRevisionImport, insumoId: string | undefine
 // Cómo resolvió el usuario una línea cuya unidad no cuadra con el insumo:
 // escribiendo la conversión (1 caja = 1,44 m²), o confirmando que la cantidad
 // ya está en la unidad del insumo.
-type EstadoUnidad = { confirmado: boolean; conversion: string; guardar: boolean }
-const ESTADO_UNIDAD_VACIO: EstadoUnidad = { confirmado: false, conversion: "", guardar: false }
+type EstadoUnidad = { confirmado: boolean; conversion: string }
+const ESTADO_UNIDAD_VACIO: EstadoUnidad = { confirmado: false, conversion: "" }
 
 function numeroConversion(texto: string): number | null {
   const n = Number(texto.trim().replace(",", "."))
@@ -101,10 +100,6 @@ function numeroConversion(texto: string): number | null {
 function unidadResuelta(e: EstadoUnidad | undefined): boolean {
   return !!e && (e.confirmado || numeroConversion(e.conversion) != null)
 }
-
-// Si quien revisa puede editar el maestro (aprobar insumos), se ofrece
-// guardar la conversión también como presentación del insumo.
-const PuedeGuardarEnMaestro = createContext(false)
 
 function AvisoUnidad({
   fila,
@@ -117,12 +112,14 @@ function AvisoUnidad({
   estado?: EstadoUnidad
   onCambiar: (patch: Partial<EstadoUnidad>) => void
 }) {
-  const puedeGuardar = useContext(PuedeGuardarEnMaestro)
   if (!candidatoNoCuadra(fila, insumoId)) return null
   const c = (fila.candidatos as CandidatoInsumo[]).find((x) => x.id === insumoId)!
   const compra = nombreUnidad(c.u_m) || "unidad"
   const linea = nombreUnidad(fila.unidad) || "unidad"
   const n = numeroConversion(estado.conversion)
+  // Lo que dice el nombre del insumo ("ALAMBRE X 50 M"): se propone, no se pone solo.
+  const delNombre = sugerirPresentacion(c.descripcion, c.u_m)
+  const sugerida = delNombre && delNombre.unidadUso === normalizarUnidad(fila.unidad) ? delNombre.contenido : null
   return (
     <div className="space-y-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
       <p>
@@ -146,11 +143,14 @@ function AvisoUnidad({
           </span>
         )}
       </div>
-      {puedeGuardar && n != null && (
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={estado.guardar} onChange={(e) => onCambiar({ guardar: e.target.checked })} />
-          Guardar también en el maestro (para los próximos presupuestos)
-        </label>
+      {sugerida != null && n !== sugerida && (
+        <button
+          type="button"
+          onClick={() => onCambiar({ conversion: String(sugerida).replace(".", ","), confirmado: false })}
+          className="text-red-900 underline underline-offset-2 hover:no-underline"
+        >
+          Usar 1 {compra} = {String(sugerida).replace(".", ",")} {linea} (lo dice el nombre del insumo)
+        </button>
       )}
       <label className="flex items-center gap-2">
         <input
@@ -697,16 +697,8 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     return {
       confirmarUnidad: !!e?.confirmado,
       conversion,
-      guardarConversionEnMaestro: !!e?.guardar && conversion != null,
     }
   }
-  const [puedeGuardarEnMaestro, setPuedeGuardarEnMaestro] = useState(false)
-  useEffect(() => {
-    if (!open) return
-    puedeEditarPresentacion()
-      .then((v: boolean) => setPuedeGuardarEnMaestro(v))
-      .catch(() => setPuedeGuardarEnMaestro(false))
-  }, [open])
   const [guardandoIds, setGuardandoIds] = useState<Set<string>>(new Set())
   // Guard síncrono contra doble-submit -- guardandoIds (arriba) es
   // estado de React, así que el botón solo queda "disabled" DESPUÉS de
@@ -1533,7 +1525,6 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   }
 
   return (
-    <PuedeGuardarEnMaestro.Provider value={puedeGuardarEnMaestro}>
     <Dialog open={open} onOpenChange={handleIntentoCerrar}>
       <DialogContent
         className="max-w-7xl w-[95vw] max-h-[92vh] overflow-y-auto"
@@ -2291,7 +2282,6 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
         )}
       </DialogContent>
     </Dialog>
-    </PuedeGuardarEnMaestro.Provider>
   )
 }
 
