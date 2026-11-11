@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
+import { CampoDireccionEntrega } from "@/components/campo-direccion-entrega"
+import { validarDireccion } from "@/lib/direccion-entrega"
 import { puedeBuscar } from "@/lib/busqueda"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import {
@@ -161,6 +163,7 @@ export function SolicitudExtraordinariaDialog({
   const [fechaRequerida, setFechaRequerida] = useState("")
   const [urgente, setUrgente] = useState(false)
   const [justificacion, setJustificacion] = useState("")
+  const [direccion, setDireccion] = useState("")
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Estables: el buscador vuelve a buscar cuando cambia la función.
@@ -187,6 +190,7 @@ export function SolicitudExtraordinariaDialog({
       setFechaRequerida("")
       setUrgente(false)
       setJustificacion("")
+      setDireccion("")
       setError(null)
     }
   }
@@ -248,9 +252,11 @@ export function SolicitudExtraordinariaDialog({
           ? "Falta la fecha requerida."
           : fechaPasada
             ? "La fecha requerida no puede ser anterior a hoy."
-            : !justificacion.trim()
-              ? "Escribe por qué se necesita más de lo presupuestado."
-              : null
+            : validarDireccion(direccion)
+              ? validarDireccion(direccion)
+              : !justificacion.trim()
+                ? "Escribe por qué se necesita más de lo presupuestado."
+                : null
 
   async function handleEnviar() {
     if (motivoNoGuardar) return
@@ -262,6 +268,7 @@ export function SolicitudExtraordinariaDialog({
         fechaRequerida,
         urgente,
         justificacion,
+        direccionEntrega: direccion,
       })
       onCreada?.(creada)
       onOpenChange(false)
@@ -536,6 +543,8 @@ export function SolicitudExtraordinariaDialog({
               <label className="text-sm font-medium">Marcar como urgente</label>
             </div>
           </div>
+
+          {open && <CampoDireccionEntrega id="direccion-extraordinaria" value={direccion} onChange={setDireccion} disabled={guardando} />}
 
           <div className="space-y-2">
             <label className="text-sm font-medium">¿Por qué se necesita más de lo presupuestado?</label>

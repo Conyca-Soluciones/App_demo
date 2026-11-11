@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------
 // Requisiciones administrativas (A&F › Administrativo; 20261231900000): lo que
 // Compras compra para FUNCIONAMIENTO (proyecto 000) o para un proyecto que la
-// persona ve (sin cupo del presupuesto). Las hace cualquier usuario; no tienen
-// aprobación: nacen aprobadas y van directo a Requisiciones por comprar.
+// persona ve (sin cupo del presupuesto). Las hace cualquier usuario y las
+// aprueba Subgerencia (Paquete A, 20261231999400; las de antes nacieron
+// aprobadas); aprobadas pasan a Requisiciones por comprar.
 // (No confundir con los pagos administrativos, lib/requisiciones-admin.ts.)
 //
 // Archivo plano: tipos, validación y mapeos (pruebas en
@@ -69,6 +70,7 @@ export type EstadoCompraReqAdministrativa = "pendiente" | "parcial" | "completa"
 export type ReqAdministrativaFila = {
   id: string
   numero: number
+  codigo: string // RQ-001-0001
   estado: "aprobada" | "cancelada" | "pendiente" | "rechazada"
   estadoCompra: EstadoCompraReqAdministrativa
   nLineas: number
@@ -94,6 +96,9 @@ export type ReqAdministrativaDetalle = ReqAdministrativaFila & {
   esMia: boolean
   solicitante: string | null
   cancelable: boolean
+  direccionEntrega: string | null
+  // Quién la aprobó o rechazó (Subgerencia) y el motivo del rechazo.
+  resolucion: { por: string | null; at: string | null; motivo: string | null } | null
   lineas: LineaReqAdministrativa[]
 }
 
@@ -103,6 +108,8 @@ export function etapaReqAdministrativa(r: Pick<ReqAdministrativaFila, "estado" |
   clase: string
 } {
   if (r.estado === "cancelada") return { etiqueta: "Cancelada", clase: "border-gray-300 bg-gray-50 text-gray-500" }
+  if (r.estado === "pendiente") return { etiqueta: "Por aprobar (Subgerencia)", clase: "border-violet-300 bg-violet-50 text-violet-700" }
+  if (r.estado === "rechazada") return { etiqueta: "Rechazada por Subgerencia", clase: "border-red-300 bg-red-50 text-red-700" }
   if (r.estadoCompra === "completa") return { etiqueta: "Comprada", clase: "border-green-300 bg-green-50 text-green-700" }
   if (r.estadoCompra === "rechazada_compras") return { etiqueta: "Rechazada por Compras", clase: "border-red-300 bg-red-50 text-red-700" }
   if (r.estadoCompra === "parcial") return { etiqueta: "Compra parcial", clase: "border-sky-300 bg-sky-50 text-sky-700" }
@@ -114,6 +121,7 @@ export function mapFilaReqAdministrativa(r: any): ReqAdministrativaFila {
   return {
     id: String(r.id),
     numero: Number(r.numero),
+    codigo: r.codigo ?? `N° ${r.numero}`,
     estado: r.estado,
     estadoCompra: r.estado_compra ?? null,
     nLineas: Number(r.n_lineas ?? 0),
@@ -131,6 +139,10 @@ export function mapDetalleReqAdministrativa(r: any): ReqAdministrativaDetalle {
     esMia: Boolean(r.es_mia),
     solicitante: r.solicitante ?? null,
     cancelable: Boolean(r.cancelable),
+    direccionEntrega: r.direccion_entrega ?? null,
+    resolucion: r.resolucion
+      ? { por: r.resolucion.por ?? null, at: r.resolucion.at ?? null, motivo: r.resolucion.motivo ?? null }
+      : null,
     lineas: (Array.isArray(r.lineas) ? r.lineas : []).map((l: any) => ({
       id: String(l.id),
       insumoCodigo: Number(l.insumo_codigo),

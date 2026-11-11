@@ -7,7 +7,7 @@ import { RequisicionesAdministrativasPagina } from "@/components/requisiciones-a
 export default async function RequisicionesAdministrativasPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const { ver } = await searchParams
   return (
-    <MarcoPagina titulo="Requisiciones administrativas" subtitulo="Lo que compra Compras para la empresa (FUNCIONAMIENTO), sin presupuesto ni aprobación">
+    <MarcoPagina titulo="Requisiciones administrativas" subtitulo="Lo que compra Compras para la empresa (FUNCIONAMIENTO) o un proyecto, sin presupuesto. Las aprueba Subgerencia">
       <RequisicionesAdministrativasPagina verInicial={ver ?? null} />
     </MarcoPagina>
   )

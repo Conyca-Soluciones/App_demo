@@ -1178,6 +1178,51 @@ vivo: solo agregan; los ajustes a funciones vivas son parches por texto exacto.
   (Realizar Pagos no lo toma). Una OC con saldo aplicado no se modifica (se
   cancela y se crea otra). El PDF muestra el saldo aplicado y el valor a pagar.
 
+## Paquete A: requisiciones administrativas y empresa que factura (2026-11-11)
+
+Decisiones del usuario. Migración `20261231999400_paquete_a_requisiciones.sql`
+(reversa en `supabase/reversa/`); solo agrega, parches por texto exacto.
+- **Subgerencia aprueba las requisiciones administrativas** (la requisición
+  completa): las NUEVAS nacen pendientes (`_crear_requisicion_administrativa`;
+  la de 5 parámetros de siempre también). Acción
+  `aprobar_requisiciones_administrativas` y pestaña
+  `tecnico.aprobar_administrativas` (`/almacen/aprobacion-requisiciones-administrativas`,
+  `listar_requisiciones_administrativas_aprobacion`), las dos a Subgerencia.
+  Aprueban y rechazan con `resolver_requisicion` (ya no las rechaza):
+  `_resolver_requisicion_sin_proyecto` exige la acción para las administrativas,
+  avisa a quien la pidió (`requisicion_administrativa_aprobada` / `_rechazada`) y,
+  aprobada, a Compras (`requisicion_administrativa`, antes se avisaba al crear).
+  Al crear se avisa a Subgerencia (`requisicion_administrativa_por_aprobar`).
+  Mis pendientes: `req_administrativa_por_aprobar`. Quien tiene la acción ve
+  FUNCIONAMIENTO (`proyectos_visibles`, `usuario_puede_ver_proyecto`). Quien la
+  hizo la cancela también por aprobar. Las de antes siguen aprobadas.
+- **Insumo nuevo aprobado avisa** (`trg_notificar_insumo_aprobado`, tipo
+  `insumo_aprobado`): al presupuesto si vino de un ítem; si no (requisición
+  administrativa), a Requisiciones administrativas.
+- **Dirección de entrega obligatoria** (`requisiciones.direccion_entrega`,
+  también en `requisiciones_vista`): normales, extraordinarias y
+  administrativas. Las funciones de siempre no cambian; la app llama
+  `crear_requisicion_con_direccion`, `crear_requisicion_extraordinaria_con_direccion`,
+  `modificar_requisicion_con_direccion` y `crear_requisicion_administrativa_con_direccion`
+  (validan con `_fijar_direccion_requisicion`, máx. 300). El formulario propone
+  la última del proyecto (`ultimaDireccionEntrega`, `CampoDireccionEntrega`,
+  `lib/direccion-entrega.ts`). Requisiciones por comprar la muestra y Generar OC
+  llena "Sitio de entrega" con ella (si las requisiciones tienen varias, deja elegir).
+- **Empresa que factura la OC** (`ordenes_compra.empresa_id`; null = la del
+  proyecto, órdenes de antes): Compras la elige en Generar OC (por omisión la
+  del proyecto; todas las empresas, decisión del usuario: todas tendrán
+  consolidado). `crear_orden_compra_empresa` (con el saldo a favor opcional)
+  envuelve a `crear_orden_compra_con_soporte`. De ella salen la empresa y el
+  consolidado del pago (`_crear_pagos_orden`, `_pago_sincronizar_empresa`), la
+  visibilidad desde los consolidados (`_ordenes_de_consolidados_visibles`), el
+  saldo a favor (`_aplicar_saldo_favor_orden`, `cerrar_orden_con_faltante`,
+  `saldos_favor_proveedor_empresa`) y el encabezado del detalle y del PDF. Al
+  modificar la orden se conserva.
+- Al unir con la rama de insumos: `20270101000100_avisos_paquete_a_tras_merge.sql` deja la lista completa
+  de tipos de aviso (la 999900 la rehacía sin los del Paquete A) y el aviso de insumo aprobado dice
+  "Ya puedes hacer la requisición" solo sin ítem (del presupuesto puede faltar la conversión).
+  El encabezado de la OC (correo y ciudad de la empresa, rama de compras) sale de la empresa que factura.
+
 ## Las OC se aprueban en Aprobación de pagos (2026-10-22)
 
 `20261204000000_oc_se_aprueba_en_pagos.sql` (decisión del usuario). Ya no existe
@@ -3459,7 +3504,7 @@ de insumos que compra Compras sin presupuesto: cualquiera las hace (A&F ›
 Administrativo, `PESTANAS_PARA_TODOS`), con el formulario de las técnicas (fecha
 requerida, insumos del maestro o solicitud de insumo nuevo, urgente,
 observaciones) y eligiendo **FUNCIONAMIENTO o uno de sus proyectos con
-presupuesto** (`proyectos_requisicion_administrativa`). Nadie las aprueba: nacen
+presupuesto** (`proyectos_requisicion_administrativa`). (Desde el Paquete A las aprueba Subgerencia: ver esa sección.) Antes nadie las aprobaba: nacían
 aprobadas (`requisiciones.administrativa`) y van a Requisiciones por comprar
 (etiqueta "Admin."); `resolver_requisicion` / `desaprobar_requisicion` las
 rechazan. Quien la hizo la cancela mientras no haya OC vigente.

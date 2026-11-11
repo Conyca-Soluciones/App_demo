@@ -42,6 +42,7 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   mi_req_admin_rechazada: { titulo: "Mis pagos administrativos rechazados", accion: "Corregir", orden: 6 },
   req_por_aprobar: { titulo: "Requisiciones por aprobar", accion: "Aprobar", orden: 10 },
   req_extra_por_aprobar: { titulo: "Requisiciones extraordinarias por aprobar", accion: "Aprobar", orden: 10.5 },
+  req_administrativa_por_aprobar: { titulo: "Requisiciones administrativas por aprobar", accion: "Aprobar", orden: 10.6 },
   insumo_por_aprobar: { titulo: "Insumos nuevos por aprobar", accion: "Revisar", orden: 11 },
   insumo_por_convertir: { titulo: "Insumos aprobados que necesitan conversión", accion: "Confirmar", orden: 11.5 },
   mo_por_aprobar: { titulo: "Mano de obra y equipos por aprobar", accion: "Revisar", orden: 12 },

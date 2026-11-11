@@ -21,13 +21,20 @@ const formatoFecha = (iso: string) => formatearFechaHora(iso)
 // compra a su detalle, y las requisiciones al registro de requisiciones.
 function rutaDestino(n: Notificacion): string {
   if (n.entidadTipo === "orden_compra") return `/almacen/ordenes-compra/${n.entidadId}`
-  if (n.entidadTipo === "requisicion")
+  // Insumo nuevo aprobado sin ítem (lo pidió una requisición administrativa).
+  if (n.tipo === "insumo_aprobado" && n.entidadTipo !== "presupuesto") return "/ayf/requisiciones-administrativas"
+  if (n.entidadTipo === "requisicion") {
+    // A Subgerencia, su bandeja; a quien pidió una administrativa, sus requisiciones.
+    if (n.tipo === "requisicion_administrativa_por_aprobar") return "/almacen/aprobacion-requisiciones-administrativas"
+    if (n.tipo === "requisicion_administrativa_aprobada" || n.tipo === "requisicion_administrativa_rechazada")
+      return `/ayf/requisiciones-administrativas?ver=${n.entidadId}`
     // A Gerencia, la bandeja de extraordinarias; lo demás, al detalle.
     return n.tipo === "requisicion_extraordinaria"
       ? "/almacen/requisiciones-extraordinarias"
       : n.tipo === "requisicion_administrativa"
         ? "/almacen/comprar-pedidos"
         : `/almacen/registro-requisiciones/${n.entidadId}`
+  }
   // Contratos: a quien aprueba, a Pre-aprobación; a Gerencia, a Aprobación
   // de minutas; a Jurídica (minuta aprobada o devuelta), a Pre-aprobación; a
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.
@@ -58,8 +65,8 @@ function rutaDestino(n: Notificacion): string {
   }
   // Requisición administrativa aprobada o rechazada: a quien la hizo.
   if (n.entidadTipo === "requisicion_admin") return `/ayf/pagos-administrativos?ver=${n.entidadId}`
-  // Insumo nuevo rechazado: al presupuesto (del proyecto actual). Aprobado en
-  // otra unidad: además abre Revisar pendientes ("Falta conversión").
+  // Insumo nuevo aprobado o rechazado: al presupuesto (del proyecto actual).
+  // Aprobado en otra unidad: además abre Revisar pendientes ("Falta conversión").
   if (n.entidadTipo === "presupuesto")
     return n.tipo === "insumo_por_convertir" ? "/presupuestos?revisar=1" : "/presupuestos"
   return "/almacen/registro-requisiciones"

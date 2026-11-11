@@ -82,10 +82,22 @@ export async function listarSaldosFavor(soloDisponibles: boolean): Promise<Saldo
 
 // Saldos disponibles del proveedor en la empresa del proyecto. [] si la base
 // todavía no tiene la migración (Generar OC sigue igual).
-export async function saldosFavorProveedor(proveedorId: string, proyectoId: string): Promise<SaldoProveedor[]> {
+// Saldos del proveedor en la empresa que factura (Paquete A); sin empresa, la
+// del proyecto.
+export async function saldosFavorProveedor(
+  proveedorId: string,
+  proyectoId: string,
+  empresaId?: string | null
+): Promise<SaldoProveedor[]> {
   await requerirAccion("comprar")
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("saldos_favor_proveedor", { p_proveedor_id: proveedorId, p_proyecto_id: proyectoId })
+  const { data, error } = empresaId
+    ? await supabase.rpc("saldos_favor_proveedor_empresa", {
+        p_proveedor_id: proveedorId,
+        p_proyecto_id: proyectoId,
+        p_empresa_id: empresaId,
+      })
+    : await supabase.rpc("saldos_favor_proveedor", { p_proveedor_id: proveedorId, p_proyecto_id: proyectoId })
   if (error) {
     if (sinMigracion(error.code)) return []
     throw new Error(error.message)

@@ -7,6 +7,9 @@ import { esCantidadEnteraPositiva } from "@/lib/numeros"
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
+import { normalizarDireccion, validarDireccion } from "@/lib/direccion-entrega"
+import { cookies } from "next/headers"
+import { COOKIE_PROYECTO } from "@/lib/proyecto-actual"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -154,6 +157,7 @@ export type NuevoPedidoInput = {
   urgente: boolean
   observaciones: string | null
   soporteUrl: string | null
+  direccionEntrega: string // obligatoria (Paquete A)
 }
 
 // Revalida en el servidor antes de insertar -- tres cosas:
@@ -186,6 +190,8 @@ export async function crearPedido(input: NuevoPedidoInput) {
   if (!input.fechaRequerida || input.fechaRequerida < hoyColombia()) {
     throw new Error("La fecha requerida no puede ser anterior a hoy.")
   }
+  const errorDireccion = validarDireccion(input.direccionEntrega)
+  if (errorDireccion) throw new Error(errorDireccion)
   if (input.insumos.length === 0) {
     throw new Error("Agrega al menos un insumo a la requisición.")
   }
@@ -268,7 +274,7 @@ export async function crearPedido(input: NuevoPedidoInput) {
     )
   }
 
-  const { data: creada, error } = await supabase.rpc("crear_requisicion", {
+  const { data: creada, error } = await supabase.rpc("crear_requisicion_con_direccion", {
     p_lineas: input.insumos.flatMap((ins) =>
       ins.items.map((it) => ({
         presupuesto_item_id: it.presupuestoItemId,
@@ -281,6 +287,7 @@ export async function crearPedido(input: NuevoPedidoInput) {
     p_urgente: input.urgente,
     p_observaciones: input.observaciones,
     p_soporte_url: input.soporteUrl,
+    p_direccion_entrega: normalizarDireccion(input.direccionEntrega),
   })
   if (error) throw new Error(error.message)
 
@@ -371,10 +378,13 @@ export type NuevaRequisicionExtraordinaria = {
   fechaRequerida: string
   urgente: boolean
   justificacion: string
+  direccionEntrega: string
 }
 
 export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtraordinaria) {
   if (!input.justificacion.trim()) throw new Error("Escribe por qué se necesita más de lo presupuestado.")
+  const errorDireccion = validarDireccion(input.direccionEntrega)
+  if (errorDireccion) throw new Error(errorDireccion)
   if (input.lineas.length === 0) throw new Error("Agrega al menos un insumo a la requisición.")
   if (input.lineas.length > MAX_INSUMOS_POR_PEDIDO) {
     throw new Error(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
@@ -390,7 +400,7 @@ export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtr
   }
 
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("crear_requisicion_extraordinaria", {
+  const { data, error } = await supabase.rpc("crear_requisicion_extraordinaria_con_direccion", {
     p_lineas: input.lineas.map((l) => ({
       presupuesto_item_id: l.presupuestoItemId,
       insumo_id: l.insumoId,
@@ -399,6 +409,7 @@ export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtr
     p_fecha_requerida: input.fechaRequerida,
     p_urgente: input.urgente,
     p_justificacion: input.justificacion.trim(),
+    p_direccion_entrega: normalizarDireccion(input.direccionEntrega),
   })
   if (error) throw new Error(error.message)
   const r = data as { id: string; numero: number; codigo?: string }
@@ -616,6 +627,7 @@ export type EdicionRequisicion = {
   fechaRequerida: string
   urgente: boolean
   observaciones: string | null
+  direccionEntrega: string | null
   insumos: {
     insumo: InsumoAgrupado
     marcados: Record<string, number> // presupuestoItemId -> cantidad actual
@@ -697,6 +709,7 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
     fechaRequerida: detalle.fechaRequerida ?? "",
     urgente: detalle.urgente,
     observaciones: detalle.observaciones,
+    direccionEntrega: detalle.direccionEntrega,
     insumos: grupos,
   }
 }
@@ -706,6 +719,8 @@ export async function modificarRequisicion(
   input: Omit<NuevoPedidoInput, "soporteUrl">
 ) {
   if (!input.fechaRequerida) throw new Error("La fecha requerida es obligatoria.")
+  const errorDireccion = validarDireccion(input.direccionEntrega)
+  if (errorDireccion) throw new Error(errorDireccion)
   if (input.insumos.length === 0) throw new Error("La requisición debe tener al menos un insumo.")
   if (input.insumos.length > MAX_INSUMOS_POR_PEDIDO) {
     throw new Error(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
@@ -720,7 +735,7 @@ export async function modificarRequisicion(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc("modificar_requisicion", {
+  const { error } = await supabase.rpc("modificar_requisicion_con_direccion", {
     p_id: id,
     p_lineas: input.insumos.flatMap((ins) =>
       ins.items.map((it) => ({
@@ -733,6 +748,25 @@ export async function modificarRequisicion(
     p_fecha_requerida: input.fechaRequerida,
     p_urgente: input.urgente,
     p_observaciones: input.observaciones,
+    p_direccion_entrega: normalizarDireccion(input.direccionEntrega),
   })
   if (error) throw new Error(error.message)
+}
+
+// La última dirección de entrega que se usó en el proyecto (para no escribirla
+// cada vez). Sin proyecto, el proyecto actual. null si no hay o no se ve.
+export async function ultimaDireccionEntrega(proyectoId?: string | null): Promise<string | null> {
+  const id = proyectoId ?? (await cookies()).get(COOKIE_PROYECTO)?.value ?? null
+  if (!id) return null
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("requisiciones_vista")
+    .select("direccion_entrega")
+    .eq("proyecto_id", id)
+    .not("direccion_entrega", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) return null
+  return (data as { direccion_entrega: string | null } | null)?.direccion_entrega ?? null
 }

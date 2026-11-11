@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerUsuarioId } from "@/lib/permisos"
 import { TAMANO_PAGINA, cortarPagina } from "@/lib/paginacion"
 import { hoyColombia } from "@/lib/fechas"
+import { normalizarDireccion, validarDireccion } from "@/lib/direccion-entrega"
 import {
   lineasParaGuardar,
   mapDetalleReqAdministrativa,
@@ -17,8 +18,8 @@ import {
 } from "@/lib/requisiciones-administrativas"
 
 // Requisiciones administrativas (FUNCIONAMIENTO o un proyecto, 20261231900000): las hace
-// cualquier usuario con sesión; todo pasa por funciones de la base, que vuelven
-// a validar y exigen la sesión.
+// cualquier usuario con sesión y las aprueba Subgerencia (20261231999400); todo
+// pasa por funciones de la base, que vuelven a validar y exigen la sesión.
 
 async function clienteConSesion() {
   if (!(await obtenerUsuarioId())) throw new Error("Inicia sesión.")
@@ -39,16 +40,20 @@ export async function crearRequisicionAdministrativa(datos: {
   fechaRequerida: string
   urgente: boolean
   observaciones: string
+  direccionEntrega: string
 }): Promise<{ id: string; numero: number }> {
-  const error = validarReqAdministrativa(datos.lineas, datos.fechaRequerida, hoyColombia(), datos.proyectoId)
+  const error =
+    validarReqAdministrativa(datos.lineas, datos.fechaRequerida, hoyColombia(), datos.proyectoId) ??
+    validarDireccion(datos.direccionEntrega)
   if (error) throw new Error(error)
   const supabase = await clienteConSesion()
-  const { data, error: e } = await supabase.rpc("crear_requisicion_administrativa", {
+  const { data, error: e } = await supabase.rpc("crear_requisicion_administrativa_con_direccion", {
     p_proyecto_id: datos.proyectoId,
     p_lineas: lineasParaGuardar(datos.lineas),
     p_fecha_requerida: datos.fechaRequerida,
     p_urgente: datos.urgente,
     p_observaciones: datos.observaciones.trim() || null,
+    p_direccion_entrega: normalizarDireccion(datos.direccionEntrega),
   })
   if (e) throw new Error(e.message)
   const r = data as { id: string; numero: number }

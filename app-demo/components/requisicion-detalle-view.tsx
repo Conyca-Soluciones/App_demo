@@ -337,6 +337,12 @@ export function RequisicionDetalleView({
               </p>
             </div>
           )}
+          {req.direccionEntrega && (
+            <div className="space-y-1">
+              <p className="text-muted-foreground">Dirección de entrega</p>
+              <p className="whitespace-pre-wrap break-words">{req.direccionEntrega}</p>
+            </div>
+          )}
           <div className="space-y-1">
             <p className="text-muted-foreground">{req.extraordinaria ? "Justificación (por encima del presupuesto)" : "Observaciones"}</p>
             <p className="whitespace-pre-wrap break-words">{req.observaciones ?? "—"}</p>
