@@ -58,8 +58,10 @@ function rutaDestino(n: Notificacion): string {
   }
   // Requisición administrativa aprobada o rechazada: a quien la hizo.
   if (n.entidadTipo === "requisicion_admin") return `/ayf/pagos-administrativos?ver=${n.entidadId}`
-  // Insumo nuevo rechazado: al presupuesto (del proyecto actual).
-  if (n.entidadTipo === "presupuesto") return "/presupuestos"
+  // Insumo nuevo rechazado: al presupuesto (del proyecto actual). Aprobado en
+  // otra unidad: además abre Revisar pendientes ("Falta conversión").
+  if (n.entidadTipo === "presupuesto")
+    return n.tipo === "insumo_por_convertir" ? "/presupuestos?revisar=1" : "/presupuestos"
   return "/almacen/registro-requisiciones"
 }
 

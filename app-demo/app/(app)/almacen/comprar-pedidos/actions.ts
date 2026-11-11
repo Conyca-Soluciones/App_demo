@@ -1434,6 +1434,7 @@ export type NotificacionTipo =
   | "contrato_vencido"
   | "contrato_vencido_juridica"
   | "insumo_rechazado"
+  | "insumo_por_convertir"
   | "otrosi_por_revisar"
   | "otrosi_por_aprobar"
   | "otrosi_devuelto"

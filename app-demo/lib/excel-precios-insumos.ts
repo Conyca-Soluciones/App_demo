@@ -3,8 +3,9 @@
 // en Aprobación de insumos se descarga este Excel, se corrige el nombre si
 // hace falta y se llena tipo, agrupación, IVA y precio unitario; al subirlo
 // cada fila completa se aprueba y entra al maestro (aprobarSolicitudInsumo).
-// La unidad es la del presupuesto y el precio es por esa unidad: solo se
-// escribe cuando el presupuesto no trae una unidad reconocida ("Ins").
+// La unidad es la de COMPRA y el precio es por esa unidad; viene la del
+// presupuesto. Si se cambia (m -> rollo), el ingeniero confirma la conversión
+// en su presupuesto.
 //
 // leerFilasPreciosInsumos es lógica pura (pruebas en
 // tests/excel-precios-insumos.test.ts); descargarExcelPreciosInsumos arma el
@@ -57,9 +58,9 @@ export const COLUMNAS_PRECIOS_INSUMOS = {
   cantidad: "Cantidad pedida",
   proyectos: "Proyectos",
   tipo: "Tipo",
-  uM: "Unidad",
+  uM: "Unidad de compra",
   agrupacion: "Agrupación",
-  precio: "Precio por unidad sin IVA",
+  precio: "Precio por unidad de compra sin IVA",
   iva: "IVA %",
   id: "ID interno -- NO BORRAR NI EDITAR",
 } as const
@@ -72,7 +73,7 @@ const ORDEN: { clave: ClaveColumna; ancho: number; llenar?: boolean }[] = [
   { clave: "cantidad", ancho: 14 },
   { clave: "proyectos", ancho: 22 },
   { clave: "tipo", ancho: 24, llenar: true },
-  { clave: "uM", ancho: 22 },
+  { clave: "uM", ancho: 26, llenar: true },
   { clave: "agrupacion", ancho: 36, llenar: true },
   { clave: "precio", ancho: 18, llenar: true },
   { clave: "iva", ancho: 9, llenar: true },
@@ -177,7 +178,7 @@ export function leerFilasPreciosInsumos(
     }
     const uM = unidadMaestro(texto(celda(f, "uM")))
     if (!uM) {
-      error("Elige la unidad de la lista (el presupuesto no la dice).")
+      error("Elige la unidad de compra de la lista.")
       continue
     }
     const agrupacion = agrupacionPorNombre.get(normal(celda(f, "agrupacion")))
@@ -250,9 +251,9 @@ export async function construirLibroPreciosInsumos(
     if (c.clave === "insumo") celda.note = "Nombre con que entra al maestro: se puede corregir."
     if (c.clave === "uM") {
       celda.note =
-        "La del presupuesto: no se cambia. Solo se elige cuando viene vacía (el presupuesto no dice una unidad reconocida). Si se compra por rollo, bulto o caja, Compras lo define en la orden de compra."
+        "En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae (ej. ROLLO X 100 M). El ingeniero confirma la conversión en su presupuesto."
     }
-    if (c.clave === "precio") celda.note = "Precio por la unidad de la columna Unidad, sin IVA."
+    if (c.clave === "precio") celda.note = "Precio por la unidad de compra, sin IVA."
   })
   encabezado.height = 32
 
@@ -266,7 +267,7 @@ export async function construirLibroPreciosInsumos(
       cantidad: s.cantidad,
       proyectos: s.proyectos.join(", "),
       tipo: s.tipo && tipos.has(s.tipo) ? s.tipo : "",
-      // la del presupuesto (la misma que usa el servidor al aprobar)
+      // por defecto, la del presupuesto
       uM: unidadMaestro(s.unidadPedida) ?? "",
       agrupacion: s.agrupacion && agrupaciones.has(s.agrupacion) ? s.agrupacion : "",
       precio: null,
@@ -276,11 +277,9 @@ export async function construirLibroPreciosInsumos(
     ORDEN.forEach((c, i) => {
       const celda = fila.getCell(i + 1)
       celda.value = valores[c.clave]
-      // La unidad solo se llena (amarilla, con lista) si el presupuesto no la dice.
-      const llenar = c.llenar || (c.clave === "uM" && !valores.uM)
-      if (llenar) celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF8DC" } }
+      if (c.llenar) celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF8DC" } }
       const lista = listaDe[c.clave]
-      if (lista && llenar) celda.dataValidation = { type: "list", allowBlank: true, formulae: [lista] }
+      if (lista) celda.dataValidation = { type: "list", allowBlank: true, formulae: [lista] }
     })
     if (s.cantidad != null) fila.getCell(3).numFmt = formatoCantidad(s.cantidad)
     fila.getCell(8).numFmt = "#,##0.00"

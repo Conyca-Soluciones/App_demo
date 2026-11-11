@@ -121,7 +121,7 @@ function AvisoUnidad({
   const delNombre = sugerirPresentacion(c.descripcion, c.u_m)
   const sugerida = delNombre && delNombre.unidadUso === normalizarUnidad(fila.unidad) ? delNombre.contenido : null
   return (
-    <div className="space-y-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
+    <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
       <p>
         La línea está en <strong>{linea}</strong> y este insumo se vende por <strong>{compra}</strong>
         {c.presentacion ? ` (${c.presentacion})` : ""}. Escribe la conversión para que el precio quede por {linea}:
@@ -133,12 +133,12 @@ function AvisoUnidad({
           onChange={(e) => onCambiar({ conversion: e.target.value, confirmado: false })}
           inputMode="decimal"
           placeholder="—"
-          className="h-7 w-20 rounded-md border border-red-300 bg-background px-2 text-xs text-foreground"
+          className="h-7 w-20 rounded-md border border-amber-300 bg-background px-2 text-xs text-foreground"
           aria-label={`Cuántos ${linea} trae 1 ${compra}`}
         />
         <span>{linea}</span>
         {n != null && c.vr_unitario != null && (
-          <span className="text-red-800">
+          <span className="text-amber-800">
             → {formatoPesos(c.vr_unitario / n)} / {linea}
           </span>
         )}
@@ -147,7 +147,7 @@ function AvisoUnidad({
         <button
           type="button"
           onClick={() => onCambiar({ conversion: String(sugerida).replace(".", ","), confirmado: false })}
-          className="text-red-900 underline underline-offset-2 hover:no-underline"
+          className="text-amber-900 underline underline-offset-2 hover:no-underline"
         >
           Usar 1 {compra} = {String(sugerida).replace(".", ",")} {linea} (lo dice el nombre del insumo)
         </button>
@@ -866,8 +866,23 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // Transporte NO tiene candidatos de ningún tipo -- se excluye acá
   // también (si no, sus filas aparecerían como tarjetas vacías en el
   // tab de Insumos, sin ninguna tabla de candidatos que mostrar).
+  // Insumos nuevos aprobados en otra unidad de compra: van aparte, en
+  // "Falta conversión" (una tarjeta por insumo, para todo el presupuesto).
+  const porConvertir = useMemo(() => pendientesTodo.filter((f) => f.convertirInsumoId), [pendientesTodo])
+  const gruposPorConvertir = useMemo(() => {
+    const grupos = new Map<string, FilaRevisionImport[]>()
+    for (const f of porConvertir) {
+      const l = grupos.get(f.convertirInsumoId!) ?? []
+      l.push(f)
+      grupos.set(f.convertirInsumoId!, l)
+    }
+    return Array.from(grupos.values())
+  }, [porConvertir])
   const pendientes = useMemo(
-    () => pendientesTodo.filter((f) => f.tipo !== "MO" && f.tipo !== "EQUIPO" && f.tipo !== "TRANSPORTE"),
+    () =>
+      pendientesTodo.filter(
+        (f) => f.tipo !== "MO" && f.tipo !== "EQUIPO" && f.tipo !== "TRANSPORTE" && !f.convertirInsumoId
+      ),
     [pendientesTodo]
   )
   const pendientesManoObra = useMemo(() => pendientesTodo.filter((f) => f.tipo === "MO"), [pendientesTodo])
@@ -906,7 +921,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // El número de la pestaña cuenta solo lo que falta resolver: los
   // automáticos ya quedaron en el APU (se muestran para revisarlos, pero
   // no son pendientes).
-  const totalPendientesInsumos = pendientes.length + rechazados.length
+  const totalPendientesInsumos = pendientes.length + rechazados.length + porConvertir.length
   const hayPendientesSinSugerencia = pendientes.some(
     (f) => !Array.isArray(f.candidatos) || f.candidatos.length === 0
   )
@@ -1288,6 +1303,49 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
   // puramente mecánico (junta los ids con elección y llama guardarIds,
   // que ya sabe rutear "equipo"/"solicitud_equipo" según el tipo de la
   // elección), no hace falta duplicarlo.
+  // "Falta conversión": todas las líneas del insumo en este presupuesto, con
+  // la conversión escrita (1 rollo = 100 m) o confirmando que la cantidad ya
+  // está en la unidad de compra.
+  async function guardarConversion(
+    filasGrupo: FilaRevisionImport[],
+    insumoId: string,
+    conversion: number | null,
+    confirmar: boolean
+  ) {
+    const ids = filasGrupo.map((f) => f.id).filter((id) => !enVueloRef.current.has(id))
+    if (ids.length === 0) return
+    ids.forEach((id) => enVueloRef.current.add(id))
+    setError(null)
+    setGuardandoIds((prev) => new Set([...prev, ...ids]))
+    try {
+      const { errores } = await resolverLineasRevisionEnLote(
+        ids.map((id) => ({
+          revisionId: id,
+          accion: "maestro" as const,
+          insumoId,
+          conversion: confirmar ? null : conversion,
+          confirmarUnidad: confirmar,
+        }))
+      )
+      if (errores.length > 0) setError(errores.map((e) => e.mensaje).join(" · "))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar la conversión.")
+    }
+    const items = itemsDeLineas(ids)
+    try {
+      await refrescarItems(items)
+    } catch (e) {
+      console.error("No se pudo refrescar la revisión:", e)
+    }
+    ids.forEach((id) => enVueloRef.current.delete(id))
+    setGuardandoIds((prev) => {
+      const copia = new Set(prev)
+      ids.forEach((id) => copia.delete(id))
+      return copia
+    })
+    onCambio?.(items)
+  }
+
   async function guardarGrupo(filasGrupo: FilaRevisionImport[]) {
     const ids = filasGrupo.filter((f) => elecciones[f.id]).map((f) => f.id)
     await guardarIds(ids)
@@ -1659,6 +1717,29 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                   <p className="text-sm text-muted-foreground">No hay nada que revisar en Transporte.</p>
                 )}
 
+
+                {tabActiva === "insumos" && gruposPorConvertir.length > 0 && (
+                  <section className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">Falta conversión</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Insumos nuevos que se aprobaron en otra unidad de compra. Confirma cuánto trae cada uno: queda en
+                        todas sus líneas de este presupuesto.
+                      </p>
+                    </div>
+                    {gruposPorConvertir.map((filasGrupo) => (
+                      <GrupoFaltaConversion
+                        key={filasGrupo[0].convertirInsumoId!}
+                        filasGrupo={filasGrupo}
+                        itemsPorId={datos.itemsPorId}
+                        guardando={filasGrupo.some((f) => guardandoIds.has(f.id))}
+                        onGuardar={(conversion, confirmar) =>
+                          guardarConversion(filasGrupo, filasGrupo[0].convertirInsumoId!, conversion, confirmar)
+                        }
+                      />
+                    ))}
+                  </section>
+                )}
 
                 {tabActiva === "insumos" && pendientes.length > 0 && (
                   <section className="space-y-3">
@@ -2291,6 +2372,86 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 // el candidato UNA vez y se aplica a todas las apariciones -- ver
 // elegirCandidatoGrupo/marcarSolicitudGrupo en el padre.
 // ---------------------------------------------------------------------------
+
+// Tarjeta de "Falta conversión": un insumo nuevo aprobado en otra unidad de
+// compra (rollo) que el presupuesto pide en m. La conversión viene llena con
+// lo que dice el nombre ("ROLLO X 100 M"); el ingeniero confirma.
+function GrupoFaltaConversion({
+  filasGrupo,
+  itemsPorId,
+  guardando,
+  onGuardar,
+}: {
+  filasGrupo: FilaRevisionImport[]
+  itemsPorId: Record<string, { codigo: string; descripcion: string; unidad?: string | null }>
+  guardando: boolean
+  onGuardar: (conversion: number | null, confirmar: boolean) => void
+}) {
+  const primera = filasGrupo[0]
+  const insumo = ((primera.candidatos as CandidatoInsumo[]).find((c) => c.id === primera.convertirInsumoId) ??
+    (primera.candidatos as CandidatoInsumo[])[0]) as CandidatoInsumo | undefined
+  const compra = nombreUnidad(insumo?.u_m) || "unidad"
+  const linea = nombreUnidad(primera.unidad) || "unidad"
+  const delNombre = insumo ? sugerirPresentacion(insumo.descripcion, insumo.u_m) : null
+  const sugerida = delNombre && delNombre.unidadUso === normalizarUnidad(primera.unidad) ? delNombre.contenido : null
+  const [texto, setTexto] = useState(sugerida != null ? String(sugerida).replace(".", ",") : "")
+  const [confirmar, setConfirmar] = useState(false)
+  const n = numeroConversion(texto)
+  const total = filasGrupo.reduce((s, f) => s + f.cantidad, 0)
+  const codigos = filasGrupo
+    .map((f) => itemsPorId[f.presupuestoItemId]?.codigo)
+    .filter(Boolean)
+    .join(", ")
+  if (!insumo) return null
+
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[11px] font-medium">Falta conversión</span>
+        <span className="font-medium">{insumo.descripcion}</span>
+        <span className="text-xs">
+          {insumo.vr_unitario != null && `${formatoPesos(insumo.vr_unitario)} / ${compra} sin IVA`}
+        </span>
+      </div>
+      <p className="text-xs">
+        Tu presupuesto lo pide en <strong>{linea}</strong> ({Number(total.toFixed(4)).toLocaleString("es-CO")} {linea} en{" "}
+        {filasGrupo.length === 1 ? "el ítem" : `${filasGrupo.length} ítems`}: {codigos}) y se compra por{" "}
+        <strong>{compra}</strong>.
+      </p>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span>1 {compra} =</span>
+        <input
+          value={texto}
+          onChange={(e) => {
+            setTexto(e.target.value)
+            setConfirmar(false)
+          }}
+          disabled={confirmar}
+          inputMode="decimal"
+          placeholder="—"
+          className="h-8 w-24 rounded-md border border-amber-300 bg-background px-2 text-sm text-foreground disabled:opacity-50"
+          aria-label={`Cuántos ${linea} trae 1 ${compra}`}
+        />
+        <span>{linea}</span>
+        {n != null && !confirmar && insumo.vr_unitario != null && (
+          <span className="text-xs text-amber-800">
+            → {formatoPesos(insumo.vr_unitario / n)} / {linea}
+          </span>
+        )}
+      </div>
+      {sugerida != null && <p className="text-[11px] text-amber-800">Lo dice el nombre del insumo; cámbialo si no es así.</p>}
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={confirmar} onChange={(e) => setConfirmar(e.target.checked)} />
+        O: las cantidades ya están en {compra} (sin conversión)
+      </label>
+      <div className="flex justify-end">
+        <Button size="sm" disabled={guardando || (!confirmar && n == null)} onClick={() => onGuardar(n, confirmar)}>
+          {guardando ? "Guardando…" : `Guardar en ${filasGrupo.length === 1 ? "la línea" : `las ${filasGrupo.length} líneas`}`}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 function GrupoInsumoPendiente({
   filasGrupo,

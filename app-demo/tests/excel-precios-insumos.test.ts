@@ -123,11 +123,10 @@ describe("Excel de solicitudes: ida y vuelta", () => {
       if (String(r.getCell(1).value) === C.insumo) filaEncabezado = n
     })
     const primera = hojaExcel.getRow(filaEncabezado + 1)
-    expect(primera.getCell(6).value).toBe("METRO CUBICO - M3") // la unidad del presupuesto ("m³")
-    expect(primera.getCell(6).dataValidation?.type).toBeUndefined() // y no se elige
+    expect(primera.getCell(6).value).toBe("METRO CUBICO - M3") // por defecto, la del presupuesto ("m³")
+    expect(primera.getCell(6).dataValidation?.type).toBe("list") // y se puede cambiar a la de compra
     const tercera = hojaExcel.getRow(filaEncabezado + 3)
     expect(tercera.getCell(6).value).toBe("") // "Ins" no es una unidad: se elige
-    expect(tercera.getCell(6).dataValidation?.type).toBe("list")
     expect(primera.getCell(9).value).toBe(19)
     primera.getCell(5).value = "MATERIAL - M"
     primera.getCell(7).value = "006 - 006 - CONCRETOS Y MORTEROS"

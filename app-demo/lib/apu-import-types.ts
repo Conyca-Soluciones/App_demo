@@ -177,6 +177,10 @@ export type FilaRevisionImport = {
   transportePrecioIdAsignado: string | null
   valorTransporte: number | null
   itemApuId: string | null
+  // Insumo nuevo aprobado en otra unidad de compra (m contra rollo): la línea
+  // volvió a "pendiente" para que el ingeniero confirme la conversión
+  // (apu_import_revision.convertir_insumo_id, 20261231999900).
+  convertirInsumoId?: string | null
   // motivo que escribió el admin al rechazar (apu_import_revision.motivo_rechazo,
   // copiado de la solicitud antes de borrarla) -- null si esta
   // línea no está rechazada, o si el admin no escribió nada.

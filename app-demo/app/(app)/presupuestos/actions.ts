@@ -1029,8 +1029,7 @@ export type AprobarSolicitudInput = {
   solicitudId: string
   vrUnitario: number
   tipo?: string
-  // Solo cuando el presupuesto no trae una unidad reconocida ("Ins"): la
-  // unidad del insumo es SIEMPRE la del presupuesto (ver aprobarSolicitudInsumo).
+  // Unidad en que se COMPRA (la del precio). Sin ella, la del presupuesto.
   uM?: string | null
   agrupacion?: string | null
   // IVA del insumo en % (0, 5 o 19); el precio se guarda sin IVA y vr_neto con él
@@ -1090,20 +1089,13 @@ export async function aprobarSolicitudInsumo(
   if (!tipoFinal || !TIPOS_MAESTRO.has(tipoFinal)) {
     throw new Error("Elige el tipo del insumo de la lista antes de aprobar.")
   }
-  // La unidad del insumo es la del PRESUPUESTO y el precio es por esa unidad
-  // (decisión del usuario, 2026-11-11): la presentación en que se compra
-  // (rollo, bulto, caja) se define en la orden de compra ("UM disponible"),
-  // que es cuando se sabe. Así el APU nunca necesita conversión para un
-  // insumo nuevo. Solo si el presupuesto no trae una unidad reconocida
-  // ("Ins") la elige quien aprueba.
+  // La unidad del insumo es la de COMPRA (rollo, bulto, unidad) y el precio
+  // es por esa unidad (decisión del usuario, 2026-11-11). Por defecto, la del
+  // presupuesto. Si es otra, las líneas del presupuesto que lo pidieron no
+  // entran al APU todavía: vuelven al ingeniero para que confirme la
+  // conversión (devolver_lineas_para_conversion, más abajo).
   const unidadPresupuesto = unidadMaestro(solicitud.u_m)
-  if (unidadPresupuesto && input.uM && unidadMaestro(input.uM) !== unidadPresupuesto) {
-    throw new Error(
-      `La unidad es la del presupuesto (${nombreUnidad(unidadPresupuesto)}) y no se cambia al aprobar. ` +
-        "Si está mal, rechaza la solicitud para que la corrijan en el presupuesto."
-    )
-  }
-  const uMFinal = unidadPresupuesto ?? unidadMaestro(input.uM)
+  const uMFinal = unidadMaestro(input.uM) ?? unidadPresupuesto
   if (!uMFinal) {
     throw new Error("El presupuesto no dice en qué unidad va este insumo: elige la unidad antes de aprobar.")
   }
@@ -1131,24 +1123,18 @@ export async function aprobarSolicitudInsumo(
     )
   }
 
-  // Las líneas del APU que pidieron este insumo van en la unidad del insumo.
-  // Una línea en OTRA unidad reconocida (no debería pasar: las solicitudes se
-  // agrupan por descripción y unidad) no se deja aprobar. Las que traen una
-  // unidad no reconocida ("Ins") toman la elegida.
+  // Líneas del presupuesto que pidieron este insumo en OTRA unidad reconocida
+  // (m contra rollo): no pueden entrar con su cantidad tal cual. Las que
+  // traen una unidad no reconocida ("Ins") toman la del insumo.
   const { data: lineasSolicitud, error: errorLineas } = await supabase
     .from("apu_import_revision")
-    .select("unidad")
+    .select("id, unidad")
     .eq("solicitud_id", input.solicitudId)
+    .is("item_apu_id", null)
   if (errorLineas) throw new Error(errorLineas.message)
-  const lineaQueNoCuadra = (lineasSolicitud ?? []).find(
-    (l) => unidadMaestro(l.unidad) != null && unidadMaestro(l.unidad) !== uMFinal
-  )
-  if (lineaQueNoCuadra) {
-    throw new Error(
-      `Una línea del presupuesto pidió este insumo en ${nombreUnidad(lineaQueNoCuadra.unidad)} y el insumo ` +
-        `quedaría en ${nombreUnidad(uMFinal)}. Rechaza la solicitud para que corrijan la unidad en el presupuesto.`
-    )
-  }
+  const idsPorConvertir = (lineasSolicitud ?? [])
+    .filter((l: { unidad: string | null }) => unidadMaestro(l.unidad) != null && unidadMaestro(l.unidad) !== uMFinal)
+    .map((l: { id: string }) => l.id)
 
   const { data: insumoNuevo, error: errorInsumo } = await supabase
     .from("maestro_insumos")
@@ -1166,6 +1152,22 @@ export async function aprobarSolicitudInsumo(
 
   if (errorInsumo) {
     throw new Error(errorInsumo.message)
+  }
+
+  // ANTES de aprobar: soltar de la solicitud las líneas en otra unidad, para
+  // que el disparador no las meta al APU. Vuelven a "pendiente" con este
+  // insumo y la marca de conversión, y se avisa a quien lo pidió.
+  if (idsPorConvertir.length > 0) {
+    const { error: errorDevolver } = await supabase.rpc("devolver_lineas_para_conversion", {
+      p_solicitud: input.solicitudId,
+      p_insumo: insumoNuevo.id,
+      p_revision_ids: idsPorConvertir,
+    })
+    if (errorDevolver) {
+      // Sin esto el insumo quedaría en el maestro con la solicitud pendiente.
+      await supabase.from("maestro_insumos").delete().eq("id", insumoNuevo.id)
+      throw new Error(errorDevolver.message)
+    }
   }
 
   const { error: errorUpdate } = await supabase
@@ -1213,7 +1215,12 @@ export async function aprobarSolicitudInsumo(
     }
   }
 
-  if (!vieneDeImport && solicitud.presupuesto_item_id) {
+  // Solicitud hecha a mano desde el editor de APU: la línea entra con la
+  // cantidad que se escribió, solo si está en la unidad del insumo. Si se
+  // aprobó en otra unidad, el ingeniero lo agrega en el editor con su
+  // conversión.
+  const manualMismaUnidad = !unidadPresupuesto || unidadPresupuesto === uMFinal
+  if (!vieneDeImport && solicitud.presupuesto_item_id && manualMismaUnidad) {
     const { data: item, error: errorItem } = await supabase
       .from("presupuesto_items")
       .select("apu_id")
@@ -3804,6 +3811,7 @@ function mapearFilaRevision(fila: any): FilaRevisionImport {
     transportePrecioIdAsignado: transportePrecio?.id ?? null,
     valorTransporte: transportePrecio?.valor_unitario ?? null,
     itemApuId: fila.item_apu_id,
+    convertirInsumoId: fila.convertir_insumo_id ?? null,
     // Lo copia borrar_solicitud_resuelta antes de borrar la solicitud.
     motivoRechazo: fila.motivo_rechazo ?? null,
   }
@@ -3822,7 +3830,7 @@ export type LoteRevisionInfo = {
 }
  
 const SELECT_REVISION_CON_MOTIVO =
-  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
+  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, convertir_insumo_id, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
  
 export async function listarRevisionLote(loteImportId: string): Promise<LoteRevisionInfo> {
   const supabase = await createClient()

@@ -220,10 +220,10 @@ function TablaPendientes({
             <th className={`${headClasses} w-40`}>Origen</th>
             <th className={`${headClasses} w-44`}>Tipo</th>
             <th
-              className={`${headClasses} w-32`}
-              title="La del presupuesto. Si se compra por rollo, bulto o caja, Compras lo define en la orden de compra."
+              className={`${headClasses} w-40`}
+              title="En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae."
             >
-              Unidad
+              Unidad de compra
             </th>
             <th className={`${headClasses} w-48`}>Agrupación</th>
             <th className={`${headClasses} w-20`}>IVA</th>
@@ -266,12 +266,11 @@ function FilaPendiente({
   // Lo que trae la solicitud (del Excel: "INSUMO", "m³") se usa solo si
   // corresponde a la lista estándar; si no, queda vacío para elegirlo.
   const [tipo, setTipo] = useState(solicitud.tipo && TODOS_LOS_TIPOS.includes(solicitud.tipo) ? solicitud.tipo : "")
-  // La unidad es la del presupuesto y no se cambia (el precio es por esa
-  // unidad; la presentación de compra se define en la orden de compra). Solo
-  // si el presupuesto no trae una unidad reconocida ("Ins") se elige aquí.
+  // Unidad en que se COMPRA (la del precio): viene la del presupuesto y se
+  // cambia si se compra por rollo, bulto, unidad... Si cambia, el ingeniero
+  // confirma la conversión en su presupuesto (ver aprobarSolicitudInsumo).
   const unidadPresupuesto = unidadMaestro(solicitud.uM)
-  const [unidadElegida, setUnidadElegida] = useState("")
-  const uM = unidadPresupuesto ?? unidadElegida
+  const [uM, setUM] = useState(unidadPresupuesto ?? "")
   const [agrupacion, setAgrupacion] = useState("")
   const [iva, setIva] = useState("19")
   // Nombre con que entra al maestro (se puede corregir).
@@ -296,7 +295,7 @@ function FilaPendiente({
       return
     }
     if (!uM) {
-      setError("Elige la unidad: el presupuesto no la dice.")
+      setError("Elige la unidad de compra.")
       return
     }
     if (!agrupacion) {
@@ -311,8 +310,7 @@ function FilaPendiente({
     onAprobar(solicitud, {
       precio: precioNum,
       tipo,
-      // solo se manda si se eligió (el servidor usa la del presupuesto)
-      uM: unidadPresupuesto ? "" : uM,
+      uM,
       agrupacion,
       ivaPorcentaje: Number(iva),
       descripcion: nombre,
@@ -372,30 +370,26 @@ function FilaPendiente({
         </select>
       </td>
       <td className={celda}>
-        {unidadPresupuesto ? (
-          <p className="flex h-8 items-center font-medium" title="La del presupuesto: no se cambia al aprobar">
-            {nombreUnidad(unidadPresupuesto)}
+        <select
+          value={uM}
+          onChange={(e) => setUM(e.target.value)}
+          disabled={mostrandoRechazo}
+          className={`h-8 w-full rounded-md border bg-background px-1.5 text-xs ${uM ? "" : "border-amber-400"}`}
+          aria-label="Unidad de compra"
+        >
+          <option value="">Elegir…</option>
+          {UNIDADES_MAESTRO.map((u) => (
+            <option key={u.codigo} value={u.texto}>
+              {nombreUnidad(u.texto)} — {u.texto}
+            </option>
+          ))}
+        </select>
+        {solicitud.uM && (
+          <p className={`mt-1 text-[11px] ${unidadPresupuesto ? "text-muted-foreground" : "text-amber-700"}`}>
+            {unidadPresupuesto
+              ? `Presupuesto: ${nombreUnidad(solicitud.uM)}`
+              : `El presupuesto dice «${solicitud.uM}», que no es una unidad`}
           </p>
-        ) : (
-          <>
-            <select
-              value={unidadElegida}
-              onChange={(e) => setUnidadElegida(e.target.value)}
-              disabled={mostrandoRechazo}
-              className="h-8 w-full rounded-md border border-amber-400 bg-background px-1.5 text-xs"
-              aria-label="Unidad"
-            >
-              <option value="">Elegir…</option>
-              {UNIDADES_MAESTRO.map((u) => (
-                <option key={u.codigo} value={u.texto}>
-                  {nombreUnidad(u.texto)} — {u.texto}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] text-amber-700">
-              El presupuesto dice «{solicitud.uM || "nada"}», que no es una unidad: elige la correcta.
-            </p>
-          </>
         )}
       </td>
       <td className={celda}>

@@ -1033,17 +1033,24 @@ insumo (hoy un rollo de 50 m, mañana uno de 100 m), así que el maestro ya no
 guarda presentación. Lo de "Presentación" de la sección anterior queda como
 historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
 `compararUnidad` todavía los lee, pero ninguna pantalla los escribe.
-- **Aprobación de insumos** (pantalla y Excel): la UNIDAD del insumo es la
-  del presupuesto (`solicitudes_insumos.u_m`) y no se cambia al aprobar; el
-  precio es por esa unidad ("Precio por unidad sin IVA", "por m"). La
-  presentación en que se compra (rollo, bulto, caja) la define Compras en la
-  orden de compra ("UM disponible"): así un insumo nuevo nunca necesita
-  conversión en el APU. Solo si el presupuesto no trae una unidad reconocida
-  ("Ins") se elige (ámbar en pantalla; celda amarilla con lista en el Excel).
-  Si la unidad del presupuesto está mal, se rechaza para que la corrijan. El
-  nombre se puede corregir; no deja aprobar uno que ya existe en el maestro.
-  (Hubo una versión, el mismo día, que escribía la conversión en el nombre,
-  "X 50 M": se descartó.)
+- **Aprobación de insumos** (pantalla y Excel, decisión final del usuario
+  2026-11-11): se elige la UNIDAD DE COMPRA (viene la del presupuesto) y el
+  precio es por esa unidad; el nombre debe decir la presentación ("TELA VERDE
+  ROLLO X 100 M", "DURMIENTE 5 X 5 X 3 M"). No deja aprobar un nombre que ya
+  existe. Si la unidad de compra es otra que la del presupuesto (m contra
+  rollo), aprobarSolicitudInsumo llama `devolver_lineas_para_conversion`
+  ANTES de aprobar: esas líneas se sueltan de la solicitud (el disparador no
+  las mete al APU) y vuelven a "pendiente" con el insumo como único candidato
+  y `apu_import_revision.convertir_insumo_id`. El ingeniero las ve en Revisar
+  pendientes › "Falta conversión" (amarillo, una tarjeta por insumo, "1 rollo
+  = [100] m" leído del nombre) y le llegan la campanita
+  (`insumo_por_convertir`) y Mis pendientes (mismo tipo, `/presupuestos?revisar=1`
+  abre la revisión). Las líneas con unidad no reconocida ("Ins") toman la
+  elegida. Solicitud hecha a mano desde el editor en otra unidad: no se crea
+  su línea ni hay aviso (pendiente). Migración `20261231999900` (no se puede
+  correr dos veces: el parche de `_pendientes_de` falla la segunda).
+  (Ese mismo día se probaron y descartaron: conversión escrita en el nombre al
+  aprobar, y unidad fija del presupuesto.)
 - **APU**: la conversión vive solo en la línea (`item_apu.factor_unidad`) y
   solo hace falta con insumos viejos del maestro en otra unidad; el editor y
   la revisión del import la proponen si el nombre dice cuánto trae ("X 50 KG"). Se quitó
