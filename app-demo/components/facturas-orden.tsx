@@ -96,7 +96,7 @@ export function FacturasOrden({
           <p className="text-xs">
             {vigentes.length === 0
               ? "Sin facturas registradas."
-              : `${vigentes.length} ${vigentes.length === 1 ? "factura" : "facturas"}${modo === "parciales" ? " parciales" : ""} · facturado ${pesos.format(facturado)}`}
+              : `${vigentes.length} ${vigentes.length === 1 ? "factura" : "facturas"}${modo === "parciales" ? (vigentes.length === 1 ? " parcial" : " parciales") : ""} · facturado ${pesos.format(facturado)}`}
           </p>
           {vigentes.length > 0 && pendiente > 0 && <p className="text-xs text-muted-foreground">Falta por facturar {pesos.format(pendiente)}</p>}
           <Button size="sm" variant="outline" className="h-7" onClick={() => setAbierta(true)}>
