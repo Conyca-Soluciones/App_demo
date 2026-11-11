@@ -15,6 +15,8 @@ import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { CampoDireccionEntrega } from "@/components/campo-direccion-entrega"
+import { validarDireccion } from "@/lib/direccion-entrega"
 import { formatearFechaHora, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import { nombreUnidad, UNIDADES_MAESTRO } from "@/lib/unidades"
 import {
@@ -106,6 +108,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
   const [fechaRequerida, setFechaRequerida] = useState("")
   const [urgente, setUrgente] = useState(false)
   const [observaciones, setObservaciones] = useState("")
+  const [direccion, setDireccion] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [solicitando, setSolicitando] = useState(false)
@@ -145,7 +148,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
   }
 
   async function enviar() {
-    const e = validarReqAdministrativa(lineas, fechaRequerida, hoy, proyectoId)
+    const e = validarReqAdministrativa(lineas, fechaRequerida, hoy, proyectoId) ?? validarDireccion(direccion)
     if (e) {
       setError(e)
       return
@@ -153,7 +156,14 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
     setEnviando(true)
     setError(null)
     try {
-      const r = await crearRequisicionAdministrativa({ proyectoId: proyectoId!, lineas, fechaRequerida, urgente, observaciones })
+      const r = await crearRequisicionAdministrativa({
+        proyectoId: proyectoId!,
+        lineas,
+        fechaRequerida,
+        urgente,
+        observaciones,
+        direccionEntrega: direccion,
+      })
       onEnviada(r.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo enviar la requisición.")
@@ -200,7 +210,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
     <div className="max-w-5xl space-y-5">
       <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
         Pide para <span className="font-medium text-foreground">FUNCIONAMIENTO</span> (lo que necesita la empresa y no es de una
-        obra) o para uno de tus proyectos. No pasa por aprobación ni descuenta del presupuesto: va directo a Compras.
+        obra) o para uno de tus proyectos. No descuenta del presupuesto. La aprueba Subgerencia y después pasa a Compras.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -268,6 +278,8 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
         )}
       </div>
 
+      <CampoDireccionEntrega id="req-adm-direccion" value={direccion} onChange={setDireccion} disabled={enviando} proyectoId={proyectoId} />
+
       <div className="space-y-1.5">
         <Label htmlFor="req-adm-obs">Observaciones (opcional)</Label>
         <Textarea id="req-adm-obs" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
@@ -277,7 +289,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
 
       <div className="flex justify-end border-t pt-4">
         <Button onClick={enviar} disabled={enviando || lineas.length === 0 || !proyectoId}>
-          {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Enviar a Compras
+          {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Enviar a aprobación
         </Button>
       </div>
 
@@ -287,7 +299,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
           onEnviada={(descripcion) => {
             setSolicitando(false)
             setAviso(
-              `Se pidió "${descripcion}" a Aprobación de insumos (Compras). Cuando lo aprueben queda en el maestro: búscalo y agrégalo a una requisición.`
+              `Se pidió "${descripcion}" a Aprobación de insumos (Compras). Cuando lo aprueben te llega un aviso en la campanita: búscalo y agrégalo a una requisición.`
             )
           }}
         />
@@ -519,7 +531,23 @@ function DetalleDialog({ id, onCerrar, onCancelada }: { id: string; onCerrar: ()
                 </p>
               </div>
             </div>
+            {d.direccionEntrega && (
+              <p className="text-sm">
+                <span className="text-muted-foreground">Dirección de entrega:</span> {d.direccionEntrega}
+              </p>
+            )}
             {d.observaciones && <p className="text-sm"><span className="text-muted-foreground">Observaciones:</span> {d.observaciones}</p>}
+            {d.resolucion && (
+              <p
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  d.estado === "rechazada" ? "border-red-300 bg-red-50 text-red-800" : "border-emerald-300 bg-emerald-50 text-emerald-800"
+                }`}
+              >
+                {d.estado === "rechazada" ? "Rechazada" : "Aprobada"} por {d.resolucion.por ?? "Subgerencia"}
+                {d.resolucion.at ? ` el ${formatearFechaHora(d.resolucion.at)}` : ""}
+                {d.resolucion.motivo ? `. Motivo: ${d.resolucion.motivo}` : "."}
+              </p>
+            )}
             <table className="w-full text-sm">
               <thead>
                 <tr>

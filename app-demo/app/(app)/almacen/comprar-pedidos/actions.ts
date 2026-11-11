@@ -100,6 +100,8 @@ export type PedidoParaComprar = {
   // ni aprobación, la pidió alguien de la empresa.
   administrativa: boolean
   requisicionCodigo: string | null
+  // Dónde se entrega (Paquete A); las requisiciones de antes no la tienen.
+  direccionEntrega: string | null
   insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
@@ -137,7 +139,7 @@ export type PedidoParaComprar = {
 
 const SELECT_PEDIDO_PARA_COMPRAR = `
   id, grupo_pedido_id, proyecto_id, cantidad, unidad, factor_unidad, fecha_requerida, urgente, observaciones, soporte_url, created_at, resuelto_at,
-  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo, administrativa),
+  requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo, administrativa, direccion_entrega),
   item:presupuesto_items!pedidos_insumos_presupuesto_item_id_fkey(codigo),
   insumo:maestro_insumos!pedidos_insumos_insumo_id_fkey(id, codigo, descripcion, u_m, vr_unitario),
   solicitante:perfiles!pedidos_insumos_solicitado_por_fkey(nombre),
@@ -155,8 +157,8 @@ const SELECT_PEDIDO_PARA_COMPRAR = `
 // trae todo el histórico del proyecto; el filtro por línea de abajo sigue
 // quitando las líneas ya completas de esas requisiciones.
 const SELECT_PENDIENTES_POR_COMPRAR = SELECT_PEDIDO_PARA_COMPRAR.replace(
-  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo, administrativa)",
-  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, codigo, administrativa, estado_compra)"
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey(numero, codigo, administrativa, direccion_entrega)",
+  "requisicion:requisiciones!pedidos_insumos_requisicion_fkey!inner(numero, codigo, administrativa, direccion_entrega, estado_compra)"
 )
 
 // Órdenes cuyas líneas NO comprometen la cantidad de la requisición.
@@ -186,6 +188,7 @@ function mapPedidoParaComprar(f: any, excluirOrdenId?: string): PedidoParaCompra
     requisicionNumero: f.requisicion?.numero ?? null,
     administrativa: Boolean(f.requisicion?.administrativa),
     requisicionCodigo: f.requisicion?.codigo ?? null,
+    direccionEntrega: f.requisicion?.direccion_entrega ?? null,
     insumoId: f.insumo?.id,
     insumoCodigo: f.insumo?.codigo,
     insumoDescripcion: f.insumo?.descripcion ?? "(insumo eliminado)",
@@ -539,6 +542,9 @@ export type DatosOrdenCompra = {
   // Saldo a favor del proveedor que Compras decide usar (Paquete C, entrega 3):
   // se descuenta de los pagos de la orden. Solo al crear.
   saldoFavor?: number | null
+  // Empresa que factura (Paquete A, 20261231999400): la elige Compras al crear;
+  // por omisión, la del proyecto. Al modificar se conserva la de la orden.
+  empresaId?: string | null
 }
 
 // Validaciones comunes de crear y modificar (la base las vuelve a hacer).
@@ -634,12 +640,15 @@ export async function crearOrdenCompra(
   const anticipo = validarDatosOrden(datos)
   if (datos.fechaEntrega! < hoyColombia()) throw new Error("La fecha estimada de entrega no puede ser anterior a hoy.")
 
+  if (!datos.empresaId) throw new Error("Elige la empresa que factura.")
+
   const supabase = await createClient()
 
-  // Con saldo a favor: la misma orden más el descuento, en una transacción
-  // (crear_orden_compra_con_saldo, 20261231999300). Sin saldo, igual que siempre.
+  // Empresa que factura y, si se usa, el saldo a favor: en la misma
+  // transacción que la orden (crear_orden_compra_empresa, 20261231999400).
   const usaSaldo = (datos.saldoFavor ?? 0) > 0
-  const { data, error } = await supabase.rpc(usaSaldo ? "crear_orden_compra_con_saldo" : "crear_orden_compra_con_soporte", {
+  const { data, error } = await supabase.rpc("crear_orden_compra_empresa", {
+    p_empresa_id: datos.empresaId,
     ...(usaSaldo ? { p_saldo_favor: datos.saldoFavor } : {}),
     p_proyecto_id: datos.proyectoId,
     p_proveedor_id: datos.proveedorId,
@@ -669,6 +678,30 @@ export async function crearOrdenCompra(
 
   if (error) throw new Error(error.message)
   return data as string
+}
+
+// Empresas a las que se puede facturar una orden y la del proyecto (la que
+// viene por omisión). Todas las empresas (decisión del usuario: todas tienen
+// consolidado).
+export type EmpresaFactura = { id: string; razonSocial: string; nit: string | null }
+export async function opcionesEmpresaFactura(
+  proyectoId: string
+): Promise<{ empresas: EmpresaFactura[]; empresaProyectoId: string | null }> {
+  await requerirScope("rol_compras")
+  const supabase = await createClient()
+  const [empresas, proyecto] = await Promise.all([
+    supabase.from("empresas").select("id, razon_social, nit").order("razon_social"),
+    supabase.from("proyectos").select("empresa_id").eq("id", proyectoId).maybeSingle(),
+  ])
+  if (empresas.error) throw new Error(empresas.error.message)
+  return {
+    empresas: (empresas.data ?? []).map((e: { id: string; razon_social: string; nit: string | null }) => ({
+      id: e.id,
+      razonSocial: e.razon_social,
+      nit: e.nit,
+    })),
+    empresaProyectoId: (proyecto.data as { empresa_id: string | null } | null)?.empresa_id ?? null,
+  }
 }
 
 // Soportes de una orden (quien ve la orden los ve: RLS). Aparte del detalle
@@ -835,6 +868,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       cerrada_faltante_at, motivo_cierre_faltante, valor_faltante, pagos_reducidos, saldo_favor_generado, saldo_favor_aplicado,
       cerrada_por:perfiles!ordenes_compra_cerrada_faltante_por_fkey(nombre),
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
+      empresa_factura:empresas!ordenes_compra_empresa_id_fkey(nit, razon_social, logo_url),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
       ),
@@ -887,9 +921,10 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     proyectoCodigo: d.proyecto?.codigo ?? null,
     proyectoNombre: d.proyecto?.nombre ?? null,
     proyectoCiudad: d.proyecto?.ciudad ?? null,
-    empresaNombre: d.proyecto?.empresa?.razon_social ?? null,
-    empresaNit: d.proyecto?.empresa?.nit ?? null,
-    empresaLogoUrl: d.proyecto?.empresa?.logo_url ?? null,
+    // Empresa que factura (Paquete A); las órdenes de antes, la del proyecto.
+    empresaNombre: (d.empresa_factura ?? d.proyecto?.empresa)?.razon_social ?? null,
+    empresaNit: (d.empresa_factura ?? d.proyecto?.empresa)?.nit ?? null,
+    empresaLogoUrl: (d.empresa_factura ?? d.proyecto?.empresa)?.logo_url ?? null,
     proveedorNombre: d.proveedor?.nombre ?? "(proveedor eliminado)",
     proveedorNit: nitProveedor,
     proveedorDireccion: d.proveedor?.direccion ?? null,
@@ -1448,6 +1483,10 @@ export type NotificacionTipo =
   | "requisicion_admin_rechazada"
   | "requisicion_extraordinaria"
   | "requisicion_administrativa"
+  | "requisicion_administrativa_por_aprobar"
+  | "requisicion_administrativa_aprobada"
+  | "requisicion_administrativa_rechazada"
+  | "insumo_aprobado"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"

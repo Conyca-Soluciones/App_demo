@@ -142,6 +142,20 @@ export function TablaPedidosCompra({
       claseCelda: "tabular-nums",
     },
     {
+      clave: "direccion",
+      titulo: "Dirección de entrega",
+      ancho: 200,
+      texto: (p) => p.direccionEntrega ?? "",
+      celda: (p) =>
+        p.direccionEntrega ? (
+          <span className="truncate" title={p.direccionEntrega}>
+            {p.direccionEntrega}
+          </span>
+        ) : (
+          <span className="text-muted-foreground/60">—</span>
+        ),
+    },
+    {
       clave: "obs",
       titulo: "Obs",
       ancho: 70,
@@ -262,6 +276,7 @@ export function TablaPedidosCompra({
                 { etiqueta: "Fecha de la requisición", valor: formatoFecha(viendo.fechaPedido) },
                 { etiqueta: "Fecha requerida", valor: formatearFechaSinHora(viendo.fechaRequerida) },
                 { etiqueta: "Urgente", valor: viendo.urgente ? "Sí" : "No" },
+                { etiqueta: "Dirección de entrega", valor: viendo.direccionEntrega ?? "—", ancho: "completo" as const },
                 { etiqueta: "Observaciones", valor: viendo.observaciones ?? "", ancho: "completo" as const },
               ]
             : []

@@ -24,6 +24,7 @@ import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
 import { TarjetaProveedorOC } from "./tarjeta-proveedor-oc"
 import { saldosFavorProveedor } from "@/app/(app)/almacen/ordenes-compra/saldos-actions"
 import { saldoSugerido, validarUsoSaldo, type SaldoProveedor } from "@/lib/saldo-favor"
+import { direccionesDeRequisiciones } from "@/lib/direccion-entrega"
 import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
 import { mapTitularCuenta, titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { MetodoPagoOC } from "@/components/metodo-pago-oc"
@@ -43,6 +44,8 @@ import {
   crearOrdenCompra,
   modificarOrdenCompra,
   obtenerOrdenParaModificar,
+  opcionesEmpresaFactura,
+  type EmpresaFactura,
   type OrdenParaModificar,
   type PedidoParaComprar,
   type ProveedorDetalle,
@@ -192,10 +195,15 @@ export function GenerarOCView({
   const [cargaProveedor, setCargaProveedor] = useState<{ proveedorId: string; detalle: ProveedorDetalle | null } | null>(null)
   const detalleProveedor = proveedor && cargaProveedor?.proveedorId === proveedor.id ? cargaProveedor.detalle : null
   const cargandoProveedor = proveedor !== null && cargaProveedor?.proveedorId !== proveedor.id
-  // Saldo a favor del proveedor en la empresa del proyecto (Paquete C, entrega
+  // Empresa que factura (Paquete A): solo al crear; por omisión la del proyecto.
+  const [empresas, setEmpresas] = useState<EmpresaFactura[] | null>(null)
+  const [empresaId, setEmpresaId] = useState<string | null>(null)
+  // Saldo a favor del proveedor en la empresa que factura (Paquete C, entrega
   // 3). Solo al crear; Compras decide usarlo.
   const [cargaSaldos, setCargaSaldos] = useState<{ proveedorId: string; saldos: SaldoProveedor[] } | null>(null)
-  const saldosProveedor = proveedor && cargaSaldos?.proveedorId === proveedor.id ? cargaSaldos.saldos : []
+  // Clave proveedor|empresa: el saldo es del proveedor EN la empresa que factura.
+  const claveSaldos = proveedor && empresaId ? `${proveedor.id}|${empresaId}` : null
+  const saldosProveedor = claveSaldos && cargaSaldos?.proveedorId === claveSaldos ? cargaSaldos.saldos : []
   const saldoDisponible = saldosProveedor.reduce((a, x) => a + x.disponible, 0)
   const [usarSaldo, setUsarSaldo] = useState(false)
   const [valorSaldo, setValorSaldo] = useState("")
@@ -238,6 +246,9 @@ export function GenerarOCView({
       .then((data) => {
         setPedidos(data)
         setLineas(Object.fromEntries(data.map((p) => [p.id, lineaFormNueva(p)])))
+        // Sitio de entrega: la dirección de las requisiciones si todas coinciden.
+        const { unica } = direccionesDeRequisiciones(data.map((p) => p.direccionEntrega))
+        if (unica) setSitioEntrega((s) => s || unica)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargandoPedidos(false))
@@ -306,16 +317,31 @@ export function GenerarOCView({
   }, [proveedor])
 
   useEffect(() => {
-    if (modificar || !proveedor || !seleccion?.proyectoId) return
+    if (modificar || !seleccion?.proyectoId) return
     let activo = true
-    saldosFavorProveedor(proveedor.id, seleccion.proyectoId)
-      .then((saldos: SaldoProveedor[]) => activo && setCargaSaldos({ proveedorId: proveedor.id, saldos }))
-      // Si no se pueden leer, la orden se hace sin saldo (como siempre).
-      .catch(() => activo && setCargaSaldos({ proveedorId: proveedor.id, saldos: [] }))
+    opcionesEmpresaFactura(seleccion.proyectoId)
+      .then((r: { empresas: EmpresaFactura[]; empresaProyectoId: string | null }) => {
+        if (!activo) return
+        setEmpresas(r.empresas)
+        setEmpresaId((actual) => actual ?? r.empresaProyectoId)
+      })
+      .catch((e) => activo && setError(e instanceof Error ? e.message : "No se pudieron cargar las empresas."))
     return () => {
       activo = false
     }
-  }, [modificar, proveedor, seleccion?.proyectoId])
+  }, [modificar, seleccion?.proyectoId])
+
+  useEffect(() => {
+    if (modificar || !proveedor || !seleccion?.proyectoId || !empresaId) return
+    let activo = true
+    saldosFavorProveedor(proveedor.id, seleccion.proyectoId, empresaId)
+      .then((saldos: SaldoProveedor[]) => activo && setCargaSaldos({ proveedorId: `${proveedor.id}|${empresaId}`, saldos }))
+      // Si no se pueden leer, la orden se hace sin saldo (como siempre).
+      .catch(() => activo && setCargaSaldos({ proveedorId: `${proveedor.id}|${empresaId}`, saldos: [] }))
+    return () => {
+      activo = false
+    }
+  }, [modificar, proveedor, seleccion?.proyectoId, empresaId])
 
   useEffect(() => {
     if (!proveedor || !claveCuentas) return
@@ -456,7 +482,11 @@ export function GenerarOCView({
   const usoSaldo =
     !modificar && usarSaldo && saldoDisponible > 0 && totales ? validarUsoSaldo(valorSaldo, totales.total, saldoDisponible) : null
 
+  // Direcciones de entrega de las requisiciones de la orden (para elegir si son varias).
+  const direccionesRequisiciones = direccionesDeRequisiciones(lineasOrden.map((p) => p.direccionEntrega)).distintas
+
   const puedeGenerar =
+    (modificar || empresaId !== null) &&
     (usoSaldo === null || usoSaldo.ok) &&
     proveedor !== null &&
     !cargandoProveedor &&
@@ -573,7 +603,7 @@ export function GenerarOCView({
         await modificarOrdenCompra(ordenId, datos, soporte)
         setOrdenCreada(ordenId)
       } else {
-        const nueva = await crearOrdenCompra({ ...datos, proyectoId: seleccion!.proyectoId }, soporte)
+        const nueva = await crearOrdenCompra({ ...datos, proyectoId: seleccion!.proyectoId, empresaId }, soporte)
         sessionStorage.removeItem(CLAVE_SELECCION)
         setOrdenCreada(nueva)
       }
@@ -863,6 +893,40 @@ export function GenerarOCView({
         </div>
 
         <div className="w-full max-w-sm shrink-0 space-y-4 overflow-auto rounded-lg border bg-card p-4">
+          {!modificar && (
+            <div className="space-y-1.5">
+              <Label>
+                Empresa que factura <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={empresaId ?? ""}
+                disabled={!empresas || generando}
+                onValueChange={(v) => {
+                  setEmpresaId(String(v ?? "") || null)
+                  // El saldo a favor es de la empresa: con otra se vuelve a elegir.
+                  setUsarSaldo(false)
+                  setValorSaldo("")
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {empresas
+                      ? (empresas.find((e) => e.id === empresaId)?.razonSocial ?? "Elige la empresa")
+                      : "Cargando empresas…"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(empresas ?? []).map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.razonSocial}
+                      {e.nit ? ` · NIT ${e.nit}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label>
               Proveedor <span className="text-destructive">*</span>
@@ -994,6 +1058,21 @@ export function GenerarOCView({
               onChange={(e) => setSitioEntrega(e.target.value)}
               placeholder="Dirección o punto de entrega"
             />
+            {direccionesRequisiciones.length > 1 && (
+              <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <p>Las requisiciones tienen direcciones distintas. Elige una o escribe el sitio de entrega:</p>
+                {direccionesRequisiciones.map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className="block text-left font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => setSitioEntrega(d)}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -1144,6 +1223,9 @@ export function GenerarOCView({
           <Button className="w-full" disabled={!puedeGenerar} onClick={handleGenerar}>
             {generando ? (modificar ? "Guardando..." : "Generando...") : modificar ? "Guardar cambios" : "Generar OC"}
           </Button>
+          {!modificar && empresas && !empresaId && (
+            <p className="text-xs text-muted-foreground">Elige la empresa que factura.</p>
+          )}
           {!proveedor && (
             <p className="text-xs text-muted-foreground">Selecciona un proveedor para continuar.</p>
           )}

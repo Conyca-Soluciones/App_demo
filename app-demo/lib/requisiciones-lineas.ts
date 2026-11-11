@@ -34,6 +34,9 @@ export type RequisicionResumen = {
   // (20261226000000_requisiciones_extraordinarias.sql).
   extraordinaria: boolean
   justificacion: string | null
+  // Dirección de entrega (Paquete A, obligatoria desde 20261231999400; las de
+  // antes no la tienen).
+  direccionEntrega: string | null
 }
 
 export type LineaRequisicion = {
@@ -177,6 +180,7 @@ export function mapResumen(r: any): RequisicionResumen {
     estadoCompra: r.estado_compra,
     extraordinaria: r.extraordinaria === true,
     justificacion: r.justificacion ?? null,
+    direccionEntrega: r.direccion_entrega ?? null,
   }
 }
 

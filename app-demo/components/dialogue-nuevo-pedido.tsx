@@ -12,6 +12,8 @@ import { fechaIsoEnZona, formatearFechaHora, formatearFechaSinHora, hoyColombia 
 
 import { puedeBuscar } from "@/lib/busqueda"
 import { useEffect, useRef, useState } from "react"
+import { CampoDireccionEntrega } from "@/components/campo-direccion-entrega"
+import { validarDireccion } from "@/lib/direccion-entrega"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -104,6 +106,7 @@ export function FormularioRequisicion({
   const [lineas, setLineas] = useState<LineaPedido[]>([])
   const [urgente, setUrgente] = useState(false)
   const [observaciones, setObservaciones] = useState("")
+  const [direccion, setDireccion] = useState("")
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -141,6 +144,7 @@ export function FormularioRequisicion({
       setFechaRequerida(edicion.fechaRequerida.slice(0, 10))
       setUrgente(edicion.urgente)
       setObservaciones(edicion.observaciones ?? "")
+      setDireccion(edicion.direccionEntrega ?? "")
       setLineas(
         edicion.insumos.map(({ insumo, marcados }) => ({
           insumo,
@@ -156,6 +160,7 @@ export function FormularioRequisicion({
       setFechaRequerida("")
       setUrgente(false)
       setObservaciones("")
+      setDireccion("")
       setLineas([])
     }
   }
@@ -242,13 +247,16 @@ export function FormularioRequisicion({
     !!fechaRequerida &&
     fechaRequerida < hoy &&
     !(edicion && fechaRequerida === edicion.fechaRequerida.slice(0, 10))
-  const puedeGuardar = !!fechaRequerida && !fechaPasada && lineasListas && !guardando
+  const faltaDireccion = validarDireccion(direccion)
+  const puedeGuardar = !!fechaRequerida && !fechaPasada && !faltaDireccion && lineasListas && !guardando
   // Por qué el botón está deshabilitado (lo primero que falte).
   const motivoNoGuardar = !fechaRequerida
     ? "Falta la fecha requerida."
     : fechaPasada
       ? "La fecha requerida no puede ser anterior a hoy."
-      : lineas.length === 0
+      : faltaDireccion
+        ? faltaDireccion
+        : lineas.length === 0
         ? "Agrega al menos un insumo."
         : lineaPendiente
           ? `${lineaPendiente.insumo.insumoDescripcion}: ${motivoLinea(lineaPendiente)}`
@@ -275,6 +283,7 @@ export function FormularioRequisicion({
           fechaRequerida,
           urgente,
           observaciones: observaciones.trim() || null,
+          direccionEntrega: direccion,
         })
       } else {
         const creada = await crearPedido({
@@ -283,6 +292,7 @@ export function FormularioRequisicion({
           urgente,
           observaciones: observaciones.trim() || null,
           soporteUrl: null, // subida de archivo a Storage: pendiente de implementar
+          direccionEntrega: direccion,
         })
         onPedidoCreado?.({ requisicionId: creada.requisicionId, numero: creada.numero, codigo: creada.codigo })
         setReinicio((r) => r + 1)
@@ -529,8 +539,16 @@ export function FormularioRequisicion({
             </div>
           )}
 
-          {/* Urgente + observaciones */}
+          {/* Dirección, urgente y observaciones */}
           <div className="space-y-4 border-t pt-5">
+            {/* key: al vaciar el formulario vuelve a proponer la última dirección. */}
+            <CampoDireccionEntrega
+              key={`${reinicio}-${edicion?.requisicionId ?? "nueva"}`}
+              value={direccion}
+              onChange={setDireccion}
+              disabled={guardando}
+              sugerir={!edicion?.direccionEntrega}
+            />
             <div className="flex items-center gap-2">
               <Checkbox checked={urgente} onCheckedChange={(v) => setUrgente(v === true)} />
               <label className="text-sm font-medium">Marcar como urgente</label>
