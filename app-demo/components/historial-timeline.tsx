@@ -216,6 +216,8 @@ const EVENTOS_USUARIO: Record<string, DefEvento> = {
 const EVENTOS_ORDEN_COMPRA: Record<string, DefEvento> = {
   ...EVENTOS,
   modificada: { etiqueta: "Orden modificada por Compras", tono: "aviso" },
+  factura_registrada: { etiqueta: "Factura registrada", tono: "ok" },
+  factura_anulada: { etiqueta: "Factura anulada", tono: "malo" },
 }
 
 const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>> = {
@@ -370,6 +372,9 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   const d = e.datos ?? {}
   if (e.evento === "firma_representante" && d.representante)
     return [`${d.representante}${d.tipo === "suplente" ? " (suplente)" : ""}`]
+  if (tipo === "orden_compra" && (e.evento === "factura_registrada" || e.evento === "factura_anulada")) {
+    return [`${d.parcial ? "Parcial" : "Total"} · ${pesosTexto(d.total)}`]
+  }
   if (tipo === "orden_compra" && e.evento === "modificada") {
     const lineas = [`Total: ${pesosTexto(d.total_antes)} → ${pesosTexto(d.total_despues)}`]
     if (d.proveedor_antes !== d.proveedor_despues) lineas.push(`Proveedor: ${formatoValor(d.proveedor_antes)} → ${formatoValor(d.proveedor_despues)}`)

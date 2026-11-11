@@ -34,6 +34,7 @@ import { lunesDeLaSemana, textoTipoPagoOC } from "@/lib/tipo-pago-oc"
 import { hoyColombia } from "@/lib/fechas"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
+import { FacturasOrden } from "@/components/facturas-orden"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
   obtenerOrdenCompraDetalle,
@@ -494,6 +495,23 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               ))
             )}
           </div>
+          <FacturasOrden
+            ordenId={orden.id}
+            aprobada={orden.estado === "aprobada"}
+            puedeRegistrar={Boolean(permisos?.rolCompras)}
+            totalOrden={totalOrden}
+            lineas={orden.lineas.map((l) => ({
+              id: l.id,
+              cantidad: l.cantidad,
+              precioUnitario: l.precioUnitario,
+              porcentajeDescuento: l.porcentajeDescuento,
+              porcentajeIva: l.porcentajeIva,
+              presentacion: l.presentacion,
+              insumoCodigo: l.insumoCodigo,
+              insumoDescripcion: l.insumoDescripcion,
+              unidad: l.presentacion?.umCompra ?? l.um,
+            }))}
+          />
           {orden.anticipoPorcentaje != null && (
             <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">
               <p className="font-medium text-amber-800">
