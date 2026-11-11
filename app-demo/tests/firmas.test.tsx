@@ -108,7 +108,7 @@ const acta: ActaDetalle = {
   objeto: "Obra", tipoContrato: "obra", anexoTipo: "valor_global", proyectoCodigo: "P1", proyectoNombre: "Proyecto",
   proyectoCiudad: null, empresaNombre: null, empresaNit: null, contratistaId: "k1", contratistaNombre: "Contratista SAS",
   contratistaTipoPersona: "juridica", contratistaDocumento: "NIT 900", contratistaRepresentante: "Rep Legal", otrasActas: 0,
-  avanceAnterior: 0, actividades: [], descuentos: [], soportes: [], pago: null, lineasAnteriores: [],
+  avanceAnterior: 0, actividades: [], descuentos: [], soportes: [], pago: null, pagos: [], saldosAnteriores: [], lineasAnteriores: [],
 }
 
 describe("PDF con firmas", () => {

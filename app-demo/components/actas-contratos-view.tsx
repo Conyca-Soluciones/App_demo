@@ -52,6 +52,7 @@ import {
   listarActasDeContrato,
   obtenerActa,
   obtenerContratoParaActa,
+  saldosActasContrato,
   titularDeActa,
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
@@ -514,7 +515,7 @@ function ContratoActas({
       <DetalleActa
         id={verActa}
         onCerrar={cerrarActa}
-        puedeSubirFirmada={puedeElaborar}
+        puedeSubirFactura={puedeElaborar}
         acciones={(a) =>
           puedeElaborar && actaEditable(a) ? (
             <Button onClick={() => editar(a)}>
@@ -559,6 +560,18 @@ function FormularioActa({
       activo = false
     }
   }, [contrato.id, edicion?.id])
+
+  // Saldos en espera de actas anteriores (avances): solo para avisar.
+  const [saldos, setSaldos] = useState<{ actaId: string; numero: number; saldo: number }[]>([])
+  useEffect(() => {
+    let activo = true
+    saldosActasContrato(contrato.id)
+      .then((l: { actaId: string; numero: number; saldo: number }[]) => activo && setSaldos(l))
+      .catch(() => {}) // solo es un aviso: si falla, el formulario sigue igual
+    return () => {
+      activo = false
+    }
+  }, [contrato.id])
 
   const [form, setForm] = useState<FormActa>(() => (edicion ? formDesdeActa(edicion) : formActaVacio(tipo)))
   const [quitarSoportes, setQuitarSoportes] = useState<Set<string>>(new Set())
@@ -620,15 +633,9 @@ function FormularioActa({
       setError(v.error)
       return
     }
-    // Un acta con pago (neto > 0) exige el soporte de pago: factura o cuenta
-    // de cobro (decisión del usuario; la base lo revisa otra vez en _pago_de_acta).
-    const haySoportePago =
-      nuevos.some((n) => esSoportePago(n.tipo)) ||
-      (edicion?.soportes ?? []).some((s) => esSoportePago(s.tipo) && !quitarSoportes.has(s.id))
-    if (!sinPago && !haySoportePago) {
-      setError("Adjunta el soporte de pago (factura o cuenta de cobro del contratista): el acta con pago lo exige.")
-      return
-    }
+    // La factura ya no es obligatoria al crear el acta (20261231999000): si
+    // el contratista factura después de aprobada, se sube desde el detalle y
+    // ahí el pago pasa a A&F.
     // Contrato por PSE: sin cuenta ni titular aparte.
     const t = titularParaGuardar(sinPago || info?.metodoPago === "pse" ? null : titular)
     if (!t.ok) {
@@ -687,9 +694,18 @@ function FormularioActa({
           {form.tipo === "final" && " Es la última acta de avance: amortiza todo el anticipo que falte."}
           {form.tipo === "liquidacion" && sinPago
             ? " Con neto $ 0 no hay pago: al guardar, el acta queda aprobada."
-            : " Al guardar, su pago queda por aprobar en A&F (Aprobación de pagos); el acta se aprueba cuando se aprueba el pago."}
+            : " Al guardar, su pago queda por aprobar en A&F (Aprobación de pagos); el acta se aprueba cuando se aprueba el pago (completo o un avance). Si todavía no hay factura, se sube después desde el acta aprobada."}
           {edicion && " Conserva el mismo número."}
         </p>
+        {saldos.filter((x) => x.actaId !== edicion?.id).length > 0 && (
+          <p className="mt-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+            {saldos
+              .filter((x) => x.actaId !== edicion?.id)
+              .map((x) => `El Acta ${numeroActa(x.numero)} tiene un saldo pendiente de ${pesos(x.saldo)}`)
+              .join(". ")}
+            . Lo paga A&F cuando haya con qué (Aprobación de pagos); no se suma a esta acta.
+          </p>
+        )}
         {edicion?.estado === "rechazada" && (
           <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             Rechazada{edicion.resueltoPorNombre ? ` por ${edicion.resueltoPorNombre}` : ""}. Motivo: {edicion.motivoResolucion}
@@ -914,8 +930,12 @@ function FormularioActa({
 
           {/* Soportes: el de pago (obligatorio si hay pago) y los demás. */}
           <GrupoSoportesActa
-            titulo={sinPago ? "Soporte de pago (factura o cuenta de cobro)" : "Soporte de pago (factura o cuenta de cobro) *"}
-            ayuda={sinPago ? "Esta acta no tiene pago: el soporte de pago no es obligatorio." : "Obligatorio: el acta con pago lo exige."}
+            titulo="Soporte de pago (factura o cuenta de cobro)"
+            ayuda={
+              sinPago
+                ? "Esta acta no tiene pago: el soporte de pago no es obligatorio."
+                : "Opcional ahora. Si el contratista factura cuando el acta esté aprobada, súbela después desde el acta: sin ella el pago no pasa a A&F."
+            }
             tipos={TIPOS_SOPORTE_PAGO}
             tipoNuevo={tipoNuevoPago}
             onTipoNuevo={setTipoNuevoPago}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FileDown, FileSignature, Loader2, Paperclip } from "lucide-react"
+import { FileDown, Loader2, Paperclip, Pencil, Receipt } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { VisorDocumento } from "@/components/visor-documento"
@@ -15,37 +15,41 @@ import {
   ETIQUETA_ESTADO_ACTA,
   ETIQUETA_SOPORTE,
   ETIQUETA_TIPO_ACTA,
-  MIME_COPIA_FIRMADA,
-  TAMANO_MAXIMO_SOPORTE,
+  resumenPagosActa,
   saldoContrato,
+  validarSoporte,
   type ActaDetalle,
   type SoporteActa,
   numeroActa,
 } from "@/lib/actas"
-import { enlaceSoporteActa, obtenerActa, subirActaFirmadaContratista } from "@/app/(app)/contratos/actas/actions"
+import { enlaceSoporteActa, obtenerActa, reemplazarSoporteActa, subirFacturaActa } from "@/app/(app)/contratos/actas/actions"
 
 // Detalle de un acta en un diálogo (Actas por grupos y Aprobación de actas):
 // el contrato con su cupo, lo ejecutado (actividades o % de avance), los
 // descuentos y el neto, los soportes, el pago en A&F, el historial y el PDF.
-// Cada pantalla pone sus botones. Aprobada, quien elabora actas sube la copia
-// firmada por el contratista (puedeSubirFirmada).
+// Cada pantalla pone sus botones. Aprobada sin factura, quien elabora actas
+// sube la factura y su pago pasa a A&F (puedeSubirFactura).
 export function DetalleActa({
   id,
   onCerrar,
   acciones,
-  puedeSubirFirmada,
+  puedeSubirFactura,
 }: {
   id: string | null
   onCerrar: () => void
   acciones?: (acta: ActaDetalle) => React.ReactNode
-  puedeSubirFirmada?: boolean
+  puedeSubirFactura?: boolean
 }) {
   const [acta, setActa] = useState<ActaDetalle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viendo, setViendo] = useState<SoporteActa | null>(null)
   const [recarga, setRecarga] = useState(0)
-  const [subiendo, setSubiendo] = useState(false)
-  const [errorCopia, setErrorCopia] = useState<string | null>(null)
+  const [tipoFactura, setTipoFactura] = useState<"factura" | "cuenta_cobro">("factura")
+  const [subiendoFactura, setSubiendoFactura] = useState(false)
+  const [errorFactura, setErrorFactura] = useState<string | null>(null)
+  // Soporte que se está reemplazando ("Modificar soporte") y su error.
+  const [reemplazando, setReemplazando] = useState<string | null>(null)
+  const [errorReemplazo, setErrorReemplazo] = useState<{ id: string; texto: string } | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -58,29 +62,61 @@ export function DetalleActa({
     }
   }, [id, recarga])
 
-  async function subirCopiaFirmada(actaId: string, archivo: File | undefined) {
+  // Acta aprobada sin factura: se sube y los pagos aprobados pasan a A&F.
+  async function subirFactura(actaId: string, archivo: File | undefined) {
     if (!archivo) return
-    if (!MIME_COPIA_FIRMADA.includes(archivo.type)) return setErrorCopia("Sube la copia en PDF, JPG o PNG.")
-    if (archivo.size > TAMANO_MAXIMO_SOPORTE) return setErrorCopia("El archivo pesa más de 10 MB.")
+    const problema = validarSoporte(archivo)
+    if (problema) return setErrorFactura(problema)
     const supabase = createClient()
     const ext = archivo.name.includes(".") ? archivo.name.split(".").pop()!.toLowerCase() : "pdf"
-    const ruta = `${actaId}/firmada_contratista-${Date.now()}.${ext}`
-    setSubiendo(true)
-    setErrorCopia(null)
+    const ruta = rutaSoporteNuevo(actaId, tipoFactura, ext)
+    setSubiendoFactura(true)
+    setErrorFactura(null)
     let subido = false
     try {
       const { error: e } = await supabase.storage.from("actas").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
       if (e) throw new Error(`No se pudo subir el archivo: ${e.message}`)
       subido = true
-      const { rutaAnterior } = await subirActaFirmadaContratista(actaId, { ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type })
+      await subirFacturaActa(actaId, { tipo: tipoFactura, ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type })
+      subido = false
+      setRecarga((n) => n + 1)
+    } catch (e) {
+      if (subido) await supabase.storage.from("actas").remove([ruta])
+      setErrorFactura(e instanceof Error ? e.message : "No se pudo guardar la factura.")
+    } finally {
+      setSubiendoFactura(false)
+    }
+  }
+
+  // El archivo nuevo se sube primero; si la base no lo acepta, se borra.
+  async function reemplazarSoporte(actaId: string, soporte: SoporteActa, archivo: File | undefined) {
+    if (!archivo) return
+    const problema = validarSoporte(archivo)
+    if (problema) return setErrorReemplazo({ id: soporte.id, texto: problema })
+    const supabase = createClient()
+    const ext = archivo.name.includes(".") ? archivo.name.split(".").pop()!.toLowerCase() : "pdf"
+    const ruta = rutaSoporteNuevo(actaId, soporte.tipo, ext)
+    setReemplazando(soporte.id)
+    setErrorReemplazo(null)
+    let subido = false
+    try {
+      const { error: e } = await supabase.storage.from("actas").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
+      if (e) throw new Error(`No se pudo subir el archivo: ${e.message}`)
+      subido = true
+      const { rutaAnterior } = await reemplazarSoporteActa(actaId, soporte.id, {
+        ruta,
+        nombreArchivo: archivo.name,
+        tamano: archivo.size,
+        mime: archivo.type,
+      })
       subido = false
       if (rutaAnterior) await supabase.storage.from("actas").remove([rutaAnterior])
       setRecarga((n) => n + 1)
     } catch (e) {
       if (subido) await supabase.storage.from("actas").remove([ruta])
-      setErrorCopia(e instanceof Error ? e.message : "No se pudo guardar la copia firmada.")
+      setErrorReemplazo({ id: soporte.id, texto: e instanceof Error ? e.message : "No se pudo modificar el soporte." })
     } finally {
-      setSubiendo(false)
+      setReemplazando(null)
     }
   }
 
@@ -88,7 +124,8 @@ export function DetalleActa({
     setActa(null)
     setError(null)
     setViendo(null)
-    setErrorCopia(null)
+    setErrorFactura(null)
+    setErrorReemplazo(null)
     onCerrar()
   }
 
@@ -96,6 +133,8 @@ export function DetalleActa({
   // Cupo visto desde esta acta: lo que usan las demás + esta (si no está rechazada).
   const usado = v ? v.otrasActas + (v.estado === "rechazada" ? 0 : v.valorBruto) : 0
   const conActividades = v ? v.actividades.filter((a) => a.cantidad != null) : []
+  const pagos = v ? resumenPagosActa(v.pagos) : null
+  const tieneFactura = v ? v.soportes.some((s) => s.tipo === "factura" || s.tipo === "cuenta_cobro") : false
 
   return (
     <Dialog open={id !== null} onOpenChange={(abierto) => !abierto && cerrar()}>
@@ -277,64 +316,134 @@ export function DetalleActa({
               </table>
             </div>
 
-            {v.pago && (
-              <p
-                className={`rounded-md border px-3 py-2 text-sm ${
-                  v.pago.estado === "solicitado" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"
-                }`}
-              >
-                {v.pago.estado === "solicitado"
-                  ? `Pago por ${pesos(v.pago.valor)} por aprobar en A&F (Aprobación de pagos). Al aprobarlo, el acta queda aprobada.`
-                  : `Pago aprobado en A&F por ${pesos(v.pago.valor)}`}
-                {v.pago.semana != null ? `${v.pago.item ? ` · REF ${v.pago.item}` : ""} · semana ${v.pago.semana} de ${v.pago.anio}` : ""}
-                {v.pago.novedad ? ` · ${v.pago.novedad}` : ""}
+            {v.saldosAnteriores.length > 0 && (
+              <p className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+                Saldos pendientes de actas anteriores del contrato:{" "}
+                {v.saldosAnteriores.map((x) => `Acta ${numeroActa(x.numero)} ${pesos(x.saldo)}`).join(" · ")}.
               </p>
+            )}
+
+            {v.estado === "pendiente" && v.pago && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Pago por {pesos(v.pago.valor)} por aprobar en A&F (Aprobación de pagos). Al aprobarlo (completo o un avance), el acta queda aprobada.
+                {!tieneFactura && " Todavía no tiene factura: se puede subir cuando esté aprobada."}
+              </p>
+            )}
+
+            {v.estado === "aprobada" && pagos && v.pagos.length > 0 && (
+              <div className="space-y-2 rounded-lg border p-3 text-sm">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Cifra titulo="Aprobado para pago" valor={pagos.aprobado} fuerte />
+                  <Cifra titulo="Aprobado, espera la factura" valor={pagos.esperaFactura} />
+                  <Cifra titulo="Saldo en espera" valor={pagos.saldo} />
+                </div>
+                {pagos.saldo > 0 && (
+                  <p className="text-xs text-orange-800">
+                    Se aprobó un avance: el saldo de {pesos(pagos.saldo)} queda en espera en A&F hasta que se decida pagarlo.
+                  </p>
+                )}
+                <ul className="space-y-0.5 text-xs text-muted-foreground">
+                  {v.pagos.map((g) => (
+                    <li key={g.id}>
+                      {g.saldoActa ? "Saldo" : "Pago"} de {pesos(g.valor)} ·{" "}
+                      {g.estado === "en_espera"
+                        ? g.aprobado
+                          ? "aprobado, espera la factura"
+                          : "en espera"
+                        : g.estado === "dispersado"
+                          ? "pagado"
+                          : g.estado === "aprobado"
+                            ? "aprobado"
+                            : g.estado}
+                      {g.semana != null ? ` · semana ${g.semana} de ${g.anio}` : ""}
+                      {g.referencia ? ` · REF ${g.referencia}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {v.estado === "aprobada" && pagos && pagos.esperaFactura > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50/60 p-3 text-sm">
+                <p className="flex items-center gap-2 font-medium text-amber-900">
+                  <Receipt className="size-4" /> Falta la factura del contratista
+                </p>
+                <p className="text-xs text-amber-900">
+                  El acta está aprobada. Sube la factura o cuenta de cobro: al subirla, el pago de {pesos(pagos.esperaFactura)} pasa a A&F para pagarse.
+                </p>
+                {puedeSubirFactura ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={tipoFactura}
+                      onChange={(e) => setTipoFactura(e.target.value as "factura" | "cuenta_cobro")}
+                      disabled={subiendoFactura}
+                      className="h-9 rounded-md border bg-background px-2 text-sm"
+                      aria-label="Tipo de soporte de pago"
+                    >
+                      <option value="factura">{ETIQUETA_SOPORTE.factura}</option>
+                      <option value="cuenta_cobro">{ETIQUETA_SOPORTE.cuenta_cobro}</option>
+                    </select>
+                    <input
+                      type="file"
+                      disabled={subiendoFactura}
+                      onChange={(e) => {
+                        subirFactura(v.id, e.target.files?.[0])
+                        e.target.value = ""
+                      }}
+                      className="block min-w-0 flex-1 text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">La sube quien elabora las actas del proyecto.</p>
+                )}
+                {subiendoFactura && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" /> Subiendo…
+                  </p>
+                )}
+                {errorFactura && <p className="text-xs text-destructive">{errorFactura}</p>}
+              </div>
             )}
 
             {v.soportes.length > 0 && (
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Soportes</p>
                 {v.soportes.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setViendo(s)}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent"
-                  >
-                    <Paperclip className="h-4 w-4 shrink-0" />
-                    <span className="truncate text-primary underline underline-offset-2">{s.nombreArchivo}</span>
-                    <span className="text-xs text-muted-foreground">({ETIQUETA_SOPORTE[s.tipo]})</span>
-                  </button>
+                  <div key={s.id} className="space-y-0.5">
+                    <div className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent">
+                      <button
+                        type="button"
+                        onClick={() => setViendo(s)}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"
+                      >
+                        <Paperclip className="h-4 w-4 shrink-0" />
+                        <span className="truncate text-primary underline underline-offset-2">{s.nombreArchivo}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">({ETIQUETA_SOPORTE[s.tipo]})</span>
+                      </button>
+                      {puedeSubirFactura && (
+                        <label
+                          className={`inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border bg-background px-2.5 text-xs hover:bg-accent ${
+                            reemplazando !== null ? "pointer-events-none opacity-50" : ""
+                          }`}
+                          title="Reemplazar este archivo por otro (queda en el historial)"
+                        >
+                          {reemplazando === s.id ? <Loader2 className="size-3.5 animate-spin" /> : <Pencil className="size-3.5" />}
+                          {reemplazando === s.id ? "Subiendo…" : "Modificar soporte"}
+                          <input
+                            type="file"
+                            className="sr-only"
+                            disabled={reemplazando !== null}
+                            onChange={(e) => {
+                              reemplazarSoporte(v.id, s, e.target.files?.[0])
+                              e.target.value = ""
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                    {errorReemplazo?.id === s.id && <p className="px-2 text-xs text-destructive">{errorReemplazo.texto}</p>}
+                  </div>
                 ))}
-              </div>
-            )}
-
-            {v.estado === "aprobada" && puedeSubirFirmada && (
-              <div className="space-y-1.5 rounded-lg border border-dashed p-3 text-sm">
-                <p className="flex items-center gap-2 font-medium">
-                  <FileSignature className="size-4" /> Copia firmada por el contratista
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {v.soportes.some((s) => s.tipo === "firmada_contratista")
-                    ? "Ya está en los soportes. Subir otra la reemplaza."
-                    : "Imprime el PDF del acta, que la firme el contratista y sube aquí la copia escaneada (PDF, JPG o PNG)."}
-                </p>
-                <input
-                  type="file"
-                  accept={MIME_COPIA_FIRMADA.join(",")}
-                  disabled={subiendo}
-                  onChange={(e) => {
-                    subirCopiaFirmada(v.id, e.target.files?.[0])
-                    e.target.value = ""
-                  }}
-                  className="block w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
-                />
-                {subiendo && (
-                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="size-3.5 animate-spin" /> Subiendo…
-                  </p>
-                )}
-                {errorCopia && <p className="text-xs text-destructive">{errorCopia}</p>}
               </div>
             )}
 
@@ -350,6 +459,9 @@ export function DetalleActa({
     </Dialog>
   )
 }
+
+// Ruta en el bucket de un archivo nuevo del acta (marca de tiempo: no se repite).
+const rutaSoporteNuevo = (actaId: string, tipo: string, ext: string) => `${actaId}/${tipo}-${Date.now()}.${ext}`
 
 function Dato({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (

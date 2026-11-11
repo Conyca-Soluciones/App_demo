@@ -66,6 +66,10 @@ export type Pago = {
   // OC a crédito (20261229000000): fecha en que se debe pagar. El pago aprobado
   // queda "en_espera" hasta el lunes de esa semana.
   ordenFechaPagoCredito: string | null
+  // Saldo de un acta a la que se le aprobó un avance (20261231999000). En
+  // en_espera sin aprobadoEn = saldo por pagar; con aprobadoEn = aprobado y
+  // esperando la factura del acta.
+  saldoActa: boolean
   // Requisición administrativa de la que sale el pago (para ver su detalle).
   requisicionAdminId: string | null
   // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
@@ -141,6 +145,23 @@ export const ETAPAS_CONSOLIDADO: { clave: EtapaConsolidado; titulo: string }[] =
 export type ConteoEtapas = Record<EtapaConsolidado, number>
 export type TipoComentarioPago = "comentario" | "observacion" | "respuesta"
 export type ComentarioPago = { id: string; texto: string; tipo: TipoComentarioPago; autor: string | null; creadoEn: string }
+
+// en_espera según el pago: crédito de una OC, pago de acta que espera la
+// factura, o saldo de un acta con avance (por pagar).
+export const esSaldoActaPorPagar = (p: Pick<Pago, "estado" | "saldoActa" | "aprobadoEn">) =>
+  p.estado === "en_espera" && p.saldoActa && !p.aprobadoEn
+export const esperaFacturaActa = (p: Pick<Pago, "estado" | "actaId" | "aprobadoEn">) =>
+  p.estado === "en_espera" && p.actaId != null && p.aprobadoEn != null
+export function etiquetaEstadoPago(p: Pick<Pago, "estado" | "saldoActa" | "actaId" | "aprobadoEn">): string {
+  if (esSaldoActaPorPagar(p)) return "Saldo en espera"
+  if (esperaFacturaActa(p)) return "Aprobado: falta factura"
+  return ETIQUETA_ESTADO_PAGO[p.estado]
+}
+export function claseEstadoPago(p: Pick<Pago, "estado" | "saldoActa" | "actaId" | "aprobadoEn">): string {
+  if (esSaldoActaPorPagar(p)) return "border-orange-300 bg-orange-50 text-orange-800"
+  if (esperaFacturaActa(p)) return "border-amber-300 bg-amber-50 text-amber-800"
+  return CLASE_ESTADO_PAGO[p.estado]
+}
 
 export const etiquetaEtapa = (p: Pick<Pago, "estado" | "liquidacionEstado">): string =>
   p.estado !== "aprobado"
@@ -257,8 +278,15 @@ export type SoportePago =
   | { origen: "acta"; ruta: string; nombre: string; tipo: string }
   | { origen: "requisicion_admin"; ruta: string; nombre: string; tipo: string }
 
+// "Pendientes" en Aprobación de pagos (decisión del usuario, 2026-11-11): por
+// aprobar, programados y en espera (crédito, factura del acta, saldos de
+// actas). No: aprobados, rechazados, ni los ya cerrados (dispersados, anulados).
+export const ESTADOS_PENDIENTES: EstadoPago[] = ["solicitado", "programado", "en_espera"]
+
 export type FiltrosAprobacionPagos = {
-  estado?: EstadoPago
+  // "saldo_acta": los saldos de actas en espera (pagos en_espera sin aprobar).
+  // "pendientes": todo lo que falta resolver (ESTADOS_PENDIENTES).
+  estado?: EstadoPago | "saldo_acta" | "pendientes"
   tercero?: string
 }
 

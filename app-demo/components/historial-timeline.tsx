@@ -61,6 +61,8 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   aprobada: { etiqueta: "Acta aprobada", tono: "ok" },
   rechazada: { etiqueta: "Acta rechazada", tono: "malo" },
   firmada_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
+  factura_subida: { etiqueta: "Factura del contratista subida: el pago pasa a A&F", tono: "ok" },
+  soporte_reemplazado: { etiqueta: "Soporte modificado", tono: "aviso" },
 }
 
 const EVENTOS_REQUISICION_ADMIN: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
@@ -122,6 +124,8 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   aprobado: { etiqueta: "Pago aprobado", tono: "ok" },
   en_espera: { etiqueta: "Pago aprobado a crédito: espera la semana de su fecha", tono: "ok" },
   credito_liberado: { etiqueta: "Llegó la semana del crédito: pasa a pago", tono: "neutro" },
+  espera_factura: { etiqueta: "Pago aprobado: espera la factura del acta", tono: "ok" },
+  factura_recibida: { etiqueta: "Llegó la factura del acta: pasa a pago", tono: "neutro" },
   rechazado: { etiqueta: "Pago rechazado", tono: "malo" },
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   enviado_liquidar: { etiqueta: "Enviado a liquidar", tono: "neutro" },
@@ -469,7 +473,19 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     return []
   }
   if (tipo === "acta") {
-    if (e.evento === "aprobada" && d.pago_id) return [`Pago creado en A&F por ${pesosTexto(d.neto)}`]
+    if (e.evento === "aprobada" && d.pago_id) {
+      // Desde 20261231999000: aprobado completo o un avance, y si espera la factura.
+      if (d.aprobado == null) return [`Pago creado en A&F por ${pesosTexto(d.neto)}`]
+      const lineas = [
+        Number(d.saldo ?? 0) > 0
+          ? `Avance aprobado por ${pesosTexto(d.aprobado)} · saldo en espera ${pesosTexto(d.saldo)}`
+          : `Pago aprobado por ${pesosTexto(d.aprobado)}`,
+      ]
+      if (d.falta_factura) lineas.push("Falta la factura: el pago pasa a A&F cuando la suban")
+      return lineas
+    }
+    if (e.evento === "factura_subida") return [String(d.nombre_archivo ?? "")].filter(Boolean)
+    if (e.evento === "soporte_reemplazado") return [`${String(d.anterior ?? "—")} → ${String(d.nuevo ?? "—")}`]
     if (d.neto != null) return [`Neto a pagar: ${pesosTexto(d.neto)}`]
     return []
   }
