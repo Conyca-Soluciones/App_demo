@@ -1,7 +1,7 @@
 "use client"
 
 // Banner de Aprobación de insumos: las solicitudes pendientes se descargan en
-// un Excel, se llenan (precio, IVA, tipo, unidad de compra, agrupación) y al
+// un Excel, se llenan (precio por unidad, IVA, tipo, agrupación) y al
 // subirlo cada fila completa se aprueba y entra al maestro
 // (lib/excel-precios-insumos.ts). Las que no se llenan siguen en la lista.
 
@@ -135,7 +135,7 @@ export function BannerPreciosInsumos({ onAprobadas }: { onAprobadas?: () => void
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sky-900">
           {pendientes > 0
-            ? `${pendientes} solicitud(es) por aprobar. Puedes aprobarlas en bloque: descarga el Excel, llena precio, IVA, tipo, unidad de compra y agrupación, y súbelo. Cada fila completa queda aprobada en el maestro; las que dejes sin precio siguen aquí.`
+            ? `${pendientes} solicitud(es) por aprobar. Puedes aprobarlas en bloque: descarga el Excel, llena tipo, agrupación, IVA y precio por unidad (la del presupuesto), y súbelo. Cada fila completa queda aprobada en el maestro; las que dejes sin precio siguen aquí.`
             : "No quedan solicitudes por aprobar."}
         </p>
         <div className="flex flex-wrap items-center gap-2">

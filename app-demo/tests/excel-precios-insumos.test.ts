@@ -111,6 +111,7 @@ describe("Excel de solicitudes: ida y vuelta", () => {
       [
         { id: "s1", descripcion: "Arena lavada de rio", unidadPedida: "m³", cantidad: 36.5, proyectos: ["MAL"], tipo: null, uM: null, agrupacion: null },
         { id: "s2", descripcion: "Repisa ordinaria 3 m", unidadPedida: "m", cantidad: 37, proyectos: ["MAL"], tipo: "MATERIAL - M", uM: null, agrupacion: null },
+        { id: "s3", descripcion: "Tierra negra abonada", unidadPedida: "Ins", cantidad: 2, proyectos: ["MAL"], tipo: null, uM: null, agrupacion: null },
       ],
       listas,
       null
@@ -122,7 +123,11 @@ describe("Excel de solicitudes: ida y vuelta", () => {
       if (String(r.getCell(1).value) === C.insumo) filaEncabezado = n
     })
     const primera = hojaExcel.getRow(filaEncabezado + 1)
-    expect(primera.getCell(6).value).toBe("METRO CUBICO - M3") // unidad de compra prellenada desde "m³"
+    expect(primera.getCell(6).value).toBe("METRO CUBICO - M3") // la unidad del presupuesto ("m³")
+    expect(primera.getCell(6).dataValidation?.type).toBeUndefined() // y no se elige
+    const tercera = hojaExcel.getRow(filaEncabezado + 3)
+    expect(tercera.getCell(6).value).toBe("") // "Ins" no es una unidad: se elige
+    expect(tercera.getCell(6).dataValidation?.type).toBe("list")
     expect(primera.getCell(9).value).toBe(19)
     primera.getCell(5).value = "MATERIAL - M"
     primera.getCell(7).value = "006 - 006 - CONCRETOS Y MORTEROS"
@@ -133,7 +138,7 @@ describe("Excel de solicitudes: ida y vuelta", () => {
     const filas = XLSX.utils.sheet_to_json<unknown[]>(leido.Sheets[leido.SheetNames[0]], { header: 1, defval: null })
     const r = leerFilasPreciosInsumos(filas, listas)
     expect(r.errores).toEqual([])
-    expect(r.sinPrecio).toBe(1)
+    expect(r.sinPrecio).toBe(2)
     expect(r.filas).toEqual([
       expect.objectContaining({ solicitudId: "s1", vrUnitario: 95000, ivaPorcentaje: 19, uM: "METRO CUBICO - M3", descripcion: "ARENA LAVADA DE RIO" }),
     ])

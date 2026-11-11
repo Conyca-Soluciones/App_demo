@@ -1033,14 +1033,20 @@ insumo (hoy un rollo de 50 m, mañana uno de 100 m), así que el maestro ya no
 guarda presentación. Lo de "Presentación" de la sección anterior queda como
 historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
 `compararUnidad` todavía los lee, pero ninguna pantalla los escribe.
-- **Aprobación de insumos** (pantalla y Excel): sin "trae ___"; el NOMBRE se
-  edita y es donde va cuánto trae ("ALAMBRE GALVANIZADO X 50 M"; también
-  "POR 50 M"). No deja aprobar un nombre que ya existe en el maestro.
-  Si las líneas del APU que lo pidieron están en otra unidad, su conversión
-  sale del nombre (`sugerirPresentacion` / `presentacionDesdeNombre`) y se
-  guarda en cada línea; sin "X 50 M" en el nombre no deja aprobar.
-- **APU**: la conversión vive solo en la línea (`item_apu.factor_unidad`); el
-  editor y la revisión del import la proponen desde el nombre. Se quitó
+- **Aprobación de insumos** (pantalla y Excel): la UNIDAD del insumo es la
+  del presupuesto (`solicitudes_insumos.u_m`) y no se cambia al aprobar; el
+  precio es por esa unidad ("Precio por unidad sin IVA", "por m"). La
+  presentación en que se compra (rollo, bulto, caja) la define Compras en la
+  orden de compra ("UM disponible"): así un insumo nuevo nunca necesita
+  conversión en el APU. Solo si el presupuesto no trae una unidad reconocida
+  ("Ins") se elige (ámbar en pantalla; celda amarilla con lista en el Excel).
+  Si la unidad del presupuesto está mal, se rechaza para que la corrijan. El
+  nombre se puede corregir; no deja aprobar uno que ya existe en el maestro.
+  (Hubo una versión, el mismo día, que escribía la conversión en el nombre,
+  "X 50 M": se descartó.)
+- **APU**: la conversión vive solo en la línea (`item_apu.factor_unidad`) y
+  solo hace falta con insumos viejos del maestro en otra unidad; el editor y
+  la revisión del import la proponen si el nombre dice cuánto trae ("X 50 KG"). Se quitó
   "Guardar también en el maestro". **OC**: sin cambios ("UM disponible").
 - **Maestra**: sin columna, filtro, editor ni "Revisar sugerencias".
 - **Solicitudes repetidas**: "No existe — crear solicitud" guardado línea por

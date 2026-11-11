@@ -14,7 +14,6 @@ import {
   nombreUnidad,
   normalizarUnidad,
   unidadMaestro,
-  sugerirPresentacion,
   type PresentacionInsumo,
 } from "@/lib/unidades"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
@@ -1030,14 +1029,14 @@ export type AprobarSolicitudInput = {
   solicitudId: string
   vrUnitario: number
   tipo?: string
+  // Solo cuando el presupuesto no trae una unidad reconocida ("Ins"): la
+  // unidad del insumo es SIEMPRE la del presupuesto (ver aprobarSolicitudInsumo).
   uM?: string | null
   agrupacion?: string | null
   // IVA del insumo en % (0, 5 o 19); el precio se guarda sin IVA y vr_neto con él
   ivaPorcentaje?: number | null
-  // Nombre con que entra al maestro (quien aprueba lo corrige: "ALAMBRE
-  // GALVANIZADO X 50 M"). Sin él, el de la solicitud. Si la unidad del APU no
-  // es la de compra, la conversión de esas líneas se lee de este nombre; el
-  // maestro ya no guarda presentación (decisión del usuario, 2026-11-11).
+  // Nombre con que entra al maestro (quien aprueba puede corregirlo). Sin él,
+  // el de la solicitud.
   descripcion?: string | null
 }
 
@@ -1091,9 +1090,22 @@ export async function aprobarSolicitudInsumo(
   if (!tipoFinal || !TIPOS_MAESTRO.has(tipoFinal)) {
     throw new Error("Elige el tipo del insumo de la lista antes de aprobar.")
   }
-  const uMFinal = unidadMaestro(input.uM ?? solicitud.u_m)
+  // La unidad del insumo es la del PRESUPUESTO y el precio es por esa unidad
+  // (decisión del usuario, 2026-11-11): la presentación en que se compra
+  // (rollo, bulto, caja) se define en la orden de compra ("UM disponible"),
+  // que es cuando se sabe. Así el APU nunca necesita conversión para un
+  // insumo nuevo. Solo si el presupuesto no trae una unidad reconocida
+  // ("Ins") la elige quien aprueba.
+  const unidadPresupuesto = unidadMaestro(solicitud.u_m)
+  if (unidadPresupuesto && input.uM && unidadMaestro(input.uM) !== unidadPresupuesto) {
+    throw new Error(
+      `La unidad es la del presupuesto (${nombreUnidad(unidadPresupuesto)}) y no se cambia al aprobar. ` +
+        "Si está mal, rechaza la solicitud para que la corrijan en el presupuesto."
+    )
+  }
+  const uMFinal = unidadPresupuesto ?? unidadMaestro(input.uM)
   if (!uMFinal) {
-    throw new Error("Elige la unidad de compra de la lista antes de aprobar.")
+    throw new Error("El presupuesto no dice en qué unidad va este insumo: elige la unidad antes de aprobar.")
   }
   const agrupacionFinal = (input.agrupacion ?? solicitud.agrupacion)?.trim()
   if (!agrupacionFinal) {
@@ -1119,40 +1131,22 @@ export async function aprobarSolicitudInsumo(
     )
   }
 
-  // Conversión para las líneas del APU que pidieron el insumo en otra unidad:
-  // sale del nombre ("X 50 M"). No se guarda en el maestro.
-  const presentacion = sugerirPresentacion(nombreFinal, uMFinal)
-
-  // Las líneas del APU que pidieron este insumo tienen que quedar en una
-  // unidad que cuadre (la misma del precio, o la que dice el nombre).
+  // Las líneas del APU que pidieron este insumo van en la unidad del insumo.
+  // Una línea en OTRA unidad reconocida (no debería pasar: las solicitudes se
+  // agrupan por descripción y unidad) no se deja aprobar. Las que traen una
+  // unidad no reconocida ("Ins") toman la elegida.
   const { data: lineasSolicitud, error: errorLineas } = await supabase
     .from("apu_import_revision")
     .select("unidad")
     .eq("solicitud_id", input.solicitudId)
   if (errorLineas) throw new Error(errorLineas.message)
-  const presentacionFinal: PresentacionInsumo = {
-    u_m: uMFinal,
-    unidad_uso: presentacion?.unidadUso ?? null,
-    contenido: presentacion?.contenido ?? null,
-  }
   const lineaQueNoCuadra = (lineasSolicitud ?? []).find(
-    (l) => compararUnidad(l.unidad, presentacionFinal).estado === "distinta"
+    (l) => unidadMaestro(l.unidad) != null && unidadMaestro(l.unidad) !== uMFinal
   )
-  // Solicitud hecha desde el editor de APU (sin línea de import): la línea va
-  // en la unidad que escribió quien la pidió; tiene que cuadrar igual.
-  const compManual = compararUnidad(solicitud.u_m, presentacionFinal)
-  if ((lineasSolicitud ?? []).length === 0 && solicitud.presupuesto_item_id && compManual.estado === "distinta") {
-    throw new Error(
-      `El APU pidió este insumo en ${nombreUnidad(solicitud.u_m)} y quedaría en ` +
-        `${nombreUnidad(uMFinal) || "otra unidad"}. Deja la unidad en ${nombreUnidad(solicitud.u_m)} ` +
-        `o escribe en el nombre cuánto trae cada ${nombreUnidad(uMFinal) || "unidad"} (por ejemplo "… X 50 ${nombreUnidad(solicitud.u_m).toUpperCase()}").`
-    )
-  }
   if (lineaQueNoCuadra) {
     throw new Error(
-      `El APU pidió este insumo en ${nombreUnidad(lineaQueNoCuadra.unidad)} y quedaría en ` +
-        `${nombreUnidad(uMFinal) || "otra unidad"}. Deja la unidad en ${nombreUnidad(lineaQueNoCuadra.unidad)} ` +
-        `o escribe en el nombre cuánto trae cada ${nombreUnidad(uMFinal) || "unidad"} (por ejemplo "… X 50 ${nombreUnidad(lineaQueNoCuadra.unidad).toUpperCase()}").`
+      `Una línea del presupuesto pidió este insumo en ${nombreUnidad(lineaQueNoCuadra.unidad)} y el insumo ` +
+        `quedaría en ${nombreUnidad(uMFinal)}. Rechaza la solicitud para que corrijan la unidad en el presupuesto.`
     )
   }
 
@@ -1203,38 +1197,18 @@ export async function aprobarSolicitudInsumo(
 
   const vieneDeImport = (filasDeImport?.length ?? 0) > 0
 
-  // El trigger dejó las líneas con la unidad del Excel y factor 1; si la
-  // línea está en la unidad que dice el nombre, el precio se divide por lo que trae.
-  if (vieneDeImport && presentacion) {
+  // El trigger copió la unidad del Excel a cada línea del APU; las que no
+  // traían una unidad reconocida ("Ins") quedan en la del insumo.
+  if (vieneDeImport && !unidadPresupuesto) {
     const { data: revisadas, error: errorRevisadas } = await supabase
       .from("apu_import_revision")
-      .select("item_apu_id, apu_id, unidad")
+      .select("item_apu_id")
       .eq("solicitud_id", input.solicitudId)
       .not("item_apu_id", "is", null)
     if (errorRevisadas) throw new Error(errorRevisadas.message)
-    const apusAfectados = new Set<string>()
-    // Un UPDATE por factor (casi siempre uno), no uno por línea: un insumo
-    // pedido en muchos ítems del import tiene muchas líneas.
-    const lineasPorFactor = new Map<number, string[]>()
-    for (const r of revisadas ?? []) {
-      const comp = compararUnidad(r.unidad, presentacionFinal)
-      if (comp.estado !== "conversion") continue
-      const ids = lineasPorFactor.get(comp.factor) ?? []
-      ids.push(r.item_apu_id)
-      lineasPorFactor.set(comp.factor, ids)
-      apusAfectados.add(r.apu_id)
-    }
-    for (const [factor, ids] of lineasPorFactor) {
-      for (const lote of trocear(ids, 200)) {
-        const { error } = await supabase
-          .from("item_apu")
-          .update({ factor_unidad: factor, unidad: presentacionFinal.unidad_uso })
-          .in("id", lote)
-        if (error) throw new Error(error.message)
-      }
-    }
-    if (apusAfectados.size > 0) {
-      const { error } = await supabase.rpc("recalcular_valor_apus", { p_apu_ids: Array.from(apusAfectados) })
+    const ids = (revisadas ?? []).map((r: { item_apu_id: string }) => r.item_apu_id)
+    for (const lote of trocear(ids, 200)) {
+      const { error } = await supabase.from("item_apu").update({ unidad: normalizarUnidad(uMFinal) }).in("id", lote)
       if (error) throw new Error(error.message)
     }
   }
@@ -1254,7 +1228,6 @@ export async function aprobarSolicitudInsumo(
       // que cualquier otra línea (ver agregarInsumoApu), con IVA y en la
       // unidad de la línea. La cantidad es la que escribió quien lo pidió
       // (las solicitudes viejas, sin cantidad, entran con 1).
-      const factor = compManual.estado === "conversion" ? compManual.factor : 1
       const vrNeto = input.vrUnitario * (1 + iva / 100)
       const { error: errorLinea } = await supabase.from("item_apu").insert({
         apu_id: item.apu_id,
@@ -1262,10 +1235,9 @@ export async function aprobarSolicitudInsumo(
         cantidad: Number(solicitud.cantidad) > 0 ? Number(solicitud.cantidad) : 1,
         rendimiento: 1,
         tipo: tipoFinal,
-        unidad:
-          compManual.estado === "conversion" ? presentacionFinal.unidad_uso : normalizarUnidad(uMFinal),
-        factor_unidad: factor,
-        precio_unitario_congelado: Math.round((vrNeto / factor) * 100) / 100,
+        unidad: normalizarUnidad(uMFinal),
+        factor_unidad: 1,
+        precio_unitario_congelado: Math.round(vrNeto * 100) / 100,
       })
       if (errorLinea) throw new Error(errorLinea.message)
 

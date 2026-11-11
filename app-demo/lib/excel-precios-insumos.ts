@@ -1,9 +1,10 @@
 // Excel de las solicitudes de insumos nuevos (Aprobación de insumos).
 // Presupuestos manda a aprobación los insumos que no encontró en el maestro;
-// en Aprobación de insumos se descarga este Excel, se corrige el nombre (si
-// se compra por rollo o bulto, con cuánto trae: "ALAMBRE X 50 M") y se llena
-// precio, IVA, tipo, unidad de compra y agrupación; al subirlo cada fila
-// completa se aprueba y entra al maestro (aprobarSolicitudInsumo).
+// en Aprobación de insumos se descarga este Excel, se corrige el nombre si
+// hace falta y se llena tipo, agrupación, IVA y precio unitario; al subirlo
+// cada fila completa se aprueba y entra al maestro (aprobarSolicitudInsumo).
+// La unidad es la del presupuesto y el precio es por esa unidad: solo se
+// escribe cuando el presupuesto no trae una unidad reconocida ("Ins").
 //
 // leerFilasPreciosInsumos es lógica pura (pruebas en
 // tests/excel-precios-insumos.test.ts); descargarExcelPreciosInsumos arma el
@@ -56,9 +57,9 @@ export const COLUMNAS_PRECIOS_INSUMOS = {
   cantidad: "Cantidad pedida",
   proyectos: "Proyectos",
   tipo: "Tipo",
-  uM: "Unidad de compra",
+  uM: "Unidad",
   agrupacion: "Agrupación",
-  precio: "Precio unitario sin IVA",
+  precio: "Precio por unidad sin IVA",
   iva: "IVA %",
   id: "ID interno -- NO BORRAR NI EDITAR",
 } as const
@@ -71,7 +72,7 @@ const ORDEN: { clave: ClaveColumna; ancho: number; llenar?: boolean }[] = [
   { clave: "cantidad", ancho: 14 },
   { clave: "proyectos", ancho: 22 },
   { clave: "tipo", ancho: 24, llenar: true },
-  { clave: "uM", ancho: 26, llenar: true },
+  { clave: "uM", ancho: 22 },
   { clave: "agrupacion", ancho: 36, llenar: true },
   { clave: "precio", ancho: 18, llenar: true },
   { clave: "iva", ancho: 9, llenar: true },
@@ -176,7 +177,7 @@ export function leerFilasPreciosInsumos(
     }
     const uM = unidadMaestro(texto(celda(f, "uM")))
     if (!uM) {
-      error("Elige la unidad de compra de la lista.")
+      error("Elige la unidad de la lista (el presupuesto no la dice).")
       continue
     }
     const agrupacion = agrupacionPorNombre.get(normal(celda(f, "agrupacion")))
@@ -246,10 +247,12 @@ export async function construirLibroPreciosInsumos(
     celda.font = { bold: true, color: { argb: "FFFFFFFF" } }
     celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL_MARCA_CONYCA } }
     celda.alignment = { vertical: "middle", horizontal: "center", wrapText: true }
-    if (c.clave === "insumo") {
+    if (c.clave === "insumo") celda.note = "Nombre con que entra al maestro: se puede corregir."
+    if (c.clave === "uM") {
       celda.note =
-        "Nombre con que entra al maestro: se puede corregir. Si se compra por rollo, bulto o caja, escribe cuánto trae (ej. ALAMBRE GALVANIZADO X 50 M)."
+        "La del presupuesto: no se cambia. Solo se elige cuando viene vacía (el presupuesto no dice una unidad reconocida). Si se compra por rollo, bulto o caja, Compras lo define en la orden de compra."
     }
+    if (c.clave === "precio") celda.note = "Precio por la unidad de la columna Unidad, sin IVA."
   })
   encabezado.height = 32
 
@@ -263,7 +266,8 @@ export async function construirLibroPreciosInsumos(
       cantidad: s.cantidad,
       proyectos: s.proyectos.join(", "),
       tipo: s.tipo && tipos.has(s.tipo) ? s.tipo : "",
-      uM: unidadMaestro(s.uM ?? s.unidadPedida) ?? "",
+      // la del presupuesto (la misma que usa el servidor al aprobar)
+      uM: unidadMaestro(s.unidadPedida) ?? "",
       agrupacion: s.agrupacion && agrupaciones.has(s.agrupacion) ? s.agrupacion : "",
       precio: null,
       iva: 19,
@@ -272,9 +276,11 @@ export async function construirLibroPreciosInsumos(
     ORDEN.forEach((c, i) => {
       const celda = fila.getCell(i + 1)
       celda.value = valores[c.clave]
-      if (c.llenar) celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF8DC" } }
+      // La unidad solo se llena (amarilla, con lista) si el presupuesto no la dice.
+      const llenar = c.llenar || (c.clave === "uM" && !valores.uM)
+      if (llenar) celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF8DC" } }
       const lista = listaDe[c.clave]
-      if (lista) celda.dataValidation = { type: "list", allowBlank: true, formulae: [lista] }
+      if (lista && llenar) celda.dataValidation = { type: "list", allowBlank: true, formulae: [lista] }
     })
     if (s.cantidad != null) fila.getCell(3).numFmt = formatoCantidad(s.cantidad)
     fila.getCell(8).numFmt = "#,##0.00"
