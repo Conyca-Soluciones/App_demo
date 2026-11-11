@@ -66,6 +66,10 @@ export type Pago = {
   // OC a crédito (20261229000000): fecha en que se debe pagar. El pago aprobado
   // queda "en_espera" hasta el lunes de esa semana.
   ordenFechaPagoCredito: string | null
+  // Tipo de pago de la OC (contado, credito, fiducia) y pago inmediato
+  // (urgente): A&F los ve marcados (20270101000000).
+  ordenTipoPago: string | null
+  pagoInmediato: boolean
   // Saldo de un acta a la que se le aprobó un avance (20261231999000). En
   // en_espera sin aprobadoEn = saldo por pagar; con aprobadoEn = aprobado y
   // esperando la factura del acta.

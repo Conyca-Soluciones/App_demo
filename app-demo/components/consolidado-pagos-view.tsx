@@ -21,6 +21,7 @@ import { AYUDA_DOBLE_CLIC, camposDesdeColumnas } from "@/components/ventana-deta
 import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
 import { EtiquetaEtapa, VentanaPagoLiquidacion } from "@/components/ventana-pago-liquidacion"
 import { descargarExcelLiquidacion, leerFilasLiquidacion, type AvisoFilaLiquidacion, type ErrorFilaLiquidacion } from "@/lib/excel-liquidacion"
+import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
 import {
   asignarTerceroPago,
   buscarTercerosParaPago,
@@ -470,7 +471,20 @@ export function ConsolidadoPagosView({
     ),
   }
   const colSolicita: ColumnaExcel<Pago> = { clave: "solicita", titulo: "Solicitante", ancho: 170, texto: (p) => p.solicitadoPorNombre ?? "" }
-  const colOrigen: ColumnaExcel<Pago> = { clave: "origen", titulo: "Origen", ancho: 170, texto: (p) => p.origen }
+  const colOrigen: ColumnaExcel<Pago> = {
+    clave: "origen",
+    titulo: "Origen",
+    ancho: 170,
+    texto: (p) => [p.origen, textoEtiquetasPago(p)].filter(Boolean).join(" · "),
+    celda: (p) => (
+      <div className="min-w-0 leading-tight">
+        <div className="truncate" title={p.origen}>
+          {p.origen}
+        </div>
+        <EtiquetasPago pago={p} />
+      </div>
+    ),
+  }
   const colProyecto: ColumnaExcel<Pago> = { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" }
   const colDocumento = columnaPesos("documento", "Valor documento", (p) => p.valorDocumento ?? p.valor)
   const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" || etapa === "dispersado" ? p.valorAPagar : valorAPagarDe(p)), true)

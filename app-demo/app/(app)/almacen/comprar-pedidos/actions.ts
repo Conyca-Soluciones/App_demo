@@ -769,6 +769,10 @@ export type OrdenCompraDetalle = {
   empresaNombre: string | null
   empresaNit: string | null
   empresaLogoUrl: string | null
+  // Correo y ciudad de la empresa (Admin › Empresas, 20270101000000): van en el
+  // encabezado de la OC. Sin ciudad de la empresa, la del proyecto.
+  empresaCorreo: string | null
+  empresaCiudad: string | null
   proveedorNombre: string
   proveedorNit: string | null
   proveedorDireccion: string | null
@@ -803,6 +807,8 @@ export type OrdenCompraDetalle = {
   metodoPago: MetodoPagoOC
   pagoObservaciones: string | null
   pseTitular: { nombre: string; tipoDocumento: string; documento: string } | null
+  // Pago inmediato (urgente, 20270101000000).
+  pagoInmediato: boolean
   lineas: LineaOrdenCompraDetalle[]
   // A crédito: el pago ya pasó a pago (aprobado o dispersado): la fecha ya no se cambia.
   creditoPagado: boolean
@@ -828,13 +834,13 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     .select(
       `
       id, numero, codigo, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
-      condiciones_pago, tipo_pago, fecha_pago_credito, observaciones, created_at, aprobada_at, motivo_rechazo,
+      condiciones_pago, tipo_pago, fecha_pago_credito, pago_inmediato, observaciones, created_at, aprobada_at, motivo_rechazo,
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
       metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
       cerrada_faltante_at, motivo_cierre_faltante, valor_faltante, pagos_reducidos, saldo_favor_generado, saldo_favor_aplicado,
       cerrada_por:perfiles!ordenes_compra_cerrada_faltante_por_fkey(nombre),
-      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
+      proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url, correo, ciudad)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
       ),
@@ -890,6 +896,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     empresaNombre: d.proyecto?.empresa?.razon_social ?? null,
     empresaNit: d.proyecto?.empresa?.nit ?? null,
     empresaLogoUrl: d.proyecto?.empresa?.logo_url ?? null,
+    empresaCorreo: d.proyecto?.empresa?.correo ?? null,
+    empresaCiudad: d.proyecto?.empresa?.ciudad ?? null,
     proveedorNombre: d.proveedor?.nombre ?? "(proveedor eliminado)",
     proveedorNit: nitProveedor,
     proveedorDireccion: d.proveedor?.direccion ?? null,
@@ -905,6 +913,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     email: d.email,
     condicionesPago: d.condiciones_pago,
     tipoPago: d.tipo_pago ?? null,
+    pagoInmediato: Boolean(d.pago_inmediato),
     fechaPagoCredito: d.fecha_pago_credito ?? null,
     creditoPagado,
     cierreFaltante: d.cerrada_faltante_at
@@ -1027,6 +1036,7 @@ export type OrdenParaModificar = {
   saldoFecha: string | null
   tipoPago: TipoPagoOC | null
   fechaPagoCredito: string | null
+  pagoInmediato: boolean
   metodoPago: MetodoPagoOC
   cuentaTerceroId: string | null
   pagoObservaciones: string | null
@@ -1049,7 +1059,7 @@ export async function obtenerOrdenParaModificar(ordenId: string): Promise<OrdenP
     .from("ordenes_compra")
     .select(
       `id, codigo, estado, proyecto_id, sitio_entrega, fecha_entrega, contacto_nombre, condiciones_pago, observaciones,
-       anticipo_porcentaje, saldo_modo, saldo_fecha, tipo_pago, fecha_pago_credito, titular_tercero_id, cuenta_tercero_id,
+       anticipo_porcentaje, saldo_modo, saldo_fecha, tipo_pago, fecha_pago_credito, pago_inmediato, titular_tercero_id, cuenta_tercero_id,
        metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
        proveedor:proveedores!ordenes_compra_proveedor_id_fkey(unique_id, nombre, id_prov),
        lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
@@ -1124,6 +1134,7 @@ export async function obtenerOrdenParaModificar(ordenId: string): Promise<OrdenP
     saldoModo: d.saldo_modo ?? null,
     saldoFecha: d.saldo_fecha ?? null,
     tipoPago: d.tipo_pago === "contado" || d.tipo_pago === "credito" || d.tipo_pago === "fiducia" ? d.tipo_pago : null,
+    pagoInmediato: Boolean(d.pago_inmediato),
     fechaPagoCredito: d.fecha_pago_credito ?? null,
     metodoPago: d.metodo_pago === "pse" ? "pse" : "transferencia",
     cuentaTerceroId: d.titular_tercero_id ? null : (d.cuenta_tercero_id ?? null),

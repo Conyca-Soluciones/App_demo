@@ -42,6 +42,8 @@ export type PagoOCForm = {
   titularNombre: string
   titularTipoDocumento: string
   titularDocumento: string
+  // Pago inmediato (urgente, 20270101000000): A&F lo ve en rojo.
+  inmediato: boolean
 }
 
 export const pagoOCVacio = (): PagoOCForm => ({
@@ -52,6 +54,7 @@ export const pagoOCVacio = (): PagoOCForm => ({
   titularNombre: "",
   titularTipoDocumento: "",
   titularDocumento: "",
+  inmediato: false,
 })
 
 export const textoCuentaProveedor = (c: Pick<CuentaProveedorOC, "banco" | "tipoCuenta" | "numero">) =>
@@ -96,6 +99,7 @@ export function pagoOCParaGuardar(p: PagoOCForm, info: CuentasProveedorOC | null
     return {
       metodo: "pse" as const,
       observaciones,
+      inmediato: p.inmediato,
       titular_distinto: p.titularDistinto,
       ...(p.titularDistinto
         ? {
@@ -109,6 +113,7 @@ export function pagoOCParaGuardar(p: PagoOCForm, info: CuentasProveedorOC | null
   return {
     metodo: "transferencia" as const,
     observaciones,
+    inmediato: p.inmediato,
     cuenta_id: conTitularAparte ? null : (cuentaProveedorElegida(p, info)?.id ?? null),
   }
 }

@@ -17,7 +17,7 @@ export const CAMPOS_PAGO = `
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin, saldo_acta,
-  orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
+  orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, pago_inmediato, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(metodo, titular_nombre, titular_tipo_documento, titular_documento),
@@ -104,6 +104,8 @@ export function mapPago(f: any): Pago {
     ordenCodigo: f.orden?.codigo ?? null,
     ordenFechaPagoCredito: f.orden?.tipo_pago === "credito" ? (f.orden?.fecha_pago_credito ?? null) : null,
     saldoActa: Boolean(f.saldo_acta),
+    ordenTipoPago: f.orden?.tipo_pago ?? null,
+    pagoInmediato: Boolean(f.orden?.pago_inmediato),
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
     requisicionAdminItemId: f.requisicion_admin_item_id ?? null,
@@ -118,7 +120,7 @@ export function mapPago(f: any): Pago {
     origen: f.orden?.numero != null
       ? `${f.orden.codigo ?? `OC ${f.orden.numero}`}${ocPse ? " · PSE" : ""}${tipoOC ? ` · ${tipoOC}` : ""}`
       : f.acta
-        ? `Acta ${numeroActa(f.acta.numero)}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${actaPse ? " · PSE" : ""}`
+        ? `Acta ${numeroActa(f.acta.numero)}${f.acta.contrato?.numero_contrato ? ` · ${f.acta.contrato.numero_contrato}` : ""}${f.saldo_acta ? " · saldo" : ""}${actaPse ? " · PSE" : ""}`
         : f.fuente === "acta"
           ? "Acta"
           : f.fuente === "requisicion_admin"

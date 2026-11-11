@@ -344,6 +344,8 @@ function TabEmpresas({
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [nitEditando, setNitEditando] = useState("")
   const [razonEditando, setRazonEditando] = useState("")
+  const [correoEditando, setCorreoEditando] = useState("")
+  const [ciudadEditando, setCiudadEditando] = useState("")
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -388,18 +390,22 @@ function TabEmpresas({
     setEditandoId(e.id)
     setNitEditando(e.nit)
     setRazonEditando(e.razonSocial)
+    setCorreoEditando(e.correo ?? "")
+    setCiudadEditando(e.ciudad ?? "")
   }
 
   async function handleGuardarEdicion(empresaId: string) {
     if (!nitEditando.trim() || !razonEditando.trim()) return
     setError(null)
     try {
-      await editarEmpresa(empresaId, { nit: nitEditando, razonSocial: razonEditando })
+      await editarEmpresa(empresaId, { nit: nitEditando, razonSocial: razonEditando, correo: correoEditando, ciudad: ciudadEditando })
       const nit = nitEditando.trim()
       const razonSocial = razonEditando.trim()
+      const correo = correoEditando.trim() || null
+      const ciudad = ciudadEditando.trim() || null
       setEmpresas((prev) =>
         prev
-          .map((e) => (e.id === empresaId ? { ...e, nit, razonSocial } : e))
+          .map((e) => (e.id === empresaId ? { ...e, nit, razonSocial, correo, ciudad } : e))
           .sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es"))
       )
       // Los proyectos de esta empresa muestran su nombre y NIT: se actualizan.
@@ -527,8 +533,21 @@ function TabEmpresas({
                 <Input
                   value={razonEditando}
                   onChange={(ev) => setRazonEditando(ev.target.value)}
-                  className="h-8 flex-1"
+                  className="h-8 min-w-48 flex-1"
                   placeholder="Razón social"
+                />
+                <Input
+                  value={ciudadEditando}
+                  onChange={(ev) => setCiudadEditando(ev.target.value)}
+                  className="h-8 w-40"
+                  placeholder="Ciudad (para la OC)"
+                />
+                <Input
+                  type="email"
+                  value={correoEditando}
+                  onChange={(ev) => setCorreoEditando(ev.target.value)}
+                  className="h-8 w-56"
+                  placeholder="Correo (para la OC)"
                 />
                 <Button size="sm" onClick={() => handleGuardarEdicion(e.id)}>
                   Guardar
@@ -540,7 +559,12 @@ function TabEmpresas({
             ) : (
               <>
                 <span className="w-40 shrink-0 font-mono text-xs text-muted-foreground">{e.nit}</span>
-                <span className="min-w-48 flex-1 text-sm">{e.razonSocial}</span>
+                <span className="min-w-48 flex-1 text-sm">
+                  {e.razonSocial}
+                  {(e.ciudad || e.correo) && (
+                    <span className="block text-xs text-muted-foreground">{[e.ciudad, e.correo].filter(Boolean).join(" · ")}</span>
+                  )}
+                </span>
                 <span className="w-28 shrink-0 text-xs text-muted-foreground">
                   {proyectosDe(e.id)} {proyectosDe(e.id) === 1 ? "proyecto" : "proyectos"}
                 </span>

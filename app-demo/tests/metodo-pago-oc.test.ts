@@ -19,7 +19,7 @@ const pago = (cambios: Partial<PagoOCForm> = {}): PagoOCForm => ({ ...pagoOCVaci
 describe("Transferencia en la OC", () => {
   it("con una cuenta en Terceros se elige sola", () => {
     expect(validarPagoOC(pago(), info(), false)).toBeNull()
-    expect(pagoOCParaGuardar(pago(), info(), false)).toEqual({ metodo: "transferencia", observaciones: "", cuenta_id: "c1" })
+    expect(pagoOCParaGuardar(pago(), info(), false)).toEqual({ metodo: "transferencia", observaciones: "", inmediato: false, cuenta_id: "c1" })
   })
   it("con varias hay que escoger", () => {
     const dos = info([cuenta("c1"), cuenta("c2", false)])
@@ -42,7 +42,7 @@ describe("PSE en la OC", () => {
   it("sin titular distinto solo lleva observaciones", () => {
     const p = pago({ metodo: "pse", observaciones: "  pagar antes del viernes " })
     expect(validarPagoOC(p, info([]), false)).toBeNull()
-    expect(pagoOCParaGuardar(p, null, false)).toEqual({ metodo: "pse", observaciones: "pagar antes del viernes", titular_distinto: false })
+    expect(pagoOCParaGuardar(p, null, false)).toEqual({ metodo: "pse", observaciones: "pagar antes del viernes", inmediato: false, titular_distinto: false })
   })
   it("con titular distinto pide nombre, tipo y documento", () => {
     expect(validarPagoOC(pago({ metodo: "pse", titularDistinto: true }), null, false)).toMatch(/titular/)
@@ -56,5 +56,12 @@ describe("PSE en la OC", () => {
   it("el titular que se muestra es el escrito o el proveedor", () => {
     expect(textoTitularPse({ nombre: "Ana", tipoDocumento: "CC", documento: "123" }, "PROV")).toBe("Ana (CC 123)")
     expect(textoTitularPse(null, "PROV")).toBe("PROV (el proveedor)")
+  })
+})
+
+describe("Pago inmediato en la OC", () => {
+  it("viaja en p_pago con Transferencia y con PSE", () => {
+    expect(pagoOCParaGuardar({ ...pago(), inmediato: true }, info(), false).inmediato).toBe(true)
+    expect(pagoOCParaGuardar({ ...pago(), metodo: "pse", inmediato: true }, null, false).inmediato).toBe(true)
   })
 })

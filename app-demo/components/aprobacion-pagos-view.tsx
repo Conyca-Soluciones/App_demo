@@ -45,6 +45,7 @@ import { formatearFechaSinHora } from "@/lib/fechas"
 import { lunesDeLaSemana } from "@/lib/tipo-pago-oc"
 import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
 import { leerNumero } from "@/lib/contratos"
+import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
 import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 type FiltroEstado = EstadoPago | "saldo_acta" | "pendientes"
@@ -314,21 +315,27 @@ export function AprobacionPagosView({
       titulo: "Origen",
       ancho: 150,
       fija: true,
-      texto: (p) => p.origen,
+      texto: (p) => [p.origen, textoEtiquetasPago(p)].filter(Boolean).join(" · "),
       // Requisición administrativa: abre su detalle (todos sus ítems, cuentas y pagos).
-      celda: (p) =>
-        p.requisicionAdminId ? (
-          <button
-            type="button"
-            className="truncate text-left text-primary underline-offset-2 hover:underline"
-            title="Ver el pago administrativo"
-            onClick={() => setRequisicionDe(p)}
-          >
-            {p.origen}
-          </button>
-        ) : (
-          <span className="truncate">{p.origen}</span>
-        ),
+      celda: (p) => (
+        <div className="min-w-0 leading-tight">
+          {p.requisicionAdminId ? (
+            <button
+              type="button"
+              className="block max-w-full truncate text-left text-primary underline-offset-2 hover:underline"
+              title="Ver el pago administrativo"
+              onClick={() => setRequisicionDe(p)}
+            >
+              {p.origen}
+            </button>
+          ) : (
+            <span className="block truncate" title={p.origen}>
+              {p.origen}
+            </span>
+          )}
+          <EtiquetasPago pago={p} />
+        </div>
+      ),
     },
     {
       clave: "tipo",
@@ -442,7 +449,7 @@ export function AprobacionPagosView({
               disabled={procesandoId === p.id}
               onClick={() => {
                 setParcial({ pago: p, modo: "saldo" })
-                setValorParcial(String(p.valor))
+                setValorParcial(Math.round(p.valor).toLocaleString("es-CO"))
               }}
               title="Aprobar el pago de este saldo, completo o una parte"
             >
@@ -584,7 +591,13 @@ export function AprobacionPagosView({
               claveFila={(p) => p.id}
               onDobleClickFila={(p) => (p.requisicionAdminLote ? setRequisicionDe(p) : setViendo(p))}
               // Saldo de un acta con avance: toda la fila en naranja.
-              fondoFila={(p) => (esSaldoActaPorPagar(p) ? "bg-orange-200 text-orange-950 dark:bg-orange-900/60 dark:text-orange-50" : undefined)}
+              fondoFila={(p) =>
+                esSaldoActaPorPagar(p)
+                  ? "bg-orange-200 text-orange-950 dark:bg-orange-900/60 dark:text-orange-50"
+                  : p.pagoInmediato && p.estado === "solicitado"
+                    ? "bg-red-100 dark:bg-red-950/50"
+                    : undefined
+              }
               tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
                 titulo: (p) => terceroFila(p) ?? "Sin tercero",
@@ -672,6 +685,7 @@ export function AprobacionPagosView({
                   value={valorParcial}
                   onChange={(e) => setValorParcial(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleParcial()}
+                  onFocus={(e) => e.target.select()}
                 />
                 {errorParcial ? (
                   <p className="text-xs text-destructive">{errorParcial}</p>

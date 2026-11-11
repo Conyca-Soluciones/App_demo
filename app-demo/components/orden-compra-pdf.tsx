@@ -1,5 +1,4 @@
 import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
-import path from "path"
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { numeroALetrasCOP } from "@/lib/numero-a-letras"
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
@@ -7,8 +6,6 @@ import { nombreUnidad } from "@/lib/unidades"
 import type { OrdenCompraDetalle } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { firmaDe, textoFirmado, type FirmaDocumento } from "@/lib/firmas"
 import { textoTipoPagoOC } from "@/lib/tipo-pago-oc"
-
-const LOGO_CONYCA_PATH = path.join(process.cwd(), "public", "logo-conyca.png")
 
 const formatoMoneda = (n: number) =>
   n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -45,7 +42,6 @@ const styles = StyleSheet.create({
   empresaNombre: { fontSize: 12, fontFamily: "Helvetica-Bold", color: AZUL, marginBottom: 2 },
   empresaDato: { fontSize: 8.5, color: GRIS_TEXTO, marginBottom: 1 },
   headerRight: { alignItems: "flex-end" },
-  logoConyca: { width: 90, objectFit: "contain", marginBottom: 6 },
   tituloOrden: { fontSize: 13, fontFamily: "Helvetica-Bold", color: AZUL },
   numeroOrden: { fontSize: 11, fontFamily: "Helvetica-Bold", marginTop: 2 },
   fechaOrden: { fontSize: 8.5, color: GRIS_TEXTO, marginTop: 2 },
@@ -171,12 +167,11 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
                 {orden.empresaNombre ?? orden.proyectoNombre ?? "—"}
               </Text>
               <Text style={styles.empresaDato}>NIT: {orden.empresaNit ?? "N/A"}</Text>
-              <Text style={styles.empresaDato}>Ciudad: {orden.proyectoCiudad ?? "N/A"}</Text>
+              <Text style={styles.empresaDato}>Ciudad: {orden.empresaCiudad ?? orden.proyectoCiudad ?? "N/A"}</Text>
+              {orden.empresaCorreo && <Text style={styles.empresaDato}>Correo: {orden.empresaCorreo}</Text>}
             </View>
           </View>
           <View style={styles.headerRight}>
-            {/* eslint-disable-next-line jsx-a11y/alt-text -- Image de @react-pdf, no lleva alt */}
-            <Image src={LOGO_CONYCA_PATH} style={styles.logoConyca} />
             <Text style={styles.tituloOrden}>ORDEN DE COMPRA</Text>
             <Text style={styles.numeroOrden}>No. {orden.codigo}</Text>
             <Text style={styles.fechaOrden}>Fecha: {formatoFecha(orden.createdAt)}</Text>
@@ -194,17 +189,20 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
               <Dato label="Teléfono" value={orden.proveedorTelefono ?? "—"} />
               <Dato label="Email" value={orden.proveedorEmail ?? "—"} />
               <Dato label="Contacto" value={orden.proveedorContacto ?? "—"} />
-              <Dato label="Tipo de pago" value={textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito) ?? "—"} />
+              <Dato
+                label="Tipo de pago"
+                value={`${textoTipoPagoOC(orden.tipoPago, orden.fechaPagoCredito) ?? "—"}${orden.pagoInmediato ? " · PAGO INMEDIATO" : ""}`}
+              />
               <Dato label="Cond. de pago" value={orden.condicionesPago ?? "—"} />
             </View>
           </View>
           <View style={styles.card}>
             <Text style={styles.cardTitulo}>DATOS DEL PROYECTO / ENTREGA</Text>
             <View style={styles.cardBody}>
+              <Dato label="Ciudad" value={orden.ciudad ?? "—"} />
               <Dato label="Proyecto" value={orden.proyectoCodigo ?? orden.proyectoNombre ?? "—"} />
               <Dato label="Sitio de entrega" value={orden.sitioEntrega ?? "—"} />
               <Dato label="Fecha estimada de entrega" value={formatearFechaSinHora(orden.fechaEntrega)} />
-              <Dato label="Ciudad" value={orden.ciudad ?? "—"} />
               {/* El teléfono y el correo de la orden son los del proveedor (van arriba). */}
               <Dato label="Contacto" value={orden.contactoNombre ?? "—"} />
             </View>
