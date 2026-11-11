@@ -7,7 +7,7 @@ import { RequisicionesAdminPagina } from "@/components/requisiciones-admin-pagin
 export default async function PagosAdministrativosPage({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const { ver } = await searchParams
   return (
-    <MarcoPagina titulo="Pagos administrativos" subtitulo="Relación de pagos (GF-F-018): cada ítem por transferencia o PSE; pasa directo a A&F, Aprobación de pagos">
+    <MarcoPagina titulo="Pagos administrativos" subtitulo="Relación de pagos (GF-F-018): cada ítem por transferencia o PSE; pasa a Gerencia, Aprobación de pagos">
       <RequisicionesAdminPagina verInicial={ver ?? null} />
     </MarcoPagina>
   )

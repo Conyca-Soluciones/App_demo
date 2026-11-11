@@ -44,6 +44,18 @@ export const ETIQUETA_TIPO_PAGO: Record<TipoPago, string> = {
   saldo: "Saldo",
 }
 
+// Un pago de un cuadro de pagos administrativos, para el desglose en Aprobación
+// de pagos (lote_requisicion_admin, 20270101000200).
+export type PagoDeCuadroPa = {
+  pagoId: string
+  codigo: string | null // PA-001-0001
+  factura: string | null
+  concepto: string | null
+  proyecto: string | null
+  valor: number
+  metodo: string | null
+}
+
 export type Pago = {
   id: string
   tipo: TipoPago
@@ -79,7 +91,7 @@ export type Pago = {
   // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
   // aprueba o rechaza la requisición completa, con el total y los ítems de su
   // lote. null = no es la fila de una requisición.
-  requisicionAdminLote: { items: number; total: number } | null
+  requisicionAdminLote: { items: number; total: number; detalle: PagoDeCuadroPa[] } | null
   // Documento de donde sale el pago (para abrir su detalle).
   ordenCompraId: string | null
   actaId: string | null
@@ -222,6 +234,7 @@ export function anticiposYDescuentos(p: Pick<Pago, "descuentoAnticipos" | "otros
 // el Consolidado o en Aprobación de pagos).
 export type RequisicionAdminDePago = {
   numero: number | null
+  codigo: string | null // PA-001-0001 (20270101000200)
   metodo: string
   estado: string
   creadoPorNombre: string | null

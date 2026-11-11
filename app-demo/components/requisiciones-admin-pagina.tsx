@@ -23,6 +23,7 @@ import {
   type OpcionesReqAdmin,
   type RequisicionAdminDetalle,
   type RequisicionAdminFila,
+  etiquetaCuadroPa,
 } from "@/lib/requisiciones-admin"
 import {
   cancelarRequisicionAdmin,
@@ -60,6 +61,7 @@ export function RequisicionesAdminPagina({ verInicial }: { verInicial: string | 
     setEdicion({
       id: d.id,
       numero: d.numero,
+      codigos: d.codigos,
       rechazada: d.estado === "rechazada",
       items: d.items.map(itemFormDesdeDetalle),
     })
@@ -79,7 +81,7 @@ export function RequisicionesAdminPagina({ verInicial }: { verInicial: string | 
       <div className="flex gap-1.5 border-b">
         {(
           [
-            { valor: "nueva", etiqueta: edicion ? `Corregir pago N° ${edicion.numero}` : "Realizar pago administrativo" },
+            { valor: "nueva", etiqueta: edicion ? `Corregir ${etiquetaCuadroPa(edicion)}` : "Realizar pago administrativo" },
             { valor: "mias", etiqueta: "Mis pagos administrativos" },
           ] as const
         ).map((p) => (
@@ -139,7 +141,7 @@ function MisRequisicionesAdmin({
   const [hayMas, setHayMas] = useState(false)
   const [estado, setEstado] = useState<EstadoReqAdmin | "todas">("todas")
   const [numero, setNumero] = useState("")
-  const [ultimos, setUltimos] = useState<{ estado?: EstadoReqAdmin; numero?: number }>({})
+  const [ultimos, setUltimos] = useState<{ estado?: EstadoReqAdmin; numero?: number; codigo?: string }>({})
 
   function cargar(filtros = ultimos, pag = pagina) {
     setUltimos(filtros)
@@ -156,13 +158,23 @@ function MisRequisicionesAdmin({
   }
 
   function consultar(): boolean {
-    const n = Number(numero.replace(/\D/g, ""))
-    cargar({ estado: estado === "todas" ? undefined : estado, numero: numero.trim() && n > 0 ? n : undefined }, 0)
+    // "PA-001-0001" busca el cuadro de ese pago; solo dígitos, el número del cuadro (los de antes).
+    const texto = numero.trim()
+    const n = Number(texto.replace(/\D/g, ""))
+    const esCodigo = /[a-z]/i.test(texto)
+    cargar(
+      {
+        estado: estado === "todas" ? undefined : estado,
+        codigo: esCodigo ? texto : undefined,
+        numero: !esCodigo && texto && n > 0 ? n : undefined,
+      },
+      0
+    )
     return true
   }
 
   const columnas: ColumnaExcel<RequisicionAdminFila>[] = [
-    { clave: "numero", titulo: "N°", ancho: 70, fija: true, alinear: "center", texto: (r) => (r.numero != null ? String(r.numero) : "") },
+    { clave: "numero", titulo: "Código", ancho: 190, fija: true, texto: (r) => etiquetaCuadroPa(r), claseCelda: "tabular-nums" },
     { clave: "metodo", titulo: "Método", ancho: 120, texto: (r) => ETIQUETA_METODO_REQ_ADMIN[r.metodo] },
     { clave: "empresas", titulo: "Grupo empresarial", ancho: 240, flexible: true, texto: (r) => r.empresas ?? "" },
     { clave: "items", titulo: "Ítems", ancho: 70, alinear: "center", texto: (r) => String(r.nItems) },
@@ -225,7 +237,7 @@ function MisRequisicionesAdmin({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="numero-req-admin">Número</Label>
+          <Label htmlFor="numero-req-admin">Código (PA-001-0001)</Label>
           <Input id="numero-req-admin" inputMode="numeric" value={numero} onChange={(e) => setNumero(e.target.value)} onKeyDown={(e) => e.key === "Enter" && consultar()} />
         </div>
       </PanelFiltros>
@@ -251,7 +263,7 @@ function MisRequisicionesAdmin({
             claveFila={(r) => r.id}
             onDobleClickFila={(r) => onVer(r.id)}
             tarjeta={{
-              titulo: (r) => `Pago administrativo N° ${r.numero ?? ""}`,
+              titulo: (r) => `Pago administrativo ${etiquetaCuadroPa(r)}`,
               subtitulo: (r) => `${ETIQUETA_METODO_REQ_ADMIN[r.metodo]} · ${r.nItems} ítem(s)`,
               esquina: (r) => <EtiquetaEstadoReqAdmin estado={r.estado} />,
               campos: ["total", "empresas", "enviada", "acciones"],
@@ -327,7 +339,7 @@ function VerRequisicionAdmin({
     <Dialog open onOpenChange={(a) => !a && onCerrar()}>
       <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Pago administrativo {d?.numero != null ? `N° ${d.numero}` : ""}</DialogTitle>
+          <DialogTitle>Pago administrativo {d ? etiquetaCuadroPa(d) : ""}</DialogTitle>
           <DialogDescription>Formato GF-F-018 · Relación de pagos</DialogDescription>
         </DialogHeader>
         {!actual ? (

@@ -19,6 +19,7 @@ import {
   valorItem,
   type ItemFormReqAdmin,
   type OpcionesReqAdmin,
+  etiquetaCuadroPa,
 } from "@/lib/requisiciones-admin"
 import { crearRequisicionAdmin, modificarRequisicionAdmin } from "@/app/(app)/ayf/pagos-administrativos/actions"
 import { createClient } from "@/lib/supabase/client"
@@ -27,6 +28,7 @@ import { rutaSoporte } from "@/lib/soportes"
 export type EdicionReqAdmin = {
   id: string
   numero: number | null
+  codigos: string[] // PA-001-0001 de cada pago
   rechazada: boolean
   items: ItemFormReqAdmin[]
 }
@@ -224,8 +226,8 @@ export function RequisicionAdminForm({
       {edicion && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span>
-            {edicion.rechazada ? "Corrigiendo" : "Modificando"} el pago administrativo N° {edicion.numero}. Al enviarlo vuelve a A&F con
-            el mismo número; sus pagos por aprobar se reemplazan por los nuevos.
+            {edicion.rechazada ? "Corrigiendo" : "Modificando"} el pago administrativo {etiquetaCuadroPa(edicion)}. Al enviarlo vuelve a Gerencia con
+            los mismos códigos; sus pagos por aprobar se reemplazan por los nuevos.
           </span>
           {onCancelarEdicion && (
             <Button size="sm" variant="outline" onClick={onCancelarEdicion}>
@@ -335,7 +337,7 @@ export function RequisicionAdminForm({
             }}
             disabled={enviando || items.length === 0}
           >
-            <Send className="size-4" /> {edicion ? "Enviar otra vez a A&F" : "Enviar a A&F"}
+            <Send className="size-4" /> {edicion ? "Enviar otra vez a Gerencia" : "Enviar a Gerencia"}
           </Button>
         </div>
 
@@ -354,10 +356,10 @@ export function RequisicionAdminForm({
       <Dialog open={confirmar} onOpenChange={(a) => !a && !enviando && setConfirmar(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Enviar el cuadro de pagos a A&F?</DialogTitle>
+            <DialogTitle>¿Enviar el cuadro de pagos a Gerencia?</DialogTitle>
             <DialogDescription>
               {items.length > 0 ? ETIQUETA_METODO_REQ_ADMIN[metodoDelCuadro(items)] : ""} · {items.length} {items.length === 1 ? "ítem" : "ítems"} ·{" "}
-              {formatoMoneda(total)}. Pasa a Aprobación de pagos (A&F), que la aprueba o rechaza completa.
+              {formatoMoneda(total)}. Pasa a Aprobación de pagos (Gerencia), que lo aprueba o rechaza completo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

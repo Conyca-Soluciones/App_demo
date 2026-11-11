@@ -1178,6 +1178,22 @@ vivo: solo agregan; los ajustes a funciones vivas son parches por texto exacto.
   (Realizar Pagos no lo toma). Una OC con saldo aplicado no se modifica (se
   cancela y se crea otra). El PDF muestra el saldo aplicado y el valor a pagar.
 
+## Pagos administrativos: código PA, envío a Gerencia y desglose (2026-11-11)
+
+Decisiones del usuario. `20270101000200_pagos_administrativos_codigo.sql` (reversa en `supabase/reversa/`).
+- **Cada pago (ítem del cuadro) tiene código** con el proyecto del ítem:
+  `requisicion_admin_items.codigo` = 'PA-001-0001' (`_codigo_pago_admin`, contador
+  `contadores_proyecto` tipo 'pago_admin', único). Lo da `_guardar_requisicion_admin`;
+  al modificar el cuadro, el ítem en la misma posición y con el mismo proyecto
+  conserva su código. Los ítems que ya existían lo recibieron en la migración.
+  El cuadro se nombra por sus códigos (`etiquetaCuadroPa`: "PA-001-0001 y 2 más";
+  sin códigos, "N° 3"). El origen del pago en Consolidado y Aprobación es el código.
+  Mis pagos administrativos busca por código (lleva al cuadro).
+- **"Enviar a Gerencia"** (antes "Enviar a A&F"): lo aprueba Gerencia en Aprobación de pagos.
+- **Desglose en Aprobación de pagos**: el cuadro se sigue aprobando completo, pero
+  `lote_requisicion_admin` trae `detalle` (código, quien factura, concepto, proyecto,
+  valor, método) y la fila y la confirmación muestran cada pago (`DesglosePa`).
+
 ## Paquete A: requisiciones administrativas y empresa que factura (2026-11-11)
 
 Decisiones del usuario. Migración `20261231999400_paquete_a_requisiciones.sql`

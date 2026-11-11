@@ -20,7 +20,7 @@ export const CAMPOS_PAGO = `
   orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, pago_inmediato, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
-  req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(metodo, titular_nombre, titular_tipo_documento, titular_documento),
+  req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(metodo, codigo, titular_nombre, titular_tipo_documento, titular_documento),
   proyecto:proyectos(codigo, nombre),
   empresa:empresas(razon_social),
   tercero:terceros!pagos_tercero_id_fkey(razon_social, tipo_documento, numero_documento, dv),
@@ -112,7 +112,19 @@ export function mapPago(f: any): Pago {
     requisicionAdminId: f.requisicion_admin_id ?? null,
     requisicionAdminLote:
       f.requisicion_admin_principal && f.lote
-        ? { items: Number(f.lote.items ?? 0), total: Number(f.lote.total ?? 0) }
+        ? {
+            items: Number(f.lote.items ?? 0),
+            total: Number(f.lote.total ?? 0),
+            detalle: (Array.isArray(f.lote.detalle) ? f.lote.detalle : []).map((d: any) => ({
+              pagoId: String(d.pago_id ?? ""),
+              codigo: d.codigo ?? null,
+              factura: d.factura ?? null,
+              concepto: d.concepto ?? null,
+              proyecto: d.proyecto ?? null,
+              valor: Number(d.valor ?? 0),
+              metodo: d.metodo ?? null,
+            })),
+          }
         : null,
     // De dónde sale el pago: una orden de compra, un acta de contrato o una
     // requisición administrativa. Quien
@@ -124,7 +136,10 @@ export function mapPago(f: any): Pago {
         : f.fuente === "acta"
           ? "Acta"
           : f.fuente === "requisicion_admin"
-            ? `Pago admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${reqPse ? " · PSE" : ""}`
+            ? // El código del pago (PA-001-0001, 20270101000200); los de antes, el número del cuadro.
+              f.req_item?.codigo
+              ? `${f.req_item.codigo}${reqPse ? " · PSE" : ""}`
+              : `Pago admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${reqPse ? " · PSE" : ""}`
             : "",
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
     // no es de acta o quien consulta no lee el acta (RLS).
