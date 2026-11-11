@@ -1099,6 +1099,43 @@ proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan)
 - Ojo al cambiar un mensaje para usar `codigo`: `subir_poliza` y
   `_avisar_contratos_vencidos` fallaban porque su `select ... into` no lo traía.
 
+## Paquete C: facturas, cierre con faltante y saldo a favor (2026-11-11)
+
+Decisiones del usuario. Tres migraciones, en orden: `20261231999100`,
+`20261231999200`, `20261231999300` (reversas en `supabase/reversa/`). La app en
+vivo: solo agregan; los ajustes a funciones vivas son parches por texto exacto.
+- **Facturas de la OC** (`orden_compra_facturas` + `_items`, `lib/facturas-oc.ts`,
+  `components/facturas-orden.tsx`): en el detalle de la OC aprobada, Compras
+  registra una factura total o, con "Factura parcial", varias con los insumos y
+  cantidades de cada una (en la unidad que muestra la orden). Archivo, fecha,
+  subtotal e IVA obligatorios (total = suma), observaciones opcional; no se
+  borran, se anulan con motivo. Lo facturado no pasa del total de la OC. Las ve
+  quien ve la orden (también Contabilidad desde el pago). El archivo va al bucket
+  `ordenes_compra` (`facturas/<orden>/...`). Una OC con facturas vigentes no se
+  modifica.
+- **Cerrar con faltante** (`cerrar_orden_con_faltante`, vista previa
+  `vista_cierre_faltante`, `components/cerrar-faltante-dialog.tsx`): OC aprobada,
+  con alguna entrada y sin entrega completa. Cada línea queda en lo RECIBIDO (lo
+  pedido en `ordenes_compra_items.pedido_original`; el CHECK de cantidad acepta 0
+  solo así). Por eso, sin tocar otras funciones, lo que faltó vuelve a
+  Requisiciones por comprar, la OC queda Entregada y Control cuenta lo recibido.
+  El valor no entregado se descuenta de los pagos aún no aprobados (programado,
+  solicitado, en espera; primero el saldo); lo ya pagado de más queda como saldo a
+  favor. No se modifica después.
+- **Saldo a favor** (`proveedor_saldos_favor`, `saldo_favor_aplicaciones`, sin
+  acceso directo: solo funciones): del proveedor EN LA EMPRESA del proyecto.
+  Disponible = valor − aplicado en órdenes vigentes (cancelar o rechazar la OC
+  que lo usó lo devuelve solo). Pantalla Compras › Saldos a favor
+  (`compras.saldos_favor`, `/almacen/saldos-favor`): Compras lo cierra con motivo.
+- **Usar el saldo** (Generar OC, solo al crear; Compras marca "Usar saldo a
+  favor"): `crear_orden_compra_con_saldo` envuelve a `crear_orden_compra_con_soporte`
+  (sin saldo se llama la de siempre) y descuenta de los pagos de la orden
+  (`pagos.saldo_favor_aplicado`; en el desglose va como otros descuentos y suma
+  al valor documento). Pago en $ 0: Gerencia lo aprueba y
+  `trg_pago_saldo_favor_cubierto` lo deja liquidado en $ 0 y dispersado, sin REF
+  (Realizar Pagos no lo toma). Una OC con saldo aplicado no se modifica (se
+  cancela y se crea otra). El PDF muestra el saldo aplicado y el valor a pagar.
+
 ## Las OC se aprueban en Aprobación de pagos (2026-10-22)
 
 `20261204000000_oc_se_aprueba_en_pagos.sql` (decisión del usuario). Ya no existe

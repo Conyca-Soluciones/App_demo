@@ -35,6 +35,7 @@ import { hoyColombia } from "@/lib/fechas"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
 import { FacturasOrden } from "@/components/facturas-orden"
+import { CerrarFaltanteDialog } from "@/components/cerrar-faltante-dialog"
 import { ETIQUETA_SOPORTE_ORDEN, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 import {
   obtenerOrdenCompraDetalle,
@@ -82,6 +83,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [noModificable, setNoModificable] = useState<string | null | undefined>(undefined)
   // Requisición abierta en un diálogo encima de la orden.
   const [requisicionAbierta, setRequisicionAbierta] = useState<string | null>(null)
+  // "Cerrar con faltante" (Paquete C, entrega 2) y el aviso de cómo quedó.
+  const [cierreAbierto, setCierreAbierto] = useState(false)
+  const [avisoCierre, setAvisoCierre] = useState<string | null>(null)
 
   function cargar() {
     // "Modificar" se consulta junto con lo demás: los botones salen a la vez.
@@ -194,6 +198,16 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
               Modificar
             </Button>
           )}
+          {permisos?.rolCompras && orden.estado === "aprobada" && orden.estadoEntrega === "entrega_parcial" && !orden.cierreFaltante && (
+            <Button
+              variant="outline"
+              disabled={procesando}
+              title="El proveedor ya no va a entregar el resto: la orden queda en lo recibido."
+              onClick={() => setCierreAbierto(true)}
+            >
+              Cerrar con faltante
+            </Button>
+          )}
           {puedeCancelar && (
             <Button
               variant="outline"
@@ -222,6 +236,24 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
       {error && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
           {error}
+        </div>
+      )}
+
+      {avisoCierre && (
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{avisoCierre}</div>
+      )}
+
+      {orden.cierreFaltante && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <strong>Cerrada con faltante</strong> el {formatoFecha(orden.cierreFaltante.at.slice(0, 10))}
+          {orden.cierreFaltante.porNombre ? ` por ${orden.cierreFaltante.porNombre}` : ""}
+          {orden.cierreFaltante.motivo ? `: ${orden.cierreFaltante.motivo}` : "."}
+          <span className="mt-1 block">
+            No se entregó {formatoMoneda.format(orden.cierreFaltante.valorFaltante)}.
+            {orden.cierreFaltante.pagosReducidos > 0 && ` Se descontaron ${formatoMoneda.format(orden.cierreFaltante.pagosReducidos)} de pagos por aprobar.`}
+            {orden.cierreFaltante.saldoFavorGenerado > 0 &&
+              ` Quedó un saldo a favor de ${formatoMoneda.format(orden.cierreFaltante.saldoFavorGenerado)} con el proveedor (Compras › Saldos a favor).`}
+          </span>
         </div>
       )}
 
@@ -286,6 +318,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                     <TableCell>{linea.presentacion ? linea.presentacion.umCompra : (linea.um ?? "—")}</TableCell>
                     <TableCell className="text-right">
                       {(linea.presentacion ? linea.presentacion.cantidadCompra : linea.cantidad).toLocaleString("es-CO")}
+                      {linea.pedidoOriginal != null && (
+                        <span className="block text-[11px] text-amber-700">de {linea.pedidoOriginal.toLocaleString("es-CO")} pedidos</span>
+                      )}
                       {linea.presentacion && (
                         <span className="block text-[11px] text-muted-foreground">
                           1 {linea.presentacion.umCompra.toLowerCase()} ={" "}
@@ -462,6 +497,23 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             )}
             <p className="text-lg font-semibold">{formatoMoneda.format(totalOrden)}</p>
           </div>
+          {orden.saldoFavorAplicado > 0 && (
+            <div className="space-y-0.5 rounded-md border-2 border-emerald-500 bg-emerald-50 p-3 tabular-nums text-emerald-950">
+              <p className="font-medium">Con saldo a favor del proveedor</p>
+              <div className="flex justify-between gap-3">
+                <span>Costo de la orden</span>
+                <span>{formatoMoneda.format(Math.round(totalOrden))}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>Saldo a favor aplicado</span>
+                <span>− {formatoMoneda.format(orden.saldoFavorAplicado)}</span>
+              </div>
+              <div className="flex justify-between gap-3 border-t border-emerald-300 pt-0.5 font-semibold">
+                <span>Valor a pagar</span>
+                <span>{formatoMoneda.format(Math.max(Math.round(totalOrden) - orden.saldoFavorAplicado, 0))}</span>
+              </div>
+            </div>
+          )}
           <div className="space-y-1 border-t pt-3">
             <p className="text-muted-foreground">Soporte</p>
             {soportes.length === 0 ? (
@@ -577,6 +629,18 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
 
         </div>
       </div>
+
+      <CerrarFaltanteDialog
+        ordenId={orden.id}
+        codigo={orden.codigo}
+        abierto={cierreAbierto}
+        onCerrar={() => setCierreAbierto(false)}
+        onCerrada={(mensaje) => {
+          setCierreAbierto(false)
+          setAvisoCierre(mensaje)
+          cargar()
+        }}
+      />
 
       <Dialog
         open={accionAbierta !== null}

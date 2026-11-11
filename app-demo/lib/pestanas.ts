@@ -81,6 +81,7 @@ export const PESTANAS: Pestana[] = [
   { clave: "compras.comprar_pedidos", titulo: "Requisiciones por comprar", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/comprar-pedidos", rutas: ["/almacen/comprar-pedidos", "/almacen/generar-oc"] },
   { clave: "compras.saldos_pendientes", titulo: "Saldos pendientes", seccion: "Compras", subseccion: "Requisiciones", url: "/almacen/saldos-pendientes", rutas: ["/almacen/saldos-pendientes"], nota: "Requisiciones compradas a medias, para cerrar su saldo." },
   { clave: "compras.ordenes", titulo: "Registro de órdenes de compra", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/ordenes-compra", rutas: ["/almacen/ordenes-compra"] },
+  { clave: "compras.saldos_favor", titulo: "Saldos a favor", seccion: "Compras", subseccion: "Órdenes de compra", url: "/almacen/saldos-favor", rutas: ["/almacen/saldos-favor"], nota: "Lo que se le pagó de más a un proveedor (orden cerrada con faltante), para usarlo en la siguiente compra o cerrarlo." },
   { clave: "almacen.proveedores", titulo: "Proveedores", seccion: "Compras", url: "/almacen/proveedores", rutas: ["/almacen/proveedores"] },
 
   // Almacén en el orden en que se trabaja.
