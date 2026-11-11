@@ -25,6 +25,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { rechazarAutoMatch } from "@/app/(app)/presupuestos/revision-automaticos-actions"
 import { Input } from "@/components/ui/input"
 import ExcelJS from "exceljs"
 import * as XLSX from "xlsx"
@@ -1376,6 +1377,32 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
     }
   }
 
+  // "Rechazar automático": quita del APU el insumo (o equipo) que puso el
+  // auto-match y la línea vuelve a Pendientes, donde se elige otro candidato,
+  // se busca en la maestra, se pide como insumo nuevo o se marca "No aplica".
+  async function rechazarAutomatico(revisionId: string) {
+    if (enVueloRef.current.has(revisionId)) return
+    enVueloRef.current.add(revisionId)
+    setGuardandoIds((prev) => new Set(prev).add(revisionId))
+    setError(null)
+    try {
+      await rechazarAutoMatch(revisionId)
+      const items = itemsDeLineas([revisionId])
+      limpiarElecciones([revisionId])
+      await refrescarItems(items)
+      onCambio?.(items)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo rechazar el automático.")
+    } finally {
+      enVueloRef.current.delete(revisionId)
+      setGuardandoIds((prev) => {
+        const copia = new Set(prev)
+        copia.delete(revisionId)
+        return copia
+      })
+    }
+  }
+
   async function guardarCorreccionEquipo(revisionId: string) {
     const nuevoEquipoId = correcciones[revisionId]
     if (!nuevoEquipoId) return
@@ -2016,9 +2043,22 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             const tieneCorreccionSinGuardar = !!correcciones[fila.id]
                             return (
                               <div key={fila.id} className="border rounded-lg p-4 space-y-2 ml-2 bg-emerald-50/40">
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                   <span className="font-medium">{fila.descripcionOriginal}</span>
-                                  <span className="text-xs text-emerald-700">✓ auto-match</span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="text-xs text-emerald-700">✓ auto-match</span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 border-red-300 text-xs text-red-700 hover:bg-red-50 hover:text-red-800"
+                                      disabled={guardandoIds.has(fila.id)}
+                                      // eslint-disable-next-line react-hooks/refs -- el ref se lee al hacer clic, no al pintar
+                                      onClick={() => rechazarAutomatico(fila.id)}
+                                      title="Quita este insumo del APU y la línea vuelve a Pendientes: ahí eliges otro, lo buscas, lo pides como insumo nuevo o la marcas No aplica"
+                                    >
+                                      {guardandoIds.has(fila.id) ? "Rechazando…" : "Rechazar automático"}
+                                    </Button>
+                                  </span>
                                 </div>
                                 <TablaCandidatos
                                   candidatos={fila.candidatos as CandidatoInsumo[]}
@@ -2162,9 +2202,21 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             const tieneCorreccionSinGuardar = !!correcciones[fila.id]
                             return (
                               <div key={fila.id} className="border rounded-lg p-4 space-y-2 ml-2 bg-emerald-50/40">
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
                                   <span className="font-medium">{fila.descripcionOriginal}</span>
-                                  <span className="text-xs text-emerald-700">✓ auto-match</span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="text-xs text-emerald-700">✓ auto-match</span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 border-red-300 text-xs text-red-700 hover:bg-red-50 hover:text-red-800"
+                                      disabled={guardandoIds.has(fila.id)}
+                                      onClick={() => rechazarAutomatico(fila.id)}
+                                      title="Quita este insumo del APU y la línea vuelve a Pendientes: ahí eliges otro, lo buscas, lo pides como insumo nuevo o la marcas No aplica"
+                                    >
+                                      {guardandoIds.has(fila.id) ? "Rechazando…" : "Rechazar automático"}
+                                    </Button>
+                                  </span>
                                 </div>
                                 <TablaCategoriasManoObra
                                   titulo={TITULO_CANDIDATOS_EQUIPO}
