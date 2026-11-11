@@ -307,6 +307,13 @@ export function AprobacionPagosView({
           {p.actaBruto != null && p.actaBruto !== p.valor && (
             <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
           )}
+          {/* Saldo a favor usado en la OC (Paquete C): va en otros descuentos del pago. */}
+          {p.ordenCompraId && p.otrosDescuentos > 0 && p.valorDocumento != null && (
+            <div className="text-xs text-emerald-700">
+              {formatoMoneda(p.valorDocumento)} − saldo a favor {formatoMoneda(p.otrosDescuentos)}
+              {p.valor === 0 ? " (se paga con el saldo)" : ""}
+            </div>
+          )}
         </div>
       ),
       claseCelda: "tabular-nums",

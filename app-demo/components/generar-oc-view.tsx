@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/table"
 import { BuscadorAsync, type OpcionBuscador } from "./buscador-async"
 import { TarjetaProveedorOC } from "./tarjeta-proveedor-oc"
+import { saldosFavorProveedor } from "@/app/(app)/almacen/ordenes-compra/saldos-actions"
+import { saldoSugerido, validarUsoSaldo, type SaldoProveedor } from "@/lib/saldo-favor"
 import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
 import { mapTitularCuenta, titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { MetodoPagoOC } from "@/components/metodo-pago-oc"
@@ -190,6 +192,13 @@ export function GenerarOCView({
   const [cargaProveedor, setCargaProveedor] = useState<{ proveedorId: string; detalle: ProveedorDetalle | null } | null>(null)
   const detalleProveedor = proveedor && cargaProveedor?.proveedorId === proveedor.id ? cargaProveedor.detalle : null
   const cargandoProveedor = proveedor !== null && cargaProveedor?.proveedorId !== proveedor.id
+  // Saldo a favor del proveedor en la empresa del proyecto (Paquete C, entrega
+  // 3). Solo al crear; Compras decide usarlo.
+  const [cargaSaldos, setCargaSaldos] = useState<{ proveedorId: string; saldos: SaldoProveedor[] } | null>(null)
+  const saldosProveedor = proveedor && cargaSaldos?.proveedorId === proveedor.id ? cargaSaldos.saldos : []
+  const saldoDisponible = saldosProveedor.reduce((a, x) => a + x.disponible, 0)
+  const [usarSaldo, setUsarSaldo] = useState(false)
+  const [valorSaldo, setValorSaldo] = useState("")
 
   const [sitioEntrega, setSitioEntrega] = useState("")
   const [fechaEntrega, setFechaEntrega] = useState("")
@@ -295,6 +304,18 @@ export function GenerarOCView({
       activo = false
     }
   }, [proveedor])
+
+  useEffect(() => {
+    if (modificar || !proveedor || !seleccion?.proyectoId) return
+    let activo = true
+    saldosFavorProveedor(proveedor.id, seleccion.proyectoId)
+      .then((saldos: SaldoProveedor[]) => activo && setCargaSaldos({ proveedorId: proveedor.id, saldos }))
+      // Si no se pueden leer, la orden se hace sin saldo (como siempre).
+      .catch(() => activo && setCargaSaldos({ proveedorId: proveedor.id, saldos: [] }))
+    return () => {
+      activo = false
+    }
+  }, [modificar, proveedor, seleccion?.proyectoId])
 
   useEffect(() => {
     if (!proveedor || !claveCuentas) return
@@ -432,7 +453,11 @@ export function GenerarOCView({
       (saldoModo === "entrega" || (saldoFecha !== "" && saldoFecha >= hoy)))
   const montoAnticipo = conAnticipo && totales && anticipoValido ? Math.round((totales.total * pctNumero) / 100) : null
 
+  const usoSaldo =
+    !modificar && usarSaldo && saldoDisponible > 0 && totales ? validarUsoSaldo(valorSaldo, totales.total, saldoDisponible) : null
+
   const puedeGenerar =
+    (usoSaldo === null || usoSaldo.ok) &&
     proveedor !== null &&
     !cargandoProveedor &&
     todasLasLineasValidas &&
@@ -530,6 +555,7 @@ export function GenerarOCView({
         ...(conAnticipo
           ? { anticipoPorcentaje: pctNumero, saldoModo, saldoFecha: saldoModo === "fecha" ? saldoFecha : null }
           : {}),
+        saldoFavor: usoSaldo?.ok ? usoSaldo.desglose.aplicado : null,
         lineas: lineasOrden.map((p) => {
           const l = lineaValida(p)!
           return {
@@ -846,6 +872,8 @@ export function GenerarOCView({
               valorSeleccionado={proveedor}
               onSeleccionar={(o) => {
                 setProveedor(o)
+                setUsarSaldo(false)
+                setValorSaldo("")
                 // La cuenta escogida era del proveedor anterior.
                 setPago((p) => ({ ...p, cuentaId: null }))
               }}
@@ -864,6 +892,75 @@ export function GenerarOCView({
               puedeEditar={puedeEditarProveedor}
               onActualizado={(d) => proveedor && setCargaProveedor({ proveedorId: proveedor.id, detalle: d })}
             />
+          )}
+
+          {!modificar && detalleProveedor && !cargandoProveedor && saldoDisponible > 0 && (
+            <div className="space-y-2 rounded-md border-2 border-emerald-500 bg-emerald-50 p-3 text-sm text-emerald-950">
+              <p className="font-semibold">
+                {detalleProveedor.nombre} tiene {formatoMoneda(saldoDisponible)} a favor
+              </p>
+              <p className="text-xs">
+                De {saldosProveedor.map((x) => `${x.ordenOrigen} (${formatoMoneda(x.disponible)})`).join(", ")}.
+              </p>
+              <label className="flex w-fit cursor-pointer items-center gap-2 font-medium">
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={usarSaldo}
+                  disabled={generando}
+                  onChange={(e) => {
+                    setUsarSaldo(e.target.checked)
+                    if (e.target.checked && totales) setValorSaldo(String(saldoSugerido(totales.total, saldoDisponible)))
+                  }}
+                />
+                Usar saldo a favor
+              </label>
+              {usarSaldo && (
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="valor-saldo-favor" className="text-xs">
+                      Valor a usar
+                    </Label>
+                    <Input
+                      id="valor-saldo-favor"
+                      inputMode="decimal"
+                      className="h-8 bg-white"
+                      value={valorSaldo}
+                      disabled={generando}
+                      onChange={(e) => setValorSaldo(e.target.value)}
+                    />
+                  </div>
+                  {!totales ? (
+                    <p className="text-xs">Completa cantidad y precio de las líneas para ver el desglose.</p>
+                  ) : usoSaldo && !usoSaldo.ok ? (
+                    <p className="text-xs text-destructive">{usoSaldo.error}</p>
+                  ) : usoSaldo?.ok ? (
+                    <div className="space-y-0.5 rounded border border-emerald-300 bg-white p-2 tabular-nums">
+                      <div className="flex justify-between gap-3">
+                        <span>Costo de la orden</span>
+                        <span>{formatoMoneda(usoSaldo.desglose.costo)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Saldo a favor aplicado</span>
+                        <span>− {formatoMoneda(usoSaldo.desglose.aplicado)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3 border-t pt-0.5 font-semibold">
+                        <span>Valor a pagar</span>
+                        <span>{formatoMoneda(usoSaldo.desglose.aPagar)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+                        <span>Saldo a favor restante</span>
+                        <span>{formatoMoneda(usoSaldo.desglose.restante)}</span>
+                      </div>
+                      {conAnticipo && <p className="pt-1 text-xs text-muted-foreground">Se descuenta primero del saldo de la orden y después del anticipo.</p>}
+                      {usoSaldo.desglose.aPagar === 0 && (
+                        <p className="pt-1 text-xs text-muted-foreground">El pago queda en $ 0: Gerencia lo aprueba igual y queda pagado con el saldo a favor.</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
           )}
 
           {detalleProveedor && !cargandoProveedor && (

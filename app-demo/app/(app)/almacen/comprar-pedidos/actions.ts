@@ -536,6 +536,9 @@ export type DatosOrdenCompra = {
   tipoPago: TipoPagoOC
   fechaPagoCredito?: string | null // YYYY-MM-DD, solo con crédito
   lineas: LineaOrdenCompra[]
+  // Saldo a favor del proveedor que Compras decide usar (Paquete C, entrega 3):
+  // se descuenta de los pagos de la orden. Solo al crear.
+  saldoFavor?: number | null
 }
 
 // Validaciones comunes de crear y modificar (la base las vuelve a hacer).
@@ -633,7 +636,11 @@ export async function crearOrdenCompra(
 
   const supabase = await createClient()
 
-  const { data, error } = await supabase.rpc("crear_orden_compra_con_soporte", {
+  // Con saldo a favor: la misma orden más el descuento, en una transacción
+  // (crear_orden_compra_con_saldo, 20261231999300). Sin saldo, igual que siempre.
+  const usaSaldo = (datos.saldoFavor ?? 0) > 0
+  const { data, error } = await supabase.rpc(usaSaldo ? "crear_orden_compra_con_saldo" : "crear_orden_compra_con_soporte", {
+    ...(usaSaldo ? { p_saldo_favor: datos.saldoFavor } : {}),
     p_proyecto_id: datos.proyectoId,
     p_proveedor_id: datos.proveedorId,
     p_sitio_entrega: datos.sitioEntrega ?? null,
@@ -742,6 +749,9 @@ export type LineaOrdenCompraDetalle = {
   requisicion: RequisicionDeOrden | null
   // Ítem del presupuesto (el mismo insumo puede venir de varios ítems).
   itemCodigo: string | null
+  // Orden cerrada con faltante (Paquete C): lo que se había pedido, en la
+  // unidad que muestra la orden. null = la línea no cambió.
+  pedidoOriginal: number | null
 }
 
 export type RequisicionDeOrden = { id: string; numero: number; codigo: string; solicitante: string | null }
@@ -796,6 +806,17 @@ export type OrdenCompraDetalle = {
   lineas: LineaOrdenCompraDetalle[]
   // A crédito: el pago ya pasó a pago (aprobado o dispersado): la fecha ya no se cambia.
   creditoPagado: boolean
+  // Cerrada con faltante (Paquete C, entrega 2). null = no.
+  cierreFaltante: {
+    at: string
+    porNombre: string | null
+    motivo: string | null
+    valorFaltante: number
+    pagosReducidos: number
+    saldoFavorGenerado: number
+  } | null
+  // Saldo a favor usado en esta orden (descontado de sus pagos).
+  saldoFavorAplicado: number
 }
 export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenCompraDetalle> {
   const supabase = await createClient()
@@ -811,6 +832,8 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       motivo_desaprobacion, motivo_cancelacion, cancelada_at,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
       metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
+      cerrada_faltante_at, motivo_cierre_faltante, valor_faltante, pagos_reducidos, saldo_favor_generado, saldo_favor_aplicado,
+      cerrada_por:perfiles!ordenes_compra_cerrada_faltante_por_fkey(nombre),
       proyecto:proyectos!ordenes_compra_proyecto_id_fkey(codigo, nombre, ciudad, empresa:empresas(nit, razon_social, logo_url)),
       proveedor:proveedores!ordenes_compra_proveedor_id_fkey(
         nombre, numero_documento, digito_verificacion, direccion, ciudad, telefono, correo, nombre_contacto
@@ -820,7 +843,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       aprobada_por_perfil:perfiles!ordenes_compra_aprobada_por_fkey(nombre),
       lineas:ordenes_compra_items!ordenes_compra_items_orden_compra_id_fkey(
         id, cantidad, precio_unitario, porcentaje_descuento, porcentaje_iva,
-        um_compra, conversion_compra, cantidad_compra, precio_compra,
+        um_compra, conversion_compra, cantidad_compra, precio_compra, pedido_original,
         pedido:pedidos_insumos!ordenes_compra_items_pedido_insumo_id_fkey(
           unidad,
           item:presupuesto_items!pedidos_insumos_presupuesto_item_id_fkey(codigo),
@@ -884,6 +907,17 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     tipoPago: d.tipo_pago ?? null,
     fechaPagoCredito: d.fecha_pago_credito ?? null,
     creditoPagado,
+    cierreFaltante: d.cerrada_faltante_at
+      ? {
+          at: d.cerrada_faltante_at,
+          porNombre: d.cerrada_por?.nombre ?? null,
+          motivo: d.motivo_cierre_faltante ?? null,
+          valorFaltante: Number(d.valor_faltante ?? 0),
+          pagosReducidos: Number(d.pagos_reducidos ?? 0),
+          saldoFavorGenerado: Number(d.saldo_favor_generado ?? 0),
+        }
+      : null,
+    saldoFavorAplicado: Number(d.saldo_favor_aplicado ?? 0),
     observaciones: d.observaciones,
     creadaPorNombre: d.creado_por?.nombre ?? null,
     creadaPorId: d.created_by ?? null,
@@ -929,6 +963,9 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
           }
         : null,
       itemCodigo: l.pedido?.item?.codigo ?? null,
+      pedidoOriginal: l.pedido_original
+        ? Number(l.pedido_original.um_compra ? l.pedido_original.cantidad_compra : l.pedido_original.cantidad)
+        : null,
     })),
   }
 }

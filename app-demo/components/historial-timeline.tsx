@@ -216,6 +216,11 @@ const EVENTOS_USUARIO: Record<string, DefEvento> = {
 const EVENTOS_ORDEN_COMPRA: Record<string, DefEvento> = {
   ...EVENTOS,
   modificada: { etiqueta: "Orden modificada por Compras", tono: "aviso" },
+  factura_registrada: { etiqueta: "Factura registrada", tono: "ok" },
+  factura_anulada: { etiqueta: "Factura anulada", tono: "malo" },
+  cerrada_con_faltante: { etiqueta: "Cerrada con faltante", tono: "aviso" },
+  saldo_favor_aplicado: { etiqueta: "Saldo a favor aplicado", tono: "ok" },
+  saldo_favor_cerrado: { etiqueta: "Saldo a favor cerrado", tono: "aviso" },
 }
 
 const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>> = {
@@ -370,6 +375,21 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   const d = e.datos ?? {}
   if (e.evento === "firma_representante" && d.representante)
     return [`${d.representante}${d.tipo === "suplente" ? " (suplente)" : ""}`]
+  if (tipo === "orden_compra" && e.evento === "cerrada_con_faltante") {
+    const lineas = [`Total: ${pesosTexto(d.total_antes)} → ${pesosTexto(d.total_despues)}`]
+    if (Number(d.pagos_reducidos) > 0) lineas.push(`Descontado de pagos por aprobar: ${pesosTexto(d.pagos_reducidos)}`)
+    if (Number(d.saldo_favor) > 0) lineas.push(`Saldo a favor: ${pesosTexto(d.saldo_favor)}`)
+    return lineas
+  }
+  if (tipo === "orden_compra" && e.evento === "saldo_favor_aplicado") {
+    return [`${pesosTexto(d.total_orden)} − ${pesosTexto(d.valor)} = ${pesosTexto(d.a_pagar)}`]
+  }
+  if (tipo === "orden_compra" && e.evento === "saldo_favor_cerrado") {
+    return [`Quedaban ${pesosTexto(d.disponible)} de ${pesosTexto(d.valor)}`]
+  }
+  if (tipo === "orden_compra" && (e.evento === "factura_registrada" || e.evento === "factura_anulada")) {
+    return [`${d.parcial ? "Parcial" : "Total"} · ${pesosTexto(d.total)}`]
+  }
   if (tipo === "orden_compra" && e.evento === "modificada") {
     const lineas = [`Total: ${pesosTexto(d.total_antes)} → ${pesosTexto(d.total_despues)}`]
     if (d.proveedor_antes !== d.proveedor_despues) lineas.push(`Proveedor: ${formatoValor(d.proveedor_antes)} → ${formatoValor(d.proveedor_despues)}`)

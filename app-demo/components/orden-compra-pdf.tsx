@@ -282,6 +282,19 @@ export function OrdenCompraPDF({ orden, firmas = [] }: { orden: OrdenCompraDetal
               <Text style={styles.totalFinalTxt}>TOTAL</Text>
               <Text style={styles.totalFinalTxt}>{formatoMoneda(totales.total)}</Text>
             </View>
+            {/* Saldo a favor del proveedor usado en esta orden (Paquete C): se le compensa. */}
+            {(orden.saldoFavorAplicado ?? 0) > 0 && (
+              <>
+                <View style={styles.totalRow}>
+                  <Text>Saldo a favor aplicado</Text>
+                  <Text>−{formatoMoneda(orden.saldoFavorAplicado)}</Text>
+                </View>
+                <View style={styles.totalRowFinal}>
+                  <Text style={styles.totalFinalTxt}>VALOR A PAGAR</Text>
+                  <Text style={styles.totalFinalTxt}>{formatoMoneda(Math.max(Math.round(totales.total) - orden.saldoFavorAplicado, 0))}</Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
