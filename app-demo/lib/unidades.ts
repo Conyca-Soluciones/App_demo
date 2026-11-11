@@ -130,10 +130,10 @@ function formatearCantidad(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toLocaleString("es-CO", { maximumFractionDigits: 4 })
 }
 
-// "X 50 KG", "X50KG", "x 6 MTS", "X 2,5 GAL". El "X" tiene que venir después
-// de un espacio (o al inicio): "15X15", "1X4,60 MTS" y "100X100" son medidas,
-// no contenido.
-const RE_PRESENTACION = /(?:^|\s)[xX]\s*(\d+(?:[.,]\d+)?)\s*([A-Za-zÁÉÍÓÚáéíóú³²23]+)\b/g
+// "X 50 KG", "X50KG", "x 6 MTS", "X 2,5 GAL", "POR 50 M". El "X" tiene que
+// venir después de un espacio (o al inicio): "15X15", "1X4,60 MTS" y
+// "100X100" son medidas, no contenido.
+const RE_PRESENTACION = /(?:^|\s)(?:[xX]|[pP][oO][rR])\s*(\d+(?:[.,]\d+)?)\s*([A-Za-zÁÉÍÓÚáéíóú³²23]+)\b/g
 // Número con decimales, o con unidad de longitud, justo antes de la "X".
 const RE_MEDIDA_ANTES = /(?:\d+[.,]\d+|\d+\s*(?:M|MT|MTS|MTR|CM|CMS))\s*$/i
 // Unidades en que tiene sentido decir cuánto trae un insumo.
@@ -169,6 +169,18 @@ export function sugerirPresentacion(
   if (unidad === normalizarUnidad(uM)) return null
   if (ultima.numero === 1) return null // "X 1 UND" no dice nada
   return { unidadUso: unidad, contenido: ultima.numero }
+}
+
+/**
+ * Conversión que dice el NOMBRE del insumo ("ALAMBRE GALVANIZADO X 50 M"
+ * con unidad ROLLO = 1 rollo trae 50 m). Desde 2026-11-11 el maestro no
+ * guarda presentación: quien aprueba escribe en el nombre cuánto trae y de
+ * ahí se propone la conversión de cada línea de APU (que se guarda en la
+ * línea, no en el maestro).
+ */
+export function presentacionDesdeNombre(descripcion: string, uM: string | null): PresentacionInsumo {
+  const sugerida = sugerirPresentacion(descripcion, uM)
+  return { u_m: uM, unidad_uso: sugerida?.unidadUso ?? null, contenido: sugerida?.contenido ?? null }
 }
 
 /** Cuántas unidades de compra hacen falta para `cantidadUso` (siempre hacia arriba). */

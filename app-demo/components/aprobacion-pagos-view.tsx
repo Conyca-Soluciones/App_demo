@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertTriangle, Check, History, Loader2, RotateCcw, X } from "lucide-react"
+import { AlertTriangle, Check, History, Loader2, RotateCcw, Split, X } from "lucide-react"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { DetalleActa } from "@/components/detalle-acta"
 import { AYUDA_DOBLE_CLIC, VentanaDetalle, accionesDeFila, camposDesdeColumnas } from "@/components/ventana-detalle"
 import {
   aprobarPago,
+  aprobarPagoActa,
   aprobarRequisicionAdminPago,
   listarPagosAprobacion,
   obtenerRequisicionAdminAprobacion,
@@ -27,9 +28,12 @@ import {
   resolicitarPago,
 } from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
-  CLASE_ESTADO_PAGO,
-  ETIQUETA_ESTADO_PAGO,
+  ESTADOS_PENDIENTES,
   ETIQUETA_TIPO_PAGO,
+  claseEstadoPago,
+  esSaldoActaPorPagar,
+  esperaFacturaActa,
+  etiquetaEstadoPago,
   formatoFechaHora,
   formatoMoneda,
   type EstadoPago,
@@ -40,12 +44,16 @@ import {
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { lunesDeLaSemana } from "@/lib/tipo-pago-oc"
 import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
+import { leerNumero } from "@/lib/contratos"
+import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
 import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
-const ESTADOS_FILTRO: { valor: EstadoPago; etiqueta: string }[] = [
-  { valor: "solicitado", etiqueta: "Por aprobar" },
+type FiltroEstado = EstadoPago | "saldo_acta" | "pendientes"
+const ESTADOS_FILTRO: { valor: FiltroEstado; etiqueta: string }[] = [
+  { valor: "pendientes", etiqueta: "Pendientes (por aprobar, programados y en espera)" },
+  { valor: "saldo_acta", etiqueta: "Saldos de actas en espera" },
   { valor: "programado", etiqueta: "Programados (esperan entrega o fecha)" },
-  { valor: "en_espera", etiqueta: "Crédito en espera" },
+  { valor: "en_espera", etiqueta: "En espera (crédito o factura del acta)" },
   { valor: "aprobado", etiqueta: "Aprobados" },
   { valor: "rechazado", etiqueta: "Rechazados" },
 ]
@@ -56,19 +64,24 @@ const valorFila = (p: Pago) => p.requisicionAdminLote?.total ?? p.valor
 const tipoFila = (p: Pago) =>
   p.requisicionAdminLote
     ? `Requisición · ${p.requisicionAdminLote.items} ${p.requisicionAdminLote.items === 1 ? "ítem" : "ítems"}`
-    : ETIQUETA_TIPO_PAGO[p.tipo]
+    : p.saldoActa
+      ? "Saldo de acta (avance)"
+      : ETIQUETA_TIPO_PAGO[p.tipo]
 const terceroFila = (p: Pago) =>
   p.requisicionAdminLote && p.requisicionAdminLote.items > 1
     ? `${p.terceroNombre ?? "Sin tercero"} y ${p.requisicionAdminLote.items - 1} más`
     : p.terceroNombre
 
-function EtiquetaEstado({ estado }: { estado: EstadoPago }) {
+function EtiquetaEstado({ pago }: { pago: Pago }) {
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[estado]}`}>
-      {ETIQUETA_ESTADO_PAGO[estado]}
+    <Badge variant="outline" className={`h-6 px-3 text-xs ${claseEstadoPago(pago)}`}>
+      {etiquetaEstadoPago(pago)}
     </Badge>
   )
 }
+
+// Aprobar un avance de un acta o pagar (todo o parte de) un saldo en espera.
+type Parcial = { pago: Pago; modo: "avance" | "saldo" }
 
 // Debajo del documento (orden o acta): el pago que se está aprobando y los
 // mismos botones de la fila. Un botón abre su propio paso (confirmar,
@@ -80,11 +93,11 @@ function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: React.R
         <span className="font-medium">{tipoFila(pago)}</span>
         <span className="tabular-nums">
           {formatoMoneda(valorFila(pago))}
-          {pago.actaBruto != null && pago.actaBruto !== pago.valor && (
+          {!pago.saldoActa && pago.actaBruto != null && pago.actaBruto !== pago.valor && (
             <span className="text-muted-foreground"> (bruto del acta {formatoMoneda(pago.actaBruto)})</span>
           )}
         </span>
-        <EtiquetaEstado estado={pago.estado} />
+        <EtiquetaEstado pago={pago} />
         <span className="min-w-0 truncate text-muted-foreground" title={pago.cuentaTexto ?? undefined}>
           {terceroFila(pago) ?? "Sin tercero"}
           {!pago.requisicionAdminLote && textoCuentaPago(pago) ? ` · ${textoCuentaPago(pago)}` : ""}
@@ -120,9 +133,12 @@ function BarraPago({ pago, acciones, onCerrar }: { pago: Pago; acciones: React.R
 export function AprobacionPagosView({
   puedeAprobar,
   puedeResolicitar,
+  estadoInicial,
 }: {
   puedeAprobar: boolean
   puedeResolicitar: boolean
+  // ?estado=saldo_acta (desde Mis pendientes): abre con ese filtro y ya consultado.
+  estadoInicial?: FiltroEstado
 }) {
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [pagos, setPagos] = useState<Pago[] | null>(null)
@@ -132,8 +148,8 @@ export function AprobacionPagosView({
   const [error, setError] = useState<string | null>(null)
   const [ultimosFiltros, setUltimosFiltros] = useState<FiltrosAprobacionPagos>({})
 
-  // "Por aprobar" viene marcado, como en las demás pantallas de aprobación.
-  const [estado, setEstado] = useState<EstadoPago | "todos">("solicitado")
+  // "Pendientes" viene marcado: por aprobar, programados y en espera.
+  const [estado, setEstado] = useState<FiltroEstado | "todos">(estadoInicial ?? "pendientes")
   const [tercero, setTercero] = useState("")
 
   const [procesandoId, setProcesandoId] = useState<string | null>(null)
@@ -145,6 +161,8 @@ export function AprobacionPagosView({
   const [requisicionDe, setRequisicionDe] = useState<Pago | null>(null)
   const [viendo, setViendo] = useState<Pago | null>(null)
   const [motivo, setMotivo] = useState("")
+  const [parcial, setParcial] = useState<Parcial | null>(null)
+  const [valorParcial, setValorParcial] = useState("")
   // Rechazados que ya se volvieron a solicitar en esta pantalla (se oculta el botón).
   const [resolicitados, setResolicitados] = useState<Set<string>>(() => new Set())
 
@@ -164,35 +182,86 @@ export function AprobacionPagosView({
       .finally(() => setCargando(false))
   }
 
+  // Desde Mis pendientes llega con el filtro puesto: se consulta de una vez.
+  useEffect(() => {
+    if (estadoInicial) cargar({ estado: estadoInicial }, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleConsultar(): boolean {
     cargar({ estado: estado === "todos" ? undefined : estado, tercero: tercero.trim() || undefined }, 0)
     return true
   }
 
   function limpiar() {
-    setEstado("solicitado")
+    setEstado("pendientes")
     setTercero("")
   }
 
   // Actualización optimista: el pago resuelto sale de la lista si ya no
   // coincide con el filtro de estado; si no, se actualiza en su sitio.
-  function reflejar(p: Pago) {
+  const coincide = (p: Pago) =>
+    !ultimosFiltros.estado ||
+    (ultimosFiltros.estado === "pendientes"
+      ? ESTADOS_PENDIENTES.includes(p.estado)
+      : ultimosFiltros.estado === "saldo_acta"
+        ? esSaldoActaPorPagar(p)
+        : ultimosFiltros.estado === p.estado)
+
+  function reflejar(p: Pago, nuevo?: Pago | null) {
     setPagos((actuales) => {
       if (!actuales) return actuales
-      const sigue = !ultimosFiltros.estado || ultimosFiltros.estado === p.estado
-      return sigue ? actuales.map((x) => (x.id === p.id ? p : x)) : actuales.filter((x) => x.id !== p.id)
+      const lista = coincide(p) ? actuales.map((x) => (x.id === p.id ? p : x)) : actuales.filter((x) => x.id !== p.id)
+      // El saldo que dejó un avance entra justo debajo de su pago, si coincide con el filtro.
+      if (!nuevo || !coincide(nuevo)) return lista
+      const i = lista.findIndex((x) => x.id === p.id)
+      return i < 0 ? [nuevo, ...lista] : [...lista.slice(0, i + 1), nuevo, ...lista.slice(i + 1)]
     })
+  }
+
+  // Valor del avance o del saldo a pagar (formato colombiano: "4.000.000").
+  const valorEscrito = parcial ? leerNumero(valorParcial) : null
+  const errorParcial =
+    !parcial || valorParcial.trim() === ""
+      ? null
+      : valorEscrito == null || valorEscrito <= 0
+        ? "Escribe un valor mayor que cero."
+        : Math.round(valorEscrito) > parcial.pago.valor
+          ? `No puede pasar de ${formatoMoneda(parcial.pago.valor)}.`
+          : null
+
+  async function handleParcial() {
+    if (!parcial || valorEscrito == null || errorParcial) return
+    const p = parcial.pago
+    setProcesandoId(p.id)
+    setError(null)
+    try {
+      const r = await aprobarPagoActa(p.id, Math.round(valorEscrito))
+      reflejar(r.pago, r.saldo)
+      setParcial(null)
+      setValorParcial("")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo aprobar el pago.")
+      setParcial(null)
+    } finally {
+      setProcesandoId(null)
+    }
   }
 
   async function handleAprobar(p: Pago) {
     setProcesandoId(p.id)
     setError(null)
     try {
-      reflejar(
-        p.requisicionAdminLote && p.requisicionAdminId
-          ? await aprobarRequisicionAdminPago(p.id, p.requisicionAdminId)
-          : await aprobarPago(p.id)
-      )
+      if (p.actaId) {
+        const r = await aprobarPagoActa(p.id, null)
+        reflejar(r.pago, r.saldo)
+      } else {
+        reflejar(
+          p.requisicionAdminLote && p.requisicionAdminId
+            ? await aprobarRequisicionAdminPago(p.id, p.requisicionAdminId)
+            : await aprobarPago(p.id)
+        )
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo aprobar el pago.")
     } finally {
@@ -246,21 +315,27 @@ export function AprobacionPagosView({
       titulo: "Origen",
       ancho: 150,
       fija: true,
-      texto: (p) => p.origen,
+      texto: (p) => [p.origen, textoEtiquetasPago(p)].filter(Boolean).join(" · "),
       // Requisición administrativa: abre su detalle (todos sus ítems, cuentas y pagos).
-      celda: (p) =>
-        p.requisicionAdminId ? (
-          <button
-            type="button"
-            className="truncate text-left text-primary underline-offset-2 hover:underline"
-            title="Ver el pago administrativo"
-            onClick={() => setRequisicionDe(p)}
-          >
-            {p.origen}
-          </button>
-        ) : (
-          <span className="truncate">{p.origen}</span>
-        ),
+      celda: (p) => (
+        <div className="min-w-0 leading-tight">
+          {p.requisicionAdminId ? (
+            <button
+              type="button"
+              className="block max-w-full truncate text-left text-primary underline-offset-2 hover:underline"
+              title="Ver el pago administrativo"
+              onClick={() => setRequisicionDe(p)}
+            >
+              {p.origen}
+            </button>
+          ) : (
+            <span className="block truncate" title={p.origen}>
+              {p.origen}
+            </span>
+          )}
+          <EtiquetasPago pago={p} />
+        </div>
+      ),
     },
     {
       clave: "tipo",
@@ -304,7 +379,7 @@ export function AprobacionPagosView({
       celda: (p) => (
         <div className="leading-tight">
           <div>{formatoMoneda(valorFila(p))}</div>
-          {p.actaBruto != null && p.actaBruto !== p.valor && (
+          {!p.saldoActa && p.actaBruto != null && p.actaBruto !== p.valor && (
             <div className="text-xs text-muted-foreground">Bruto del acta {formatoMoneda(p.actaBruto)}</div>
           )}
           {/* Saldo a favor usado en la OC (Paquete C): va en otros descuentos del pago. */}
@@ -327,6 +402,8 @@ export function AprobacionPagosView({
           ? `Desde ${formatearFechaSinHora(p.fechaProgramada)}`
           : p.estado === "en_espera" && p.ordenFechaPagoCredito
             ? `Pasa a pago el ${formatearFechaSinHora(lunesDeLaSemana(p.ordenFechaPagoCredito))}`
+          : esperaFacturaActa(p)
+            ? "Pasa a pago al subir la factura"
           : p.solicitadoEn
             ? formatoFechaHora(p.solicitadoEn)
             : "",
@@ -335,10 +412,10 @@ export function AprobacionPagosView({
       clave: "estado",
       titulo: "Estado",
       ancho: 130,
-      texto: (p) => ETIQUETA_ESTADO_PAGO[p.estado],
+      texto: (p) => etiquetaEstadoPago(p),
       celda: (p) => (
         <div className="flex items-center gap-1.5">
-          <EtiquetaEstado estado={p.estado} />
+          <EtiquetaEstado pago={p} />
           {p.novedad && (
             <span title={p.novedad}>
               <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Con novedad" />
@@ -350,7 +427,7 @@ export function AprobacionPagosView({
     {
       clave: "acciones",
       titulo: "Acciones",
-      ancho: 250,
+      ancho: 340,
       ordenable: false,
       texto: () => "",
       celda: (p) => (
@@ -365,7 +442,21 @@ export function AprobacionPagosView({
           >
             <History className="h-4 w-4" />
           </Button>
-          {puedeAprobar && p.estado === "solicitado" ? (
+          {puedeAprobar && esSaldoActaPorPagar(p) ? (
+            <Button
+              size="sm"
+              className="h-8 shrink-0 bg-orange-600 hover:bg-orange-700"
+              disabled={procesandoId === p.id}
+              onClick={() => {
+                setParcial({ pago: p, modo: "saldo" })
+                setValorParcial(Math.round(p.valor).toLocaleString("es-CO"))
+              }}
+              title="Aprobar el pago de este saldo, completo o una parte"
+            >
+              <Check className="mr-1.5 h-4 w-4" />
+              Pagar saldo
+            </Button>
+          ) : puedeAprobar && p.estado === "solicitado" ? (
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -377,6 +468,23 @@ export function AprobacionPagosView({
               <Check className="mr-1.5 h-4 w-4" />
               Aprobar
             </Button>
+            {p.actaId && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-24 border-orange-300 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+                disabled={procesandoId === p.id}
+                onClick={() => {
+                  setParcial({ pago: p, modo: "avance" })
+                  setValorParcial("")
+                }}
+                title="Aprobar el acta pagando solo una parte; el resto queda como saldo en espera"
+                aria-label={`Aprobar un avance del pago de ${p.origen || "—"}`}
+              >
+                <Split className="mr-1.5 h-4 w-4" />
+                Avance
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -430,7 +538,7 @@ export function AprobacionPagosView({
         >
           <div className="space-y-1.5">
             <Label>Estado</Label>
-            <Select value={estado} onValueChange={(v) => setEstado((v ?? "solicitado") as EstadoPago | "todos")}>
+            <Select value={estado} onValueChange={(v) => setEstado((v ?? "pendientes") as FiltroEstado | "todos")}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -466,7 +574,7 @@ export function AprobacionPagosView({
 
           {pagos === null && !cargando ? (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-              Presiona Consultar para ver los pagos por aprobar.
+              Presiona Consultar para ver los pagos pendientes.
             </div>
           ) : pagos === null ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -482,11 +590,19 @@ export function AprobacionPagosView({
               columnas={columnas}
               claveFila={(p) => p.id}
               onDobleClickFila={(p) => (p.requisicionAdminLote ? setRequisicionDe(p) : setViendo(p))}
+              // Saldo de un acta con avance: toda la fila en naranja.
+              fondoFila={(p) =>
+                esSaldoActaPorPagar(p)
+                  ? "bg-orange-200 text-orange-950 dark:bg-orange-900/60 dark:text-orange-50"
+                  : p.pagoInmediato && p.estado === "solicitado"
+                    ? "bg-red-100 dark:bg-red-950/50"
+                    : undefined
+              }
               tituloFila={AYUDA_DOBLE_CLIC}
               tarjeta={{
                 titulo: (p) => terceroFila(p) ?? "Sin tercero",
                 subtitulo: (p) => `${p.origen || "—"} · ${tipoFila(p)}`,
-                esquina: (p) => <EtiquetaEstado estado={p.estado} />,
+                esquina: (p) => <EtiquetaEstado pago={p} />,
                 campos: ["proyecto", "empresa", "valor", "fecha", "acciones"],
               }}
             />
@@ -530,6 +646,71 @@ export function AprobacionPagosView({
             </Button>
             <Button variant="destructive" disabled={!motivo.trim() || procesandoId !== null} onClick={handleRechazar}>
               {procesandoId !== null ? "Rechazando..." : "Rechazar pago"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={parcial !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) {
+            setParcial(null)
+            setValorParcial("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {parcial?.modo === "saldo" ? "Pagar saldo del acta" : "Aprobar un avance del acta"} — {parcial?.pago.origen}
+            </DialogTitle>
+          </DialogHeader>
+          {parcial && (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">
+                {terceroFila(parcial.pago) ?? "Sin tercero"} · {parcial.modo === "saldo" ? "saldo en espera" : "pago del acta"} de{" "}
+                <span className="font-medium text-foreground">{formatoMoneda(parcial.pago.valor)}</span>.
+                {parcial.modo === "avance"
+                  ? " El acta queda aprobada. Se paga lo que escribas y el resto queda como saldo en espera, en esta misma lista."
+                  : " Escribe cuánto se paga ahora: lo que falte sigue como saldo en espera."}
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="valor-parcial">Valor a pagar ahora</Label>
+                <Input
+                  id="valor-parcial"
+                  inputMode="decimal"
+                  autoFocus
+                  placeholder="Ej. 4.000.000"
+                  value={valorParcial}
+                  onChange={(e) => setValorParcial(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleParcial()}
+                  onFocus={(e) => e.target.select()}
+                />
+                {errorParcial ? (
+                  <p className="text-xs text-destructive">{errorParcial}</p>
+                ) : valorEscrito != null && valorEscrito > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {Math.round(valorEscrito) < parcial.pago.valor
+                      ? `Queda en espera: ${formatoMoneda(parcial.pago.valor - Math.round(valorEscrito))}`
+                      : "Se paga completo: no queda saldo."}
+                  </p>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Si el acta todavía no tiene factura, el pago queda aprobado esperándola y pasa al consolidado cuando la suban.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setParcial(null)}>
+              Volver
+            </Button>
+            <Button
+              disabled={valorEscrito == null || valorParcial.trim() === "" || errorParcial !== null || procesandoId !== null}
+              onClick={handleParcial}
+            >
+              {procesandoId !== null ? "Aprobando..." : parcial?.modo === "saldo" ? "Pagar" : "Aprobar avance"}
             </Button>
           </DialogFooter>
         </DialogContent>

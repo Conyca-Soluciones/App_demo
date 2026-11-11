@@ -178,6 +178,16 @@ export function ActaPDF({ acta: a, logo, firmas = [] }: { acta: ActaDetalle; log
           {a.neto > 0 && <Text style={{ marginTop: 6, textAlign: "right", fontSize: 8.5 }}>Son: {pesosEnLetras(a.neto)}</Text>}
         </View>
 
+        {a.saldosAnteriores.length > 0 && (
+          <View wrap={false}>
+            <Text style={t.seccion}>Saldos pendientes de actas anteriores</Text>
+            <Text style={s.p}>
+              {a.saldosAnteriores.map((x) => `Acta N° ${numeroActa(x.numero)}: ${pesos(x.saldo)}`).join(" · ")}. Se pagan aparte (no
+              están incluidos en el neto de esta acta).
+            </Text>
+          </View>
+        )}
+
         {a.observaciones && (
           <View wrap={false}>
             <Text style={t.seccion}>Observaciones</Text>

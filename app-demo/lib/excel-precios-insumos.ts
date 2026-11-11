@@ -1,15 +1,18 @@
 // Excel de las solicitudes de insumos nuevos (Aprobación de insumos).
 // Presupuestos manda a aprobación los insumos que no encontró en el maestro;
-// en Aprobación de insumos se descarga este Excel, se llena precio, IVA, tipo,
-// unidad de compra y agrupación, y al subirlo cada fila completa se aprueba y
-// entra al maestro (aprobarSolicitudInsumo).
+// en Aprobación de insumos se descarga este Excel, se corrige el nombre si
+// hace falta y se llena tipo, agrupación, IVA y precio unitario; al subirlo
+// cada fila completa se aprueba y entra al maestro (aprobarSolicitudInsumo).
+// La unidad es la de COMPRA y el precio es por esa unidad; viene la del
+// presupuesto. Si se cambia (m -> rollo), el ingeniero confirma la conversión
+// en su presupuesto.
 //
 // leerFilasPreciosInsumos es lógica pura (pruebas en
 // tests/excel-precios-insumos.test.ts); descargarExcelPreciosInsumos arma el
 // archivo en el navegador.
 
 import { leerNumero } from "@/lib/contratos"
-import { UNIDADES_DE_USO, UNIDADES_MAESTRO, unidadMaestro, validarPresentacion } from "@/lib/unidades"
+import { UNIDADES_MAESTRO, unidadMaestro } from "@/lib/unidades"
 import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 
@@ -36,14 +39,13 @@ export type FilaPrecioInsumo = {
   // fila del Excel (para los mensajes de error)
   fila: number
   solicitudId: string
+  // nombre con que entra al maestro (la columna Insumo, editable)
   descripcion: string
   vrUnitario: number
   ivaPorcentaje: number
   tipo: string
   uM: string
   agrupacion: string
-  unidadUso: string | null
-  contenido: number | null
 }
 
 export type ErrorFilaPrecio = { fila: number; insumo: string; mensaje: string }
@@ -58,17 +60,15 @@ export const COLUMNAS_PRECIOS_INSUMOS = {
   tipo: "Tipo",
   uM: "Unidad de compra",
   agrupacion: "Agrupación",
-  precio: "Precio unitario sin IVA",
+  precio: "Precio por unidad de compra sin IVA",
   iva: "IVA %",
-  unidadUso: "Presentación: unidad de uso",
-  contenido: "Presentación: cuánto trae",
   id: "ID interno -- NO BORRAR NI EDITAR",
 } as const
 
 type ClaveColumna = keyof typeof COLUMNAS_PRECIOS_INSUMOS
 
 const ORDEN: { clave: ClaveColumna; ancho: number; llenar?: boolean }[] = [
-  { clave: "insumo", ancho: 48 },
+  { clave: "insumo", ancho: 48, llenar: true },
   { clave: "unidadPedida", ancho: 14 },
   { clave: "cantidad", ancho: 14 },
   { clave: "proyectos", ancho: 22 },
@@ -77,8 +77,6 @@ const ORDEN: { clave: ClaveColumna; ancho: number; llenar?: boolean }[] = [
   { clave: "agrupacion", ancho: 36, llenar: true },
   { clave: "precio", ancho: 18, llenar: true },
   { clave: "iva", ancho: 9, llenar: true },
-  { clave: "unidadUso", ancho: 18, llenar: true },
-  { clave: "contenido", ancho: 16, llenar: true },
   { clave: "id", ancho: 38 },
 ]
 
@@ -151,6 +149,10 @@ export function leerFilasPreciosInsumos(
       continue
     }
     const error = (mensaje: string) => errores.push({ fila: numeroFila, insumo, mensaje })
+    if (!insumo) {
+      error("Escribe el nombre del insumo.")
+      continue
+    }
 
     if (vistos.has(id)) {
       error("La fila está repetida.")
@@ -184,16 +186,6 @@ export function leerFilasPreciosInsumos(
       error("Elige la agrupación de la lista.")
       continue
     }
-    let presentacion: { unidadUso: string; contenido: number } | null
-    try {
-      const contenidoCrudo = celda(f, "contenido")
-      const contenido = typeof contenidoCrudo === "number" ? contenidoCrudo : numeroCelda(contenidoCrudo) ?? texto(contenidoCrudo)
-      presentacion = validarPresentacion(texto(celda(f, "unidadUso")), contenido)
-    } catch (e) {
-      error(e instanceof Error ? e.message : "La presentación no es válida.")
-      continue
-    }
-
     resultado.push({
       fila: numeroFila,
       solicitudId: id,
@@ -203,8 +195,6 @@ export function leerFilasPreciosInsumos(
       tipo,
       uM,
       agrupacion,
-      unidadUso: presentacion?.unidadUso ?? null,
-      contenido: presentacion?.contenido ?? null,
     })
   }
 
@@ -237,7 +227,6 @@ export async function construirLibroPreciosInsumos(
     UNIDADES_MAESTRO.map((u) => u.texto),
     listas.agrupaciones,
     IVAS_EXCEL.map(String),
-    UNIDADES_DE_USO.map((u) => u.codigo),
   ]
   columnasListas.forEach((valores, c) => valores.forEach((v, r) => (hojaListas.getRow(r + 1).getCell(c + 1).value = v)))
   const rango = (c: number) => {
@@ -249,7 +238,6 @@ export async function construirLibroPreciosInsumos(
     uM: rango(1),
     agrupacion: rango(2),
     iva: rango(3),
-    unidadUso: rango(4),
   }
 
   ORDEN.forEach((c, i) => (hoja.getColumn(i + 1).width = c.ancho))
@@ -260,6 +248,12 @@ export async function construirLibroPreciosInsumos(
     celda.font = { bold: true, color: { argb: "FFFFFFFF" } }
     celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL_MARCA_CONYCA } }
     celda.alignment = { vertical: "middle", horizontal: "center", wrapText: true }
+    if (c.clave === "insumo") celda.note = "Nombre con que entra al maestro: se puede corregir."
+    if (c.clave === "uM") {
+      celda.note =
+        "En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae (ej. ROLLO X 100 M). El ingeniero confirma la conversión en su presupuesto."
+    }
+    if (c.clave === "precio") celda.note = "Precio por la unidad de compra, sin IVA."
   })
   encabezado.height = 32
 
@@ -268,17 +262,16 @@ export async function construirLibroPreciosInsumos(
   solicitudes.forEach((s, k) => {
     const fila = hoja.getRow(primera + 1 + k)
     const valores: Record<ClaveColumna, string | number | null> = {
-      insumo: s.descripcion,
+      insumo: s.descripcion.trim().replace(/\s+/g, " ").toUpperCase(),
       unidadPedida: s.unidadPedida ?? "",
       cantidad: s.cantidad,
       proyectos: s.proyectos.join(", "),
       tipo: s.tipo && tipos.has(s.tipo) ? s.tipo : "",
-      uM: unidadMaestro(s.uM ?? s.unidadPedida) ?? "",
+      // por defecto, la del presupuesto
+      uM: unidadMaestro(s.unidadPedida) ?? "",
       agrupacion: s.agrupacion && agrupaciones.has(s.agrupacion) ? s.agrupacion : "",
       precio: null,
       iva: 19,
-      unidadUso: "",
-      contenido: null,
       id: s.id,
     }
     ORDEN.forEach((c, i) => {

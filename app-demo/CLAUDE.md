@@ -1026,6 +1026,48 @@ no podía distinguir 50 m de 50 rollos.
   (lcpr) volvía a contar órdenes RECHAZADAS como ya compradas (regresión de
   20261006100000); ahora no.
 
+## Sin presentación en el maestro; solicitudes de insumo sin repetir (2026-11-11)
+
+Decisión del usuario: la conversión depende de lo que se compre, no del
+insumo (hoy un rollo de 50 m, mañana uno de 100 m), así que el maestro ya no
+guarda presentación. Lo de "Presentación" de la sección anterior queda como
+historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
+`compararUnidad` todavía los lee, pero ninguna pantalla los escribe.
+- **Aprobación de insumos** (pantalla y Excel, decisión final del usuario
+  2026-11-11): se elige la UNIDAD DE COMPRA (viene la del presupuesto) y el
+  precio es por esa unidad; el nombre debe decir la presentación ("TELA VERDE
+  ROLLO X 100 M", "DURMIENTE 5 X 5 X 3 M"). No deja aprobar un nombre que ya
+  existe. Si la unidad de compra es otra que la del presupuesto (m contra
+  rollo), aprobarSolicitudInsumo llama `devolver_lineas_para_conversion`
+  ANTES de aprobar: esas líneas se sueltan de la solicitud (el disparador no
+  las mete al APU) y vuelven a "pendiente" con el insumo como único candidato
+  y `apu_import_revision.convertir_insumo_id`. El ingeniero las ve en Revisar
+  pendientes › "Falta conversión" (amarillo, una tarjeta por insumo, "1 rollo
+  = [100] m" leído del nombre) y le llegan la campanita
+  (`insumo_por_convertir`) y Mis pendientes (mismo tipo, `/presupuestos?revisar=1`
+  abre la revisión). Las líneas con unidad no reconocida ("Ins") toman la
+  elegida. Solicitud hecha a mano desde el editor en otra unidad: no se crea
+  su línea ni hay aviso (pendiente). Migración `20261231999900` (no se puede
+  correr dos veces: el parche de `_pendientes_de` falla la segunda).
+  (Ese mismo día se probaron y descartaron: conversión escrita en el nombre al
+  aprobar, y unidad fija del presupuesto.)
+- **APU**: la conversión vive solo en la línea (`item_apu.factor_unidad`) y
+  solo hace falta con insumos viejos del maestro en otra unidad; el editor y
+  la revisión del import la proponen si el nombre dice cuánto trae ("X 50 KG"). Se quitó
+  "Guardar también en el maestro". **OC**: sin cambios ("UM disponible").
+- **Maestra**: sin columna, filtro, editor ni "Revisar sugerencias".
+- **Solicitudes repetidas**: "No existe — crear solicitud" guardado línea por
+  línea creaba una solicitud por línea (Malecón: 24 de "Repisa ordinario
+  3 m"). Ahora `solicitudInsumoParaLinea` reutiliza la pendiente con la misma
+  descripción y unidad, y `enviar_insumos_sin_sugerencias` igual
+  (`20261231999700`). Solo se reutilizan solicitudes que YA tienen líneas del
+  import: una hecha a mano desde el editor de APU no tiene líneas y, si se le
+  colgaran, al aprobarla no se crearía su línea manual.
+- `20261231999500`: el disparador crea una línea de APU por línea del import
+  (con SU cantidad) y la enlaza por el id del insert; antes, el mismo insumo
+  dos veces en un APU dejaba las dos revisiones enlazadas a la misma fila.
+  `20261231999600` junta las repetidas que ya había (va después).
+
 ## UM disponible, excedentes de compras y las tres categorías de costo (2026-10-06)
 
 - **UM disponible** (`generar-oc-view.tsx`, `lib/presentacion-compra.ts`,
@@ -1176,6 +1218,10 @@ Decisiones del usuario. Migración `20261231999400_paquete_a_requisiciones.sql`
   saldo a favor (`_aplicar_saldo_favor_orden`, `cerrar_orden_con_faltante`,
   `saldos_favor_proveedor_empresa`) y el encabezado del detalle y del PDF. Al
   modificar la orden se conserva.
+- Al unir con la rama de insumos: `20270101000100_avisos_paquete_a_tras_merge.sql` deja la lista completa
+  de tipos de aviso (la 999900 la rehacía sin los del Paquete A) y el aviso de insumo aprobado dice
+  "Ya puedes hacer la requisición" solo sin ítem (del presupuesto puede faltar la conversión).
+  El encabezado de la OC (correo y ciudad de la empresa, rama de compras) sale de la empresa que factura.
 
 ## Las OC se aprueban en Aprobación de pagos (2026-10-22)
 

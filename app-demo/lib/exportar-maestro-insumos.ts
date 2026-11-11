@@ -10,7 +10,6 @@ export type InsumoExcel = {
   descripcion: string
   tipo: string | null
   u_m: string | null
-  presentacion: string // la confirmada ("" si no tiene); las sugeridas no van
   agrupacion: string | null
   precioEfectivo: number | null
 }
@@ -22,13 +21,12 @@ export const COLUMNAS_EXCEL_INSUMOS = [
   { titulo: "Descripción", ancho: 60 },
   { titulo: "Tipo", ancho: 22 },
   { titulo: "U.M.", ancho: 20 },
-  { titulo: "Presentación", ancho: 26 },
   { titulo: "Agrupación", ancho: 34 },
   { titulo: "Valor unitario", ancho: 16, formato: MONEDA },
 ] as const
 
 export function valoresFilaInsumo(i: InsumoExcel): (string | number | null)[] {
-  return [i.codigo, i.descripcion, i.tipo ?? "", i.u_m ?? "", i.presentacion, i.agrupacion ?? "", i.precioEfectivo]
+  return [i.codigo, i.descripcion, i.tipo ?? "", i.u_m ?? "", i.agrupacion ?? "", i.precioEfectivo]
 }
 
 export async function descargarExcelMaestroInsumos(insumos: InsumoExcel[]) {

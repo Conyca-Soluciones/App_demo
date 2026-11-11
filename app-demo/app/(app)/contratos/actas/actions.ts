@@ -234,6 +234,17 @@ function mapActaDetalle(d: any): ActaDetalle {
           novedad: d.pago.novedad ?? null,
         }
       : null,
+    pagos: (d.pagos ?? []).map((g: any) => ({
+      id: g.id,
+      estado: g.estado,
+      valor: Number(g.valor),
+      saldoActa: Boolean(g.saldo_acta),
+      aprobado: Boolean(g.aprobado),
+      anio: num(g.anio),
+      semana: num(g.semana),
+      referencia: g.referencia ?? null,
+    })),
+    saldosAnteriores: (d.saldos_anteriores ?? []).map((x: any) => ({ numero: Number(x.numero), saldo: Number(x.saldo) })),
     lineasAnteriores: (d.lineas_anteriores ?? []).map((l: any) => ({
       orden: Number(l.orden),
       itemCodigo: l.item_codigo ?? null,
@@ -303,19 +314,52 @@ export async function enlaceSoporteActa(ruta: string): Promise<string> {
   return data.signedUrl
 }
 
-// Acta aprobada: la copia impresa que firmó el contratista, escaneada (el
-// archivo ya se subió a <acta>/). Reemplaza la anterior; devuelve su ruta para
-// borrar el archivo (20261129000000_firmas.sql).
-export async function subirActaFirmadaContratista(actaId: string, archivo: Omit<SoporteSubido, "tipo">): Promise<{ rutaAnterior: string | null }> {
+// Acta aprobada sin factura: se sube la factura o cuenta de cobro (el archivo
+// ya se subió a <acta>/) y los pagos aprobados que la esperaban pasan a A&F
+// (20261231999000). Devuelve cuántos pagos se liberaron.
+export async function subirFacturaActa(actaId: string, archivo: SoporteSubido): Promise<number> {
   await requerirAccion("elaborar_actas")
   if (!archivo.ruta.startsWith(`${actaId}/`)) throw new Error("La ruta del archivo no corresponde al acta.")
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("subir_acta_firmada_contratista", {
+  const { data, error } = await supabase.rpc("subir_factura_acta", {
     p_acta_id: actaId,
+    p_soporte: soportesParaBase([archivo])[0],
+  })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
+}
+
+// Modificar un soporte del acta: el archivo nuevo (ya subido a <acta>/)
+// reemplaza al anterior y conserva su tipo. Devuelve la ruta del anterior
+// para borrarlo del bucket (20261231999100).
+export async function reemplazarSoporteActa(
+  actaId: string,
+  soporteId: string,
+  archivo: Omit<SoporteSubido, "tipo">
+): Promise<{ rutaAnterior: string | null }> {
+  await requerirAccion("elaborar_actas")
+  if (!archivo.ruta.startsWith(`${actaId}/`)) throw new Error("La ruta del archivo no corresponde al acta.")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("reemplazar_soporte_acta", {
+    p_acta_id: actaId,
+    p_soporte_id: soporteId,
     p_soporte: { ruta: archivo.ruta, nombre_archivo: archivo.nombreArchivo, tamano: archivo.tamano, mime: archivo.mime },
   })
   if (error) throw new Error(error.message)
   return { rutaAnterior: (data?.ruta_anterior as string | null) ?? null }
+}
+
+// Actas del contrato con saldo en espera (aviso al crear la siguiente acta).
+export async function saldosActasContrato(contratoId: string): Promise<{ actaId: string; numero: number; saldo: number }[]> {
+  await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("saldos_actas_contrato", { p_contrato_id: contratoId })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as { acta_id: string; numero: number; saldo: number }[]).map((x) => ({
+    actaId: x.acta_id,
+    numero: Number(x.numero),
+    saldo: Number(x.saldo),
+  }))
 }
 
 // Titular de la cuenta guardado en el acta (para corregirla). null = la cuenta

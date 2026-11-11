@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, conProyectos, mapPago } from "@/lib/pagos-db"
-import type { FiltrosAprobacionPagos, Pago } from "@/lib/pagos"
+import { ESTADOS_PENDIENTES, type FiltrosAprobacionPagos, type Pago } from "@/lib/pagos"
 import { mapDetalleReqAdmin, type RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 const PESTANA = "ayf.aprobacion_pagos"
@@ -35,7 +35,10 @@ export async function listarPagosAprobacion(
   // Una requisición administrativa sale en UNA fila (el pago de su ítem 1):
   // se aprueba completa, como una orden de compra.
   query = query.or("requisicion_admin_id.is.null,requisicion_admin_principal.eq.true")
-  if (filtros.estado) query = query.eq("estado", filtros.estado)
+  // Saldos de actas con avance que esperan que se decida pagarlos.
+  if (filtros.estado === "pendientes") query = query.in("estado", ESTADOS_PENDIENTES)
+  else if (filtros.estado === "saldo_acta") query = query.eq("estado", "en_espera").eq("saldo_acta", true).is("aprobado_en", null)
+  else if (filtros.estado) query = query.eq("estado", filtros.estado)
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
 
   const { data, error } = await query.range(...rangoPagina(pagina))
@@ -58,6 +61,20 @@ export async function aprobarPago(pagoId: string): Promise<Pago> {
   const { error } = await supabase.rpc("aprobar_pago", { p_pago_id: pagoId })
   if (error) throw new Error(error.message)
   return await obtenerPago(pagoId)
+}
+
+// Pago de un acta: aprobar todo (valor null) o un AVANCE (valor menor; lo que
+// falta queda como saldo en espera). También "Pagar saldo" sobre un saldo en
+// espera. Sin factura del acta, el pago aprobado espera a que la suban
+// (aprobar_pago_acta, 20261231999000). Devuelve el pago y el saldo nuevo.
+export async function aprobarPagoActa(pagoId: string, valor: number | null): Promise<{ pago: Pago; saldo: Pago | null }> {
+  await requerirAccion("aprobar_pagos")
+  if (valor != null && (!Number.isFinite(valor) || valor <= 0)) throw new Error("El valor a pagar debe ser mayor que cero.")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("aprobar_pago_acta", { p_pago_id: pagoId, p_valor: valor })
+  if (error) throw new Error(error.message)
+  const [pago, saldo] = await Promise.all([obtenerPago(pagoId), data ? obtenerPago(data as string) : Promise.resolve(null)])
+  return { pago, saldo }
 }
 
 export async function rechazarPago(pagoId: string, motivo: string): Promise<Pago> {

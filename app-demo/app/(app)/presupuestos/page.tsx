@@ -509,6 +509,12 @@ function PresupuestoDeProyecto() {
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("item")
   )
   const itemPedidoHecho = useRef(false)
+  // ?revisar=1: viene del aviso "Insumo aprobado: falta la conversión" (campanita
+  // y Mis pendientes): al cargar el presupuesto se abre Revisar pendientes.
+  const [revisarPedido] = useState<boolean>(() =>
+    typeof window === "undefined" ? false : new URLSearchParams(window.location.search).get("revisar") === "1"
+  )
+  const revisarPedidoHecho = useRef(false)
   // Controla el pliegue del árbol de navegación (PresupuestoTree) desde
   // acá -- así el <aside> que lo envuelve puede achicar su propio ancho
   // cuando se pliega, y el <main> de al lado (flex-1, contenedor
@@ -1635,6 +1641,17 @@ function PresupuestoDeProyecto() {
     }, 300)
     return () => clearTimeout(t)
   }, [presupuesto, itemPedidoCodigo])
+
+  // Abrir Revisar pendientes si lo pide la URL, apenas haya algo pendiente.
+  useEffect(() => {
+    if (!revisarPedido || revisarPedidoHecho.current || idsConAlgoPendiente.length === 0) return
+    revisarPedidoHecho.current = true
+    setModoGeneralRevision(true)
+    setItemIdsParaRevisar(idsConAlgoPendiente)
+    setTabInicialRevision("insumos")
+    setDialogoRevisionAbierto(true)
+    window.history.replaceState(null, "", window.location.pathname)
+  }, [revisarPedido, idsConAlgoPendiente])
 
   // Ítem YA guardado en la base -- necesita su propio round-trip (ver
   // comentario en actualizarCantidadPresupuestoItem, actions.ts) en vez de

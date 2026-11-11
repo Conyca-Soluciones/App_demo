@@ -39,8 +39,7 @@ import {
 import type { CategoriaManoObra, CategoriaEquipo } from "@/lib/apu-import-types"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
-import { describirPresentacion, nombreUnidad, normalizarUnidad, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
-import { puedeEditarPresentacion } from "@/app/(app)/presupuestos/insumos/actions"
+import { describirPresentacion, nombreUnidad, normalizarUnidad, sugerirPresentacion, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
 
 // Qué "recurso" real corresponde a cada sección visual de CATEGORIAS_APU
 // -- determina qué buscador se muestra en el "+ Agregar" de cada
@@ -250,13 +249,6 @@ export function ApuEditorDialog({
   const [cargadoPara, setCargadoPara] = useState<string | null>(null)
   if (!open && cargadoPara !== null) setCargadoPara(null)
   const cargando = open && cargadoPara !== claveCarga
-  // quien aprueba insumos puede guardar una conversión también en el maestro
-  const [puedeGuardarEnMaestro, setPuedeGuardarEnMaestro] = useState(false)
-  useEffect(() => {
-    puedeEditarPresentacion()
-      .then((v: boolean) => setPuedeGuardarEnMaestro(v))
-      .catch(() => setPuedeGuardarEnMaestro(false))
-  }, [])
   const [error, setError] = useState<string | null>(null)
   const [categoriaAbierta, setCategoriaAbierta] = useState<string | null>(null)
   // Feedback visual de que un cambio SÍ se guardó -- para ítems ya
@@ -358,11 +350,11 @@ export function ApuEditorDialog({
     }
   }
 
-  async function handleEditarConversion(itemApuId: string, unidad: string, conversion: number, guardarEnMaestro: boolean) {
+  async function handleEditarConversion(itemApuId: string, unidad: string, conversion: number) {
     if (!apu) return
     setError(null)
     try {
-      await actualizarConversionLineaApu({ itemApuId, unidad, conversion, guardarEnMaestro })
+      await actualizarConversionLineaApu({ itemApuId, unidad, conversion })
       await recargarApu(apu.id)
       avisarGuardado()
     } catch (e) {
@@ -475,7 +467,6 @@ export function ApuEditorDialog({
                     }
                     onEliminarLinea={handleEliminarLinea}
                     onEditarConversion={handleEditarConversion}
-                    puedeGuardarEnMaestro={puedeGuardarEnMaestro}
                     onEditarCantidad={handleEditarCantidad}
                     onEditarRendimiento={handleEditarRendimiento}
                     onAgregado={async () => {
@@ -515,7 +506,6 @@ function SeccionCategoria({
   onAbrir,
   onEliminarLinea,
   onEditarConversion,
-  puedeGuardarEnMaestro,
   onEditarRendimiento,
   onAgregado,
   apuId,
@@ -527,8 +517,7 @@ function SeccionCategoria({
   abierta: boolean
   onAbrir: () => void
   onEliminarLinea: (id: string) => void
-  onEditarConversion: (id: string, unidad: string, conversion: number, guardarEnMaestro: boolean) => void
-  puedeGuardarEnMaestro: boolean
+  onEditarConversion: (id: string, unidad: string, conversion: number) => void
   onEditarCantidad: (id: string, nuevaCantidad: number) => void
   onEditarRendimiento: (id: string, nuevoRendimiento: number) => void
   onAgregado: () => void
@@ -597,8 +586,7 @@ function SeccionCategoria({
                   {it.insumoId && (
                     <EditorConversion
                       linea={it}
-                      puedeGuardarEnMaestro={puedeGuardarEnMaestro}
-                      onGuardar={(unidad, conversion, guardar) => onEditarConversion(it.id, unidad, conversion, guardar)}
+                      onGuardar={(unidad, conversion) => onEditarConversion(it.id, unidad, conversion)}
                     />
                   )}
                 </td>
@@ -1452,18 +1440,19 @@ function BuscadorEquipoCategoria({
 // la línea sin volver a leer el precio del maestro.
 function EditorConversion({
   linea,
-  puedeGuardarEnMaestro,
   onGuardar,
 }: {
   linea: ItemApu
-  puedeGuardarEnMaestro: boolean
-  onGuardar: (unidad: string, conversion: number, guardarEnMaestro: boolean) => void
+  onGuardar: (unidad: string, conversion: number) => void
 }) {
   const [abierto, setAbierto] = useState(false)
   const conFactor = (linea.factorUnidad ?? 1) !== 1
-  const [unidad, setUnidad] = useState(conFactor ? normalizarUnidad(linea.uM) ?? "" : "")
-  const [conversion, setConversion] = useState(conFactor ? String(linea.factorUnidad) : "")
-  const [guardarEnMaestro, setGuardarEnMaestro] = useState(false)
+  // Sin conversión todavía: se propone la que dice el nombre ("X 50 M").
+  const delNombre = conFactor ? null : sugerirPresentacion(linea.descripcion, linea.uMCompra ?? null)
+  const [unidad, setUnidad] = useState(conFactor ? normalizarUnidad(linea.uM) ?? "" : delNombre?.unidadUso ?? "")
+  const [conversion, setConversion] = useState(
+    conFactor ? String(linea.factorUnidad) : delNombre ? String(delNombre.contenido).replace(".", ",") : ""
+  )
   const compra = nombreUnidad(linea.uMCompra) || "unidad"
   const numero = Number(conversion.replace(",", "."))
   const valida = !!unidad && Number.isFinite(numero) && numero > 0
@@ -1496,18 +1485,14 @@ function EditorConversion({
         </select>
       </div>
       <p className="text-muted-foreground">La cantidad de la línea ({linea.cantidad}) queda en esa unidad.</p>
-      {puedeGuardarEnMaestro && (
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={guardarEnMaestro} onChange={(e) => setGuardarEnMaestro(e.target.checked)} />
-          Guardar también en el maestro
-        </label>
-      )}
+      {delNombre && <p className="text-muted-foreground">Propuesta leída del nombre del insumo; cámbiala si no es así.</p>}
+      <p className="text-muted-foreground">Queda solo en esta línea, no en el maestro.</p>
       <div className="flex gap-1">
         <button
           type="button"
           disabled={!valida}
           onClick={() => {
-            onGuardar(unidad, numero, guardarEnMaestro)
+            onGuardar(unidad, numero)
             setAbierto(false)
           }}
           className="rounded bg-primary px-2 py-0.5 text-primary-foreground disabled:opacity-50"

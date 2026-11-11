@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   actaEditable,
+  resumenPagosActa,
+  type PagoDeActa,
   calcularActa,
   consumidoActas,
   formActaVacio,
@@ -201,5 +203,23 @@ describe("calcularActa: valor cambiado por otrosí", () => {
     const r = calcularActa(i, form({ tipo: "final", porcentajeAvance: "100" }))
     expect(r.bruto).toBe(20_000_000)
     expect(r.amortizacion).toBe(3_000_000)
+  })
+})
+
+describe("resumenPagosActa (avance y saldo en espera)", () => {
+  const pago = (c: Partial<PagoDeActa>): PagoDeActa => ({
+    id: "x", estado: "aprobado", valor: 0, saldoActa: false, aprobado: true, anio: null, semana: null, referencia: null, ...c,
+  })
+  it("separa lo aprobado, lo que espera la factura y el saldo", () => {
+    expect(
+      resumenPagosActa([
+        pago({ valor: 4_000_000, estado: "dispersado" }),
+        pago({ valor: 3_000_000, estado: "en_espera", saldoActa: true, aprobado: true }),
+        pago({ valor: 3_000_000, estado: "en_espera", saldoActa: true, aprobado: false }),
+      ])
+    ).toEqual({ aprobado: 4_000_000, esperaFactura: 3_000_000, saldo: 3_000_000 })
+  })
+  it("un pago por aprobar no cuenta en ninguno", () => {
+    expect(resumenPagosActa([pago({ valor: 10, estado: "solicitado", aprobado: false })])).toEqual({ aprobado: 0, esperaFactura: 0, saldo: 0 })
   })
 })

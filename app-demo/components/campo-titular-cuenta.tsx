@@ -58,7 +58,10 @@ export function CampoTitularCuenta({
     : null
 
   return (
-    <div className="space-y-3">
+    // @container: dos columnas solo si el contenedor es ancho. Con el
+    // breakpoint de pantalla (sm:) se partía también en el panel angosto de
+    // Generar OC y el buscador quedaba aplastado bajo la cuenta.
+    <div className="@container space-y-3">
       <label className="flex items-center gap-2 text-sm">
         <Checkbox checked={valor !== null} onCheckedChange={(v) => onCambiar(v ? titularVacio() : null)} />
         El titular de la cuenta es otro tercero
@@ -68,7 +71,7 @@ export function CampoTitularCuenta({
           <p className="text-xs text-muted-foreground">Se paga en la cuenta de {quienFactura}.</p>
         ) : null
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 @xl:grid-cols-2">
           <div className="min-w-0 space-y-1.5">
             <Label>Titular de la cuenta</Label>
             <BuscadorAsync

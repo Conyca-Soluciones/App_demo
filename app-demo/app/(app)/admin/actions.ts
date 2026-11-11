@@ -26,6 +26,9 @@ export type Empresa = {
   nit: string
   razonSocial: string
   logoUrl: string | null
+  // Encabezado de las órdenes de compra (20270101000000).
+  correo: string | null
+  ciudad: string | null
   // A&F: consolidado de pagos al que pertenece (null = sin asignar todavía).
   consolidadoId: string | null
 }
@@ -63,7 +66,7 @@ export async function listarEmpresas(): Promise<Empresa[]> {
 
   const { data, error } = await supabase
     .from("empresas")
-    .select("id, nit, razon_social, logo_url, consolidado_id")
+    .select("id, nit, razon_social, logo_url, correo, ciudad, consolidado_id")
     .order("razon_social")
 
   if (error) {
@@ -75,6 +78,8 @@ export async function listarEmpresas(): Promise<Empresa[]> {
     nit: e.nit,
     razonSocial: e.razon_social,
     logoUrl: e.logo_url,
+    correo: e.correo ?? null,
+    ciudad: e.ciudad ?? null,
     consolidadoId: e.consolidado_id,
   }))
 }
@@ -118,7 +123,7 @@ export async function crearEmpresa(input: {
   const { data, error } = await supabase
     .from("empresas")
     .insert({ nit, razon_social: razonSocial, logo_url: logoUrl })
-    .select("id, nit, razon_social, logo_url, consolidado_id")
+    .select("id, nit, razon_social, logo_url, correo, ciudad, consolidado_id")
     .single()
 
   if (error) throw new Error(mensajeErrorEmpresa(error, "crear la empresa"))
@@ -127,6 +132,8 @@ export async function crearEmpresa(input: {
     nit: data.nit,
     razonSocial: data.razon_social,
     logoUrl: data.logo_url,
+    correo: data.correo ?? null,
+    ciudad: data.ciudad ?? null,
     consolidadoId: data.consolidado_id,
   }
 }
@@ -142,18 +149,21 @@ export async function actualizarLogoEmpresa(empresaId: string, logoUrl: string |
 
 export async function editarEmpresa(
   empresaId: string,
-  cambios: { nit: string; razonSocial: string }
+  cambios: { nit: string; razonSocial: string; correo: string; ciudad: string }
 ) {
   await requerirAdmin()
   const nit = cambios.nit.trim()
   const razonSocial = cambios.razonSocial.trim()
+  const correo = cambios.correo.trim() || null
+  const ciudad = cambios.ciudad.trim() || null
   if (!nit) throw new Error("El NIT es obligatorio.")
   if (!razonSocial) throw new Error("La razón social es obligatoria.")
+  if (correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)) throw new Error("El correo no es válido.")
 
   const supabase = await createClient()
   const { error } = await supabase
     .from("empresas")
-    .update({ nit, razon_social: razonSocial })
+    .update({ nit, razon_social: razonSocial, correo, ciudad })
     .eq("id", empresaId)
 
   if (error) throw new Error(mensajeErrorEmpresa(error, "editar la empresa"))

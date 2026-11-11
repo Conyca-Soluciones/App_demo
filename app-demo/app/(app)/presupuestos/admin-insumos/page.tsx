@@ -2,7 +2,7 @@
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { Suspense, useEffect, useState } from "react"
-import { sugerirPresentacion, unidadMaestro, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
+import { nombreUnidad, unidadMaestro, UNIDADES_MAESTRO } from "@/lib/unidades"
 import {
   listarSolicitudesInsumos,
   listarAgrupacionesInsumos,
@@ -31,7 +31,8 @@ type DatosAprobacion = {
   uM: string
   agrupacion: string
   ivaPorcentaje: number
-  presentacion: { unidadUso: string; contenido: string }
+  // nombre con que entra al maestro (se puede corregir: "ALAMBRE GALVANIZADO X 50 M")
+  descripcion: string
 }
 
 // Contenido real de la página -- usa useSearchParams(), así que NO puede
@@ -92,7 +93,7 @@ function AdminInsumosContent() {
   }
 
   async function handleAprobar(solicitud: SolicitudInsumo, datos: DatosAprobacion) {
-    const { precio, tipo, uM, agrupacion, ivaPorcentaje, presentacion } = datos
+    const { precio, tipo, uM, agrupacion, ivaPorcentaje, descripcion } = datos
     marcarProcesando(solicitud.id, true)
     setError(null)
     try {
@@ -103,8 +104,7 @@ function AdminInsumosContent() {
         uM: uM || null,
         agrupacion,
         ivaPorcentaje,
-        unidadUso: presentacion.unidadUso || null,
-        contenido: presentacion.contenido.trim() ? Number(presentacion.contenido.replace(",", ".")) : null,
+        descripcion,
       })
       setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
     } catch (e) {
@@ -214,13 +214,20 @@ function TablaPendientes({
       <table className={CLASE_TABLA_EXCEL}>
         <thead>
           <tr>
-            <th className={`${headClasses} w-64`}>Insumo</th>
+            <th className={`${headClasses} w-72`} title="Nombre con que entra al maestro (se puede corregir)">
+              Insumo (nombre en el maestro)
+            </th>
             <th className={`${headClasses} w-40`}>Origen</th>
             <th className={`${headClasses} w-44`}>Tipo</th>
-            <th className={`${headClasses} w-40`}>Unidad</th>
+            <th
+              className={`${headClasses} w-40`}
+              title="En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae."
+            >
+              Unidad de compra
+            </th>
             <th className={`${headClasses} w-48`}>Agrupación</th>
             <th className={`${headClasses} w-20`}>IVA</th>
-            <th className={`${headClasses} w-32 text-right`}>Precio sin IVA</th>
+            <th className={`${headClasses} w-36 text-right`}>Precio unitario sin IVA</th>
             <th className={`${headClasses} w-56 text-center`}>Acciones</th>
           </tr>
         </thead>
@@ -259,14 +266,15 @@ function FilaPendiente({
   // Lo que trae la solicitud (del Excel: "INSUMO", "m³") se usa solo si
   // corresponde a la lista estándar; si no, queda vacío para elegirlo.
   const [tipo, setTipo] = useState(solicitud.tipo && TODOS_LOS_TIPOS.includes(solicitud.tipo) ? solicitud.tipo : "")
-  const [uM, setUM] = useState(unidadMaestro(solicitud.uM) ?? "")
+  // Unidad en que se COMPRA (la del precio): viene la del presupuesto y se
+  // cambia si se compra por rollo, bulto, unidad... Si cambia, el ingeniero
+  // confirma la conversión en su presupuesto (ver aprobarSolicitudInsumo).
+  const unidadPresupuesto = unidadMaestro(solicitud.uM)
+  const [uM, setUM] = useState(unidadPresupuesto ?? "")
   const [agrupacion, setAgrupacion] = useState("")
   const [iva, setIva] = useState("19")
-  // Presentación: cuánto trae cada U.M. (1 bulto = 50 kg). Se propone la que
-  // se lee del nombre ("CEMENTO X 50 KG").
-  const sugerida = sugerirPresentacion(solicitud.descripcion, solicitud.uM)
-  const [contenido, setContenido] = useState(sugerida ? String(sugerida.contenido) : "")
-  const [unidadUso, setUnidadUso] = useState(sugerida?.unidadUso ?? "")
+  // Nombre con que entra al maestro (se puede corregir).
+  const [nombre, setNombre] = useState(solicitud.descripcion.trim().replace(/\s+/g, " ").toUpperCase())
   const [error, setError] = useState<string | null>(null)
 
   // Caja de observaciones para el rechazo -- se abre solo cuando le dan
@@ -294,8 +302,8 @@ function FilaPendiente({
       setError("Elige la agrupación.")
       return
     }
-    if (!!contenido.trim() !== !!unidadUso) {
-      setError("La presentación necesita las dos cosas: cuánto trae y en qué unidad (o ninguna).")
+    if (!nombre.trim()) {
+      setError("Escribe el nombre del insumo.")
       return
     }
     setError(null)
@@ -305,7 +313,7 @@ function FilaPendiente({
       uM,
       agrupacion,
       ivaPorcentaje: Number(iva),
-      presentacion: { unidadUso, contenido },
+      descripcion: nombre,
     })
   }
 
@@ -325,7 +333,16 @@ function FilaPendiente({
       onDoubleClick={alDobleClic(() => setViendo(true))}
     >
       <td className={celda}>
-        <p className="font-medium">{solicitud.descripcion}</p>
+        <Input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value.toUpperCase())}
+          disabled={mostrandoRechazo}
+          className="h-8 text-xs font-medium"
+          aria-label="Nombre en el maestro"
+        />
+        {nombre !== solicitud.descripcion.trim().replace(/\s+/g, " ").toUpperCase() && (
+          <p className="mt-1 text-[11px] text-muted-foreground">Pedido como: {solicitud.descripcion}</p>
+        )}
       </td>
       <td className={`${celda} text-muted-foreground`}>
         <p>{solicitud.solicitadoPorNombre ?? "alguien"}</p>
@@ -357,42 +374,23 @@ function FilaPendiente({
           value={uM}
           onChange={(e) => setUM(e.target.value)}
           disabled={mostrandoRechazo}
-          className="h-8 w-full rounded-md border bg-background px-1.5 text-xs"
-          title={solicitud.uM ? `En la solicitud: ${solicitud.uM}` : undefined}
+          className={`h-8 w-full rounded-md border bg-background px-1.5 text-xs ${uM ? "" : "border-amber-400"}`}
+          aria-label="Unidad de compra"
         >
           <option value="">Elegir…</option>
           {UNIDADES_MAESTRO.map((u) => (
             <option key={u.codigo} value={u.texto}>
-              {u.texto}
+              {nombreUnidad(u.texto)} — {u.texto}
             </option>
           ))}
         </select>
-        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground" title="Presentación: cuánto trae cada unidad de compra (opcional)">
-          <span className="shrink-0">trae</span>
-          <Input
-            value={contenido}
-            onChange={(e) => setContenido(e.target.value)}
-            disabled={mostrandoRechazo}
-            inputMode="decimal"
-            placeholder="—"
-            className="h-7 w-14 px-1.5 text-xs"
-            aria-label="Contenido de la presentación"
-          />
-          <select
-            value={unidadUso}
-            onChange={(e) => setUnidadUso(e.target.value)}
-            disabled={mostrandoRechazo}
-            className="h-7 min-w-0 flex-1 rounded-md border bg-background px-1 text-xs"
-            aria-label="Unidad de uso"
-          >
-            <option value="">—</option>
-            {UNIDADES_DE_USO.map((u) => (
-              <option key={u.codigo} value={u.codigo}>
-                {u.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+        {solicitud.uM && (
+          <p className={`mt-1 text-[11px] ${unidadPresupuesto ? "text-muted-foreground" : "text-amber-700"}`}>
+            {unidadPresupuesto
+              ? `Presupuesto: ${nombreUnidad(solicitud.uM)}`
+              : `El presupuesto dice «${solicitud.uM}», que no es una unidad`}
+          </p>
+        )}
       </td>
       <td className={celda}>
         <select
@@ -429,7 +427,9 @@ function FilaPendiente({
           disabled={mostrandoRechazo}
           placeholder="$"
           className="h-8 text-right text-xs"
+          aria-label={uM ? `Precio por ${nombreUnidad(uM)} sin IVA` : "Precio sin IVA"}
         />
+        {uM && <p className="mt-1 text-right text-[11px] text-muted-foreground">por {nombreUnidad(uM)}</p>}
       </td>
       <td className={`${celda} text-center`}>
         <div className="flex flex-col items-stretch gap-1.5">

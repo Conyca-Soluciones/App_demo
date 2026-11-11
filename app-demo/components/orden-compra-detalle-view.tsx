@@ -380,6 +380,9 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         </div>
 
         <div className="space-y-4 overflow-auto rounded-lg border bg-card p-4 text-sm">
+          {orden.pagoInmediato && (
+            <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 font-medium text-red-800">Pago inmediato (urgente)</p>
+          )}
           <div className="space-y-1">
             <p className="text-muted-foreground">Proyecto</p>
             <p>

@@ -49,9 +49,6 @@ export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
 export const TIPOS_SOPORTE_PAGO: TipoSoporte[] = ["factura", "cuenta_cobro"]
 export const TIPOS_SOPORTE_OTROS: TipoSoporte[] = ["memoria", "foto", "otro"]
 export const esSoportePago = (tipo: string) => tipo === "factura" || tipo === "cuenta_cobro"
-// La copia firmada por el contratista se sube aparte, con el acta ya aprobada
-// (20261129000000_firmas.sql).
-export const MIME_COPIA_FIRMADA = ["application/pdf", "image/jpeg", "image/png"]
 export const MIME_SOPORTES = [
   "application/pdf",
   "image/jpeg",
@@ -375,6 +372,31 @@ export type LineaActaAnterior = {
   total: number
 }
 
+export type PagoDeActa = {
+  id: string
+  estado: string
+  valor: number
+  saldoActa: boolean
+  aprobado: boolean
+  anio: number | null
+  semana: number | null
+  referencia: string | null
+}
+
+// Resumen de los pagos de un acta: lo pagado (aprobado), lo que espera la
+// factura y el saldo en espera (por decidir cuándo se paga).
+export function resumenPagosActa(pagos: PagoDeActa[]): { aprobado: number; esperaFactura: number; saldo: number } {
+  let aprobado = 0
+  let esperaFactura = 0
+  let saldo = 0
+  for (const p of pagos) {
+    if (p.estado === "en_espera" && !p.aprobado) saldo += p.valor
+    else if (p.estado === "en_espera") esperaFactura += p.valor
+    else if (p.estado === "aprobado" || p.estado === "dispersado") aprobado += p.valor
+  }
+  return { aprobado, esperaFactura, saldo }
+}
+
 export type ActaDetalle = {
   id: string
   numero: number
@@ -422,6 +444,12 @@ export type ActaDetalle = {
   descuentos: { concepto: string; valor: number }[]
   soportes: SoporteActa[]
   pago: { id: string; estado: string; valor: number; anio: number | null; semana: number | null; item: string | null; novedad: string | null } | null
+  // Todos los pagos del acta (20261231999000): el aprobado (completo o avance)
+  // y los saldos en espera. aprobado = ya lo aprobó A&F (en_espera + aprobado
+  // = espera la factura).
+  pagos: PagoDeActa[]
+  // Actas anteriores del mismo contrato con saldo en espera (sale en el PDF).
+  saldosAnteriores: { numero: number; saldo: number }[]
   lineasAnteriores: LineaActaAnterior[]
 }
 

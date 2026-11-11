@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { confirmar } from "@/components/ui/confirmar"
 import { useRouter } from "next/navigation"
-import { ClipboardList, Loader2 } from "lucide-react"
+import { ClipboardList, Loader2, Plus, X } from "lucide-react"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatearFechaSinHora, hoyColombia, sumarDiasFecha } from "@/lib/fechas"
@@ -38,6 +39,7 @@ import {
 import { calcularLinea, calcularTotalesOrden } from "@/lib/ordenes-compra-calculos"
 import {
   obtenerPedidosPorId,
+  listarPedidosParaComprar,
   buscarProveedores,
   obtenerProveedorDetalle,
   cuentasProveedorOC,
@@ -180,11 +182,26 @@ export function GenerarOCView({
     [seleccionRaw]
   )
   const [pedidos, setPedidos] = useState<PedidoParaComprar[]>([])
-  // Al modificar: las líneas que quedan en la orden (las demás de sus
-  // requisiciones se pueden marcar para agregarlas).
+  // Las líneas marcadas "En OC" (al crear y al modificar). Las demás quedan en
+  // la tabla para volver a marcarlas: al modificar, las de sus mismas
+  // requisiciones; y las que se agregan de otras requisiciones del proyecto.
   const [incluidos, setIncluidos] = useState<Set<string>>(new Set())
   const [codigoOrden, setCodigoOrden] = useState<string | null>(null)
-  const lineasOrden = modificar ? pedidos.filter((p) => incluidos.has(p.id)) : pedidos
+  const [proyectoOrden, setProyectoOrden] = useState<string | null>(null)
+  const proyectoId = modificar ? proyectoOrden : (seleccion?.proyectoId ?? null)
+  const lineasOrden = pedidos.filter((p) => incluidos.has(p.id))
+  // "Agregar insumos pendientes del proyecto" (20270101000000): cualquier
+  // requisición del mismo proyecto con algo por comprar.
+  const [agregar, setAgregar] = useState<{
+    lista: PedidoParaComprar[] | null
+    marcados: Set<string>
+    filtro: string
+    error: string | null
+    agregando: boolean
+  } | null>(null)
+  // Abierto aparte de los datos: al cerrar, el contenido sigue mientras se
+  // anima la salida (si no, la ventana se vaciaba un instante).
+  const [agregarAbierto, setAgregarAbierto] = useState(false)
   const [lineas, setLineas] = useState<Record<string, LineaForm>>({})
   const [cargandoPedidos, setCargandoPedidos] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -245,6 +262,7 @@ export function GenerarOCView({
     obtenerPedidosPorId(seleccion.pedidoIds)
       .then((data) => {
         setPedidos(data)
+        setIncluidos(new Set(data.map((p) => p.id)))
         setLineas(Object.fromEntries(data.map((p) => [p.id, lineaFormNueva(p)])))
         // Sitio de entrega: la dirección de las requisiciones si todas coinciden.
         const { unica } = direccionesDeRequisiciones(data.map((p) => p.direccionEntrega))
@@ -261,6 +279,7 @@ export function GenerarOCView({
       .then((o) => {
         const deOrden = new Map(o.lineas.map((l) => [l.pedidoId, lineaFormDeOrden(l)]))
         setCodigoOrden(o.codigo)
+        setProyectoOrden(o.proyectoId)
         setPedidos(o.pedidos)
         setIncluidos(new Set(o.lineas.map((l) => l.pedidoId)))
         setLineas(Object.fromEntries(o.pedidos.map((p) => [p.id, deOrden.get(p.id) ?? lineaFormNueva(p)])))
@@ -286,6 +305,7 @@ export function GenerarOCView({
           titularNombre: o.pseTitular?.nombre ?? "",
           titularTipoDocumento: o.pseTitular?.tipoDocumento ?? "",
           titularDocumento: o.pseTitular?.documento ?? "",
+          inmediato: o.pagoInmediato,
         })
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la orden."))
@@ -299,6 +319,37 @@ export function GenerarOCView({
       else n.delete(pedidoId)
       return n
     })
+  }
+
+  function abrirAgregar() {
+    if (!proyectoId) return
+    setAgregar({ lista: null, marcados: new Set(), filtro: "", error: null, agregando: false })
+    setAgregarAbierto(true)
+    listarPedidosParaComprar({ proyectoId, soloPendientes: true })
+      .then((lista: PedidoParaComprar[]) => {
+        const yaEstan = new Set(pedidos.map((p) => p.id))
+        setAgregar((a) => a && { ...a, lista: lista.filter((p) => !yaEstan.has(p.id)) })
+      })
+      .catch((e) =>
+        setAgregar((a) => a && { ...a, lista: [], error: e instanceof Error ? e.message : "No se pudieron cargar los pendientes." })
+      )
+  }
+
+  async function confirmarAgregar() {
+    if (!agregar || agregar.marcados.size === 0) return
+    setAgregar({ ...agregar, agregando: true, error: null })
+    try {
+      // Con el precio promedio (aviso de sobrecosto), como las demás líneas.
+      const nuevos = await obtenerPedidosPorId([...agregar.marcados])
+      const yaEstan = new Set(pedidos.map((p) => p.id))
+      const agregados = nuevos.filter((p) => !yaEstan.has(p.id))
+      setPedidos((prev) => [...prev, ...agregados])
+      setLineas((prev) => ({ ...prev, ...Object.fromEntries(agregados.map((p) => [p.id, lineaFormNueva(p)])) }))
+      setIncluidos((prev) => new Set([...prev, ...agregados.map((p) => p.id)]))
+      setAgregarAbierto(false)
+    } catch (e) {
+      setAgregar((a) => a && { ...a, agregando: false, error: e instanceof Error ? e.message : "No se pudieron agregar." })
+    }
   }
 
   useEffect(() => {
@@ -660,9 +711,21 @@ export function GenerarOCView({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       {modificar && codigoOrden && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          Modificando la orden {codigoOrden}. Marca los insumos que quedan en la orden (solo de sus mismas requisiciones).
-          Al guardar vuelve a quedar por aprobar y su pago se reemplaza en Aprobación de pagos.
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <p className="min-w-0 flex-1">
+            Modificando la orden {codigoOrden}. Marca los insumos que quedan en la orden; puedes agregar otros pendientes del
+            mismo proyecto. Al guardar vuelve a quedar por aprobar y su pago se reemplaza en Aprobación de pagos.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 border-amber-400 bg-background"
+            onClick={() => router.push(`/almacen/ordenes-compra/${ordenId}`)}
+            disabled={generando}
+          >
+            <X className="mr-1.5 h-4 w-4" />
+            Cerrar sin guardar
+          </Button>
         </div>
       )}
       {error && (
@@ -673,6 +736,17 @@ export function GenerarOCView({
 
       <div className="flex min-h-0 flex-1 gap-4">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+          {!cargandoPedidos && proyectoId && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                {lineasOrden.length} de {pedidos.length} insumos en la orden. Desmarca &quot;En OC&quot; para dejarlos por fuera.
+              </p>
+              <Button variant="outline" size="sm" onClick={abrirAgregar} disabled={generando}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Agregar insumos pendientes del proyecto
+              </Button>
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border">
             {cargandoPedidos ? (
               <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -682,7 +756,7 @@ export function GenerarOCView({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {modificar && <TableHead className="w-10">En OC</TableHead>}
+                    <TableHead className="w-10">En OC</TableHead>
                     <TableHead>Cod</TableHead>
                     <TableHead>Insumo</TableHead>
                     <TableHead>Ítem</TableHead>
@@ -707,20 +781,18 @@ export function GenerarOCView({
                       porcentajeDescuento: "0",
                       porcentajeIva: "0",
                     }
-                    const enOrden = !modificar || incluidos.has(pedido.id)
+                    const enOrden = incluidos.has(pedido.id)
                     const valida = enOrden ? lineaValida(pedido) : null
                     const totalLinea = valida ? calcularLinea(valida).total : null
                     return (
                       <TableRow key={pedido.id} className={enOrden ? undefined : "opacity-50"}>
-                        {modificar && (
-                          <TableCell>
-                            <Checkbox
-                              checked={enOrden}
-                              onCheckedChange={(v) => cambiarIncluido(pedido.id, v === true)}
-                              aria-label="Incluir en la orden"
-                            />
-                          </TableCell>
-                        )}
+                        <TableCell>
+                          <Checkbox
+                            checked={enOrden}
+                            onCheckedChange={(v) => cambiarIncluido(pedido.id, v === true)}
+                            aria-label="Incluir en la orden"
+                          />
+                        </TableCell>
                         <TableCell className="text-muted-foreground">{pedido.insumoCodigo}</TableCell>
                         {/* whitespace-normal: la celda de tabla trae nowrap por defecto y los
                             nombres largos se salían de su columna tapando las demás. Ahora
@@ -1123,6 +1195,20 @@ export function GenerarOCView({
             </div>
           )}
 
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-red-200 bg-red-50/60 p-3 text-sm">
+            <Checkbox
+              className="mt-0.5"
+              checked={pago.inmediato}
+              onCheckedChange={(v) => setPago((p) => ({ ...p, inmediato: v === true }))}
+            />
+            <span>
+              <span className="font-medium text-red-800">Pago inmediato (urgente)</span>
+              <span className="block text-xs text-muted-foreground">
+                A&F lo ve marcado en rojo en Aprobación de pagos y en el Consolidado para pagarlo cuanto antes.
+              </span>
+            </span>
+          </label>
+
           <div className="space-y-1.5">
             <Label htmlFor="condiciones-pago">Condiciones de pago (opcional)</Label>
             <Input
@@ -1244,6 +1330,98 @@ export function GenerarOCView({
           )}
         </div>
       </div>
+
+      <Dialog open={agregarAbierto} onOpenChange={(abierto) => !abierto && setAgregarAbierto(false)}>
+        <DialogContent className="max-h-[90svh] w-[calc(100vw-1rem)] max-w-3xl overflow-hidden sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Agregar insumos pendientes del proyecto</DialogTitle>
+          </DialogHeader>
+          {agregar && (
+            <div className="flex min-h-0 flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Insumos de cualquier requisición del mismo proyecto que todavía tienen algo por comprar.
+              </p>
+              <Input
+                placeholder="Buscar por insumo, código o requisición"
+                value={agregar.filtro}
+                onChange={(e) => setAgregar({ ...agregar, filtro: e.target.value })}
+              />
+              {agregar.lista === null ? (
+                <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando pendientes…
+                </p>
+              ) : agregar.lista.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No hay otros insumos pendientes por comprar en este proyecto.
+                </p>
+              ) : (
+                <div className="max-h-[50svh] overflow-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10" />
+                        <TableHead>Requisición</TableHead>
+                        <TableHead>Insumo</TableHead>
+                        <TableHead className="text-right">Pendiente</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {agregar.lista
+                        .filter((p) => {
+                          const t = agregar.filtro.trim().toLowerCase()
+                          if (!t) return true
+                          return (
+                            p.insumoDescripcion.toLowerCase().includes(t) ||
+                            String(p.insumoCodigo).includes(t) ||
+                            (p.requisicionCodigo ?? "").toLowerCase().includes(t)
+                          )
+                        })
+                        .map((p) => {
+                          const marcado = agregar.marcados.has(p.id)
+                          const alternar = () => {
+                            const n = new Set(agregar.marcados)
+                            if (marcado) n.delete(p.id)
+                            else n.add(p.id)
+                            setAgregar({ ...agregar, marcados: n })
+                          }
+                          return (
+                            <TableRow key={p.id} className="cursor-pointer" onClick={alternar}>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Checkbox checked={marcado} onCheckedChange={alternar} aria-label="Agregar a la orden" />
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-muted-foreground">
+                                {p.requisicionCodigo ?? (p.requisicionNumero != null ? `N° ${p.requisicionNumero}` : "—")}
+                                {p.urgente && <span className="ml-1.5 text-xs font-medium text-red-600">Urgente</span>}
+                              </TableCell>
+                              <TableCell className="min-w-56 whitespace-normal">
+                                <span className="text-muted-foreground">{p.insumoCodigo}</span> {p.insumoDescripcion}
+                                {p.itemCodigo && <span className="block text-xs text-muted-foreground">Ítem {p.itemCodigo}</span>}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-right tabular-nums">
+                                {formatoCantidad(p.pendienteUso)} {nombreUnidad(p.unidadUso)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              {agregar.error && <p className="text-sm text-destructive">{agregar.error}</p>}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAgregarAbierto(false)}>
+              Volver
+            </Button>
+            <Button disabled={!agregar || agregar.marcados.size === 0 || agregar.agregando} onClick={confirmarAgregar}>
+              {agregar?.agregando
+                ? "Agregando…"
+                : `Agregar${agregar && agregar.marcados.size > 0 ? ` (${agregar.marcados.size})` : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
