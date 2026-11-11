@@ -32,12 +32,21 @@ export function CampoDireccionEntrega({
     onChangeRef.current = onChange
   })
 
+  // La última sugerencia puesta: si cambia el proyecto y nadie la editó, se
+  // reemplaza por la del proyecto nuevo (o se vacía si ese no tiene).
+  const sugeridaRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (!sugerir) return
     let activo = true
     ultimaDireccionEntrega(proyectoId ?? null)
       .then((d: string | null) => {
-        if (activo && d && !valorRef.current.trim()) onChangeRef.current(d)
+        if (!activo) return
+        const actual = valorRef.current.trim()
+        if (!actual || actual === sugeridaRef.current) {
+          sugeridaRef.current = d
+          if ((d ?? "") !== actual) onChangeRef.current(d ?? "")
+        }
       })
       .catch(() => {})
     return () => {

@@ -278,7 +278,15 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
         )}
       </div>
 
-      <CampoDireccionEntrega id="req-adm-direccion" value={direccion} onChange={setDireccion} disabled={enviando} proyectoId={proyectoId} />
+      {/* Espera a saber para qué proyecto es (si no, propondría la del proyecto actual). */}
+      <CampoDireccionEntrega
+        id="req-adm-direccion"
+        value={direccion}
+        onChange={setDireccion}
+        disabled={enviando}
+        proyectoId={proyectoId}
+        sugerir={proyectoId !== null}
+      />
 
       <div className="space-y-1.5">
         <Label htmlFor="req-adm-obs">Observaciones (opcional)</Label>
@@ -405,7 +413,7 @@ function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null;
   }, [])
 
   const columnas: ColumnaExcel<ReqAdministrativaFila>[] = [
-    { clave: "numero", titulo: "N°", ancho: 80, fija: true, texto: (r) => String(r.numero), valorOrden: (r) => r.numero },
+    { clave: "numero", titulo: "REF", ancho: 130, fija: true, texto: (r) => r.codigo, valorOrden: (r) => r.numero },
     { clave: "proyecto", titulo: "Para", ancho: 200, texto: (r) => r.proyecto ?? "" },
     { clave: "fecha", titulo: "Fecha", ancho: 170, texto: (r) => formatearFechaHora(r.createdAt), valorOrden: (r) => r.createdAt },
     {
@@ -440,7 +448,7 @@ function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null;
             tituloFila="Doble clic para ver"
             fondoFila={(r) => (r.urgente && r.estado !== "cancelada" ? "bg-amber-50" : undefined)}
             tarjeta={{
-              titulo: (r) => `Requisición N° ${r.numero}`,
+              titulo: (r) => `Requisición ${r.codigo}`,
               subtitulo: (r) => `${r.nLineas} insumo(s) · para el ${formatearFechaSinHora(r.fechaRequerida)}`,
               esquina: (r) => <EtiquetaEtapa r={r} />,
               campos: ["proyecto", "fecha", "observaciones"],
@@ -498,7 +506,7 @@ function DetalleDialog({ id, onCerrar, onCancelada }: { id: string; onCerrar: ()
     <Dialog open onOpenChange={(a) => !a && onCerrar()}>
       <DialogContent className="max-h-[92svh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Requisición administrativa {d ? `N° ${d.numero}` : ""}</DialogTitle>
+          <DialogTitle>Requisición administrativa {d ? d.codigo : ""}</DialogTitle>
           <DialogDescription>{d?.proyecto ?? ""}</DialogDescription>
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -543,9 +551,10 @@ function DetalleDialog({ id, onCerrar, onCancelada }: { id: string; onCerrar: ()
                   d.estado === "rechazada" ? "border-red-300 bg-red-50 text-red-800" : "border-emerald-300 bg-emerald-50 text-emerald-800"
                 }`}
               >
-                {d.estado === "rechazada" ? "Rechazada" : "Aprobada"} por {d.resolucion.por ?? "Subgerencia"}
-                {d.resolucion.at ? ` el ${formatearFechaHora(d.resolucion.at)}` : ""}
-                {d.resolucion.motivo ? `. Motivo: ${d.resolucion.motivo}` : "."}
+                {`${d.estado === "rechazada" ? "Rechazada" : "Aprobada"} por ${d.resolucion.por ?? "Subgerencia"}${
+                  d.resolucion.at ? ` el ${formatearFechaHora(d.resolucion.at)}` : ""
+                }`.replace(/\.?$/, ".")}
+                {d.resolucion.motivo ? ` Motivo: ${d.resolucion.motivo}` : ""}
               </p>
             )}
             <table className="w-full text-sm">

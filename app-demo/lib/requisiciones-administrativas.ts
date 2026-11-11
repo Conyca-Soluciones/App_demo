@@ -70,6 +70,7 @@ export type EstadoCompraReqAdministrativa = "pendiente" | "parcial" | "completa"
 export type ReqAdministrativaFila = {
   id: string
   numero: number
+  codigo: string // RQ-001-0001
   estado: "aprobada" | "cancelada" | "pendiente" | "rechazada"
   estadoCompra: EstadoCompraReqAdministrativa
   nLineas: number
@@ -120,6 +121,7 @@ export function mapFilaReqAdministrativa(r: any): ReqAdministrativaFila {
   return {
     id: String(r.id),
     numero: Number(r.numero),
+    codigo: r.codigo ?? `N° ${r.numero}`,
     estado: r.estado,
     estadoCompra: r.estado_compra ?? null,
     nLineas: Number(r.n_lineas ?? 0),
