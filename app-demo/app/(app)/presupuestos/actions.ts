@@ -902,38 +902,17 @@ export async function crearSolicitudInsumo(input: SolicitudInsumoInput) {
   return data
 }
 
-// Solicitud de insumo nuevo para una línea del import: si ya hay una
-// PENDIENTE con la misma descripción y la misma unidad, se reutiliza (todas
-// sus líneas se resuelven juntas al aprobarla). Antes "No existe" guardado
-// línea por línea creaba una solicitud por línea: en el Malecón, 24 iguales
-// para "Repisa ordinario 3 m". Misma regla que enviar_insumos_sin_sugerencias.
-async function solicitudInsumoParaLinea(fila: {
-  descripcion_original: string
-  tipo: string | null
-  unidad: string | null
-  presupuesto_item_id: string
-}): Promise<{ id: string }> {
+// Solicitud de insumo nuevo para líneas del import (todas del mismo insumo):
+// si ya hay una PENDIENTE del import con la misma descripción y unidad, se
+// reutiliza; si no, se crea. Lo hace asignar_solicitud_insumo en una sola
+// transacción, de a una por insumo, así dos guardados casi simultáneos no
+// crean dos solicitudes. Antes "No existe" creaba una por línea: en el
+// Malecón, 24 iguales para "Repisa ordinario 3 m".
+async function asignarSolicitudInsumo(revisionIds: string[]): Promise<string> {
   const supabase = await createClient()
-  const descripcion = fila.descripcion_original.trim().replace(/\s+/g, " ")
-  // !inner: solo las que ya tienen líneas del import. Una hecha a mano desde
-  // el editor de APU (sin líneas) se aprueba por otro camino: si se le
-  // colgara una línea del import, su propia línea manual no se crearía.
-  const { data: existentes, error } = await supabase
-    .from("solicitudes_insumos")
-    .select("id, u_m, apu_import_revision!inner(id)")
-    .eq("estado", "pendiente")
-    .ilike("descripcion", descripcion.replace(/[\\%_]/g, (c: string) => `\\${c}`))
-    .order("created_at", { ascending: true })
+  const { data, error } = await supabase.rpc("asignar_solicitud_insumo", { p_revision_ids: revisionIds })
   if (error) throw new Error(error.message)
-  const unidad = normalizarUnidad(fila.unidad)
-  const igual = (existentes ?? []).find((e: { id: string; u_m: string | null }) => normalizarUnidad(e.u_m) === unidad)
-  if (igual) return { id: igual.id }
-  return crearSolicitudInsumo({
-    descripcion,
-    tipo: fila.tipo,
-    uM: fila.unidad,
-    presupuestoItemId: fila.presupuesto_item_id,
-  })
+  return data as string
 }
 
 export type SolicitudInsumo = {
@@ -4108,13 +4087,7 @@ export async function resolverLineaRevision(input: {
     // fila cuando el admin la apruebe/rechace en /admin-insumos, y
     // agregar el insumo real con la CANTIDAD REAL del import (no el 1
     // fijo que usa el flujo manual de aprobarSolicitudInsumo).
-    const solicitud = await solicitudInsumoParaLinea(fila)
-
-    const { error: errorUpdate } = await supabase
-      .from("apu_import_revision")
-      .update({ estado: "solicitud_pendiente", solicitud_id: solicitud.id })
-      .eq("id", input.revisionId)
-    if (errorUpdate) throw new Error(errorUpdate.message)
+    await asignarSolicitudInsumo([input.revisionId])
   }
 
   await recalcularValorItemDesdeApu(fila.presupuesto_item_id)
@@ -4495,23 +4468,16 @@ export async function resolverLineasRevisionEnLote(
   for (const r of resolucionesSolicitud) {
     const fila = filaPorId.get(r.revisionId)
     if (!fila || fila.estado === "resuelto") continue
-    const clave = `${fila.descripcion_original.trim().replace(/\s+/g, " ").toLowerCase()}|${normalizarUnidad(fila.unidad) ?? ""}`
+    // misma clave que asignar_solicitud_insumo (descripción y unidad sin mayúsculas)
+    const clave = `${fila.descripcion_original.trim().replace(/\s+/g, " ").toLowerCase()}|${(fila.unidad ?? "").trim().toLowerCase()}`
     const grupo = gruposPorDescripcion.get(clave) ?? []
     grupo.push(r)
     gruposPorDescripcion.set(clave, grupo)
   }
 
   await procesarEnLotes(Array.from(gruposPorDescripcion.values()), 15, async (grupo) => {
-    const primeraFila = filaPorId.get(grupo[0].revisionId)!
     try {
-      const solicitud = await solicitudInsumoParaLinea(primeraFila)
-
-      const idsDelGrupo = grupo.map((r) => r.revisionId)
-      const { error: errorUpdate } = await supabase
-        .from("apu_import_revision")
-        .update({ estado: "solicitud_pendiente", solicitud_id: solicitud.id })
-        .in("id", idsDelGrupo)
-      if (errorUpdate) throw new Error(errorUpdate.message)
+      await asignarSolicitudInsumo(grupo.map((r) => r.revisionId))
 
       for (const r of grupo) {
         const fila = filaPorId.get(r.revisionId)
