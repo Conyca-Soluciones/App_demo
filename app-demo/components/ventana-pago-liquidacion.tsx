@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { leerNumero } from "@/lib/contratos"
+import { RutTercero } from "@/components/rut-tercero"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
   anticiposOrigen,
   cuadreLiquidacion,
   etiquetaEtapa,
   formatoMoneda,
+  puedeIrALiquidacion,
   rutaSoporteDispersor,
   rutaSoportePago,
   type ComentarioPago,
@@ -286,6 +288,18 @@ function Contenido({
         <Dato titulo="Empresa que factura">
           {pago.terceroNombre ?? "Sin tercero"}
           {pago.terceroDocumento && <span className="block text-xs text-muted-foreground">{pago.terceroDocumento}</span>}
+          {/* RUT de quien factura: en Preparación Financiera lo sube si falta. */}
+          {pago.terceroId && (
+            <div className="mt-1">
+              <RutTercero
+                key={pago.terceroId}
+                terceroId={pago.terceroId}
+                nombreArchivo={pago.terceroRut}
+                puedeSubir={puedeGestionar && aprobado && pago.liquidacionEstado == null}
+                onCambio={() => void refrescar()}
+              />
+            </div>
+          )}
         </Dato>
         <Dato titulo="Solicitante">{pago.solicitadoPorNombre ?? "—"}</Dato>
         <Dato titulo="Origen">{pago.origen || "—"}</Dato>
@@ -307,7 +321,10 @@ function Contenido({
                 </span>
               </>
             ) : (
-              <span className="text-muted-foreground">Sin cuenta</span>
+              <span className={aprobado && pago.liquidacionEstado == null && !puedeIrALiquidacion(pago) ? "text-red-700" : "text-muted-foreground"}>
+                Sin cuenta
+                {aprobado && pago.liquidacionEstado == null && !puedeIrALiquidacion(pago) ? ": no pasa a liquidación hasta que tenga una." : ""}
+              </span>
             )}
           </div>
           {pago.novedad && <p className="mt-1 text-xs text-amber-700">{pago.novedad}</p>}
@@ -328,14 +345,14 @@ function Contenido({
           <span className="self-center text-sm text-muted-foreground">Sin soporte</span>
         )}
         {/* Dispersado: el soporte individual de su dispersor (el del intento vigente). */}
-        {pago.estado === "dispersado" && (
+        {pago.estado === "dispersado" && (!pago.pagadoOtroMedio || pago.comprobanteOtroMedio) && (
           <a
             href={rutaSoporteDispersor(pago.id)}
             target="_blank"
             rel="noreferrer"
             className={buttonVariants({ size: "sm", variant: "outline" })}
           >
-            <FileText className="mr-1.5 h-4 w-4" /> Soporte del dispersor
+            <FileText className="mr-1.5 h-4 w-4" /> {pago.pagadoOtroMedio ? "Comprobante del pago" : "Soporte del dispersor"}
           </a>
         )}
         <Button size="sm" variant="outline" onClick={onOrigen}>
@@ -353,13 +370,15 @@ function Contenido({
           <Button
             size="sm"
             className="ml-auto"
-            disabled={ocupado !== null}
+            disabled={ocupado !== null || !puedeIrALiquidacion(pago)}
+            title={puedeIrALiquidacion(pago) ? undefined : "Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta."}
             onClick={() =>
               correr(
                 "enviar",
                 async () => {
-                  await enviarPagosALiquidar([pago.id])
+                  const r = await enviarPagosALiquidar([pago.id])
                   await refrescar()
+                  if (r.sinCuenta > 0) throw new Error("Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta.")
                   return null
                 },
                 true

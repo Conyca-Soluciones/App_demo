@@ -285,13 +285,19 @@ export function ConsolidadoPagosView({
   }
 
   const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
+  // Los que no tienen cuenta bancaria (y no son PSE) se quedan en Preparación.
+  const textoEnvio = (r: { enviados: number; sinCuenta: number }) =>
+    `${plural(r.enviados, "pago enviado", "pagos enviados")} a liquidar.` +
+    (r.sinCuenta > 0
+      ? ` ${plural(r.sinCuenta, "pago se quedó", "pagos se quedaron")} en Preparación porque no ${r.sinCuenta === 1 ? "tiene" : "tienen"} cuenta bancaria: asígnala con "Tercero y cuenta" en la ventana del pago.`
+      : "")
 
   // ------------------------------------------------------------ acciones en lote
   const enviarSeleccionados = () =>
     correr("enviar", async () => {
-      const n = await enviarPagosALiquidar([...seleccion])
+      const r = await enviarPagosALiquidar([...seleccion])
       recargar()
-      return `${plural(n, "pago enviado", "pagos enviados")} a liquidar.`
+      return textoEnvio(r)
     })
 
   const moverSeleccionados = (semanas: 1 | -1) =>
@@ -317,9 +323,9 @@ export function ConsolidadoPagosView({
     correr("enviar_todos", async () => {
       if (!ultimosFiltros) return null
       if (!(await confirmar(`¿Enviar a liquidar los ${conteo?.preparacion ?? ""} pagos en preparación de estos filtros?`, { titulo: "Enviar todos a liquidar", boton: "Enviar" }))) return null
-      const n = await enviarFiltradosALiquidar(clave, ultimosFiltros)
+      const r = await enviarFiltradosALiquidar(clave, ultimosFiltros)
       recargar()
-      return `${plural(n, "pago enviado", "pagos enviados")} a liquidar.`
+      return textoEnvio(r)
     })
 
   const sinRetencionesSeleccionados = () =>
@@ -541,18 +547,20 @@ export function ConsolidadoPagosView({
     titulo: "Dispersor",
     ancho: 100,
     ordenable: false,
-    texto: (p) => dispersores[p.id] ?? "",
+    texto: (p) => dispersores[p.id] ?? (p.pagadoOtroMedio ? `Pagado sin dispersor${p.comprobanteOtroMedio ? ` · ${p.comprobanteOtroMedio}` : ""}` : ""),
     celda: (p) =>
-      dispersores[p.id] ? (
+      dispersores[p.id] || p.comprobanteOtroMedio ? (
         <a
           href={rutaSoporteDispersor(p.id)}
           target="_blank"
           rel="noreferrer"
-          title={dispersores[p.id]}
+          title={dispersores[p.id] ?? `Comprobante: ${p.comprobanteOtroMedio}`}
           className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
         >
           <FileText className="h-4 w-4" /> Ver
         </a>
+      ) : p.pagadoOtroMedio ? (
+        <span className="text-xs text-muted-foreground">Sin dispersor</span>
       ) : (
         <span className="text-muted-foreground/60">—</span>
       ),

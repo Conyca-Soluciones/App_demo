@@ -106,6 +106,12 @@ export type Pago = {
   terceroId: string | null
   terceroNombre: string | null
   terceroDocumento: string | null
+  // Nombre del archivo del RUT de quien factura (null = no lo tiene).
+  terceroRut: string | null
+  // Pagado por PSE u otro medio en Realizar Pagos (20270101000300), con su
+  // comprobante si se adjuntó.
+  pagadoOtroMedio: boolean
+  comprobanteOtroMedio: string | null
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
@@ -257,6 +263,10 @@ export type RequisicionAdminDePago = {
 export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
 // El soporte individual del dispersor en que salió el pago.
 export const rutaSoporteDispersor = (pagoId: string) => `/ayf/soporte-dispersor/${pagoId}`
+
+// Un pago pasa a liquidación con cuenta bancaria, salvo PSE (20270101000300;
+// la base lo exige en enviar_pagos_a_liquidar).
+export const puedeIrALiquidacion = (p: Pick<Pago, "metodoPago" | "cuentaId">) => p.metodoPago === "pse" || p.cuentaId != null
 
 // Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
 export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`

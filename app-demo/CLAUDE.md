@@ -1194,6 +1194,33 @@ Decisiones del usuario. `20270101000200_pagos_administrativos_codigo.sql` (rever
   `lote_requisicion_admin` trae `detalle` (código, quien factura, concepto, proyecto,
   valor, método) y la fila y la confirmación muestran cada pago (`DesglosePa`).
 
+## Paquete E: A&F (2026-11-12)
+
+Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase/reversa/`); solo agrega, parches por texto exacto.
+- **Sin cuenta no pasa a liquidación**: `enviar_pagos_a_liquidar` salta los pagos sin `cuenta_tercero_id`
+  salvo PSE (`pago_es_pse(pagos)`, campo calculado: PSE del ítem/cuadro de la requisición administrativa,
+  de la OC o del contrato del acta). La app llama `enviar_pagos_a_liquidar_detalle` (dice cuántos se
+  quedaron) y la ventana del pago no deja enviarlo (`puedeIrALiquidacion`).
+- **Excel de liquidación**: la lista de "Liquidar sin retenciones" dice "Si" (sin tilde); al subir se
+  acepta con o sin tilde.
+- **Realizar Pagos**: doble clic abre el detalle (soporte del pago, documento de origen, historial,
+  soporte del dispersor o comprobante). En Otros pagos pendientes, "Marcar como pagados" (PSE u otro
+  medio): se escoge banco y cuenta desde la que se pagó (`cuentas_empresa`) y queda `dispersado` con la
+  fecha de hoy (`dispersado_en`), `pagado_manual_por`, la cuenta en `cuenta_debitar_id` y, opcional, el
+  comprobante (`pago_comprobante_*`, bucket `dispersores`, carpeta `pse/`; lo ve quien ve el pago).
+  Función `marcar_pagos_pagados`, evento `pagado_otro_medio`. Otros pagos pendientes tiene "Por pagar" y
+  "Pagados". "Rebotó en el banco" también los devuelve. El enlace fijo `/ayf/soporte-dispersor/<pago>`
+  sirve el comprobante cuando no hay dispersor. Antes los PSE de OC y contratos caían en Bloqueados
+  (esPse solo miraba la requisición administrativa).
+- **RUT del tercero** (`terceros.rut_*`): al crear un tercero son OBLIGATORIOS la cuenta, la
+  certificación bancaria y el RUT (`crear_tercero` lo exige; el formulario ya no tiene "Agregar su cuenta
+  ahora"). Se suben a `terceros/nuevo/<uid>/` y `_rut_tercero_nuevo` lo pega. Para los que ya existen,
+  `RutTercero` (`components/rut-tercero.tsx`): en la ficha (quien edita o verifica) y en la ventana del
+  pago en Preparación (`gestionar_pagos`), sube a `terceros/rut/<tercero>/` y llama
+  `guardar_rut_tercero`. Lo ven A&F (`_puede_ver_rut`: cuentas, gestionar pagos, algún consolidado,
+  Terceros, Aprobación de pagos) con `enlaceRutTercero`.
+- **Más de una cuenta por tercero**: ya existía (ficha del tercero › "Agregar cuenta", `editar_terceros`).
+
 ## Paquete A: requisiciones administrativas y empresa que factura (2026-11-11)
 
 Decisiones del usuario. Migración `20261231999400_paquete_a_requisiciones.sql`
@@ -1992,7 +2019,7 @@ tres consolidados.
   CHECK, del código y de las funciones que los nombraban.
 - La ventana del pago (Consolidado) tiene "Soporte del dispersor" cuando el
   pago está dispersado.
-- **Pendiente**: soporte de los pagos por PSE.
+- Soporte de los pagos por PSE: "Marcar como pagados" (Paquete E, 2026-11-12).
 
 ## Liquidación de pagos: se quitó (2026-10-22)
 

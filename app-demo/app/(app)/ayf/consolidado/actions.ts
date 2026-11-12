@@ -133,13 +133,22 @@ export async function obtenerPagoConsolidado(pagoId: string): Promise<Pago> {
 // ------------------------------------------------------------ liquidación
 
 // Financiera: los elegidos, o TODOS los que están en preparación con los filtros.
-export async function enviarPagosALiquidar(ids: string[]): Promise<number> {
-  await requerirAccion("gestionar_pagos")
-  if (ids.length === 0) return 0
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc("enviar_pagos_a_liquidar", { p_ids: ids })
+// Los que no tienen cuenta bancaria (y no son PSE) se quedan en Preparación
+// (20270101000300): sinCuenta dice cuántos.
+export type ResultadoEnvioLiquidar = { enviados: number; sinCuenta: number }
+
+async function enviarLote(supabase: Awaited<ReturnType<typeof createClient>>, ids: string[]): Promise<ResultadoEnvioLiquidar> {
+  const { data, error } = await supabase.rpc("enviar_pagos_a_liquidar_detalle", { p_ids: ids })
   if (error) throw new Error(error.message)
-  return Number(data ?? 0)
+  const r = (data ?? {}) as { enviados?: number; sin_cuenta?: number }
+  return { enviados: Number(r.enviados ?? 0), sinCuenta: Number(r.sin_cuenta ?? 0) }
+}
+
+export async function enviarPagosALiquidar(ids: string[]): Promise<ResultadoEnvioLiquidar> {
+  await requerirAccion("gestionar_pagos")
+  if (ids.length === 0) return { enviados: 0, sinCuenta: 0 }
+  const supabase = await createClient()
+  return enviarLote(supabase, ids)
 }
 
 // Preparación: pasar a la semana siguiente (1) o devolver a la anterior (-1,
@@ -164,7 +173,7 @@ export async function devolverPagosAPreparacion(ids: string[], motivo: string | 
   return Number(data ?? 0)
 }
 
-export async function enviarFiltradosALiquidar(clave: string, filtros: FiltrosConsolidado): Promise<number> {
+export async function enviarFiltradosALiquidar(clave: string, filtros: FiltrosConsolidado): Promise<ResultadoEnvioLiquidar> {
   await requerirAccion("gestionar_pagos")
   const consolidadoId = await idConsolidado(clave)
   const supabase = await createClient()
@@ -172,11 +181,11 @@ export async function enviarFiltradosALiquidar(clave: string, filtros: FiltrosCo
   const filas = await traerTodo<{ id: string }>((desde, hasta) =>
     consultaConsolidado(supabase, consolidadoId, { ...filtros, etapa: "preparacion" }, campos).range(desde, hasta)
   )
-  let total = 0
+  const total: ResultadoEnvioLiquidar = { enviados: 0, sinCuenta: 0 }
   for (let i = 0; i < filas.length; i += 1000) {
-    const { data, error } = await supabase.rpc("enviar_pagos_a_liquidar", { p_ids: filas.slice(i, i + 1000).map((f) => f.id) })
-    if (error) throw new Error(error.message)
-    total += Number(data ?? 0)
+    const r = await enviarLote(supabase, filas.slice(i, i + 1000).map((f) => f.id))
+    total.enviados += r.enviados
+    total.sinCuenta += r.sinCuenta
   }
   return total
 }

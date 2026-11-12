@@ -74,6 +74,8 @@ export type Tercero = {
   nombres: string | null
   apellidos: string | null
   observaciones: string | null
+  // Nombre del archivo del RUT (20270101000300); null = no lo tiene.
+  rutNombre: string | null
   cuentas: CuentaTercero[]
 }
 

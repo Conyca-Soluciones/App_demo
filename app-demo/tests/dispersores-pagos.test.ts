@@ -70,6 +70,16 @@ describe("estado de cada pago", () => {
     expect(conEstado(pago({ esPse: true, beneficiario: null, cuenta: null })).estado).toBe("fuera")
     expect(conEstado(pago({ fueraManual: true })).estado).toBe("fuera")
   })
+  it("PSE pagado sin dispersor queda dispersado y lo dice", () => {
+    const r = conEstado(
+      pago({ esPse: true, cuenta: null, estadoPago: "dispersado", pagadoManual: { fecha: "2026-11-12T15:00:00Z", comprobante: null } })
+    )
+    expect(r.estado).toBe("dispersado")
+    expect(r.alertas[0]).toMatchObject({ mensaje: "pagado sin dispersor", detalle: "por PSE" })
+    expect(conEstado(pago({ fueraManual: true, estadoPago: "dispersado", pagadoManual: { fecha: null, comprobante: null } })).alertas[0].detalle).toBe(
+      "por otro medio"
+    )
+  })
   it("bloqueados: sin tercero, sin cuenta, cuenta inactiva", () => {
     expect(conEstado(pago({ beneficiario: null })).estado).toBe("bloqueado")
     expect(conEstado(pago({ cuenta: null })).estado).toBe("bloqueado")

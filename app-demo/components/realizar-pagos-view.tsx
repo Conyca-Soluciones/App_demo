@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { confirmar as preguntar } from "@/components/ui/confirmar"
-import { AlertTriangle, Download, FileText, Loader2 } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Download, FileText, History, Loader2, Paperclip } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,6 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PanelFiltros } from "@/components/panel-filtros"
 import { SelectorNumeros } from "@/components/selector-numeros"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { AYUDA_DOBLE_CLIC, VentanaDetalle, camposDesdeColumnas } from "@/components/ventana-detalle"
+import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
+import { HistorialDialog } from "@/components/historial-timeline"
+import { createClient } from "@/lib/supabase/client"
+import { extensionArchivo, revisarArchivoTercero } from "@/lib/archivos-tercero"
+import { obtenerPagoConsolidado } from "@/app/(app)/ayf/consolidado/actions"
 import {
   asignarCuentaDebitar,
   confirmarCuentaPagos,
@@ -22,6 +28,7 @@ import {
   listarDispersiones,
   listarRealizarPagos,
   marcarFueraDispersor,
+  marcarPagosPagados,
   redispersarPagos,
   type ArchivoDispersion,
   type Dispersion,
@@ -40,8 +47,8 @@ import {
   type PagoConEstado,
 } from "@/lib/dispersores/pagos-dispersor"
 import { avisosDispersor } from "@/lib/dispersores/generador"
-import { fechasSemanaIso, formatoMoneda, semanaIso, semanasDelAnio } from "@/lib/pagos"
-import { formatearFechaHora } from "@/lib/fechas"
+import { fechasSemanaIso, formatoMoneda, rutaSoporteDispersor, rutaSoportePago, semanaIso, semanasDelAnio, type Pago } from "@/lib/pagos"
+import { fechaIsoEnZona, formatearFechaHora, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 
 const TODOS = "todos"
 type Vista = "dispersar" | "otros" | "generados"
@@ -86,6 +93,14 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
   const [cuentaId, setCuentaId] = useState("")
   // "Rebotó en el banco": el motivo (null = ventana cerrada).
   const [motivoRebote, setMotivoRebote] = useState<string | null>(null)
+  // Otros pagos pendientes: los que faltan por pagar o los ya pagados sin dispersor.
+  const [otros, setOtros] = useState<"pendientes" | "pagados">("pendientes")
+  // "Marcar como pagado" (PSE u otro medio): los pagos de la ventana (null = cerrada).
+  const [marcar, setMarcar] = useState<string[] | null>(null)
+  // Doble clic: el detalle del pago, su documento de origen y su historial.
+  const [detalle, setDetalle] = useState<PagoConEstado | null>(null)
+  const [origen, setOrigen] = useState<Pago | null>(null)
+  const [historialDe, setHistorialDe] = useState<PagoConEstado | null>(null)
 
   const opcionesAnios = useMemo(() => {
     const lista: number[] = []
@@ -161,8 +176,10 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
   }
 
   const estadosVisibles: EstadoDispersor[] =
-    vista === "otros" ? ["fuera"] : paso === 3 ? ["asignado"] : estado ? [estado] : ESTADOS_DEL_PASO[paso]
-  const visibles = vista === "generados" ? [] : filtrar(estadosVisibles)
+    vista === "otros" ? [otros === "pendientes" ? "fuera" : "dispersado"] : paso === 3 ? ["asignado"] : estado ? [estado] : ESTADOS_DEL_PASO[paso]
+  const visibles =
+    vista === "generados" ? [] : filtrar(estadosVisibles).filter((p) => vista !== "otros" || otros === "pendientes" || p.pagadoManual)
+  const pagadosOtros = useMemo(() => lista.filter((p) => p.estado === "dispersado" && p.pagadoManual).length, [lista])
   const elegidos = visibles.filter((p) => seleccion.has(p.id))
   const idsDe = (estados: EstadoDispersor[]) => elegidos.filter((p) => estados.includes(p.estado)).map((p) => p.id)
 
@@ -257,7 +274,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
             ordenable: false,
             texto: () => "",
             celda: (p: PagoConEstado) =>
-              (p.estado === "dispersado" && paso !== 2) || (vista === "otros" && p.esPse) ? null : (
+              p.estado === "dispersado" && (paso !== 2 || vista === "otros") ? null : (
                 <Checkbox
                   checked={seleccion.has(p.id)}
                   aria-label={`Elegir el pago ${p.item ?? ""} de ${p.beneficiario?.razonSocial ?? p.factura ?? "sin tercero"}`.replace(/\s+/g, " ")}
@@ -361,7 +378,41 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
       : []),
   ]
 
-  const columnasOtros = columnas.filter((c) => c.clave !== "debitar" && c.clave !== "soporte")
+  const columnasOtros: ColumnaExcel<PagoConEstado>[] =
+    otros === "pendientes"
+      ? columnas.filter((c) => c.clave !== "debitar" && c.clave !== "soporte")
+      : [
+          ...columnas.filter((c) => c.clave !== "sel" && c.clave !== "soporte"),
+          {
+            clave: "fechaPago",
+            titulo: "Pagado el",
+            ancho: 110,
+            alinear: "center",
+            texto: (p) => (p.pagadoManual?.fecha ? formatearFechaSinHora(fechaIsoEnZona(new Date(p.pagadoManual.fecha))) : ""),
+            valorOrden: (p) => p.pagadoManual?.fecha ?? "",
+          },
+          {
+            clave: "comprobante",
+            titulo: "Comprobante",
+            ancho: 120,
+            ordenable: false,
+            texto: (p) => p.pagadoManual?.comprobante?.nombre ?? "",
+            celda: (p) =>
+              p.pagadoManual?.comprobante ? (
+                <a
+                  href={rutaSoporteDispersor(p.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={p.pagadoManual.comprobante.nombre}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  <FileText className="h-4 w-4" /> Ver
+                </a>
+              ) : (
+                <span className="text-muted-foreground/60">—</span>
+              ),
+          },
+        ]
 
   // ---------------------------------------------------------- render
 
@@ -441,9 +492,14 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
       </span>
       <div className="flex-1" />
       {vista === "otros" ? (
-        <Button size="sm" disabled={ocupado !== null || !elegidos.some((p) => p.fueraManual && !p.esPse)} onClick={devolver}>
-          Devolver al dispersor
-        </Button>
+        <>
+          <Button size="sm" disabled={ocupado !== null || idsDe(["fuera"]).length === 0} onClick={() => setMarcar(idsDe(["fuera"]))}>
+            <CheckCircle2 className="mr-1.5 h-4 w-4" /> Marcar como pagados
+          </Button>
+          <Button size="sm" variant="outline" disabled={ocupado !== null || !elegidos.some((p) => p.fueraManual && !p.esPse)} onClick={devolver}>
+            Devolver al dispersor
+          </Button>
+        </>
       ) : paso === 2 ? (
         <>
           <Select
@@ -529,6 +585,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           columnas={cols}
           claveFila={(p) => p.id}
           claseAltoMax="max-h-[calc(100svh-26rem)]"
+          onDobleClickFila={(p) => setDetalle(p)}
           tarjeta={{
             titulo: (p) => p.beneficiario?.razonSocial ?? p.factura ?? "Sin tercero",
             subtitulo: (p) => `REF ${p.item} · semana ${p.semana ?? "—"} · ${p.grupo}`,
@@ -536,9 +593,12 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
             campos: ["cuenta", "valor", "debitar"],
           }}
         />
-        <div className="text-right text-sm text-muted-foreground">
+        <div className="flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
+          <span>{AYUDA_DOBLE_CLIC}.</span>
+          <span>
           {filas.length} {filas.length === 1 ? "pago" : "pagos"} · Total{" "}
           <span className="font-medium text-foreground tabular-nums">{formatoMoneda(filas.reduce((a, p) => a + p.valor, 0))}</span>
+          </span>
         </div>
       </>
     )
@@ -715,11 +775,32 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           ) : vista === "otros" ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Pagos por PSE y los que se pagan por otro medio (efectivo u otro). No entran al dispersor.
+                Pagos por PSE y los que se pagan por otro medio (efectivo u otro). No entran al dispersor: cuando los pagues, elígelos y
+                usa &quot;Marcar como pagados&quot; con la cuenta desde la que salió el pago.
               </p>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    ["pendientes", `Por pagar (${conteo.fuera})`],
+                    ["pagados", `Pagados (${pagadosOtros})`],
+                  ] as const
+                ).map(([v, t]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => {
+                      setOtros(v)
+                      setSeleccion(new Set())
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs ${otros === v ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
               {barraBusqueda}
-              {barraSeleccion}
-              {tabla(visibles, columnasOtros, "No hay otros pagos pendientes.")}
+              {otros === "pendientes" && barraSeleccion}
+              {tabla(visibles, columnasOtros, otros === "pendientes" ? "No hay otros pagos pendientes." : "No hay pagos marcados como pagados en estas semanas.")}
             </>
           ) : (
             <>
@@ -764,6 +845,90 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
         </div>
       </div>
 
+      <VentanaDetalle
+        abierta={detalle !== null}
+        onCerrar={() => setDetalle(null)}
+        titulo={detalle ? (detalle.beneficiario?.razonSocial ?? detalle.factura ?? "Pago sin tercero") : ""}
+        subtitulo={detalle ? `REF ${detalle.item}${detalle.semana != null ? ` · semana ${detalle.semana} de ${detalle.anio}` : ""}` : undefined}
+        campos={
+          detalle
+            ? [
+                ...camposDesdeColumnas(columnas, detalle, ["sel", "soporte"]),
+                ...detalle.alertas.map((a) => ({ etiqueta: "Aviso", valor: `${a.mensaje}${a.detalle ? ` · ${a.detalle}` : ""}` })),
+                ...(detalle.pagadoManual
+                  ? [{ etiqueta: "Pagado el", valor: detalle.pagadoManual.fecha ? formatearFechaHora(detalle.pagadoManual.fecha) : "—" }]
+                  : []),
+              ]
+            : []
+        }
+        acciones={
+          detalle && (
+            <div className="flex flex-wrap gap-2">
+              <a href={rutaSoportePago(detalle.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })}>
+                <Paperclip className="mr-1.5 h-4 w-4" /> Soporte del pago
+              </a>
+              {(detalle.dispersion?.soporte || detalle.pagadoManual?.comprobante) && (
+                <a href={rutaSoporteDispersor(detalle.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })}>
+                  <FileText className="mr-1.5 h-4 w-4" /> {detalle.pagadoManual ? "Comprobante" : "Soporte del dispersor"}
+                </a>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ocupado === "origen"}
+                onClick={async () => {
+                  setOcupado("origen")
+                  setError(null)
+                  try {
+                    setOrigen(await obtenerPagoConsolidado(detalle.id))
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "No se pudo abrir el documento del pago.")
+                    setDetalle(null)
+                  } finally {
+                    setOcupado(null)
+                  }
+                }}
+              >
+                {ocupado === "origen" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
+                Documento de origen
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setHistorialDe(detalle)}>
+                <History className="mr-1.5 h-4 w-4" /> Historial
+              </Button>
+              {puedeGenerar && detalle.estado === "fuera" && (
+                <Button size="sm" onClick={() => setMarcar([detalle.id])}>
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" /> Marcar como pagado
+                </Button>
+              )}
+            </div>
+          )
+        }
+      />
+
+      <DetalleOrigenPago pago={origen} acciones={null} camposPago={[]} onCerrar={() => setOrigen(null)} />
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="pago"
+        id={historialDe?.id ?? null}
+        titulo={`Historial del pago${historialDe?.item ? ` · REF ${historialDe.item}` : ""}`}
+        onCerrar={() => setHistorialDe(null)}
+      />
+
+      <MarcarPagadosDialog
+        ids={marcar}
+        pagos={lista}
+        cuentas={cuentas}
+        onCerrar={() => setMarcar(null)}
+        onHecho={(n) => {
+          setMarcar(null)
+          setDetalle(null)
+          setSeleccion(new Set())
+          setAviso(`${n} ${n === 1 ? "pago quedó pagado" : "pagos quedaron pagados"} con fecha de hoy. Están en Otros pagos pendientes › Pagados.`)
+          if (ultimos) cargar(ultimos)
+        }}
+      />
+
       <Dialog open={motivoRebote !== null} onOpenChange={(a) => !a && setMotivoRebote(null)}>
         <DialogContent>
           <DialogHeader>
@@ -794,5 +959,168 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// "Marcar como pagado": pagos por PSE u otro medio. Se escoge la cuenta desde la
+// que se pagó; quedan pagados con la fecha de hoy y, si se adjunta, con el
+// comprobante (bucket dispersores, carpeta pse/).
+function MarcarPagadosDialog({
+  ids,
+  pagos,
+  cuentas,
+  onCerrar,
+  onHecho,
+}: {
+  ids: string[] | null
+  pagos: PagoConEstado[]
+  cuentas: CuentaEmpresa[]
+  onCerrar: () => void
+  onHecho: (n: number) => void
+}) {
+  const [banco, setBanco] = useState("")
+  const [cuentaId, setCuentaId] = useState("")
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const archivoRef = useRef<HTMLInputElement>(null)
+
+  const elegidos = useMemo(() => {
+    const set = new Set(ids ?? [])
+    return pagos.filter((p) => set.has(p.id))
+  }, [ids, pagos])
+  const bancos = useMemo(() => [...new Set(cuentas.map((c) => c.banco))].sort(), [cuentas])
+  const total = elegidos.reduce((a, p) => a + p.valor, 0)
+
+  function cerrar() {
+    setBanco("")
+    setCuentaId("")
+    setArchivo(null)
+    setError(null)
+    onCerrar()
+  }
+
+  async function guardar() {
+    if (!ids || !cuentaId) return
+    setOcupado(true)
+    setError(null)
+    const supabase = createClient()
+    let ruta: string | null = null
+    try {
+      if (archivo) {
+        ruta = `pse/${crypto.randomUUID()}/${crypto.randomUUID()}.${extensionArchivo(archivo)}`
+        const { error: e } = await supabase.storage.from("dispersores").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
+        if (e) {
+          ruta = null
+          throw new Error(`No se pudo subir el comprobante: ${e.message}`)
+        }
+      }
+      const n = await marcarPagosPagados(ids, cuentaId, ruta && archivo ? { ruta, nombre: archivo.name, mime: archivo.type } : null)
+      if (n === 0) throw new Error("Ningún pago quedó marcado: puede que ya estén pagados o que ya no estén en Otros pagos pendientes.")
+      setBanco("")
+      setCuentaId("")
+      setArchivo(null)
+      onHecho(n)
+    } catch (e) {
+      if (ruta) await supabase.storage.from("dispersores").remove([ruta])
+      setError(e instanceof Error ? e.message : "No se pudieron marcar los pagos.")
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  return (
+    <Dialog open={ids !== null} onOpenChange={(a) => !a && !ocupado && cerrar()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{elegidos.length === 1 ? "Marcar como pagado" : `Marcar ${elegidos.length} pagos como pagados`}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          {elegidos.length === 1
+            ? `${elegidos[0].beneficiario?.razonSocial ?? elegidos[0].factura ?? "Sin tercero"} · REF ${elegidos[0].item} · ${formatoMoneda(total)}.`
+            : `Total ${formatoMoneda(total)}.`}{" "}
+          Quedan pagados con fecha de hoy ({formatearFechaSinHora(hoyColombia())}). Si el pago no salió, usa después &quot;Rebotó en el banco&quot;
+          en el paso 2.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>Banco desde el que se pagó</Label>
+            <Select
+              value={banco}
+              onValueChange={(v) => {
+                setBanco(v ?? "")
+                setCuentaId("")
+              }}
+            >
+              <SelectTrigger className="w-full" aria-label="Banco desde el que se pagó">
+                <SelectValue placeholder="Escoge" />
+              </SelectTrigger>
+              <SelectContent>
+                {bancos.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Cuenta</Label>
+            <Select value={cuentaId} onValueChange={(v) => setCuentaId(v ?? "")} disabled={!banco}>
+              <SelectTrigger className="w-full" aria-label="Cuenta desde la que se pagó">
+                <SelectValue placeholder="Escoge" />
+              </SelectTrigger>
+              <SelectContent>
+                {cuentas
+                  .filter((c) => c.banco === banco)
+                  .map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.apodo} · {c.tipoCuenta.toLowerCase()} {c.cuenta.slice(-4)}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Comprobante (opcional)</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={ocupado} onClick={() => archivoRef.current?.click()}>
+              {archivo ? "Cambiar archivo" : "Adjuntar archivo"}
+            </Button>
+            <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{archivo ? archivo.name : "PDF, JPG o PNG de hasta 10 MB"}</span>
+            {archivo && (
+              <Button type="button" variant="ghost" size="sm" disabled={ocupado} onClick={() => setArchivo(null)}>
+                Quitar
+              </Button>
+            )}
+          </div>
+          <input
+            ref={archivoRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ""
+              if (!f) return
+              const problema = revisarArchivoTercero(f, "El comprobante")
+              setError(problema)
+              if (!problema) setArchivo(f)
+            }}
+          />
+        </div>
+        {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+        <DialogFooter>
+          <Button variant="outline" disabled={ocupado} onClick={cerrar}>
+            Cancelar
+          </Button>
+          <Button disabled={ocupado || !cuentaId || elegidos.length === 0} onClick={guardar}>
+            {ocupado ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {ocupado ? "Guardando..." : "Marcar como pagado"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

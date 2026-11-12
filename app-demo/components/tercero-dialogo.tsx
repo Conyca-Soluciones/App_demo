@@ -3,6 +3,8 @@
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { useEffect, useId, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { extensionArchivo, revisarArchivoTercero } from "@/lib/archivos-tercero"
+import { RutTercero } from "@/components/rut-tercero"
 import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -359,6 +361,17 @@ function ContenidoTercero({
         </p>
       </section>
 
+      {/* ------------------------------------------------------------- RUT */}
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">RUT</h3>
+        <RutTercero
+          terceroId={tercero.id}
+          nombreArchivo={tercero.rutNombre}
+          puedeSubir={puedeEditar || puedeVerificar}
+          onCambio={(nombre) => onCambio({ ...tercero, rutNombre: nombre })}
+        />
+      </section>
+
       {/* ----------------------------------------------------------- cuentas */}
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -614,11 +627,11 @@ export function NuevoTerceroDialogo({
       clearTimeout(t)
     }
   }, [abierto, numero])
-  const [conCuenta, setConCuenta] = useState(true)
   const [cuenta, setCuenta] = useState<DatosCuenta>(CUENTA_VACIA)
-  // Certificación bancaria de la cuenta (opcional): se sube al crear.
+  // Certificación bancaria de la cuenta y RUT: obligatorios, se suben al crear
+  // (20270101000300).
   const [certificacion, setCertificacion] = useState<File | null>(null)
-  const archivoRef = useRef<HTMLInputElement>(null)
+  const [rut, setRut] = useState<File | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Errores por campo (todos a la vez); cada uno se borra al corregir su campo.
@@ -636,6 +649,13 @@ export function NuevoTerceroDialogo({
       const n = { ...e }
       for (const k of Object.keys(cambio)) delete n[k]
       if ("tipoDocumento" in cambio || "numeroDocumento" in cambio) delete n.dv
+      return n
+    })
+  }
+  function quitarError(campo: string) {
+    setErrores((e) => {
+      const n = { ...e }
+      delete n[campo]
       return n
     })
   }
@@ -659,8 +679,8 @@ export function NuevoTerceroDialogo({
   function cerrar() {
     setDatos(TERCERO_VACIO)
     setCuenta(CUENTA_VACIA)
-    setConCuenta(true)
     setCertificacion(null)
+    setRut(null)
     setError(null)
     setErrores({})
     setErroresCuenta({})
@@ -673,9 +693,11 @@ export function NuevoTerceroDialogo({
     // Se revisa todo antes de enviar y se muestran todos los errores juntos
     // (la base vuelve a validar).
     const vt = validarTercero(datos)
-    const vc = conCuenta ? validarCuenta(cuenta) : null
-    const et = vt.ok ? {} : (vt.errores as Record<string, string>)
-    const ec = vc && !vc.ok ? vc.errores : {}
+    const vc = validarCuenta(cuenta)
+    const et: Record<string, string> = vt.ok ? {} : { ...(vt.errores as Record<string, string>) }
+    if (!certificacion) et.certificacion = "Adjunta la certificación bancaria."
+    if (!rut) et.rut = "Adjunta el RUT."
+    const ec = vc.ok ? {} : vc.errores
     setErrores(et)
     setErroresCuenta(ec)
     const total = Object.keys(et).length + Object.keys(ec).length
@@ -684,30 +706,33 @@ export function NuevoTerceroDialogo({
       return
     }
     setOcupado(true)
-    // La certificación se sube primero (a la carpeta del usuario); si el
-    // tercero no se crea, se borra.
+    // Los archivos se suben primero (a la carpeta del usuario); si el tercero
+    // no se crea, se borran.
     const supabase = createClient()
-    let subida: { ruta: string; nombre: string; mime: string } | null = null
+    const subidas: { ruta: string; nombre: string; mime: string }[] = []
     try {
-      if (conCuenta && certificacion) {
-        const ext = certificacion.type === "application/pdf" ? "pdf" : certificacion.type === "image/png" ? "png" : "jpg"
-        const { data: sesion } = await supabase.auth.getUser()
-        if (!sesion.user) throw new Error("Tu sesión se cerró: vuelve a iniciar sesión.")
-        const ruta = `nuevo/${sesion.user.id}/${crypto.randomUUID()}.${ext}`
-        const { error: e } = await supabase.storage
-          .from("terceros")
-          .upload(ruta, certificacion, { contentType: certificacion.type, upsert: false })
-        if (e) throw new Error(`No se pudo subir la certificación: ${e.message}`)
-        subida = { ruta, nombre: certificacion.name, mime: certificacion.type }
+      const { data: sesion } = await supabase.auth.getUser()
+      const uidSesion = sesion.user?.id
+      if (!uidSesion) throw new Error("Tu sesión se cerró: vuelve a iniciar sesión.")
+      const subir = async (f: File, que: string) => {
+        const ruta = `nuevo/${uidSesion}/${crypto.randomUUID()}.${extensionArchivo(f)}`
+        const { error: e } = await supabase.storage.from("terceros").upload(ruta, f, { contentType: f.type, upsert: false })
+        if (e) throw new Error(`No se pudo subir ${que}: ${e.message}`)
+        const subida = { ruta, nombre: f.name, mime: f.type }
+        subidas.push(subida)
+        return subida
       }
-      const creado = await crearTercero(datos, conCuenta ? cuenta : null, subida)
+      if (!certificacion || !rut) throw new Error("Adjunta la certificación bancaria y el RUT.")
+      const cert = await subir(certificacion, "la certificación")
+      const archivoRut = await subir(rut, "el RUT")
+      const creado = await crearTercero(datos, cuenta, cert, archivoRut)
       setDatos(TERCERO_VACIO)
       setCuenta(CUENTA_VACIA)
-      setConCuenta(true)
       setCertificacion(null)
+      setRut(null)
       onCreado(creado)
     } catch (e) {
-      if (subida) await supabase.storage.from("terceros").remove([subida.ruta])
+      if (subidas.length > 0) await supabase.storage.from("terceros").remove(subidas.map((x) => x.ruta))
       setError(e instanceof Error ? e.message : "No se pudo crear el tercero.")
     } finally {
       setOcupado(false)
@@ -832,53 +857,36 @@ export function NuevoTerceroDialogo({
         </div>
 
         <section className="space-y-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <input type="checkbox" checked={conCuenta} onChange={(e) => setConCuenta(e.target.checked)} />
-            Agregar su cuenta bancaria ahora
-          </label>
-          {conCuenta && <CamposCuenta valores={cuenta} onCambiar={ponerCuenta} bancos={bancos} errores={erroresCuenta} />}
-          {conCuenta && (
-            <div className="space-y-1.5">
-              <Label>Certificación bancaria (opcional, recomendada)</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" disabled={ocupado} onClick={() => archivoRef.current?.click()}>
-                  {certificacion ? "Cambiar archivo" : "Adjuntar archivo"}
-                </Button>
-                <span className="min-w-0 truncate text-sm text-muted-foreground">
-                  {certificacion ? certificacion.name : "PDF, JPG o PNG de hasta 10 MB"}
-                </span>
-                {certificacion && (
-                  <Button type="button" variant="ghost" size="sm" disabled={ocupado} onClick={() => setCertificacion(null)}>
-                    Quitar
-                  </Button>
-                )}
-              </div>
-              <input
-                ref={archivoRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  e.target.value = ""
-                  if (!f) return
-                  if (!["application/pdf", "image/jpeg", "image/png"].includes(f.type)) {
-                    setError("La certificación debe ser PDF, JPG o PNG.")
-                    return
-                  }
-                  if (f.size > 10 * 1024 * 1024) {
-                    setError("La certificación pesa más de 10 MB.")
-                    return
-                  }
-                  setError(null)
-                  setCertificacion(f)
-                }}
-              />
-            </div>
-          )}
+          <h3 className="text-sm font-medium">Cuenta bancaria</h3>
+          <CamposCuenta valores={cuenta} onCambiar={ponerCuenta} bancos={bancos} errores={erroresCuenta} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <CampoArchivoTercero
+              etiqueta="Certificación bancaria"
+              archivo={certificacion}
+              ocupado={ocupado}
+              error={errores.certificacion}
+              onCambiar={(f, problema) => {
+                setError(problema)
+                if (problema) return
+                setCertificacion(f)
+                quitarError("certificacion")
+              }}
+            />
+            <CampoArchivoTercero
+              etiqueta="RUT"
+              archivo={rut}
+              ocupado={ocupado}
+              error={errores.rut}
+              onCambiar={(f, problema) => {
+                setError(problema)
+                if (problema) return
+                setRut(f)
+                quitarError("rut")
+              }}
+            />
+          </div>
           <p className="text-xs text-muted-foreground">
-            Las cuentas nuevas quedan pendientes hasta que Financiera las verifique
-            {conCuenta ? "; con la certificación adjunta la verifica más rápido." : "."}
+            La cuenta queda pendiente hasta que Financiera la verifique con la certificación.
           </p>
         </section>
 
@@ -898,5 +906,56 @@ export function NuevoTerceroDialogo({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Un archivo obligatorio del tercero (certificación bancaria, RUT): PDF, JPG o
+// PNG de hasta 10 MB.
+function CampoArchivoTercero({
+  etiqueta,
+  archivo,
+  ocupado,
+  error,
+  onCambiar,
+}: {
+  etiqueta: string
+  archivo: File | null
+  ocupado: boolean
+  error?: string
+  // problema = mensaje si el archivo no sirve (null si sirve)
+  onCambiar: (f: File, problema: string | null) => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <Label>{etiqueta}</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={ocupado}
+          aria-invalid={!!error}
+          className={error ? "border-destructive" : undefined}
+          onClick={() => ref.current?.click()}
+        >
+          {archivo ? "Cambiar archivo" : "Adjuntar archivo"}
+        </Button>
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{archivo ? archivo.name : "PDF, JPG o PNG de hasta 10 MB"}</span>
+      </div>
+      <input
+        ref={ref}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ""
+          if (!f) return
+          onCambiar(f, revisarArchivoTercero(f, etiqueta === "RUT" ? "El RUT" : "La certificación"))
+        }}
+      />
+      <ErrorCampo texto={error} />
+    </div>
   )
 }

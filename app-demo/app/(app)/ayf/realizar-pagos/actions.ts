@@ -51,6 +51,7 @@ const CAMPOS_TERCERO = "razon_social, tipo_documento, numero_documento, dv, nomb
 const CAMPOS = `
   id, referencia, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id, dispersion_id,
   cuenta_confirmada_en, cuenta_modificada, etiquetas, tercero_id, titular_tercero_id, proyecto_id,
+  es_pse:pago_es_pse, pagado_manual_por, pago_comprobante_nombre, pago_comprobante_ruta, dispersado_en,
   consolidado:consolidados!pagos_consolidado_id_fkey(nombre),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre),
@@ -117,7 +118,8 @@ function mapPagoDispersor(f: any): PagoDispersor {
     valorOriginal,
     valor: aPesos(valorOriginal),
     estadoPago: f.estado,
-    esPse: f.req?.metodo === "pse" || texto(banco) === "PSE",
+    // PSE de la requisición administrativa, de la OC o del contrato (pago_es_pse, 20270101000300)
+    esPse: f.es_pse === true || f.req?.metodo === "pse" || texto(banco) === "PSE",
     fueraManual: Boolean(f.fuera_dispersor),
     esNomina: ((f.etiquetas ?? []) as string[]).some((e) => texto(e) === "NOM"),
     // la cuenta es del titular si se eligió otro; si no, de quien factura
@@ -138,6 +140,13 @@ function mapPagoDispersor(f: any): PagoDispersor {
         }
       : null,
     rebote: reboteDe(intentosDe(f.intentos)),
+    pagadoManual:
+      f.estado === "dispersado" && f.pagado_manual_por
+        ? {
+            fecha: f.dispersado_en ?? null,
+            comprobante: f.pago_comprobante_ruta ? { nombre: f.pago_comprobante_nombre ?? "comprobante", ruta: f.pago_comprobante_ruta } : null,
+          }
+        : null,
   }
 }
 
@@ -228,6 +237,27 @@ export async function redispersarPagos(ids: string[], motivo: string): Promise<n
   const supabase = await createClient()
   return enTandas(ids, async (lote) => {
     const { data, error } = await supabase.rpc("redispersar_pagos", { p_ids: lote, p_motivo: motivo.trim() })
+    if (error) throw new Error(error.message)
+    return Number(data ?? 0)
+  })
+}
+
+/**
+ * Pagos por PSE u otro medio (Otros pagos pendientes): quedan pagados con la
+ * fecha de hoy y la cuenta desde la que se pagaron; el comprobante (opcional)
+ * ya está subido a dispersores/pse/... (20270101000300).
+ */
+export async function marcarPagosPagados(
+  ids: string[],
+  cuentaId: string,
+  comprobante: { ruta: string; nombre: string; mime: string } | null
+): Promise<number> {
+  await requerirAccion(ACCION)
+  if (!cuentaId) throw new Error("Escoge la cuenta desde la que se pagó.")
+  if (comprobante && !comprobante.ruta.startsWith("pse/")) throw new Error("El comprobante no se subió bien: vuelve a adjuntarlo.")
+  const supabase = await createClient()
+  return enTandas(ids, async (lote) => {
+    const { data, error } = await supabase.rpc("marcar_pagos_pagados", { p_ids: lote, p_cuenta_id: cuentaId, p_comprobante: comprobante })
     if (error) throw new Error(error.message)
     return Number(data ?? 0)
   })

@@ -68,6 +68,8 @@ export type PagoDispersor = {
   dispersion: { apodo: string; nombreBase: string; generadoEn: string; soporte: { nombre: string; ruta: string } | null } | null
   // el último intento que rebotó en el banco (vuelve a dispersión con la misma REF)
   rebote: { fecha: string; motivo: string } | null
+  // pagado por PSE u otro medio, sin dispersor (20270101000300): fecha y comprobante
+  pagadoManual?: { fecha: string | null; comprobante: { nombre: string; ruta: string } | null } | null
 }
 
 export type PagoConEstado = PagoDispersor & { estado: EstadoDispersor; alertas: Alerta[] }
@@ -83,7 +85,11 @@ export function conEstado(p: PagoDispersor): PagoConEstado {
   let estado: EstadoDispersor
   if (p.estadoPago === "dispersado" || p.dispersion) {
     estado = "dispersado"
-    alertas.push({ nivel: "AVISO", mensaje: "ya se dispersó", detalle: p.dispersion ? `en ${p.dispersion.nombreBase} (${p.dispersion.apodo})` : "" })
+    alertas.push(
+      p.pagadoManual && !p.dispersion
+        ? { nivel: "AVISO", mensaje: "pagado sin dispersor", detalle: p.esPse ? "por PSE" : "por otro medio" }
+        : { nivel: "AVISO", mensaje: "ya se dispersó", detalle: p.dispersion ? `en ${p.dispersion.nombreBase} (${p.dispersion.apodo})` : "" }
+    )
   } else if (p.esPse) {
     estado = "fuera"
     alertas.push({ nivel: "AVISO", mensaje: "se paga por Pse", detalle: "" })
