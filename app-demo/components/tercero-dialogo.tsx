@@ -628,6 +628,8 @@ export function NuevoTerceroDialogo({
     }
   }, [abierto, numero])
   const [cuenta, setCuenta] = useState<DatosCuenta>(CUENTA_VACIA)
+  // "No tiene cuenta bancaria" (20270101001100): sin cuenta ni certificación.
+  const [sinCuenta, setSinCuenta] = useState(false)
   // Certificación bancaria de la cuenta y RUT: obligatorios, se suben al crear
   // (20270101000300).
   const [certificacion, setCertificacion] = useState<File | null>(null)
@@ -679,6 +681,7 @@ export function NuevoTerceroDialogo({
   function cerrar() {
     setDatos(TERCERO_VACIO)
     setCuenta(CUENTA_VACIA)
+    setSinCuenta(false)
     setCertificacion(null)
     setRut(null)
     setError(null)
@@ -693,11 +696,11 @@ export function NuevoTerceroDialogo({
     // Se revisa todo antes de enviar y se muestran todos los errores juntos
     // (la base vuelve a validar).
     const vt = validarTercero(datos)
-    const vc = validarCuenta(cuenta)
+    const vc = sinCuenta ? null : validarCuenta(cuenta)
     const et: Record<string, string> = vt.ok ? {} : { ...(vt.errores as Record<string, string>) }
-    if (!certificacion) et.certificacion = "Adjunta la certificación bancaria."
+    if (!sinCuenta && !certificacion) et.certificacion = "Adjunta la certificación bancaria."
     if (!rut) et.rut = "Adjunta el RUT."
-    const ec = vc.ok ? {} : vc.errores
+    const ec = vc && !vc.ok ? vc.errores : {}
     setErrores(et)
     setErroresCuenta(ec)
     const total = Object.keys(et).length + Object.keys(ec).length
@@ -722,12 +725,13 @@ export function NuevoTerceroDialogo({
         subidas.push(subida)
         return subida
       }
-      if (!certificacion || !rut) throw new Error("Adjunta la certificación bancaria y el RUT.")
-      const cert = await subir(certificacion, "la certificación")
+      if (!rut || (!sinCuenta && !certificacion)) throw new Error("Adjunta los archivos que faltan.")
+      const cert = !sinCuenta && certificacion ? await subir(certificacion, "la certificación") : null
       const archivoRut = await subir(rut, "el RUT")
-      const creado = await crearTercero(datos, cuenta, cert, archivoRut)
+      const creado = await crearTercero(datos, sinCuenta ? null : cuenta, cert, archivoRut)
       setDatos(TERCERO_VACIO)
       setCuenta(CUENTA_VACIA)
+      setSinCuenta(false)
       setCertificacion(null)
       setRut(null)
       onCreado(creado)
@@ -857,21 +861,38 @@ export function NuevoTerceroDialogo({
         </div>
 
         <section className="space-y-3">
-          <h3 className="text-sm font-medium">Cuenta bancaria</h3>
-          <CamposCuenta valores={cuenta} onCambiar={ponerCuenta} bancos={bancos} errores={erroresCuenta} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">Cuenta bancaria</h3>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sinCuenta}
+                onChange={(e) => {
+                  setSinCuenta(e.target.checked)
+                  setErroresCuenta({})
+                  quitarError("certificacion")
+                  setError(null)
+                }}
+              />
+              No tiene cuenta bancaria
+            </label>
+          </div>
+          {!sinCuenta && <CamposCuenta valores={cuenta} onCambiar={ponerCuenta} bancos={bancos} errores={erroresCuenta} />}
           <div className="grid gap-3 sm:grid-cols-2">
-            <CampoArchivoTercero
-              etiqueta="Certificación bancaria"
-              archivo={certificacion}
-              ocupado={ocupado}
-              error={errores.certificacion}
-              onCambiar={(f, problema) => {
-                setError(problema)
-                if (problema) return
-                setCertificacion(f)
-                quitarError("certificacion")
-              }}
-            />
+            {!sinCuenta && (
+              <CampoArchivoTercero
+                etiqueta="Certificación bancaria"
+                archivo={certificacion}
+                ocupado={ocupado}
+                error={errores.certificacion}
+                onCambiar={(f, problema) => {
+                  setError(problema)
+                  if (problema) return
+                  setCertificacion(f)
+                  quitarError("certificacion")
+                }}
+              />
+            )}
             <CampoArchivoTercero
               etiqueta="RUT"
               archivo={rut}
@@ -886,7 +907,9 @@ export function NuevoTerceroDialogo({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            La cuenta queda pendiente hasta que Financiera la verifique con la certificación.
+            {sinCuenta
+              ? "Sin cuenta no se le puede pagar por transferencia; se le puede agregar después en su ficha (Terceros › Agregar cuenta)."
+              : "La cuenta queda pendiente hasta que Financiera la verifique con la certificación."}
           </p>
         </section>
 
