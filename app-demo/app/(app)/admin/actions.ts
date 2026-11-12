@@ -169,28 +169,14 @@ export async function editarEmpresa(
   if (error) throw new Error(mensajeErrorEmpresa(error, "editar la empresa"))
 }
 
-// No se elimina una empresa que todavía tiene proyectos: primero hay que
-// cambiarles la empresa (un proyecto sin empresa deja vacío el encabezado de
-// sus órdenes de compra).
+// Eliminar una empresa (20270101001000): la base revisa que nada la use
+// (proyectos, pagos, OC, pagos administrativos, saldos a favor, cuentas a
+// debitar usadas) y dice qué tiene; si no, borra también sus cuentas a debitar.
 export async function eliminarEmpresa(empresaId: string) {
   await requerirAdmin()
   const supabase = await createClient()
-
-  const { count, error: errorConteo } = await supabase
-    .from("proyectos")
-    .select("id", { count: "exact", head: true })
-    .eq("empresa_id", empresaId)
-  if (errorConteo) throw new Error(errorConteo.message)
-
-  if ((count ?? 0) > 0) {
-    throw new Error(
-      `No se puede eliminar: ${count} ${count === 1 ? "proyecto usa" : "proyectos usan"} esta empresa. ` +
-        "Cámbiales la empresa primero."
-    )
-  }
-
-  const { error } = await supabase.from("empresas").delete().eq("id", empresaId)
-  if (error) throw new Error(mensajeErrorEmpresa(error, "eliminar la empresa"))
+  const { error } = await supabase.rpc("eliminar_empresa", { p_empresa_id: empresaId })
+  if (error) throw new Error(error.message)
 }
 
 
