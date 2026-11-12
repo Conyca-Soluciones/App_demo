@@ -169,7 +169,7 @@ export async function editarEmpresa(
   if (error) throw new Error(mensajeErrorEmpresa(error, "editar la empresa"))
 }
 
-// Eliminar una empresa (20270101000600): la base revisa que nada la use
+// Eliminar una empresa (20270101001000): la base revisa que nada la use
 // (proyectos, pagos, OC, pagos administrativos, saldos a favor, cuentas a
 // debitar usadas) y dice qué tiene; si no, borra también sus cuentas a debitar.
 export async function eliminarEmpresa(empresaId: string) {
