@@ -161,20 +161,24 @@ type ArchivoSubido = { ruta: string; nombre: string; mime: string }
 
 export async function crearTercero(
   crudo: DatosTercero,
-  cuentaCruda: DatosCuenta,
+  // null = "No tiene cuenta bancaria" (20270101001100): sin cuenta ni certificación.
+  cuentaCruda: DatosCuenta | null,
   // Ya subidos a `terceros/nuevo/<uid>/`: la certificación de la cuenta
-  // (20261231200000) y el RUT (20270101000300). Los tres son obligatorios.
-  certificacion: ArchivoSubido,
+  // (20261231200000) y el RUT (20270101000300, siempre obligatorio).
+  certificacion: ArchivoSubido | null,
   rut: ArchivoSubido
 ): Promise<TerceroBasico> {
   const r = validarTercero(crudo)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del tercero.")
   const d = r.datos
 
-  const rc = validarCuenta(cuentaCruda)
-  if (!rc.ok) throw new Error(Object.values(rc.errores)[0] ?? "Revisa los datos de la cuenta.")
-  const cuenta = rc.datos
-  if (!certificacion?.ruta) throw new Error("Adjunta la certificación bancaria.")
+  let cuenta = null
+  if (cuentaCruda) {
+    const rc = validarCuenta(cuentaCruda)
+    if (!rc.ok) throw new Error(Object.values(rc.errores)[0] ?? "Revisa los datos de la cuenta.")
+    cuenta = rc.datos
+    if (!certificacion?.ruta) throw new Error("Adjunta la certificación bancaria.")
+  }
   if (!rut?.ruta) throw new Error("Adjunta el RUT.")
 
   const supabase = await createClient()
@@ -189,15 +193,18 @@ export async function crearTercero(
       apellidos: d.apellidos ?? "",
       observaciones: d.observaciones ?? "",
       rut,
+      sin_cuenta: cuenta === null,
     },
-    p_cuenta: {
-      banco_id: cuenta.bancoId,
-      tipo_cuenta: cuenta.tipoCuenta,
-      numero_cuenta: cuenta.numeroCuenta,
-      etiqueta: cuenta.etiqueta ?? "",
-      observaciones: cuenta.observaciones ?? "",
-      certificacion,
-    },
+    p_cuenta: cuenta
+      ? {
+          banco_id: cuenta.bancoId,
+          tipo_cuenta: cuenta.tipoCuenta,
+          numero_cuenta: cuenta.numeroCuenta,
+          etiqueta: cuenta.etiqueta ?? "",
+          observaciones: cuenta.observaciones ?? "",
+          certificacion,
+        }
+      : null,
   })
   if (error) throw new Error(error.message)
   return mapBasico(data)

@@ -1219,6 +1219,8 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   pago en Preparación (`gestionar_pagos`), sube a `terceros/rut/<tercero>/` y llama
   `guardar_rut_tercero`. Lo ven A&F (`_puede_ver_rut`: cuentas, gestionar pagos, algún consolidado,
   Terceros, Aprobación de pagos) con `enlaceRutTercero`.
+- **"No tiene cuenta bancaria"** (`20270101001100_tercero_sin_cuenta.sql`): casilla en Nuevo tercero que
+  quita la cuenta y la certificación (`p_datos.sin_cuenta`); el RUT sigue obligatorio.
 - **Más de una cuenta por tercero**: ya existía (ficha del tercero › "Agregar cuenta", `editar_terceros`).
 - **PSE en el Consolidado** (`20270101000400_pse_en_consolidado.sql`, mismo día, cambia lo de arriba):
   los PSE ya NO van a Realizar Pagos (`listarRealizarPagos` filtra `pago_es_pse = false`; ahí "Marcar
