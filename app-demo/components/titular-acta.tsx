@@ -10,7 +10,7 @@ import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
 import { titularVacio, type TitularCuenta } from "@/lib/titular-cuenta"
 import { MIME_SOPORTES, validarSoporte, pideAutorizacionTercero } from "@/lib/actas"
 
-// "Depositar a otro tercero" en el acta (20270101000300):
+// "Depositar a otro tercero" en el acta (20270101000700):
 // - La lista trae el tercero que estipula el contrato (ya marcado al crear).
 // - "Pagar a alguien nuevo" abre un diálogo: se busca el tercero en Terceros,
 //   se elige su cuenta y se sube la autorización firmada (obligatoria). Ese

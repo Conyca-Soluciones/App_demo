@@ -664,17 +664,17 @@ select * from (
          exists (select 1 from information_schema.columns where table_name = 'item_apu' and column_name = 'no_aplica')
          and exists (select 1 from pg_proc where proname = 'crear_nueva_version' and prosrc like '%ia.no_aplica%')
   union all
-  select '20270101000200_contrato_titular_transferencia',
+  select '20270101000600_contrato_titular_transferencia',
          exists (select 1 from information_schema.columns where table_name = 'contratos' and column_name = 'cuenta_tercero_id')
          and exists (select 1 from pg_proc where proname = 'titular_de_contrato')
          and exists (select 1 from pg_proc where proname = '_fijar_pago_contrato' and prosrc like '%_titular_valido%')
   union all
-  select '20270101000300_acta_autorizacion_tercero',
+  select '20270101000700_acta_autorizacion_tercero',
          exists (select 1 from information_schema.columns where table_name = 'actas' and column_name = 'autorizacion_estado')
          and exists (select 1 from pg_proc where proname = 'resolver_autorizacion_acta')
          and exists (select 1 from pg_proc where proname = '_pago_de_acta' and prosrc like '%autorizacion_estado%')
   union all
-  select '20270101000400_modificar_contrato_antes_poliza',
+  select '20270101000800_modificar_contrato_antes_poliza',
          exists (select 1 from pg_proc where proname = 'reabrir_solicitud_contrato')
          and exists (select 1 from pg_proc where proname = 'reabrir_minuta_contrato')
          and exists (select 1 from pg_proc where proname = 'contrato_modificable')

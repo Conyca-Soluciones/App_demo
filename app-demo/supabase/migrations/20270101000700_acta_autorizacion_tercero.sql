@@ -2,7 +2,7 @@
 -- usuario, 2026-11-12).
 --
 -- * El acta trae por omisión el tercero que estipula el contrato
---   (contratos.titular_tercero_id, 20270101000200): ese no necesita nada más.
+--   (contratos.titular_tercero_id, 20270101000600): ese no necesita nada más.
 -- * "Pagar a alguien nuevo" (cualquier otro tercero): se sube la autorización
 --   firmada (soporte tipo 'autorizacion_tercero', obligatorio) y el acta queda
 --   con actas.autorizacion_estado = 'por_revisar'. Se avisa a Jurídica (Legal y

@@ -13,7 +13,7 @@ import {
 } from "@/app/(app)/contratos/modificar/actions"
 
 // "Modificar solicitud" (quien la pidió) o "Modificar minuta" (Jurídica) de un
-// contrato cuya póliza todavía no está aprobada (20270101000400). Pide qué se
+// contrato cuya póliza todavía no está aprobada (20270101000800). Pide qué se
 // va a modificar, reabre y vuelve a pasar por las aprobaciones. Solo aparece si
 // la base dice que se puede.
 export function BotonModificarContrato({

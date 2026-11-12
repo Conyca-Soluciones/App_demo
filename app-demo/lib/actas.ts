@@ -99,7 +99,7 @@ export type ActaResumen = {
   creadoPorNombre: string | null
   // La hizo el usuario actual (solo quien la creó la puede editar).
   esMio: boolean
-  // Depositar a otro tercero (20270101000300): null = no aplica.
+  // Depositar a otro tercero (20270101000700): null = no aplica.
   autorizacionEstado: EstadoAutorizacionTercero | null
 }
 

@@ -17,7 +17,7 @@ const METODOS: { valor: MetodoPagoContrato; titulo: string; descripcion: string;
 // Transferencia o PSE en "Forma de pago" de la solicitud de contrato (por
 // grupos y general). Las dos tienen la casilla "Depositar a otro tercero":
 // - Transferencia: se elige el tercero (inscrito en Terceros) y una de sus
-//   cuentas (20270101000200); las actas del contrato la traen por omisión.
+//   cuentas (20270101000600); las actas del contrato la traen por omisión.
 //   Sin ella, la cuenta del contratista.
 // - PSE: la información para pagar va en observaciones y, con la casilla, el
 //   nombre del titular (20261224000000; sin ella, el contratista).

@@ -1749,7 +1749,7 @@ observaciones del contrato (`mapPago`). El detalle del contrato dice "Se paga po
 Con PSE, la casilla "El titular tiene otro nombre" pide el nombre
 (`contratos.pse_titular_nombre`, `20261224000000`; null = el contratista):
 lo valida `_fijar_pago_contrato` y A&F lo ve en el pago de cada acta (`cuentaTitular`).
-**Depositar a otro tercero** (`20270101000200`, decisión del usuario 2026-11-12):
+**Depositar a otro tercero** (`20270101000600`, decisión del usuario 2026-11-12):
 la casilla de PSE se llama así y también está en Transferencia. En Transferencia
 se elige un tercero de Terceros y una de sus cuentas (`CampoTitularCuenta`):
 `contratos.titular_tercero_id` / `cuenta_tercero_id` (los dos o ninguno), los
@@ -1759,7 +1759,7 @@ solo lo lee A&F): formulario al corregir, detalle ("Se paga por") y el acta
 NUEVA, que lo trae por omisión y se puede cambiar; el pago sale del acta como
 siempre (actas viejas no cambian). En TS: `titularTransferenciaContrato`.
 
-**Acta: depositar a otro tercero con autorización de Jurídica** (`20270101000300`,
+**Acta: depositar a otro tercero con autorización de Jurídica** (`20270101000700`,
 decisión del usuario 2026-11-12). En el acta, `TitularActa`
 (`components/titular-acta.tsx`): casilla "Depositar a otro tercero", lista con el
 tercero del contrato (marcado al crear) y "Pagar a alguien nuevo" (diálogo:
@@ -1775,7 +1775,7 @@ dada a quien tenía Pre aprobación; `resolver_autorizacion_acta`, acción
 Corregir el acta con el mismo tercero y cuenta ya autorizados no la vuelve a pedir.
 Política `actas_select_autorizacion` para que Jurídica lea el acta y el archivo.
 
-**Modificar un contrato antes de aprobar la póliza** (`20270101000400`, decisión
+**Modificar un contrato antes de aprobar la póliza** (`20270101000800`, decisión
 del usuario 2026-11-12): botón "Modificar solicitud" (quien la pidió, Contratos
 por grupos y generales; `reabrir_solicitud_contrato`: queda devuelta, "Corregir
 y reenviar", vuelve a Pre-aprobación y a la aprobación del contrato) y

@@ -7,7 +7,7 @@ import { esEstadoAutorizacionTercero, type AutorizacionTercero, type EstadoAutor
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Autorizaciones para depositar el pago de un acta a otro tercero
-// (20270101000300). La base filtra por los proyectos que ve quien consulta.
+// (20270101000700). La base filtra por los proyectos que ve quien consulta.
 export async function listarAutorizacionesTercero(estado: EstadoAutorizacionTercero | null): Promise<AutorizacionTercero[]> {
   await requerirPestana("contratos.autorizar_terceros")
   const supabase = await createClient()

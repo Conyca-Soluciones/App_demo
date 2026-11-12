@@ -324,7 +324,7 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
               <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Gerencia" : "Enviar a Gerencia"}
             </Button>
           ) : d.estado === "aprobada" && puedeResolver && (d.minutaEstado === "en_revision" || d.minutaEstado === "aprobada") ? (
-            // Antes de aprobar la póliza (20270101000400): la minuta vuelve a Jurídica.
+            // Antes de aprobar la póliza (20270101000800): la minuta vuelve a Jurídica.
             <BotonModificarContrato
               contratoId={d.id}
               parte="minuta"

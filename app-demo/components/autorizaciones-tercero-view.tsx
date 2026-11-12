@@ -27,7 +27,7 @@ import {
 } from "@/app/(app)/contratos/autorizaciones-terceros/actions"
 
 // ---------------------------------------------------------------------------
-// Autorizaciones de pago a otro tercero (20270101000300): cuando un acta pide
+// Autorizaciones de pago a otro tercero (20270101000700): cuando un acta pide
 // depositar a un tercero distinto del contratista (y del que estipula el
 // contrato), Jurídica revisa la autorización firmada y la aprueba (el pago
 // pasa a Aprobación de pagos) o la rechaza con motivo (el acta queda

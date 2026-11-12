@@ -374,7 +374,7 @@ export async function titularDeActa(actaId: string): Promise<TitularCuenta | nul
   return mapTitularCuenta(data)
 }
 
-// "Depositar a otro tercero" del contrato (20270101000200): un acta NUEVA lo
+// "Depositar a otro tercero" del contrato (20270101000600): un acta NUEVA lo
 // trae por omisión (se puede cambiar en el acta). null = cuenta del contratista.
 export async function titularDeContrato(contratoId: string): Promise<TitularCuenta | null> {
   await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)

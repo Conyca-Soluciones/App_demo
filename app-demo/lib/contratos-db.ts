@@ -103,7 +103,7 @@ export async function cargarDetalleContrato(
 
   const x = f as any
   const porOrden = (a: { orden: number }, b: { orden: number }) => a.orden - b.orden
-  // Transferencia a otro tercero (20270101000200). Por función: Terceros solo
+  // Transferencia a otro tercero (20270101000600). Por función: Terceros solo
   // lo lee A&F y aquí entran el director, Jurídica y Subgerencia.
   let titularCuenta: TitularCuenta | null = null
   if (x.metodo_pago !== "pse") {

@@ -310,7 +310,7 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   pagoObservaciones?: string | null
   // PSE con titular distinto del contratista (20261224000000); null = el contratista.
   pseTitularNombre?: string | null
-  // Transferencia a la cuenta de otro tercero (20270101000200); null = la del
+  // Transferencia a la cuenta de otro tercero (20270101000600); null = la del
   // contratista. Lo carga titular_de_contrato (cuenta enmascarada).
   titularCuenta?: TitularCuenta | null
   correoNotificacion: string

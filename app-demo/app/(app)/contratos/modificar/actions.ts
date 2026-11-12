@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 
-// Modificar un contrato antes de aprobar su póliza (20270101000400). La base
+// Modificar un contrato antes de aprobar su póliza (20270101000800). La base
 // revisa permisos (solicitar_contratos / aprobar_contratos, el proyecto y que
 // la solicitud sea de quien la pidió) y las condiciones.
 

@@ -596,7 +596,7 @@ function FormularioActa({
   const [error, setError] = useState<string | null>(null)
   // Cuenta de otro tercero (quien factura es el contratista). Al corregir, la guardada.
   const [titular, setTitular] = useState<TitularCuenta | null>(null)
-  // Tercero que estipula el contrato (20270101000200): sale en la lista y un
+  // Tercero que estipula el contrato (20270101000600): sale en la lista y un
   // acta NUEVA lo trae marcado. Otro tercero pide la autorización firmada.
   const [contratoTitular, setContratoTitular] = useState<TitularCuenta | null>(null)
   const [archivoAutorizacion, setArchivoAutorizacion] = useState<File | null>(null)
