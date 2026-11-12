@@ -504,8 +504,21 @@ export function ConsolidadoPagosView({
     clave: "cuenta",
     titulo: "Titular y cuenta",
     ancho: 250,
-    texto: (p) => (p.cuentaTexto ? `${p.cuentaTitular ? `Titular: ${p.cuentaTitular} · ` : ""}${p.cuentaTexto}` : ""),
-    celda: (p) => (
+    texto: (p) =>
+      p.metodoPago === "pse"
+        ? `PSE${p.cuentaTitular ? ` · titular: ${p.cuentaTitular}` : ""}`
+        : p.cuentaTexto
+          ? `${p.cuentaTitular ? `Titular: ${p.cuentaTitular} · ` : ""}${p.cuentaTexto}`
+          : "",
+    celda: (p) =>
+      p.metodoPago === "pse" ? (
+        <div className="min-w-0">
+          <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular ?? p.terceroNombre ?? undefined}>
+            {p.cuentaTitular ?? p.terceroNombre ?? ""}
+          </div>
+          <div className="truncate">PSE (sin cuenta)</div>
+        </div>
+      ) : (
       <div className="min-w-0">
         <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular ?? p.terceroNombre ?? undefined}>
           {p.cuentaTitular ?? p.terceroNombre ?? ""}
@@ -515,7 +528,7 @@ export function ConsolidadoPagosView({
           {p.cuentaTexto && !p.cuentaVerificada && " (sin verificar)"}
         </div>
       </div>
-    ),
+      ),
   }
   const colMetodo: ColumnaExcel<Pago> = {
     clave: "metodo",
