@@ -61,6 +61,9 @@ const EVENTOS_ACTA: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   aprobada: { etiqueta: "Acta aprobada", tono: "ok" },
   rechazada: { etiqueta: "Acta rechazada", tono: "malo" },
   firmada_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
+  autorizacion_solicitada: { etiqueta: "Pide depositar a otro tercero (autorización en Jurídica)", tono: "aviso" },
+  autorizacion_aprobada: { etiqueta: "Jurídica autorizó depositar a otro tercero", tono: "ok" },
+  autorizacion_rechazada: { etiqueta: "Jurídica no autorizó depositar a otro tercero", tono: "malo" },
   factura_subida: { etiqueta: "Factura del contratista subida: el pago pasa a A&F", tono: "ok" },
   soporte_reemplazado: { etiqueta: "Soporte modificado", tono: "aviso" },
 }
@@ -84,6 +87,8 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
   minuta_aprobada: { etiqueta: "Minuta aprobada por Gerencia", tono: "ok" },
   minuta_devuelta: { etiqueta: "Minuta devuelta por Gerencia", tono: "aviso" },
+  solicitud_reabierta: { etiqueta: "Solicitud reabierta para modificarla", tono: "aviso" },
+  minuta_reabierta: { etiqueta: "Minuta reabierta por Jurídica para modificarla", tono: "aviso" },
   minuta_guardada: { etiqueta: "Minuta guardada", tono: "neutro" },
   // Eventos de sus otrosí (historial_otrosis_de_contrato).
   otrosi_creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },

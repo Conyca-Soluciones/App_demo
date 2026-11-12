@@ -2,6 +2,7 @@ import { Children, Fragment, cloneElement, isValidElement, type ReactNode } from
 import { Document, Font, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { leerNumero } from "@/lib/contratos"
 import { MARCA_FOCO } from "@/lib/minuta-pdf-foco"
+import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import {
   POSICION_OBLIGACION_CORRECCION,
   blanco,
@@ -63,6 +64,11 @@ export const s = StyleSheet.create({
   control: { marginTop: 18 },
   controlTitulo: { fontFamily: "Helvetica-Bold", fontSize: 9, textAlign: "center", marginBottom: 2 },
 })
+
+// Fecha del encabezado de las minutas: la de hoy (decisión del usuario,
+// 2026-11-12), no la de la versión de la plantilla. Un contrato aprobado sale
+// del PDF congelado, con la fecha del día en que se congeló.
+export const fechaEncabezadoHoy = () => formatearFechaSinHora(hoyColombia())
 
 export function Encabezado(props: { logo: string | Buffer; formato: string; codigo: string; version: string; fecha: string }) {
   const { logo, formato, codigo, version, fecha } = props
@@ -126,7 +132,7 @@ export function Lista({ items, marcador, resaltado: renglon }: { items: string[]
       {items.map((t, i) => (
         <View key={i} style={s.li} wrap={false}>
           <Text style={s.liNum}>{marcador(i)}</Text>
-          <Text style={s.liTexto}>{i === renglon ? unirTexto(resaltado(t)) : t}</Text>
+          <Text style={s.liTexto}>{unirTexto(i === renglon ? resaltado(t) : t)}</Text>
         </View>
       ))}
     </View>
@@ -168,7 +174,40 @@ export function unirTexto(children: ReactNode): ReactNode[] {
     }
   }
   Children.forEach(children, (x) => agregar(x, []))
-  return piezas.map((n, i) => (isValidElement(n) ? cloneElement(n, { key: i }) : n))
+  return piezas.flatMap(partesEnNegrita).map((n, i) => (isValidElement(n) ? cloneElement(n, { key: i }) : n))
+}
+
+// Las partes del contrato (decisión del usuario, 2026-11-12): "EL CONTRATISTA",
+// "EL CONTRATANTE" (y arrendador / arrendatario) siempre en MAYÚSCULA y
+// negrita, con su artículo si lo tiene ("el contratista" -> EL CONTRATISTA;
+// "del contratista" -> del CONTRATISTA). La puntuación que sigue va en el
+// mismo nodo (ver unirTexto: si no, @react-pdf pone un guion al partir la línea).
+const RE_PARTE =
+  /\b(?:(el|la|los|las)\s+)?(contratistas?|contratantes?|arrendador(?:es)?|arrendatari[oa]s?)\b([.,;:)]*)/gi
+const parteMayuscula = (txt: string) => txt.replace(RE_PARTE, (t) => t.toUpperCase())
+
+function partesEnNegrita(n: ReactNode): ReactNode[] {
+  if (typeof n === "string") {
+    const salida: ReactNode[] = []
+    let desde = 0
+    for (const m of n.matchAll(RE_PARTE)) {
+      if (m.index! > desde) salida.push(n.slice(desde, m.index))
+      salida.push(<Text style={s.b}>{m[0].toUpperCase()}</Text>)
+      desde = m.index! + m[0].length
+    }
+    if (desde < n.length) salida.push(n.slice(desde))
+    return salida
+  }
+  // Texto con estilo (negrita, resaltado...): solo a mayúscula.
+  if (isValidElement(n) && n.type === Text) {
+    const hijos = (n.props as { children?: ReactNode }).children
+    if (typeof hijos === "string" && RE_PARTE.test(hijos)) {
+      RE_PARTE.lastIndex = 0
+      return [cloneElement(n, {}, parteMayuscula(hijos))]
+    }
+    RE_PARTE.lastIndex = 0
+  }
+  return [n]
 }
 
 // Párrafo justificado de la minuta.
@@ -217,7 +256,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco, firmaContrata
   return (
     <Document title={`Contrato de mano de obra N° ${numero}`} author={m.contratanteNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...ENCABEZADO} fecha={fechaEncabezadoHoy()} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de mano de obra N° ${numero} · Página ${pageNumber} de ${totalPages}`} />
 
         <Text style={s.titulo}>CONTRATO DE MANO DE OBRA N° {numero}</Text>
@@ -425,7 +464,7 @@ export function MinutaManoObraPDF({ minuta: m, numero, logo, foco, firmaContrata
       </Page>
 
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...ENCABEZADO} fecha={fechaEncabezadoHoy()} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de mano de obra N° ${numero} · Página ${pageNumber} de ${totalPages}`} />
         <Text style={s.titulo}>ANEXO N° 1 — ACTIVIDADES, CANTIDADES Y VALORES</Text>
         <P>

@@ -1749,6 +1749,42 @@ observaciones del contrato (`mapPago`). El detalle del contrato dice "Se paga po
 Con PSE, la casilla "El titular tiene otro nombre" pide el nombre
 (`contratos.pse_titular_nombre`, `20261224000000`; null = el contratista):
 lo valida `_fijar_pago_contrato` y A&F lo ve en el pago de cada acta (`cuentaTitular`).
+**Depositar a otro tercero** (`20270101000200`, decisión del usuario 2026-11-12):
+la casilla de PSE se llama así y también está en Transferencia. En Transferencia
+se elige un tercero de Terceros y una de sus cuentas (`CampoTitularCuenta`):
+`contratos.titular_tercero_id` / `cuenta_tercero_id` (los dos o ninguno), los
+guarda `_fijar_pago_contrato` con `_titular_valido` (`p_datos.titular`; el mismo
+contratista = sin titular aparte). Se lee con `titular_de_contrato` (Terceros
+solo lo lee A&F): formulario al corregir, detalle ("Se paga por") y el acta
+NUEVA, que lo trae por omisión y se puede cambiar; el pago sale del acta como
+siempre (actas viejas no cambian). En TS: `titularTransferenciaContrato`.
+
+**Acta: depositar a otro tercero con autorización de Jurídica** (`20270101000300`,
+decisión del usuario 2026-11-12). En el acta, `TitularActa`
+(`components/titular-acta.tsx`): casilla "Depositar a otro tercero", lista con el
+tercero del contrato (marcado al crear) y "Pagar a alguien nuevo" (diálogo:
+tercero de Terceros + cuenta + autorización firmada, soporte tipo
+`autorizacion_tercero`, obligatorio). Otro tercero que no es el del contrato
+(`pideAutorizacionTercero`) deja `actas.autorizacion_estado = 'por_revisar'`
+(`_fijar_titular_acta`, que exige el soporte) y avisa a Legal / Líder Legal; el
+pago NO llega a A&F (`_pago_de_acta` lo anula o no lo crea) hasta que Jurídica
+lo autoriza en **Autorizaciones de pago a otro tercero**
+(`/contratos/autorizaciones-terceros`, pestaña `contratos.autorizar_terceros`,
+dada a quien tenía Pre aprobación; `resolver_autorizacion_acta`, acción
+`aprobar_contratos`). Rechazar deja el acta rechazada (se corrige y reenvía).
+Corregir el acta con el mismo tercero y cuenta ya autorizados no la vuelve a pedir.
+Política `actas_select_autorizacion` para que Jurídica lea el acta y el archivo.
+
+**Modificar un contrato antes de aprobar la póliza** (`20270101000400`, decisión
+del usuario 2026-11-12): botón "Modificar solicitud" (quien la pidió, Contratos
+por grupos y generales; `reabrir_solicitud_contrato`: queda devuelta, "Corregir
+y reenviar", vuelve a Pre-aprobación y a la aprobación del contrato) y
+"Modificar minuta" (Jurídica en Pre-aprobación; `reabrir_minuta_contrato`: la
+minuta queda devuelta y se envía otra vez). `components/boton-modificar-contrato.tsx`,
+`contrato_modificable` decide si sale: solicitud por revisar o pre-aprobada, póliza
+no aprobada, sin liquidar, sin actas ni otrosí (no rechazados). Conserva el número
+CJ y la minuta guardada; borra la firma del representante y deja la póliza en
+null (se recalcula al aprobar; la por revisar queda devuelta).
 
 ## Terceros: el centro de a quién se le paga (2026-10-23)
 
@@ -4094,6 +4130,18 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
 ## Pendientes conocidos (no hechos)
+- **Versiones del presupuesto** (2026-11-11, en pausa por decisión del usuario).
+  `crear_nueva_version` copia ítems, APU y precios congelados, pero NO las
+  líneas de `apu_import_revision` pendientes ni las que esperan solicitud: se
+  pierden en la versión nueva y, al aprobarse la solicitud, el insumo entra al
+  APU de la versión VIEJA (Malecón hoy: 2.323 pendientes y 14 esperando
+  solicitud). Subir el Excel como versión nueva no reutiliza lo elegido a mano
+  (mano de obra, "No aplica", insumos) y vuelve a tomar precios del día. Y
+  "Agregar ítem manual" agrega un INSUMO del maestro como ítem (código y
+  descripción del insumo), no sirve para ítems del presupuesto oficial.
+  Propuestas: que `crear_nueva_version` copie las líneas de revisión con los
+  ids nuevos, y "agregar ítems desde Excel a la versión vigente" (solo los
+  códigos nuevos, con su bloque APU). Falta saber si los ítems nuevos traen APU.
 - **Ítems completos enviados como insumo** (2026-10-18, decisión del usuario:
   dejarlo así por ahora). En el Excel del Malecón ~106 ítems tienen en la hoja
   APU UNA sola línea tipo INSUMO que es el ítem mismo ("Ballena vilde o

@@ -11,6 +11,8 @@ import {
   textoConversionCompra,
   unidadMaestro,
   UNIDADES_MAESTRO,
+  esUnidadReconocida,
+  lineaNecesitaConversion,
 } from "@/lib/unidades"
 
 describe("normalizarUnidad", () => {
@@ -190,5 +192,29 @@ describe("unidadMaestro", () => {
 
   it("cada texto estándar se lee como su propio código", () => {
     for (const u of UNIDADES_MAESTRO) expect(unidadMaestro(u.texto)).toBe(u.texto)
+  })
+})
+
+describe("lineaNecesitaConversion (aprobar un insumo en su unidad de compra)", () => {
+  it("unidad reconocida distinta: necesita conversión", () => {
+    expect(lineaNecesitaConversion("m", "ROLLO - ROLL")).toBe(true)
+    expect(lineaNecesitaConversion("kg", "BULTO - BE")).toBe(true)
+  })
+  it("g, cm, mm y cc (fuera de la lista del maestro) también necesitan conversión", () => {
+    expect(lineaNecesitaConversion("gr", "KILOGRAMO - KG")).toBe(true)
+    expect(lineaNecesitaConversion("cm", "METRO - M")).toBe(true)
+    expect(lineaNecesitaConversion("mm", "METRO - M")).toBe(true)
+    expect(lineaNecesitaConversion("cc", "LITRO - LT")).toBe(true)
+  })
+  it("misma unidad escrita distinto: no", () => {
+    expect(lineaNecesitaConversion("ML", "METRO - M")).toBe(false)
+    expect(lineaNecesitaConversion("m³", "METRO CUBICO - M3")).toBe(false)
+    expect(lineaNecesitaConversion("Und", "UNIDAD - UND")).toBe(false)
+  })
+  it("sin unidad o no reconocida: toma la del insumo", () => {
+    expect(lineaNecesitaConversion(null, "METRO - M")).toBe(false)
+    expect(lineaNecesitaConversion("Ins", "METRO - M")).toBe(false)
+    expect(esUnidadReconocida("Ins")).toBe(false)
+    expect(esUnidadReconocida("gr")).toBe(true)
   })
 })

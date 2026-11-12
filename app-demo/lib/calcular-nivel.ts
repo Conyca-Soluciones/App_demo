@@ -101,3 +101,20 @@ export function mensajeError(razon: "vacio" | "formato_no_reconocido"): string {
     ? "código vacío"
     : "código en un formato no reconocido (debe ser tipo 1 / 1.1 / 4.1.1.1, o 1 / 101 / 10101 -- este último debe encajar como descendiente del capítulo/subcapítulo anterior, agregando dígitos de a pares)"
 }
+// Padre de un ítem del import (2026-11-11). Los presupuestos oficiales a
+// veces saltan niveles (capítulo "12" y luego "12.1.1", sin "12.1"; o "2" ->
+// "20101"): el ítem se cuelga del ancestro abierto más cercano con nivel
+// MENOR, no de la posición `nivel - 2` de la pila (con un salto, esa
+// posición era un hermano o no existía: "12.1.1" quedaba sin padre y
+// "12.1.2".."12.1.6" debajo de "12.1.1"). Muta la pila; llamar en el orden
+// del archivo.
+export function resolverPadreImport(
+  pila: { id: string; nivel: number }[],
+  id: string,
+  nivel: number
+): string | null {
+  while (pila.length > 0 && pila[pila.length - 1].nivel >= nivel) pila.pop()
+  const padreId = nivel === 1 ? null : pila.length > 0 ? pila[pila.length - 1].id : null
+  pila.push({ id, nivel })
+  return padreId
+}

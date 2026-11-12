@@ -112,6 +112,8 @@ export const PESTANAS: Pestana[] = [
   { clave: "contratos.cortes", titulo: "Actas por grupos", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas", rutas: ["/contratos/actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   // Las actas de los contratos generales, por % de ejecución (20261225000000).
   { clave: "contratos.actas_generales", titulo: "Actas generales", seccion: "Contratos", subseccion: "Actas", url: "/contratos/actas-generales", rutas: ["/contratos/actas-generales", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
+  // Jurídica autoriza depositar el pago de un acta a otro tercero (20270101000300).
+  { clave: "contratos.autorizar_terceros", titulo: "Autorizaciones de pago a otro tercero", seccion: "Contratos", subseccion: "Actas", url: "/contratos/autorizaciones-terceros", rutas: ["/contratos/autorizaciones-terceros"] },
   { clave: "contratos.aprobar_actas", titulo: "Consulta de actas", seccion: "Contratos", subseccion: "Actas", url: "/contratos/aprobacion-actas", rutas: ["/contratos/aprobacion-actas", "/contratos/acta-pdf", "/contratos/otrosi-pdf"] },
   { clave: "contratos.informes", titulo: "Informes", seccion: "Contratos", url: "/", rutas: [], nota: "Todavía sin página." },
 

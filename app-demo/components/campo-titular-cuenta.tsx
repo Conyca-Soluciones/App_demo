@@ -1,17 +1,26 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
-import { textoCuenta, type CuentaReqAdmin } from "@/lib/requisiciones-admin"
-import { titularVacio, type TitularCuenta } from "@/lib/titular-cuenta"
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  BuscadorAsync,
+  type OpcionBuscador,
+} from "@/components/buscador-async";
+import { textoCuenta, type CuentaReqAdmin } from "@/lib/requisiciones-admin";
+import { titularVacio, type TitularCuenta } from "@/lib/titular-cuenta";
 import {
   buscarTercerosRequisicionAdmin,
   cuentasTerceroRequisicionAdmin,
-} from "@/app/(app)/ayf/pagos-administrativos/actions"
+} from "@/app/(app)/ayf/pagos-administrativos/actions";
 
 // Casilla "El titular de la cuenta es otro tercero" (como en la requisición
 // administrativa): sin marcar, el pago va a la cuenta de quien factura; marcada,
@@ -20,55 +29,91 @@ export function CampoTitularCuenta({
   valor,
   onCambiar,
   quienFactura,
+  etiqueta = "El titular de la cuenta es otro tercero",
+  disabled,
+  sinCasilla = false,
 }: {
-  valor: TitularCuenta | null
-  onCambiar: (v: TitularCuenta | null) => void
-  quienFactura?: string | null
+  valor: TitularCuenta | null;
+  onCambiar: (v: TitularCuenta | null) => void;
+  quienFactura?: string | null;
+  etiqueta?: string;
+  disabled?: boolean;
+  // Sin la casilla: solo el buscador y la cuenta (diálogo "Pagar a alguien nuevo").
+  sinCasilla?: boolean;
 }) {
-  const [cuentas, setCuentas] = useState<{ terceroId: string; lista: CuentaReqAdmin[] } | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const terceroId = valor?.terceroId ?? null
-  const lista = cuentas && cuentas.terceroId === terceroId ? cuentas.lista : null
-  const cargando = Boolean(terceroId) && lista === null && !error
+  const [cuentas, setCuentas] = useState<{
+    terceroId: string;
+    lista: CuentaReqAdmin[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const terceroId = valor?.terceroId ?? null;
+  const lista =
+    cuentas && cuentas.terceroId === terceroId ? cuentas.lista : null;
+  const cargando = Boolean(terceroId) && lista === null && !error;
 
   useEffect(() => {
-    if (!terceroId) return
-    let vigente = true
+    if (!terceroId) return;
+    let vigente = true;
     cuentasTerceroRequisicionAdmin(terceroId)
       .then((l: CuentaReqAdmin[]) => {
-        if (!vigente) return
-        setError(null)
-        setCuentas({ terceroId, lista: l })
+        if (!vigente) return;
+        setError(null);
+        setCuentas({ terceroId, lista: l });
       })
-      .catch((e) => vigente && setError(e instanceof Error ? e.message : "No se pudieron cargar las cuentas."))
+      .catch(
+        (e) =>
+          vigente &&
+          setError(
+            e instanceof Error
+              ? e.message
+              : "No se pudieron cargar las cuentas.",
+          ),
+      );
     return () => {
-      vigente = false
-    }
-  }, [terceroId])
+      vigente = false;
+    };
+  }, [terceroId]);
 
   // Una sola cuenta: se elige sola.
   useEffect(() => {
     if (valor && !valor.cuentaId && lista && lista.length === 1) {
-      onCambiar({ ...valor, cuentaId: lista[0].id, cuentaTexto: textoCuenta(lista[0]), cuentaVerificada: lista[0].verificada })
+      onCambiar({
+        ...valor,
+        cuentaId: lista[0].id,
+        cuentaTexto: textoCuenta(lista[0]),
+        cuentaVerificada: lista[0].verificada,
+      });
     }
-  }, [lista, valor, onCambiar])
+  }, [lista, valor, onCambiar]);
 
   const seleccionado: OpcionBuscador | null = valor?.terceroId
-    ? { id: valor.terceroId, etiqueta: valor.nombre, subetiqueta: valor.documento || null }
-    : null
+    ? {
+        id: valor.terceroId,
+        etiqueta: valor.nombre,
+        subetiqueta: valor.documento || null,
+      }
+    : null;
 
   return (
     // @container: dos columnas solo si el contenedor es ancho. Con el
     // breakpoint de pantalla (sm:) se partía también en el panel angosto de
     // Generar OC y el buscador quedaba aplastado bajo la cuenta.
     <div className="@container space-y-3">
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox checked={valor !== null} onCheckedChange={(v) => onCambiar(v ? titularVacio() : null)} />
-        El titular de la cuenta es otro tercero
-      </label>
+      {!sinCasilla && (
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={valor !== null}
+            onCheckedChange={(v) => onCambiar(v ? titularVacio() : null)}
+            disabled={disabled}
+          />
+          {etiqueta}
+        </label>
+      )}
       {valor === null ? (
         quienFactura ? (
-          <p className="text-xs text-muted-foreground">Se paga en la cuenta de {quienFactura}.</p>
+          <p className="text-xs text-muted-foreground">
+            Se paga en la cuenta de {quienFactura}.
+          </p>
         ) : null
       ) : (
         <div className="grid gap-3 @xl:grid-cols-2">
@@ -87,7 +132,9 @@ export function CampoTitularCuenta({
               }
               buscar={buscarTercerosRequisicionAdmin}
             />
-            <p className="text-xs text-muted-foreground">Si no aparece, pídele a A&F que lo inscriba en Terceros.</p>
+            <p className="text-xs text-muted-foreground">
+              Si no aparece, pídele a A&F que lo inscriba en Terceros.
+            </p>
           </div>
           {valor.terceroId && (
             <div className="min-w-0 space-y-1.5">
@@ -100,14 +147,21 @@ export function CampoTitularCuenta({
                 <p className="text-sm text-destructive">{error}</p>
               ) : lista && lista.length === 0 ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  Este tercero no tiene cuentas registradas. Pídele a A&F que la registre en Terceros.
+                  Este tercero no tiene cuentas registradas. Pídele a A&F que la
+                  registre en Terceros.
                 </p>
               ) : (
                 <Select
                   value={valor.cuentaId ?? ""}
                   onValueChange={(v) => {
-                    const c = lista?.find((x) => x.id === v)
-                    if (c) onCambiar({ ...valor, cuentaId: c.id, cuentaTexto: textoCuenta(c), cuentaVerificada: c.verificada })
+                    const c = lista?.find((x) => x.id === v);
+                    if (c)
+                      onCambiar({
+                        ...valor,
+                        cuentaId: c.id,
+                        cuentaTexto: textoCuenta(c),
+                        cuentaVerificada: c.verificada,
+                      });
                   }}
                 >
                   <SelectTrigger className="w-full">
@@ -124,12 +178,15 @@ export function CampoTitularCuenta({
                 </Select>
               )}
               {valor.cuentaId && !valor.cuentaVerificada && (
-                <p className="text-xs text-amber-700">A&F todavía no ha verificado esta cuenta: lo revisará antes de pagar.</p>
+                <p className="text-xs text-amber-700">
+                  A&F todavía no ha verificado esta cuenta: lo revisará antes de
+                  pagar.
+                </p>
               )}
             </div>
           )}
         </div>
       )}
     </div>
-  )
+  );
 }

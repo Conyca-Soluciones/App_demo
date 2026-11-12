@@ -271,3 +271,27 @@ export function unidadMaestro(unidad: string | null | undefined): string | null 
   const codigo = normalizarUnidad(unidad)
   return codigo ? TEXTO_MAESTRO_POR_CODIGO.get(codigo) ?? null : null
 }
+
+const CODIGOS_RECONOCIDOS = new Set(Object.values(SINONIMOS))
+
+/** La unidad es una de las conocidas (kg, g, cm, cc, m³...), no un texto suelto como "Ins" o "caja". */
+export function esUnidadReconocida(unidad: string | null | undefined): boolean {
+  const codigo = normalizarUnidad(unidad)
+  return codigo != null && CODIGOS_RECONOCIDOS.has(codigo)
+}
+
+/**
+ * Al aprobar un insumo en su unidad de compra: ¿la línea del presupuesto que
+ * lo pidió necesita conversión? Sí cuando trae una unidad reconocida distinta
+ * (g contra KG, m contra ROLLO). Se compara por código, no por el texto del
+ * maestro: g, cm, mm, cc y % no están en UNIDADES_MAESTRO y antes pasaban como
+ * "no reconocidas", entraban al APU con factor 1 (500 g cobrados como 500 kg).
+ * Las líneas sin unidad o con una no reconocida ("Ins") toman la del insumo.
+ */
+export function lineaNecesitaConversion(
+  unidadLinea: string | null | undefined,
+  unidadCompra: string | null | undefined
+): boolean {
+  if (!esUnidadReconocida(unidadLinea)) return false
+  return normalizarUnidad(unidadLinea) !== normalizarUnidad(unidadCompra)
+}

@@ -42,6 +42,8 @@ import {
   type TipoActa,
   type TipoSoporte,
   numeroActa,
+  pideAutorizacionTercero,
+  ETIQUETA_AUTORIZACION_TERCERO,
 } from "@/lib/actas"
 import {
   buscarContratistasParaActa,
@@ -54,9 +56,10 @@ import {
   obtenerContratoParaActa,
   saldosActasContrato,
   titularDeActa,
+  titularDeContrato,
   type SoporteSubido,
 } from "@/app/(app)/contratos/actas/actions"
-import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
+import { TitularActa } from "@/components/titular-acta"
 import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
@@ -301,10 +304,19 @@ function ContratoActas({
     {
       clave: "estado",
       titulo: "Estado",
-      ancho: 150,
+      ancho: 210,
       alinear: "center",
-      texto: (a) => ETIQUETA_ESTADO_ACTA[a.estado],
-      celda: (a) => <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>,
+      // Pendiente con otro tercero sin autorizar: dice que espera a Jurídica.
+      texto: (a) =>
+        a.estado === "pendiente" && a.autorizacionEstado === "por_revisar"
+          ? ETIQUETA_AUTORIZACION_TERCERO.por_revisar
+          : ETIQUETA_ESTADO_ACTA[a.estado],
+      celda: (a) =>
+        a.estado === "pendiente" && a.autorizacionEstado === "por_revisar" ? (
+          <Badge className="h-6 px-3 text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">{ETIQUETA_AUTORIZACION_TERCERO.por_revisar}</Badge>
+        ) : (
+          <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>
+        ),
     },
     ...(puedeElaborar
       ? [
@@ -584,11 +596,34 @@ function FormularioActa({
   const [error, setError] = useState<string | null>(null)
   // Cuenta de otro tercero (quien factura es el contratista). Al corregir, la guardada.
   const [titular, setTitular] = useState<TitularCuenta | null>(null)
+  // Tercero que estipula el contrato (20270101000200): sale en la lista y un
+  // acta NUEVA lo trae marcado. Otro tercero pide la autorización firmada.
+  const [contratoTitular, setContratoTitular] = useState<TitularCuenta | null>(null)
+  const [archivoAutorizacion, setArchivoAutorizacion] = useState<File | null>(null)
+  // Al corregir: el tercero que ya tenía el acta (su autorización ya está adjunta).
+  const [titularOriginal, setTitularOriginal] = useState<TitularCuenta | null>(null)
+  useEffect(() => {
+    let activo = true
+    titularDeContrato(contrato.id)
+      .then((t: TitularCuenta | null) => {
+        if (!activo) return
+        setContratoTitular(t)
+        if (!edicion && t) setTitular(t)
+      })
+      .catch((e) => activo && setError(mensaje(e, "No se pudo cargar el tercero del contrato.")))
+    return () => {
+      activo = false
+    }
+  }, [edicion, contrato.id])
   useEffect(() => {
     if (!edicion) return
     let activo = true
     titularDeActa(edicion.id)
-      .then((t: TitularCuenta | null) => activo && setTitular(t))
+      .then((t: TitularCuenta | null) => {
+        if (!activo) return
+        setTitular(t)
+        setTitularOriginal(t)
+      })
       .catch((e) => activo && setError(mensaje(e, "No se pudo cargar el titular de la cuenta.")))
     return () => {
       activo = false
@@ -642,6 +677,27 @@ function FormularioActa({
       setError(t.error)
       return
     }
+    // Otro tercero que no es el del contrato: autorización firmada obligatoria
+    // (la base lo vuelve a exigir en _fijar_titular_acta).
+    const conTitular = !(sinPago || info?.metodoPago === "pse")
+    const pideAutorizacion = conTitular && pideAutorizacionTercero(titular?.terceroId, contratoTitular?.terceroId)
+    const autorizacionesGuardadas = (edicion?.soportes ?? []).filter((s) => s.tipo === "autorizacion_tercero")
+    const mismaAutorizada =
+      titularOriginal != null &&
+      titularOriginal.terceroId === titular?.terceroId &&
+      titularOriginal.cuentaId === titular?.cuentaId &&
+      autorizacionesGuardadas.length > 0
+    if (pideAutorizacion && !archivoAutorizacion && !mismaAutorizada) {
+      setError("Adjunta la autorización firmada para depositar a otro tercero (botón «Pagar a alguien nuevo»).")
+      return
+    }
+    const porSubir: SoporteNuevo[] =
+      pideAutorizacion && archivoAutorizacion
+        ? [...nuevos, { clave: -1, tipo: "autorizacion_tercero", archivo: archivoAutorizacion }]
+        : nuevos
+    // La autorización vieja sobra si se adjunta otra.
+    const quitar = new Set(quitarSoportes)
+    if (pideAutorizacion && archivoAutorizacion) for (const s of autorizacionesGuardadas) quitar.add(s.id)
     const datos = { ...v.datos, titular: t.titular }
     const actaId = edicion?.id ?? crypto.randomUUID()
     const supabase = createClient()
@@ -651,7 +707,7 @@ function FormularioActa({
       setGuardando("Subiendo soportes…")
       const marca = Date.now()
       await Promise.all(
-        nuevos.map(async (n, i) => {
+        porSubir.map(async (n, i) => {
           const ext = n.archivo.name.includes(".") ? n.archivo.name.split(".").pop()!.toLowerCase() : "bin"
           const ruta = `${actaId}/${n.tipo}-${marca}-${i}.${ext}`
           const { error: e } = await supabase.storage.from("actas").upload(ruta, n.archivo, { contentType: n.archivo.type, upsert: false })
@@ -661,7 +717,7 @@ function FormularioActa({
       )
       setGuardando("Guardando acta…")
       if (edicion) {
-        const res = await editarActa(edicion.id, datos, subidos, [...quitarSoportes])
+        const res = await editarActa(edicion.id, datos, subidos, [...quitar])
         if (res.rutasQuitadas.length > 0) await supabase.storage.from("actas").remove(res.rutasQuitadas)
         onGuardada(`${ETIQUETA_TIPO_ACTA[form.tipo]} ${numeroActa(res.numero)} corregida. ${despues}`)
       } else {
@@ -910,7 +966,20 @@ function FormularioActa({
               </p>
             ) : (
               <div className="rounded-md border p-3">
-                <CampoTitularCuenta valor={titular} onCambiar={setTitular} quienFactura={contrato.contratistaNombre} />
+                <TitularActa
+                  valor={titular}
+                  onCambiar={setTitular}
+                  contratoTitular={contratoTitular}
+                  quienFactura={contrato.contratistaNombre}
+                  archivo={archivoAutorizacion}
+                  onArchivo={setArchivoAutorizacion}
+                  autorizacionGuardada={
+                    titularOriginal != null &&
+                    titularOriginal.terceroId === titular?.terceroId &&
+                    titularOriginal.cuentaId === titular?.cuentaId &&
+                    (edicion?.soportes ?? []).some((s) => s.tipo === "autorizacion_tercero")
+                  }
+                />
               </div>
             ))}
 
@@ -952,7 +1021,9 @@ function FormularioActa({
             tipos={TIPOS_SOPORTE_OTROS}
             tipoNuevo={tipoNuevoOtro}
             onTipoNuevo={setTipoNuevoOtro}
-            existentes={(edicion?.soportes ?? []).filter((s) => !esSoportePago(s.tipo) && s.tipo in ETIQUETA_SOPORTE)}
+            existentes={(edicion?.soportes ?? []).filter(
+              (s) => !esSoportePago(s.tipo) && s.tipo !== "autorizacion_tercero" && s.tipo in ETIQUETA_SOPORTE
+            )}
             nuevos={nuevos.filter((n) => !esSoportePago(n.tipo))}
             quitar={quitarSoportes}
             onAlternarQuitar={alternarQuitar}

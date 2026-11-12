@@ -6,6 +6,7 @@ import { PESTANA_ACTAS, PESTANAS_ELABORAR_ACTAS, esClaseActas, type ClaseActas }
 import { puedeBuscar } from "@/lib/busqueda"
 import { esEstadoPolizaContrato } from "@/lib/polizas"
 import { mapTitularCuenta, type TitularCuenta } from "@/lib/titular-cuenta"
+import { esEstadoAutorizacionTercero } from "@/lib/actas"
 import type {
   ActaDetalle,
   ActaResumen,
@@ -95,6 +96,7 @@ export async function listarActasDeContrato(contratoId: string): Promise<ActaRes
     createdAt: f.created_at,
     creadoPorNombre: f.creado_por_nombre ?? null,
     esMio: Boolean(f.es_mio),
+    autorizacionEstado: esEstadoAutorizacionTercero(f.autorizacion_estado) ? f.autorizacion_estado : null,
   }))
 }
 
@@ -368,6 +370,16 @@ export async function titularDeActa(actaId: string): Promise<TitularCuenta | nul
   await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("titular_de_acta", { p_acta_id: actaId })
+  if (error) throw new Error(error.message)
+  return mapTitularCuenta(data)
+}
+
+// "Depositar a otro tercero" del contrato (20270101000200): un acta NUEVA lo
+// trae por omisión (se puede cambiar en el acta). null = cuenta del contratista.
+export async function titularDeContrato(contratoId: string): Promise<TitularCuenta | null> {
+  await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("titular_de_contrato", { p_contrato_id: contratoId })
   if (error) throw new Error(error.message)
   return mapTitularCuenta(data)
 }

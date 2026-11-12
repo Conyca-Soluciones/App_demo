@@ -58,6 +58,7 @@ async function guardar(
       pago_observaciones: d.pagoObservaciones ?? "",
       pse_titular_distinto: d.pseTitularNombre !== null,
       pse_titular_nombre: d.pseTitularNombre ?? "",
+      titular: d.titular,
       retencion_garantia_pct: d.retencionGarantiaPct,
       retencion_anticipo_pct: d.retencionAnticipoPct,
       retencion_fic_pct: d.retencionFicPct,

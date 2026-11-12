@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server"
 import { datosTipoDesdeBase, type SolicitudContratoDetalle, type SolicitudContratoFila } from "@/lib/contratos"
+import { mapTitularCuenta, type TitularCuenta } from "@/lib/titular-cuenta"
 
 export type { SolicitudContratoDetalle, SolicitudContratoFila }
 
@@ -102,6 +103,14 @@ export async function cargarDetalleContrato(
 
   const x = f as any
   const porOrden = (a: { orden: number }, b: { orden: number }) => a.orden - b.orden
+  // Transferencia a otro tercero (20270101000200). Por función: Terceros solo
+  // lo lee A&F y aquí entran el director, Jurídica y Subgerencia.
+  let titularCuenta: TitularCuenta | null = null
+  if (x.metodo_pago !== "pse") {
+    const { data: t, error: errorTitular } = await supabase.rpc("titular_de_contrato", { p_contrato_id: id })
+    if (errorTitular) throw new Error(errorTitular.message)
+    titularCuenta = mapTitularCuenta(t)
+  }
   return {
     ...mapFilaContrato(x),
     contratistaId: x.contratista?.id,
@@ -122,6 +131,7 @@ export async function cargarDetalleContrato(
     metodoPago: x.metodo_pago === "pse" ? "pse" : "transferencia",
     pagoObservaciones: x.pago_observaciones ?? null,
     pseTitularNombre: x.pse_titular_nombre ?? null,
+    titularCuenta,
     correoNotificacion: x.correo_notificacion,
     observaciones: x.observaciones,
     domicilioDepartamento: x.domicilio_departamento ?? null,

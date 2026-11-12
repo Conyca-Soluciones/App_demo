@@ -11,6 +11,7 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { SolicitudContratoForm } from "@/components/solicitud-contrato-form"
 import { BotonDescargarContrato } from "@/components/descargar-contrato"
+import { BotonModificarContrato } from "@/components/boton-modificar-contrato"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
@@ -240,6 +241,17 @@ function Solicitudes({
         acciones={(d) => (
           <>
           <BotonDescargarContrato contrato={d} />
+          {(d.estado === "aprobada" || d.estado === "pre_aprobacion") && puedeSolicitar && d.proyectoId === proyectoId && d.clase === "grupo" ? (
+            <BotonModificarContrato
+              contratoId={d.id}
+              parte="solicitud"
+              onReabierto={() => {
+                cerrarDetalle()
+                setAviso(null)
+                setFormulario({ ...d, estado: "devuelta" })
+              }}
+            />
+          ) : null}
           {d.estado === "devuelta" && puedeSolicitar && d.proyectoId === proyectoId && d.clase === "grupo" ? (
             <Button
               onClick={() => {

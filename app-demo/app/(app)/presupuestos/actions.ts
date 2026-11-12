@@ -11,6 +11,7 @@ import { combinarBloquesConResoluciones } from "@/lib/apu-import-types"
 import {
   compararUnidad,
   describirPresentacion,
+  lineaNecesitaConversion,
   nombreUnidad,
   normalizarUnidad,
   unidadMaestro,
@@ -421,6 +422,37 @@ export async function crearNuevaVersion(
     creadoEn: v.creado_en,
     esActual: true,
   }
+}
+// Líneas del import de la versión vigente que todavía no son línea de APU
+// (pendientes, rechazadas o esperando una solicitud de insumo). crear_nueva_version
+// no las copia: la pantalla avisa antes de crear la versión (2026-11-11).
+export async function contarLineasSinResolverVersion(
+  presupuestoId: string
+): Promise<{ pendientes: number; esperandoSolicitud: number }> {
+  const supabase = await createClient()
+  const { data: p, error: errorP } = await supabase
+    .from("presupuestos")
+    .select("version_actual_id")
+    .eq("id", presupuestoId)
+    .maybeSingle()
+  if (errorP) throw new Error(errorP.message)
+  if (!p?.version_actual_id) return { pendientes: 0, esperandoSolicitud: 0 }
+
+  const contar = async (estados: string[]) => {
+    const { count, error } = await supabase
+      .from("apu_import_revision")
+      .select("id, presupuesto_items!inner(version_id)", { count: "exact", head: true })
+      .eq("presupuesto_items.version_id", p.version_actual_id)
+      .is("item_apu_id", null)
+      .in("estado", estados)
+    if (error) throw new Error(error.message)
+    return count ?? 0
+  }
+  const [pendientes, esperandoSolicitud] = await Promise.all([
+    contar(["pendiente", "rechazado"]),
+    contar(["solicitud_pendiente"]),
+  ])
+  return { pendientes, esperandoSolicitud }
 }
 //Funcion para borrar presupuesto en descartar
 // Borra el presupuesto COMPLETO (todas sus versiones e ítems). Se niega si
@@ -1124,8 +1156,10 @@ export async function aprobarSolicitudInsumo(
   }
 
   // Líneas del presupuesto que pidieron este insumo en OTRA unidad reconocida
-  // (m contra rollo): no pueden entrar con su cantidad tal cual. Las que
-  // traen una unidad no reconocida ("Ins") toman la del insumo.
+  // (m contra rollo, g contra kg): no pueden entrar con su cantidad tal cual.
+  // Las que traen una unidad no reconocida ("Ins") toman la del insumo. Se
+  // compara por código (lineaNecesitaConversion), no con unidadMaestro: g, cm,
+  // mm y cc no están en la lista del maestro y entraban al APU con factor 1.
   const { data: lineasSolicitud, error: errorLineas } = await supabase
     .from("apu_import_revision")
     .select("id, unidad")
@@ -1133,7 +1167,7 @@ export async function aprobarSolicitudInsumo(
     .is("item_apu_id", null)
   if (errorLineas) throw new Error(errorLineas.message)
   const idsPorConvertir = (lineasSolicitud ?? [])
-    .filter((l: { unidad: string | null }) => unidadMaestro(l.unidad) != null && unidadMaestro(l.unidad) !== uMFinal)
+    .filter((l: { unidad: string | null }) => lineaNecesitaConversion(l.unidad, uMFinal))
     .map((l: { id: string }) => l.id)
 
   const { data: insumoNuevo, error: errorInsumo } = await supabase
@@ -1199,9 +1233,11 @@ export async function aprobarSolicitudInsumo(
 
   const vieneDeImport = (filasDeImport?.length ?? 0) > 0
 
-  // El trigger copió la unidad del Excel a cada línea del APU; las que no
-  // traían una unidad reconocida ("Ins") quedan en la del insumo.
-  if (vieneDeImport && !unidadPresupuesto) {
+  // El trigger copió la unidad del Excel a cada línea del APU. Las que
+  // entraron están en la unidad del insumo o traían una no reconocida
+  // ("Ins"): todas quedan con la del insumo (las de otra unidad reconocida
+  // ya se devolvieron para conversión).
+  if (vieneDeImport) {
     const { data: revisadas, error: errorRevisadas } = await supabase
       .from("apu_import_revision")
       .select("item_apu_id")
@@ -1219,7 +1255,7 @@ export async function aprobarSolicitudInsumo(
   // cantidad que se escribió, solo si está en la unidad del insumo. Si se
   // aprobó en otra unidad, el ingeniero lo agrega en el editor con su
   // conversión.
-  const manualMismaUnidad = !unidadPresupuesto || unidadPresupuesto === uMFinal
+  const manualMismaUnidad = !lineaNecesitaConversion(solicitud.u_m, uMFinal)
   if (!vieneDeImport && solicitud.presupuesto_item_id && manualMismaUnidad) {
     const { data: item, error: errorItem } = await supabase
       .from("presupuesto_items")
