@@ -2184,7 +2184,9 @@ Decisiones del usuario:
   Excel = todas las solicitudes pendientes (insumo, unidad y cantidad pedida,
   proyectos; se llenan tipo, unidad de compra, agrupación, precio SIN IVA, IVA y
   presentación opcional, con listas desplegables desde una hoja oculta; ID interno en
-  columna oculta). Subir = cada fila con precio y completa se aprueba con
+  columna oculta). Junto a Insumo, "Ítem del presupuesto": los códigos de los
+  ítems donde se usa (`textoItemsSolicitud`, 2026-11-12, decisión del usuario:
+  solo el código); informativo, la subida no lo lee. Subir = cada fila con precio y completa se aprueba con
   `aprobarSolicitudInsumo` (mismas reglas que la pantalla; tandas de 5, 3 a la vez,
   `aprobarSolicitudesInsumoDesdeExcel`); sin precio se deja para después; errores
   por fila. Exige `aprobar_insumos`.
