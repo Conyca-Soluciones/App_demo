@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { puedeIrALiquidacion } from "@/lib/pagos"
+import { metodoDePago, pagoSinCuenta, puedeIrALiquidacion } from "@/lib/pagos"
 import { extensionArchivo, revisarArchivoTercero } from "@/lib/archivos-tercero"
 
 describe("un pago pasa a liquidación con cuenta bancaria", () => {
@@ -23,5 +23,21 @@ describe("archivos del tercero (RUT, certificación, comprobante)", () => {
     expect(extensionArchivo({ type: "application/pdf" })).toBe("pdf")
     expect(extensionArchivo({ type: "image/png" })).toBe("png")
     expect(extensionArchivo({ type: "image/jpeg" })).toBe("jpg")
+  })
+})
+
+describe("Consolidado: método de pago y fila sin cuenta", () => {
+  it("PSE, tipo de pago de la OC o Transferencia", () => {
+    expect(metodoDePago({ metodoPago: "pse", ordenTipoPago: "credito" })).toBe("PSE")
+    expect(metodoDePago({ metodoPago: "transferencia", ordenTipoPago: "contado" })).toBe("De contado")
+    expect(metodoDePago({ metodoPago: "transferencia", ordenTipoPago: "credito" })).toBe("Crédito")
+    expect(metodoDePago({ metodoPago: "transferencia", ordenTipoPago: "fiducia" })).toBe("Fiducia")
+    expect(metodoDePago({ metodoPago: "transferencia", ordenTipoPago: null })).toBe("Transferencia")
+  })
+  it("en rojo: aprobado, sin cuenta y no PSE", () => {
+    expect(pagoSinCuenta({ estado: "aprobado", metodoPago: "transferencia", cuentaId: null })).toBe(true)
+    expect(pagoSinCuenta({ estado: "aprobado", metodoPago: "pse", cuentaId: null })).toBe(false)
+    expect(pagoSinCuenta({ estado: "aprobado", metodoPago: "transferencia", cuentaId: "c1" })).toBe(false)
+    expect(pagoSinCuenta({ estado: "anulado", metodoPago: "transferencia", cuentaId: null })).toBe(false)
   })
 })

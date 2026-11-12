@@ -62,6 +62,9 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   // Las etapas son de los pagos aprobados (los anulados o en dispersión, en "Todos").
   if (filtros.etapa === "preparacion") query = query.eq("estado", "aprobado").is("liquidacion_estado", null)
   else if (filtros.etapa === "dispersado") query = query.eq("estado", "dispersado").eq("liquidacion_estado", "liquidado")
+  // Liquidados = los que van por dispersor; los PSE liquidados, en su pestaña (20270101000400).
+  else if (filtros.etapa === "liquidado") query = query.eq("estado", "aprobado").eq("liquidacion_estado", "liquidado").eq("pago_es_pse", false)
+  else if (filtros.etapa === "pse") query = query.eq("estado", "aprobado").eq("liquidacion_estado", "liquidado").eq("pago_es_pse", true)
   else if (filtros.etapa && filtros.etapa !== "todos") query = query.eq("estado", "aprobado").eq("liquidacion_estado", filtros.etapa)
 
   return query
@@ -116,6 +119,7 @@ export async function conteoEtapasConsolidado(clave: string, filtros: FiltrosCon
     por_liquidar: Number(c.por_liquidar ?? 0),
     observado: Number(c.observado ?? 0),
     liquidado: Number(c.liquidado ?? 0),
+    pse: Number(c.pse ?? 0),
     dispersado: Number(c.dispersado ?? 0),
     todos: Number(c.todos ?? 0),
   }

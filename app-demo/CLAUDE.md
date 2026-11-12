@@ -1220,6 +1220,19 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   `guardar_rut_tercero`. Lo ven A&F (`_puede_ver_rut`: cuentas, gestionar pagos, algún consolidado,
   Terceros, Aprobación de pagos) con `enlaceRutTercero`.
 - **Más de una cuenta por tercero**: ya existía (ficha del tercero › "Agregar cuenta", `editar_terceros`).
+- **PSE en el Consolidado** (`20270101000400_pse_en_consolidado.sql`, mismo día, cambia lo de arriba):
+  los PSE ya NO van a Realizar Pagos (`listarRealizarPagos` filtra `pago_es_pse = false`; ahí "Marcar
+  como pagados" queda solo para "otro medio"). Liquidados ya no tiene los PSE: van a la pestaña **PSE**
+  del Consolidado (`conteo_etapas_consolidado` trae `pse`; filtro por el campo calculado
+  `pago_es_pse`). Ahí quien tiene la acción **Pagar PSE** (`pagar_pse`, por omisión Financiera; para
+  tesorería) elige pagos, escoge la cuenta a debitar (las de `cuentas_empresa`; su política ya deja
+  leerlas con `pagar_pse`) y los marca pagados con `MarcarPagadosDialog`
+  (`components/marcar-pagados-dialog.tsx`, compartido con Realizar Pagos). Pagados pasan a Dispersados;
+  ahí "El pago PSE no salió" (`deshacer_pago_pse`, con motivo) los devuelve. `marcar_pagos_pagados`: PSE
+  con `pagar_pse`, otro medio con `generar_dispersores`.
+- **Consolidado**: columna "Método de pago" en todas las pestañas (`metodoDePago`: PSE, o De contado /
+  Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
+  es PSE (`pagoSinCuenta`).
 
 ## Paquete A: requisiciones administrativas y empresa que factura (2026-11-11)
 

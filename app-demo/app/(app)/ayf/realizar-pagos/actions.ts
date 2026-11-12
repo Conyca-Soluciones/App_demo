@@ -13,7 +13,7 @@ import { createElement } from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
 import ExcelJS from "exceljs"
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { hoyColombia } from "@/lib/fechas"
 import { aPesos, texto } from "@/lib/dispersores/textos"
@@ -158,6 +158,8 @@ function consulta(supabase: any, filtros: FiltrosRealizarPagos) {
     .eq("liquidacion_estado", "liquidado")
     .in("estado", ["aprobado", "dispersado"])
     .not("referencia", "is", null)
+    // Los PSE se pagan desde el Consolidado, pestaña PSE (20270101000400).
+    .eq("pago_es_pse", false)
   const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
   const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
   if (anios.length > 0) q = q.in("anio", anios)
@@ -247,12 +249,38 @@ export async function redispersarPagos(ids: string[], motivo: string): Promise<n
  * fecha de hoy y la cuenta desde la que se pagaron; el comprobante (opcional)
  * ya está subido a dispersores/pse/... (20270101000300).
  */
+// Pagar sin dispersor: PSE (Consolidado, pagar_pse) u otro medio (aquí,
+// generar_dispersores). La base decide qué pago puede marcar cada uno.
+async function requerirPagar() {
+  const permisos = await obtenerPermisosRol()
+  const ok = permisos?.esAdministrador || permisos?.acciones.includes(ACCION) || permisos?.acciones.includes("pagar_pse")
+  if (!ok) throw new Error("No tienes permiso para pagar estos pagos.")
+}
+
+/** Las cuentas de las empresas desde las que se paga (las mismas del dispersor). */
+export async function cuentasParaPagar(): Promise<CuentaEmpresa[]> {
+  await requerirPagar()
+  return cuentasEmpresa(await createClient())
+}
+
+/** "El pago no salió": un PSE marcado como pagado vuelve a la pestaña PSE. */
+export async function deshacerPagoPse(ids: string[], motivo: string): Promise<number> {
+  await requerirAccion("pagar_pse")
+  if (motivo.trim().length < 3) throw new Error("Escribe por qué no salió el pago.")
+  const supabase = await createClient()
+  return enTandas(ids, async (lote) => {
+    const { data, error } = await supabase.rpc("deshacer_pago_pse", { p_ids: lote, p_motivo: motivo.trim() })
+    if (error) throw new Error(error.message)
+    return Number(data ?? 0)
+  })
+}
+
 export async function marcarPagosPagados(
   ids: string[],
   cuentaId: string,
   comprobante: { ruta: string; nombre: string; mime: string } | null
 ): Promise<number> {
-  await requerirAccion(ACCION)
+  await requerirPagar()
   if (!cuentaId) throw new Error("Escoge la cuenta desde la que se pagó.")
   if (comprobante && !comprobante.ruta.startsWith("pse/")) throw new Error("El comprobante no se subió bien: vuelve a adjuntarlo.")
   const supabase = await createClient()
