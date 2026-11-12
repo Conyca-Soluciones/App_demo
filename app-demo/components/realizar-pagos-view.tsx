@@ -854,7 +854,8 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           detalle
             ? [
                 ...camposDesdeColumnas(columnas, detalle, ["sel", "soporte"]),
-                ...detalle.alertas.map((a) => ({ etiqueta: "Aviso", valor: `${a.mensaje}${a.detalle ? ` · ${a.detalle}` : ""}` })),
+                // el primer aviso ya sale en Estado
+                ...detalle.alertas.slice(1).map((a) => ({ etiqueta: "Aviso", valor: `${a.mensaje}${a.detalle ? ` · ${a.detalle}` : ""}` })),
                 ...(detalle.pagadoManual
                   ? [{ etiqueta: "Pagado el", valor: detalle.pagadoManual.fecha ? formatearFechaHora(detalle.pagadoManual.fecha) : "—" }]
                   : []),
