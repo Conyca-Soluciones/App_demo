@@ -957,8 +957,10 @@ function FormularioActa({
             </table>
           </div>
 
-          {/* Cuenta donde se paga: la del contratista u otro tercero. */}
-          {!sinPago &&
+          {/* Cuenta donde se paga: la del contratista u otro tercero. Se ve
+              aunque el acta todavía esté en $ 0 (recién abierta, sin
+              cantidades); solo se oculta en una liquidación sin pago. */}
+          {!(form.tipo === "liquidacion" && sinPago) &&
             (info?.metodoPago === "pse" ? (
               <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
                 El contrato se paga por PSE: el pago llega a A&amp;F sin cuenta bancaria, con la información para pagar
