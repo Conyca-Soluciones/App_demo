@@ -1230,6 +1230,12 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   (`components/marcar-pagados-dialog.tsx`, compartido con Realizar Pagos). Pagados pasan a Dispersados;
   ahí "El pago PSE no salió" (`deshacer_pago_pse`, con motivo) los devuelve. `marcar_pagos_pagados`: PSE
   con `pagar_pse`, otro medio con `generar_dispersores`.
+- **Liquidado = fijo** (`20270101000500_liquidado_fijo.sql`): un pago liquidado se ve pero no se
+  cambia (la ventana deshabilita los campos y "Observar"; `liquidar_pagos_lote` da error si cambian los
+  valores y deja "sin cambios" si son iguales, así el Excel de ida y vuelta no falla; `comentar_pago` no
+  deja observarlo). Para corregirlo: **"Devolver a Por liquidar"** (`devolver_pagos_a_por_liquidar`, con
+  motivo; Contabilidad o Financiera; ventana del pago y pestañas Liquidados y PSE), solo si no se ha
+  dispersado ni pagado. Conserva valores y REF, quita la cuenta a debitar; evento `devuelto_por_liquidar`.
 - **Consolidado**: columna "Método de pago" en todas las pestañas (`metodoDePago`: PSE, o De contado /
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).

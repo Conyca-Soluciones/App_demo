@@ -30,6 +30,7 @@ import {
   buscarTercerosParaPago,
   conteoEtapasConsolidado,
   cuentasDeTercero,
+  devolverPagosAPorLiquidar,
   enviarFiltradosALiquidar,
   enviarPagosALiquidar,
   moverPagosSemana,
@@ -320,6 +321,18 @@ export function ConsolidadoPagosView({
       return null
     })
 
+  const devolverLiquidados = () =>
+    correr("devolver_liq", async () => {
+      const motivo = await pedirTexto(
+        `${plural(seleccion.size, "pago liquidado vuelve", "pagos liquidados vuelven")} a Por liquidar con sus valores y su REF, para corregirlos.`,
+        { titulo: "Devolver a Por liquidar", etiqueta: "¿Qué hay que corregir?", boton: "Devolver", minimo: 3 }
+      )
+      if (motivo === null) return null
+      const n = await devolverPagosAPorLiquidar([...seleccion], motivo.trim())
+      recargar()
+      return `${plural(n, "pago devuelto", "pagos devueltos")} a Por liquidar.`
+    })
+
   const pseNoSalio = () =>
     correr("no_salio", async () => {
       const motivo = await pedirTexto(
@@ -438,13 +451,20 @@ export function ConsolidadoPagosView({
   const enLiquidacion = etapa === "por_liquidar" || etapa === "observado"
   const enPse = etapa === "pse"
   const enDispersados = etapa === "dispersado"
+  const enLiquidados = etapa === "liquidado"
+  // Liquidados y PSE: "Devolver a Por liquidar" (Contabilidad o Financiera).
+  const puedeDevolverLiquidado = puedeLiquidar || puedeGestionar
   const conSeleccion =
-    (enPreparacion && puedeGestionar) || (enLiquidacion && (puedeLiquidar || puedeGestionar)) || ((enPse || enDispersados) && puedePagarPse)
+    (enPreparacion && puedeGestionar) ||
+    (enLiquidacion && (puedeLiquidar || puedeGestionar)) ||
+    (enLiquidados && puedeDevolverLiquidado) ||
+    (enPse && (puedePagarPse || puedeDevolverLiquidado)) ||
+    (enDispersados && puedePagarPse)
   const seleccionables = (pagos ?? []).filter((p) =>
     enPreparacion
       ? p.estado === "aprobado" && p.liquidacionEstado == null
-      : enPse
-        ? p.estado === "aprobado" && p.liquidacionEstado === "liquidado" && p.metodoPago === "pse"
+      : enPse || enLiquidados
+        ? p.estado === "aprobado" && p.liquidacionEstado === "liquidado"
         : enDispersados
           ? p.estado === "dispersado" && p.pagadoOtroMedio && p.metodoPago === "pse"
           : p.estado === "aprobado" && (p.liquidacionEstado === "por_liquidar" || p.liquidacionEstado === "observado")
@@ -825,6 +845,18 @@ export function ConsolidadoPagosView({
                 <Button size="sm" disabled={seleccion.size === 0 || ocupado !== null} onClick={abrirMarcarPse}>
                   {ocupado === "cuentas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
                   Marcar como pagados{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                </Button>
+              )}
+              {(enLiquidados || enPse) && puedeDevolverLiquidado && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={seleccion.size === 0 || ocupado !== null}
+                  onClick={devolverLiquidados}
+                  title="Para corregir una liquidación: vuelve a Por liquidar con sus valores y su REF"
+                >
+                  {ocupado === "devolver_liq" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  Devolver a Por liquidar{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
                 </Button>
               )}
               {enDispersados && puedePagarPse && seleccionables.length > 0 && (

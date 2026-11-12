@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronLeft, ChevronRight, FileText, History, Loader2, Paperclip, Send, Wrench } from "lucide-react"
+import { ChevronLeft, ChevronRight, FileText, History, Loader2, Paperclip, Send, Undo2, Wrench } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { pedirTexto } from "@/components/ui/confirmar"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,6 +27,7 @@ import {
 } from "@/lib/pagos"
 import {
   comentarPago,
+  devolverPagosAPorLiquidar,
   enviarPagosALiquidar,
   liquidarPagos,
   listarComentariosPago,
@@ -187,7 +189,9 @@ function Contenido({
 
   const aprobado = pago.estado === "aprobado"
   const enLiquidacion = aprobado && pago.liquidacionEstado != null
-  const editable = puedeLiquidar && enLiquidacion
+  // Ya liquidado: sus valores no se cambian ni se observa (20270101000500).
+  const liquidado = pago.liquidacionEstado === "liquidado"
+  const editable = puedeLiquidar && enLiquidacion && !liquidado
   const documento = pago.valorDocumento ?? pago.valor
   const numeros = Object.fromEntries(CAMPOS.map((c) => [c.clave, form[c.clave].trim() === "" ? null : leerNumero(form[c.clave])])) as Record<
     ClaveCampo,
@@ -250,6 +254,21 @@ function Contenido({
       },
       luegoSiguiente
     )
+  }
+
+  async function devolverAPorLiquidar() {
+    const motivo = await pedirTexto(
+      "El pago vuelve a Por liquidar con sus valores (quedan de borrador) y su REF, para que Contabilidad lo corrija.",
+      { titulo: "Devolver a Por liquidar", etiqueta: "¿Qué hay que corregir?", boton: "Devolver", minimo: 3 }
+    )
+    if (motivo === null) return
+    await correr("devolver", async () => {
+      const n = await devolverPagosAPorLiquidar([pago.id], motivo.trim())
+      if (n === 0) throw new Error("No se pudo devolver: puede que ya se haya dispersado o pagado.")
+      await refrescar()
+      setComentarios(await listarComentariosPago(pago.id))
+      return "Devuelto a Por liquidar."
+    })
   }
 
   async function comentar(tipo: TipoComentarioPago) {
@@ -420,6 +439,17 @@ function Contenido({
               </label>
             ))}
           </div>
+          {liquidado && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Liquidado: los valores se ven pero no se cambian. Para corregirlos, devuélvelo a Por liquidar.</p>
+              {(puedeLiquidar || puedeGestionar) && (
+                <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={devolverAPorLiquidar}>
+                  {ocupado === "devolver" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Undo2 className="mr-1.5 h-4 w-4" />}
+                  Devolver a Por liquidar
+                </Button>
+              )}
+            </div>
+          )}
           {editable && (
             <div className="flex flex-wrap justify-end gap-2">
               <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={() => liquidar(true, true)}>
@@ -466,7 +496,7 @@ function Contenido({
               <Button size="sm" variant="outline" disabled={ocupado !== null || !nuevo.trim()} onClick={() => comentar("comentario")}>
                 Solo comentar
               </Button>
-              {puedeLiquidar && enLiquidacion && (
+              {editable && (
                 <Button size="sm" variant="outline" className="text-red-700" disabled={ocupado !== null || !nuevo.trim()} onClick={() => comentar("observacion")}>
                   Observar (a Financiera)
                 </Button>

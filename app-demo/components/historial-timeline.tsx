@@ -130,6 +130,7 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   enviado_liquidar: { etiqueta: "Enviado a liquidar", tono: "neutro" },
   devuelto_preparacion: { etiqueta: "Devuelto a preparación (conserva su REF)", tono: "aviso" },
+  devuelto_por_liquidar: { etiqueta: "Liquidación devuelta a Por liquidar para corregirla", tono: "aviso" },
   semana_cambiada: { etiqueta: "Semana de pago cambiada", tono: "aviso" },
   observado: { etiqueta: "Observado por Contabilidad", tono: "aviso" },
   devuelto_contabilidad: { etiqueta: "Corregido y devuelto a Contabilidad", tono: "neutro" },

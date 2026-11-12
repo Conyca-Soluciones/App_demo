@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR, limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
 import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, filtrarSemanaCreacion, conProyectos, mapPago, rangosCreacion } from "@/lib/pagos-db"
@@ -173,6 +173,21 @@ export async function devolverPagosAPreparacion(ids: string[], motivo: string | 
   if (ids.length === 0) return 0
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("devolver_pagos_a_preparacion", { p_ids: ids, p_motivo: motivo })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
+}
+
+// Un liquidado (no dispersado ni pagado) vuelve a Por liquidar para corregirlo
+// (20270101000500): es la única forma de cambiar su liquidación.
+export async function devolverPagosAPorLiquidar(ids: string[], motivo: string): Promise<number> {
+  const permisos = await obtenerPermisosRol()
+  if (!(permisos?.esAdministrador || permisos?.acciones.includes("liquidar_pagos") || permisos?.acciones.includes("gestionar_pagos"))) {
+    throw new Error("No tienes permiso para devolver pagos a Por liquidar.")
+  }
+  if (ids.length === 0) return 0
+  if (motivo.trim().length < 3) throw new Error("Escribe por qué se devuelve.")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("devolver_pagos_a_por_liquidar", { p_ids: ids, p_motivo: motivo.trim() })
   if (error) throw new Error(error.message)
   return Number(data ?? 0)
 }
