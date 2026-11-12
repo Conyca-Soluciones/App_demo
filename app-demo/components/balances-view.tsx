@@ -79,77 +79,85 @@ export function EtiquetaTipoMovimiento({ tipo }: { tipo: TipoMovimiento }) {
 const Pesos = ({ n, rojo }: { n: number | null; rojo?: boolean }) =>
   n == null ? <span className="text-muted-foreground/60">—</span> : <span className={`tabular-nums ${rojo && n < 0 ? "font-medium text-red-700" : ""}`}>{formatoMoneda(n)}</span>
 
-// ---------------------------------------------------------------------------
-// Balances: Saldos bancarios (una fila por cuenta a debitar; doble clic =
-// extracto) y Registrar movimientos (saldos de inicio, ingresos, egresos,
-// traslados internos y la lista de registros).
-// ---------------------------------------------------------------------------
-export function BalancesView({ puedeRegistrar }: { puedeRegistrar: boolean }) {
-  const [vista, setVista] = useState<"saldos" | "registrar">("saldos")
+// Las cuentas a debitar con su saldo (las dos pestañas las usan).
+function useCuentas(onError: (m: string) => void) {
   const [cuentas, setCuentas] = useState<SaldoCuenta[] | null>(null)
+  const cargar = useCallback(() => {
+    saldosBancarios()
+      .then((c: SaldoCuenta[]) => setCuentas(c))
+      .catch((e) => onError(e instanceof Error ? e.message : "No se pudieron cargar los saldos."))
+  }, [onError])
+  useEffect(() => {
+    cargar()
+  }, [cargar])
+  return { cuentas, recargar: cargar }
+}
+
+const Cargando = ({ texto }: { texto: string }) => (
+  <div className="flex flex-1 items-center justify-center text-muted-foreground">
+    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {texto}
+  </div>
+)
+
+// ---------------------------------------------------------------------------
+// Balances › Saldos bancarios: SOLO CONSULTA. Una fila por cuenta a debitar;
+// doble clic = extracto.
+// ---------------------------------------------------------------------------
+export function SaldosBancariosView() {
+  const [error, setError] = useState<string | null>(null)
+  const { cuentas } = useCuentas(setError)
+  const [extractoDe, setExtractoDe] = useState<SaldoCuenta | null>(null)
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</div>}
+      {cuentas === null ? <Cargando texto="Cargando cuentas..." /> : <SaldosBancarios cuentas={cuentas} onExtracto={setExtractoDe} />}
+      <ExtractoDialog cuenta={extractoDe} onCerrar={() => setExtractoDe(null)} />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Balances › Registrar movimientos: ingresos, egresos externos y traslados
+// internos (botones), saldos de inicio y la lista de registros (editar y
+// eliminar). Registrar exige la acción registrar_movimientos_bancarios.
+// ---------------------------------------------------------------------------
+export function RegistrarMovimientosView({ puedeRegistrar }: { puedeRegistrar: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const [extractoDe, setExtractoDe] = useState<SaldoCuenta | null>(null)
+  const { cuentas, recargar } = useCuentas(setError)
   const [saldoDe, setSaldoDe] = useState<SaldoCuenta | null>(null)
   // Formulario de movimiento: nuevo (tipo) o edición (movimiento).
   const [form, setForm] = useState<{ tipo: TipoMovimiento; mov: MovimientoBancario | null } | null>(null)
   const [versionRegistros, setVersionRegistros] = useState(0)
 
-  const cargarCuentas = useCallback(() => {
-    saldosBancarios()
-      .then((c: SaldoCuenta[]) => setCuentas(c))
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los saldos."))
-  }, [])
-  useEffect(() => {
-    cargarCuentas()
-  }, [cargarCuentas])
-
   function cambio(mensaje: string) {
     setAviso(mensaje)
     setError(null)
-    cargarCuentas()
+    recargar()
     setVersionRegistros((v) => v + 1)
   }
 
-  const pestana = (v: "saldos" | "registrar", titulo: string) => (
-    <button
-      type="button"
-      onClick={() => setVista(v)}
-      className={`-mb-px border-b-2 px-3 py-2 text-sm ${vista === v ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-    >
-      {titulo}
-    </button>
-  )
-
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-1 border-b">
-        {pestana("saldos", "Saldos bancarios")}
-        {pestana("registrar", "Registrar movimientos")}
-        {puedeRegistrar && (
-          <div className="mb-1.5 ml-auto flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="border-green-300 text-green-800" onClick={() => setForm({ tipo: "ingreso", mov: null })}>
-              <Plus className="mr-1.5 h-4 w-4" /> Ingreso
-            </Button>
-            <Button size="sm" variant="outline" className="border-amber-300 text-amber-800" onClick={() => setForm({ tipo: "egreso", mov: null })}>
-              <Minus className="mr-1.5 h-4 w-4" /> Egreso externo
-            </Button>
-            <Button size="sm" variant="outline" className="border-sky-300 text-sky-800" onClick={() => setForm({ tipo: "traslado", mov: null })}>
-              <ArrowLeftRight className="mr-1.5 h-4 w-4" /> Traslado interno
-            </Button>
-          </div>
-        )}
-      </div>
+      {puedeRegistrar && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" className="border-green-300 text-green-800" onClick={() => setForm({ tipo: "ingreso", mov: null })}>
+            <Plus className="mr-1.5 h-4 w-4" /> Ingreso
+          </Button>
+          <Button size="sm" variant="outline" className="border-amber-300 text-amber-800" onClick={() => setForm({ tipo: "egreso", mov: null })}>
+            <Minus className="mr-1.5 h-4 w-4" /> Egreso externo
+          </Button>
+          <Button size="sm" variant="outline" className="border-sky-300 text-sky-800" onClick={() => setForm({ tipo: "traslado", mov: null })}>
+            <ArrowLeftRight className="mr-1.5 h-4 w-4" /> Traslado interno
+          </Button>
+        </div>
+      )}
 
       {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</div>}
       {aviso && <div className="rounded-md border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-800">{aviso}</div>}
 
       {cuentas === null ? (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando cuentas...
-        </div>
-      ) : vista === "saldos" ? (
-        <SaldosBancarios cuentas={cuentas} onExtracto={setExtractoDe} />
+        <Cargando texto="Cargando cuentas..." />
       ) : (
         <RegistrarMovimientos
           cuentas={cuentas}
@@ -162,7 +170,6 @@ export function BalancesView({ puedeRegistrar }: { puedeRegistrar: boolean }) {
         />
       )}
 
-      <ExtractoDialog cuenta={extractoDe} onCerrar={() => setExtractoDe(null)} />
       <SaldoInicialDialog
         cuenta={saldoDe}
         onCerrar={() => setSaldoDe(null)}
@@ -349,7 +356,7 @@ function ExtractoDialog({ cuenta, onCerrar }: { cuenta: SaldoCuenta | null; onCe
         {error && <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
         {extracto?.sinSaldoInicial ? (
           <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Esta cuenta no tiene saldo de inicio. Pónselo en Registrar movimientos › Saldos de inicio.
+            Esta cuenta no tiene saldo de inicio. Se pone en Balances › Registrar movimientos › Saldos de inicio.
           </p>
         ) : extracto ? (
           <div className="min-h-0 flex-1 overflow-auto rounded-md border">

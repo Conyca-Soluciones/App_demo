@@ -16,7 +16,9 @@
 -- cambio queda en balances_cambios. Los ingresos y egresos salen en el
 -- Consolidado Gerencia si se marcan sus casillas (los traslados no).
 --
--- Pestaña ayf.balances (Gerencia y Financiera) y acción
+-- Sección Balances con dos pestañas (Gerencia y Financiera): Saldos bancarios
+-- (ayf.balances_saldos, solo consulta) y Registrar movimientos
+-- (ayf.balances_movimientos); registrar exige además la acción
 -- registrar_movimientos_bancarios (las dos, por omisión).
 --
 -- Solo agrega tablas, funciones y políticas nuevas; el único parche es a
@@ -48,7 +50,8 @@ $$;
 insert into public.rol_permisos (rol_id, permiso)
 select r.id, p.permiso
   from public.roles r
- cross join (values ('tab.ayf.balances'), ('accion.registrar_movimientos_bancarios')) as p(permiso)
+ cross join (values ('tab.ayf.balances_saldos'), ('tab.ayf.balances_movimientos'),
+                    ('accion.registrar_movimientos_bancarios')) as p(permiso)
  where r.clave in ('financiera', 'gerencia')
 on conflict do nothing;
 
@@ -128,7 +131,8 @@ stable
 security definer
 set search_path = public
 as $$
-  select public.es_admin(p_uid) or public.tiene_pestana(p_uid, 'ayf.balances')
+  select public.es_admin(p_uid) or public.tiene_pestana(p_uid, 'ayf.balances_saldos')
+      or public.tiene_pestana(p_uid, 'ayf.balances_movimientos')
 $$;
 revoke all on function public._ve_balances(uuid) from public, anon, authenticated;
 
@@ -413,7 +417,7 @@ set search_path = public
 as $$
 begin
   if not public._ve_balances(auth.uid()) then
-    raise exception 'No autorizado -- no tienes la pestaña Balances.';
+    raise exception 'No autorizado -- no tienes acceso a Balances.';
   end if;
   return coalesce((
     with sumas as (
@@ -461,7 +465,7 @@ declare
   v_desde date;
 begin
   if not public._ve_balances(auth.uid()) then
-    raise exception 'No autorizado -- no tienes la pestaña Balances.';
+    raise exception 'No autorizado -- no tienes acceso a Balances.';
   end if;
   select * into v_ini from public.cuentas_saldo_inicial where cuenta_id = p_cuenta_id;
   if not found then
@@ -501,7 +505,7 @@ set search_path = public
 as $$
 begin
   if not public._ve_balances(auth.uid()) then
-    raise exception 'No autorizado -- no tienes la pestaña Balances.';
+    raise exception 'No autorizado -- no tienes acceso a Balances.';
   end if;
   return coalesce((
     select jsonb_agg(f.j order by f.fecha desc, f.creado_en desc, f.id)

@@ -132,8 +132,10 @@ export const PESTANAS: Pestana[] = [
   // Dispersores (20261217000000): los pagos liquidados de los tres consolidados.
   { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
-  // Saldos de las cuentas a debitar e ingresos / egresos / traslados (20270101001200).
-  { clave: "ayf.balances", titulo: "Balances", modulo: "ayf", seccion: "Balances", url: "/ayf/balances", rutas: ["/ayf/balances"] },
+  // Balances (20270101001200): saldos de las cuentas a debitar (solo consulta) y
+  // registro de saldos de inicio, ingresos, egresos y traslados.
+  { clave: "ayf.balances_saldos", titulo: "Saldos bancarios", modulo: "ayf", seccion: "Balances", url: "/ayf/balances/saldos", rutas: ["/ayf/balances/saldos"] },
+  { clave: "ayf.balances_movimientos", titulo: "Registrar movimientos", modulo: "ayf", seccion: "Balances", url: "/ayf/balances/movimientos", rutas: ["/ayf/balances/movimientos"] },
 ]
 
 // Pestañas de TODOS los usuarios con sesión (no están en la matriz de roles y

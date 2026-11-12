@@ -5,7 +5,10 @@
 // los tipos, las etiquetas y la validación del formulario (archivo plano, lo
 // usan la pantalla y las actions).
 
-export const PESTANA_BALANCES = "ayf.balances"
+// Sección Balances: dos pestañas (ver cualquiera de las dos deja leer).
+export const PESTANA_SALDOS_BANCARIOS = "ayf.balances_saldos"
+export const PESTANA_REGISTRAR_MOVIMIENTOS = "ayf.balances_movimientos"
+export const PESTANAS_BALANCES = [PESTANA_SALDOS_BANCARIOS, PESTANA_REGISTRAR_MOVIMIENTOS]
 export const ACCION_REGISTRAR_MOVIMIENTOS = "registrar_movimientos_bancarios"
 
 export type TipoMovimiento = "ingreso" | "egreso" | "traslado"

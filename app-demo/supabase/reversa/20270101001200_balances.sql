@@ -42,7 +42,8 @@ drop policy if exists balances_soportes_insert on storage.objects;
 drop policy if exists balances_soportes_delete on storage.objects;
 drop policy if exists balances_soportes_select on storage.objects;
 
-delete from public.rol_permisos where permiso in ('tab.ayf.balances', 'accion.registrar_movimientos_bancarios');
+delete from public.rol_permisos where permiso in ('tab.ayf.balances_saldos', 'tab.ayf.balances_movimientos',
+                                                  'accion.registrar_movimientos_bancarios');
 
 -- drop table public.balances_cambios, public.movimientos_bancarios, public.cuentas_saldo_inicial, public.contadores_balances;
 -- drop function public._ve_balances(uuid);

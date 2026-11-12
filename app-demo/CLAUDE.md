@@ -1245,8 +1245,11 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
 ## Balances (A&F, 2026-11-12)
 
 `20270101001200_balances.sql` (reversa en `supabase/reversa/`; solo agrega, más un parche a
-`eliminar_empresa`). Pestaña `ayf.balances` (`/ayf/balances`, Gerencia y Financiera) y acción
-`registrar_movimientos_bancarios` (las dos; decisión del usuario: Gerencia casi no registra pero la tiene).
+`eliminar_empresa`). Sección Balances del menú con dos pestañas (Gerencia y Financiera), como los
+consolidados en Pagos: **Saldos bancarios** (`ayf.balances_saldos`, `/ayf/balances/saldos`, solo consulta)
+y **Registrar movimientos** (`ayf.balances_movimientos`, `/ayf/balances/movimientos`, con los botones).
+Leer = cualquiera de las dos (`_ve_balances`); registrar = acción `registrar_movimientos_bancarios` (las
+dos; decisión del usuario: Gerencia casi no registra pero la tiene).
 - **Cuentas**: las 29 cuentas a debitar (`cuentas_empresa`). Saldo = saldo de inicio
   (`cuentas_saldo_inicial`, con fecha de corte) + ingresos − egresos ± traslados − pagos `dispersado`
   con esa `cuenta_debitar_id` (dispersor, PSE u otro medio), todo desde la fecha de corte; el pago
@@ -1258,8 +1261,8 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   en traslados), fecha (no futura), valor, concepto y titular de texto libre (traslado sin titular),
   soporte opcional (bucket `balances`, `<uid>/...`). Se editan (`guardar_movimiento_bancario`, el tipo no
   cambia) y se eliminan con motivo (lógico, `eliminar_movimiento_bancario`); todo cambio de saldo de inicio
-  o movimiento queda en `balances_cambios`. Pantalla: `components/balances-view.tsx` (Saldos bancarios con
-  doble clic al extracto; Registrar movimientos: saldos de inicio y Registros).
+  o movimiento queda en `balances_cambios`. Pantalla: `components/balances-view.tsx` (`SaldosBancariosView` con
+  doble clic al extracto; `RegistrarMovimientosView`: botones, saldos de inicio y Registros).
 - **Consolidado Gerencia**: casillas "Incluir ingresos" e "Incluir egresos externos" (por omisión no);
   `movimientos_consolidado_gerencia` filtra por semana ISO de la fecha, grupo empresarial (empresa de la
   cuenta), tercero = titular, solicitante = quien registró y semana de creación; con filtro de proyecto no

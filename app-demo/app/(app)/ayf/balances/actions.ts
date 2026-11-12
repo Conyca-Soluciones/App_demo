@@ -1,11 +1,11 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { requerirAccion, requerirAlgunaPestana } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
 import {
   ACCION_REGISTRAR_MOVIMIENTOS,
-  PESTANA_BALANCES,
+  PESTANAS_BALANCES,
   mapExtracto,
   mapMovimiento,
   mapSaldoCuenta,
@@ -26,7 +26,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
 
 export async function saldosBancarios(): Promise<SaldoCuenta[]> {
-  await requerirPestana(PESTANA_BALANCES)
+  await requerirAlgunaPestana(PESTANAS_BALANCES)
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("saldos_bancarios")
   if (error) throw new Error(error.message)
@@ -34,7 +34,7 @@ export async function saldosBancarios(): Promise<SaldoCuenta[]> {
 }
 
 export async function extractoCuenta(cuentaId: string, desde: string | null, hasta: string | null): Promise<Extracto> {
-  await requerirPestana(PESTANA_BALANCES)
+  await requerirAlgunaPestana(PESTANAS_BALANCES)
   if (!UUID.test(cuentaId)) throw new Error("Cuenta no válida.")
   if ((desde && !FECHA.test(desde)) || (hasta && !FECHA.test(hasta))) throw new Error("Fecha no válida.")
   const supabase = await createClient()
@@ -46,7 +46,7 @@ export async function extractoCuenta(cuentaId: string, desde: string | null, has
 export type FiltrosMovimientos = { cuentaId?: string; tipo?: TipoMovimiento; desde?: string; hasta?: string; eliminados?: boolean }
 
 export async function listarMovimientos(filtros: FiltrosMovimientos, pagina = 0): Promise<{ filas: MovimientoBancario[]; hayMas: boolean }> {
-  await requerirPestana(PESTANA_BALANCES)
+  await requerirAlgunaPestana(PESTANAS_BALANCES)
   if (filtros.cuentaId && !UUID.test(filtros.cuentaId)) throw new Error("Cuenta no válida.")
   if ((filtros.desde && !FECHA.test(filtros.desde)) || (filtros.hasta && !FECHA.test(filtros.hasta))) throw new Error("Fecha no válida.")
   const supabase = await createClient()
