@@ -2,12 +2,15 @@
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { confirmar } from "@/components/ui/confirmar"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import * as XLSX from "xlsx"
+import { leerProyectosSoloPagos, type ResultadoImportacionProyecto } from "@/lib/proyectos-solo-pagos"
 import {
   listarProyectosAdmin,
   crearProyecto,
   editarProyecto,
   listarEmpresas,
+  importarProyectosSoloPagos,
   crearEmpresa,
   editarEmpresa,
   eliminarEmpresa,
@@ -55,8 +58,34 @@ function TabProyectos({
   const [nombreEditando, setNombreEditando] = useState("")
   const [ciudadEditando, setCiudadEditando] = useState("")
   const [empresaIdEditando, setEmpresaIdEditando] = useState<string | null>(null)
+  const [soloPagosNuevo, setSoloPagosNuevo] = useState(false)
+  const [soloPagosEditando, setSoloPagosEditando] = useState(false)
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Importar proyectos "solo pagos" (de Google) desde Excel.
+  const excelRef = useRef<HTMLInputElement>(null)
+  const [importando, setImportando] = useState(false)
+  const [resultadoImport, setResultadoImport] = useState<ResultadoImportacionProyecto[] | null>(null)
+
+  async function importarExcel(archivo: File) {
+    setImportando(true)
+    setError(null)
+    setResultadoImport(null)
+    try {
+      const libro = XLSX.read(await archivo.arrayBuffer(), { type: "array" })
+      const hoja = libro.Sheets[libro.SheetNames[0]]
+      const matriz = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, raw: false, defval: "" })
+      const { filas, error: e } = leerProyectosSoloPagos(matriz)
+      if (e) throw new Error(e)
+      const r = await importarProyectosSoloPagos(filas)
+      setResultadoImport(r)
+      if (r.some((x) => x.resultado === "creado")) setProyectos(await listarProyectosAdmin())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo importar el Excel.")
+    } finally {
+      setImportando(false)
+    }
+  }
 
   async function handleCrear() {
     if (!nombreNuevo.trim()) return
@@ -69,6 +98,7 @@ function TabProyectos({
         nombre: nombreNuevo.trim(),
         ciudad: ciudadNuevo || null,
         empresaId: empresaIdNuevo,
+        soloPagos: soloPagosNuevo,
       })
       setProyectos((prev) => [...prev, nuevo].sort((a, b) => a.numero - b.numero))
       setNumeroNuevo("")
@@ -76,6 +106,7 @@ function TabProyectos({
       setNombreNuevo("")
       setCiudadNuevo("")
       setEmpresaIdNuevo(null)
+      setSoloPagosNuevo(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear el proyecto.")
     } finally {
@@ -90,6 +121,7 @@ function TabProyectos({
     setNombreEditando(p.nombre)
     setCiudadEditando(p.ciudad ?? "")
     setEmpresaIdEditando(p.empresaId)
+    setSoloPagosEditando(p.soloPagos)
   }
 
   async function handleGuardarEdicion(proyectoId: string) {
@@ -101,6 +133,7 @@ function TabProyectos({
         nombre: nombreEditando.trim(),
         ciudad: ciudadEditando || null,
         empresaId: empresaIdEditando,
+        soloPagos: soloPagosEditando,
       })
       const empresa = empresas.find((e) => e.id === empresaIdEditando)
       setProyectos((prev) =>
@@ -115,6 +148,7 @@ function TabProyectos({
                 empresaId: empresaIdEditando,
                 empresaNombre: empresa?.razonSocial ?? null,
                 empresaNit: empresa?.nit ?? null,
+                soloPagos: soloPagosEditando,
               }
             : p
         )
@@ -182,9 +216,54 @@ function TabProyectos({
             placeholder="Ej. Bogotá"
           />
         </div>
+        <label className="flex h-9 cursor-pointer items-center gap-2 text-sm" title="Proyecto que sigue en Google: solo se usa en Pagos administrativos, no sale en AdPro.">
+          <input type="checkbox" checked={soloPagosNuevo} onChange={(e) => setSoloPagosNuevo(e.target.checked)} />
+          Solo pagos
+        </label>
         <Button size="sm" onClick={handleCrear} disabled={creando || !nombreNuevo.trim()}>
           {creando ? "Creando..." : "+ Crear proyecto"}
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3 text-sm">
+        <span className="min-w-0 flex-1 text-muted-foreground">
+          Proyectos de Google (solo pagos): sube un Excel con las columnas <b>Código</b>, <b>Nombre</b> (opcional) y <b>Empresa</b> (razón social o
+          NIT, como está en Empresas). Se crean marcados &quot;Solo pagos&quot; con el número siguiente; los que ya existen se saltan.
+        </span>
+        <Button size="sm" variant="outline" disabled={importando} onClick={() => excelRef.current?.click()}>
+          {importando ? "Importando..." : "Importar Excel"}
+        </Button>
+        <input
+          ref={excelRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ""
+            if (f) importarExcel(f)
+          }}
+        />
+        {resultadoImport && (
+          <div className="basis-full space-y-1">
+            <p>
+              {resultadoImport.filter((r) => r.resultado === "creado").length} creados ·{" "}
+              {resultadoImport.filter((r) => r.resultado === "ya_existe").length} ya existían ·{" "}
+              {resultadoImport.filter((r) => r.resultado === "error").length} con error
+            </p>
+            {resultadoImport.some((r) => r.resultado === "error") && (
+              <ul className="max-h-40 list-disc overflow-y-auto pl-5 text-destructive">
+                {resultadoImport
+                  .filter((r) => r.resultado === "error")
+                  .map((r) => (
+                    <li key={r.fila}>
+                      Fila {r.fila} ({r.codigo || "sin código"}): {r.mensaje}
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -237,6 +316,10 @@ function TabProyectos({
                   className="h-8 w-32"
                   placeholder="Ciudad"
                 />
+                <label className="flex items-center gap-1.5 text-xs" title="Solo se usa en Pagos administrativos; no sale en AdPro.">
+                  <input type="checkbox" checked={soloPagosEditando} onChange={(e) => setSoloPagosEditando(e.target.checked)} />
+                  Solo pagos
+                </label>
                 <Button size="sm" onClick={() => handleGuardarEdicion(p.id)}>
                   Guardar
                 </Button>
@@ -250,7 +333,14 @@ function TabProyectos({
                 <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">
                   {p.codigo ?? "—"}
                 </span>
-                <span className="flex-1 text-sm">{p.nombre}</span>
+                <span className="flex-1 text-sm">
+                  {p.nombre}
+                  {p.soloPagos && (
+                    <span className="ml-2 rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-xs text-violet-800" title="Proyecto de Google: solo para pagos, no sale en AdPro">
+                      Solo pagos
+                    </span>
+                  )}
+                </span>
                 <span className="w-56 shrink-0 text-xs text-muted-foreground">
                   {p.empresaNombre ?? "—"}
                 </span>

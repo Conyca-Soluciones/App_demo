@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { requerirAdmin } from "@/lib/permisos"
+import { emparejarEmpresa, type FilaProyectoSoloPagos, type ResultadoImportacionProyecto } from "@/lib/proyectos-solo-pagos"
 import {
   mapEmpresasRepresentantes,
   representanteEnBlanco,
@@ -195,6 +196,8 @@ export type Proyecto = {
   empresaId: string | null
   empresaNombre: string | null
   empresaNit: string | null
+  // Proyecto que solo existe para pagos (de Google, 20270101001300): no sale en AdPro.
+  soloPagos: boolean
 }
 
 export async function listarProyectosAdmin(): Promise<Proyecto[]> {
@@ -203,7 +206,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
 
   const { data, error } = await supabase
     .from("proyectos")
-    .select("id, numero, codigo, nombre, ciudad, empresa_id, empresa:empresas(nit, razon_social)")
+    .select("id, numero, codigo, nombre, ciudad, empresa_id, solo_pagos, empresa:empresas(nit, razon_social)")
     .order("numero", { ascending: true })
 
   if (error) {
@@ -219,6 +222,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
     empresaId: p.empresa_id,
     empresaNombre: p.empresa?.razon_social ?? null,
     empresaNit: p.empresa?.nit ?? null,
+    soloPagos: Boolean(p.solo_pagos),
   }))
 }
 
@@ -228,6 +232,7 @@ export type CrearProyectoInput = {
   nombre: string
   ciudad?: string | null
   empresaId?: string | null
+  soloPagos?: boolean
 }
 
 export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto> {
@@ -242,8 +247,9 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
       nombre: input.nombre,
       ciudad: input.ciudad?.trim() || null,
       empresa_id: input.empresaId || null,
+      solo_pagos: Boolean(input.soloPagos),
     })
-    .select("id, numero, codigo, nombre, ciudad, empresa_id, empresa:empresas(nit, razon_social)")
+    .select("id, numero, codigo, nombre, ciudad, empresa_id, solo_pagos, empresa:empresas(nit, razon_social)")
     .single()
 
   if (error) {
@@ -260,6 +266,7 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
     empresaId: p.empresa_id,
     empresaNombre: p.empresa?.razon_social ?? null,
     empresaNit: p.empresa?.nit ?? null,
+    soloPagos: Boolean(p.solo_pagos),
   }
 }
 
@@ -269,13 +276,15 @@ export type EditarProyectoInput = {
   nombre?: string
   ciudad?: string | null
   empresaId?: string | null
+  soloPagos?: boolean
 }
 
 export async function editarProyecto(proyectoId: string, cambios: EditarProyectoInput) {
   await requerirAdmin()
   const supabase = await createClient()
 
-  const patch: Record<string, string | number | null> = {}
+  const patch: Record<string, string | number | boolean | null> = {}
+  if (cambios.soloPagos !== undefined) patch.solo_pagos = cambios.soloPagos
   if (cambios.numero !== undefined) patch.numero = cambios.numero
   if (cambios.codigo !== undefined) patch.codigo = cambios.codigo?.trim() || null
   if (cambios.nombre !== undefined) patch.nombre = cambios.nombre
@@ -287,6 +296,51 @@ export async function editarProyecto(proyectoId: string, cambios: EditarProyecto
   if (error) {
     throw new Error(error.message)
   }
+}
+
+// Importar proyectos "solo pagos" desde Excel (20270101001300): se crean con el
+// número siguiente libre; el que ya existe (mismo código) se salta. Fila por fila,
+// para reportar cada una.
+export async function importarProyectosSoloPagos(filas: FilaProyectoSoloPagos[]): Promise<ResultadoImportacionProyecto[]> {
+  await requerirAdmin()
+  if (filas.length > 300) throw new Error("Como mucho 300 proyectos por Excel.")
+  const supabase = await createClient()
+  const [{ data: empresas, error: e1 }, { data: existentes, error: e2 }] = await Promise.all([
+    supabase.from("empresas").select("id, nit, razon_social"),
+    supabase.from("proyectos").select("codigo"),
+  ])
+  if (e1) throw new Error(e1.message)
+  if (e2) throw new Error(e2.message)
+  const listaEmpresas = ((empresas ?? []) as any[]).map((e) => ({ id: e.id as string, nit: (e.nit ?? null) as string | null, razonSocial: String(e.razon_social ?? "") }))
+  const codigos = new Set(((existentes ?? []) as any[]).map((p) => String(p.codigo ?? "").trim().toUpperCase()).filter(Boolean))
+
+  const resultados: ResultadoImportacionProyecto[] = []
+  for (const f of filas) {
+    const codigo = f.codigo.trim()
+    if (!codigo) {
+      resultados.push({ fila: f.fila, codigo, resultado: "error", mensaje: "Falta el código." })
+      continue
+    }
+    if (codigos.has(codigo.toUpperCase())) {
+      resultados.push({ fila: f.fila, codigo, resultado: "ya_existe" })
+      continue
+    }
+    const empresa = emparejarEmpresa(f.empresa, listaEmpresas)
+    if (!empresa) {
+      resultados.push({ fila: f.fila, codigo, resultado: "error", mensaje: `No se encontró la empresa "${f.empresa}" (escribe su razón social o NIT como está en Empresas).` })
+      continue
+    }
+    const { error } = await supabase
+      .from("proyectos")
+      .insert({ codigo, nombre: (f.nombre || codigo).trim(), empresa_id: empresa.id, solo_pagos: true })
+    if (error) {
+      resultados.push({ fila: f.fila, codigo, resultado: "error", mensaje: error.message })
+      continue
+    }
+    codigos.add(codigo.toUpperCase())
+    resultados.push({ fila: f.fila, codigo, resultado: "creado" })
+  }
+  return resultados
 }
 
 // ---------------------------------------------------------------------------

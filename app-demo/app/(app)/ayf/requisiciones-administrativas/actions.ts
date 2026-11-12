@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { obtenerUsuarioId } from "@/lib/permisos"
+import { requerirPestana } from "@/lib/permisos"
 import { TAMANO_PAGINA, cortarPagina } from "@/lib/paginacion"
 import { hoyColombia } from "@/lib/fechas"
 import { normalizarDireccion, validarDireccion } from "@/lib/direccion-entrega"
@@ -21,8 +21,9 @@ import {
 // cualquier usuario con sesión y las aprueba Subgerencia (20261231999400); todo
 // pasa por funciones de la base, que vuelven a validar y exigen la sesión.
 
+// Pestaña ayf.requisiciones_administrativas de la matriz de Roles (20270101001400).
 async function clienteConSesion() {
-  if (!(await obtenerUsuarioId())) throw new Error("Inicia sesión.")
+  await requerirPestana("ayf.requisiciones_administrativas")
   return createClient()
 }
 

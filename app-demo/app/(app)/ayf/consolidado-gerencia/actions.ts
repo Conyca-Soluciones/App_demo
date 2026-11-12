@@ -3,7 +3,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
-import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, conProyectos, mapPago, filtrarSemanaCreacion } from "@/lib/pagos-db"
+import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, conProyectos, mapPago, filtrarSemanaCreacion, rangosCreacion } from "@/lib/pagos-db"
+import { mapMovimientoGerencia, type MovimientoGerencia } from "@/lib/balances"
 import { buscarSoportesDePagos, type PagoParaSoporte } from "@/lib/soportes-pagos-db"
 import {
   PESTANA_CONSOLIDADO_GERENCIA,
@@ -89,4 +90,51 @@ export async function soportesDePagos(pagos: PagoParaSoporte[]): Promise<Record<
   await requerirPestana(PESTANA_CONSOLIDADO_GERENCIA)
   if (pagos.length > 100) throw new Error("Como mucho 100 pagos a la vez.")
   return buscarSoportesDePagos(await createClient(), pagos)
+}
+
+// Ingresos y egresos externos de Balances (20270101001200), si se marcaron sus
+// casillas: mismas semanas (por la fecha del movimiento), grupo empresarial (la
+// empresa de la cuenta), tercero (= titular), solicitante (quien lo registró) y
+// semana de creación. No tienen proyecto: con ese filtro no sale ninguno.
+export async function movimientosConsolidadoGerencia(filtros: FiltrosConsolidadoGerencia = {}): Promise<MovimientoGerencia[]> {
+  await requerirPestana(PESTANA_CONSOLIDADO_GERENCIA)
+  const tipos = [filtros.incluirIngresos ? "ingreso" : null, filtros.incluirEgresos ? "egreso" : null].filter(Boolean) as string[]
+  if (tipos.length === 0 || filtros.proyectoId) return []
+  for (const v of [filtros.empresaId, filtros.solicitanteId]) if (v && !UUID.test(v)) throw new Error("Filtro no válido.")
+  const rangos = rangosCreacion(filtros)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("movimientos_consolidado_gerencia", {
+    p_tipos: tipos,
+    p_anios: enteros(filtros.anios, 2020, 2100, "un año no válido"),
+    p_semanas: enteros(filtros.semanas, 1, 53, "una semana no válida"),
+    p_empresa_id: filtros.empresaId ?? null,
+    p_titular: filtros.tercero?.trim() || null,
+    p_solicitante_id: filtros.solicitanteId ?? null,
+    p_creado_desde: rangos.map((r) => r.desde),
+    p_creado_hasta: rangos.map((r) => r.hasta),
+  })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as any[]).map(mapMovimientoGerencia)
+}
+
+// Total de TODOS los pagos con los filtros (no solo la página): con el filtro de
+// proyecto, lo gastado en ese proyecto (20270101001300). Sin anulados ni rechazados.
+export async function totalConsolidadoGerencia(filtros: FiltrosConsolidadoGerencia = {}): Promise<{ pagos: number; valor: number; anulados: number }> {
+  await requerirPestana(PESTANA_CONSOLIDADO_GERENCIA)
+  for (const v of [filtros.empresaId, filtros.proyectoId, filtros.solicitanteId]) if (v && !UUID.test(v)) throw new Error("Filtro no válido.")
+  const rangos = rangosCreacion(filtros)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("total_consolidado_gerencia", {
+    p_anios: enteros(filtros.anios, 2020, 2100, "un año no válido"),
+    p_semanas: enteros(filtros.semanas, 1, 53, "una semana no válida"),
+    p_empresa_id: filtros.empresaId ?? null,
+    p_proyecto_id: filtros.proyectoId ?? null,
+    p_solicitante_id: filtros.solicitanteId ?? null,
+    p_tercero: filtros.tercero?.trim() || null,
+    p_creado_desde: rangos.map((r) => r.desde),
+    p_creado_hasta: rangos.map((r) => r.hasta),
+  })
+  if (error) throw new Error(error.message)
+  const r = (data ?? {}) as { pagos?: number; valor?: number; anulados?: number }
+  return { pagos: Number(r.pagos ?? 0), valor: Number(r.valor ?? 0), anulados: Number(r.anulados ?? 0) }
 }

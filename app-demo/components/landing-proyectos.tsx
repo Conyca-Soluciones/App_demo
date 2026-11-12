@@ -61,7 +61,11 @@ export function LandingProyectos({
 
       {proyectos.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          No tienes proyectos asignados. Pídele a un administrador que te dé acceso a uno.
+          No tienes proyectos de obra asignados. Para solicitar pagos ve a{" "}
+          <a href="/ayf/pagos-administrativos" className="font-medium text-primary underline">
+            Pagos administrativos
+          </a>
+          .
         </div>
       ) : (
         <>

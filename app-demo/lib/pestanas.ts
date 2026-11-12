@@ -120,6 +120,9 @@ export const PESTANAS: Pestana[] = [
   { clave: "admin.visualizacion", titulo: "Control del proyecto", seccion: "Control", url: "/admin/visualizacion", rutas: ["/admin/visualizacion", "/contratos/otrosi-pdf"] },
 
   // A&F (Administrativo y Financiero)
+  // Antes eran para todos (sin matriz); desde 20270101001400 se dan por rol.
+  { clave: "ayf.pagos_administrativos", titulo: "Pagos administrativos", modulo: "ayf", seccion: "Administrativo", url: "/ayf/pagos-administrativos", rutas: ["/ayf/pagos-administrativos"] },
+  { clave: "ayf.requisiciones_administrativas", titulo: "Requisiciones administrativas", modulo: "ayf", seccion: "Administrativo", url: "/ayf/requisiciones-administrativas", rutas: ["/ayf/requisiciones-administrativas"] },
   { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
@@ -132,15 +135,10 @@ export const PESTANAS: Pestana[] = [
   // Dispersores (20261217000000): los pagos liquidados de los tres consolidados.
   { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
-]
-
-// Pestañas de TODOS los usuarios con sesión (no están en la matriz de roles y
-// su ruta es libre): los pagos administrativos (20261202000000, antes
-// "requisiciones administrativas") y las requisiciones administrativas de
-// FUNCIONAMIENTO que compra Compras (20261231900000) las hace cualquiera.
-export const PESTANAS_PARA_TODOS: { titulo: string; modulo: ModuloClave; seccion: string; url: string }[] = [
-  { titulo: "Pagos administrativos", modulo: "ayf", seccion: "Administrativo", url: "/ayf/pagos-administrativos" },
-  { titulo: "Requisiciones administrativas", modulo: "ayf", seccion: "Administrativo", url: "/ayf/requisiciones-administrativas" },
+  // Balances (20270101001200): saldos de las cuentas a debitar (solo consulta) y
+  // registro de saldos de inicio, ingresos, egresos y traslados.
+  { clave: "ayf.balances_saldos", titulo: "Saldos bancarios", modulo: "ayf", seccion: "Balances", url: "/ayf/balances/saldos", rutas: ["/ayf/balances/saldos"] },
+  { clave: "ayf.balances_movimientos", titulo: "Registrar movimientos", modulo: "ayf", seccion: "Balances", url: "/ayf/balances/movimientos", rutas: ["/ayf/balances/movimientos"] },
 ]
 
 // Pestañas que SOLO ve el Administrador (no aparecen en la matriz): el módulo
@@ -183,6 +181,7 @@ export const ACCIONES: Accion[] = [
   { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
   { clave: "generar_dispersores", titulo: "Generar dispersores", descripcion: "En Realizar Pagos: asignar la cuenta a debitar, confirmar cuentas, sacar pagos del dispersor y generar los archivos del banco (los pagos quedan dispersados).", seccion: "A&F" },
   { clave: "pagar_pse", titulo: "Pagar PSE", descripcion: "En el Consolidado, pestaña PSE: escoger la cuenta a debitar y marcar como pagados los pagos por PSE ya liquidados (con el comprobante), o deshacerlo si el pago no salió.", seccion: "A&F" },
+  { clave: "registrar_movimientos_bancarios", titulo: "Registrar movimientos bancarios", descripcion: "En Balances: saldos de inicio de las cuentas, ingresos, egresos externos y traslados internos (crear, editar y eliminar).", seccion: "A&F" },
   { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Corregir terceros y agregar o corregir sus cuentas bancarias (crear un tercero lo puede cualquiera; las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]
@@ -278,13 +277,6 @@ export function construirMenu(permisos: PermisosRol, modulo: ModuloClave = "adpr
       grupos.set(p.seccion, g)
     }
     return [...grupos.values()]
-  }
-
-  for (const p of PESTANAS_PARA_TODOS) {
-    if (p.modulo !== modulo) continue
-    const g = grupos.get(p.seccion) ?? { titulo: p.seccion, items: [] }
-    g.items.push({ titulo: p.titulo, url: p.url })
-    grupos.set(p.seccion, g)
   }
 
   for (const p of PESTANAS) {

@@ -2,6 +2,7 @@
 
 import { after } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { pdfActaPoliza } from "@/lib/documentos-firmados"
 import { requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
@@ -102,16 +103,22 @@ export async function subirPoliza(
   return data as string
 }
 
-// Enlace temporal (2 minutos) para ver el archivo. La RLS de contrato_polizas
-// (y la del bucket) deciden si se puede.
+// Enlace temporal (2 minutos) para ver el archivo. Decide la RLS de
+// contrato_polizas (la fila se lee con la sesión del usuario); el enlace se
+// firma con el cliente de servicio, porque la firma con la sesión del usuario
+// respondía 400 en Storage aunque la fila sí se leía (React #441 en pantalla).
 export async function enlacePoliza(polizaId: string): Promise<string> {
   await requerirAlgunaPestana(PESTANAS_VER_OTROSI)
   const supabase = await createClient()
   const { data: p, error } = await supabase.from("contrato_polizas").select("ruta").eq("id", polizaId).maybeSingle()
   if (error) throw new Error(error.message)
   if (!p) throw new Error("La póliza no existe o no tienes acceso.")
-  const { data, error: errorUrl } = await supabase.storage.from("polizas").createSignedUrl(p.ruta, 120)
-  if (errorUrl || !data) throw new Error(errorUrl?.message ?? "No se pudo abrir la póliza.")
+  const storage = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient().storage : supabase.storage
+  const { data, error: errorUrl } = await storage.from("polizas").createSignedUrl(p.ruta, 120)
+  if (errorUrl || !data) {
+    console.error("enlacePoliza:", errorUrl?.message)
+    throw new Error("No se pudo abrir la póliza.")
+  }
   return data.signedUrl
 }
 

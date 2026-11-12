@@ -44,6 +44,7 @@ export async function verProyectos() {
     const { data, error } = await supabase
       .from("proyectos")
       .select("id, codigo, nombre")
+      .eq("solo_pagos", false)
       .order("codigo", { ascending: false, nullsFirst: false })
     if (error) throw new Error(error.message)
     return data
@@ -57,6 +58,7 @@ export async function verProyectos() {
   const { data, error } = await supabase
     .from("proyectos")
     .select("id, codigo, nombre")
+    .eq("solo_pagos", false)
     .in("id", idsPermitidos)
     .order("codigo", { ascending: false, nullsFirst: false })
 

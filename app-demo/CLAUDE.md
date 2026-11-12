@@ -1242,6 +1242,52 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
+
+`20270101001400`: ya no son "para todos" (se quitó `PESTANAS_PARA_TODOS`); son las pestañas
+`ayf.pagos_administrativos` y `ayf.requisiciones_administrativas`. La migración se las dio a todos los
+roles que existían (al Solicitante de pagos solo la primera). Las acciones de los cuadros exigen la
+pestaña; `buscarTercerosRequisicionAdmin` y `cuentasTerceroRequisicionAdmin` siguen solo con sesión
+porque también las usan Generar OC, actas y contratistas. Las funciones de la base siguen pidiendo solo sesión.
+
+## Pagos administrativos para proyectos de Google (2026-11-12)
+
+`20270101001300_pagos_admin_google.sql` (reversa en `supabase/reversa/`). `proyectos.solo_pagos`: proyectos
+que siguen en Google, solo para pagos (no salen en inicio, selector, almacén, compras ni presupuestos);
+Admin › Proyectos los marca y los importa desde Excel (Código, Nombre, Empresa; `lib/proyectos-solo-pagos.ts`).
+Rol "Solicitante de pagos" (`solicitante_pagos`, sin pestañas). Cuadro: casilla "¿Todos los pagos son del
+mismo proyecto?", el proyecto llena el grupo empresarial (editable), botón "Crear tercero" en el ítem,
+anticipos y/o descuentos por ítem (`requisicion_admin_items.descuentos`; el pago sale por el total y lleva
+`valor_documento` y `descuento_anticipos`). Proyectos del cuadro: los que la persona ve, más FUNCIONAMIENTO.
+Consolidado Gerencia: total de todo lo filtrado (`total_consolidado_gerencia`).
+
+## Balances (A&F, 2026-11-12)
+
+`20270101001200_balances.sql` (reversa en `supabase/reversa/`; solo agrega, más un parche a
+`eliminar_empresa`). Sección Balances del menú con dos pestañas (Gerencia y Financiera), como los
+consolidados en Pagos: **Saldos bancarios** (`ayf.balances_saldos`, `/ayf/balances/saldos`, solo consulta)
+y **Registrar movimientos** (`ayf.balances_movimientos`, `/ayf/balances/movimientos`, con los botones).
+Leer = cualquiera de las dos (`_ve_balances`); registrar = acción `registrar_movimientos_bancarios` (las
+dos; decisión del usuario: Gerencia casi no registra pero la tiene).
+- **Cuentas**: las 29 cuentas a debitar (`cuentas_empresa`). Saldo = saldo de inicio
+  (`cuentas_saldo_inicial`, con fecha de corte) + ingresos − egresos ± traslados − pagos `dispersado`
+  con esa `cuenta_debitar_id` (dispersor, PSE u otro medio), todo desde la fecha de corte; el pago
+  cuenta por `trunc(valor_a_pagar)` y la fecha de `dispersado_en` (hora Colombia). Un rebote o "no salió"
+  lo devuelve solo. No se guarda saldo: `_lineas_balance` (interna), `saldos_bancarios()`,
+  `extracto_cuenta(cuenta, desde, hasta)` (saldo acumulado por línea; "hasta" = saldo a esa fecha).
+- **Movimientos** (`movimientos_bancarios`): ingreso `IN-0001`, egreso externo `PE-0001` (pago externo),
+  traslado interno `TR-0001` (contador `contadores_balances`, 4 dígitos, sin proyecto). Cuenta (y destino
+  en traslados), fecha (no futura), valor, concepto y titular de texto libre (traslado sin titular),
+  soporte opcional (bucket `balances`, `<uid>/...`). Se editan (`guardar_movimiento_bancario`, el tipo no
+  cambia) y se eliminan con motivo (lógico, `eliminar_movimiento_bancario`); todo cambio de saldo de inicio
+  o movimiento queda en `balances_cambios`. Pantalla: `components/balances-view.tsx` (`SaldosBancariosView` con
+  doble clic al extracto; `RegistrarMovimientosView`: botones, saldos de inicio y Registros).
+- **Consolidado Gerencia**: casillas "Incluir ingresos" e "Incluir egresos externos" (por omisión no);
+  `movimientos_consolidado_gerencia` filtra por semana ISO de la fecha, grupo empresarial (empresa de la
+  cuenta), tercero = titular, solicitante = quien registró y semana de creación; con filtro de proyecto no
+  salen. Van arriba, solo en la primera página, con la etiqueta INGRESO / EGRESO EXTERNO; los traslados no.
+- `eliminar_empresa` no borra una empresa cuyas cuentas tengan saldo de inicio o movimientos.
+
 ## Eliminar empresa (2026-11-12)
 
 `20270101001000_eliminar_empresa.sql`. Admin › Empresas › Eliminar llama `eliminar_empresa` (solo

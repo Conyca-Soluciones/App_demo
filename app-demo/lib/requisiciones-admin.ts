@@ -125,6 +125,8 @@ export type ItemFormReqAdmin = {
   concepto: string // L
   proyectoId: string // M
   valor: string // N, como se escribe ("1.250.000,50")
+  // V: anticipos y/o descuentos (20270101001300); total = valor − descuentos.
+  descuentos: string
   observaciones: string
   soporte: SoporteReqAdmin | null // el ya subido
   // Archivo elegido que se sube al enviar (solo en el navegador: el formulario
@@ -154,6 +156,7 @@ export function itemVacio(metodo: MetodoReqAdmin = "transferencia"): ItemFormReq
     concepto: "",
     proyectoId: "",
     valor: "",
+    descuentos: "",
     observaciones: "",
     soporte: null,
     archivoSoporte: null,
@@ -171,6 +174,7 @@ export function itemParaMetodo(item: ItemFormReqAdmin, metodo: MetodoReqAdmin): 
     concepto: item.concepto,
     proyectoId: item.proyectoId,
     valor: item.valor,
+    descuentos: item.descuentos,
     observaciones: item.observaciones,
     soporte: item.soporte,
     archivoSoporte: item.archivoSoporte,
@@ -188,6 +192,20 @@ export function limpiarNit(v: string): string {
 export const valorItem = (item: Pick<ItemFormReqAdmin, "valor">): number | null => {
   const n = leerNumero(item.valor)
   return n == null || !Number.isFinite(n) ? null : Math.round(n * 100) / 100
+}
+
+/** Anticipos y/o descuentos del ítem: vacío = 0; null si no es un número. */
+export const descuentosItem = (item: Pick<ItemFormReqAdmin, "descuentos">): number | null => {
+  if (!item.descuentos?.trim()) return 0
+  const n = leerNumero(item.descuentos)
+  return n == null || !Number.isFinite(n) ? null : Math.round(n * 100) / 100
+}
+
+/** Total del ítem (lo que se paga) = valor documento − anticipos y/o descuentos. */
+export const totalItem = (item: Pick<ItemFormReqAdmin, "valor" | "descuentos">): number | null => {
+  const v = valorItem(item)
+  const d = descuentosItem(item)
+  return v == null || d == null ? null : Math.round((v - d) * 100) / 100
 }
 
 // Primer error del ítem (null = completo). Mismas reglas que
@@ -211,6 +229,9 @@ export function validarItemReqAdmin(item: ItemFormReqAdmin): string | null {
   if (!item.proyectoId) return "Elige el código de proyecto."
   const valor = valorItem(item)
   if (valor == null || valor <= 0) return "El valor debe ser mayor que cero."
+  const descuentos = descuentosItem(item)
+  if (descuentos == null || descuentos < 0) return "Los anticipos y/o descuentos deben ser un número (o vacío)."
+  if (descuentos >= valor) return "Los anticipos y/o descuentos deben ser menores que el valor del documento."
   if (!item.soporte && !item.archivoSoporte) return "Adjunta el soporte (factura o cuenta de cobro)."
   return null
 }
@@ -229,8 +250,9 @@ export function validarRequisicionAdmin(items: ItemFormReqAdmin[]): ErroresItems
   return errores
 }
 
-export const totalItems = (items: Pick<ItemFormReqAdmin, "valor">[]) =>
-  Math.round(items.reduce((s, it) => s + (valorItem(it) ?? 0), 0) * 100) / 100
+// Lo que se paga del cuadro: la suma de los totales (valor − descuentos).
+export const totalItems = (items: Pick<ItemFormReqAdmin, "valor" | "descuentos">[]) =>
+  Math.round(items.reduce((s, it) => s + (totalItem(it) ?? 0), 0) * 100) / 100
 
 // Lo que se manda a crear_requisicion_admin / modificar_requisicion_admin.
 export function itemParaGuardar(item: ItemFormReqAdmin) {
@@ -240,6 +262,7 @@ export function itemParaGuardar(item: ItemFormReqAdmin) {
     proyecto_id: item.proyectoId,
     concepto: item.concepto.trim(),
     valor: valorItem(item),
+    descuentos: descuentosItem(item) ?? 0,
     observaciones: item.observaciones.trim(),
     soporte: item.soporte
       ? { ruta: item.soporte.ruta, nombre: item.soporte.nombre, mime: item.soporte.mime, tamano: item.soporte.tamano, tipo: item.soporte.tipo }
@@ -306,7 +329,8 @@ export type ItemReqAdmin = {
   proyectoId: string
   proyectoCodigo: string | null
   proyectoNombre: string
-  valor: number
+  valor: number // valor documento
+  descuentos: number // anticipos y/o descuentos (total = valor − descuentos)
   observaciones: string | null
   soporte: SoporteReqAdmin | null
   // Del pago, cuando ya se aprobó.
@@ -388,6 +412,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
       proyectoCodigo: i.proyecto_codigo ?? null,
       proyectoNombre: String(i.proyecto_nombre ?? ""),
       valor: Number(i.valor ?? 0),
+      descuentos: Number(i.descuentos ?? 0),
       observaciones: i.observaciones ?? null,
       soporte: i.soporte?.ruta
         ? {
@@ -428,6 +453,7 @@ export function itemFormDesdeDetalle(i: ItemReqAdmin): ItemFormReqAdmin {
     concepto: i.concepto,
     proyectoId: i.proyectoId,
     valor: String(i.valor).replace(".", ","),
+    descuentos: i.descuentos ? String(i.descuentos).replace(".", ",") : "",
     observaciones: i.observaciones ?? "",
     soporte: i.soporte,
     archivoSoporte: null,

@@ -33,6 +33,7 @@ export async function listarProyectosCompras(): Promise<ProyectoSugerido[]> {
   const { data, error } = await supabase
     .from("proyectos")
     .select("id, codigo, nombre")
+    .eq("solo_pagos", false)
     .order("codigo", { ascending: false, nullsFirst: false })
 
   if (error) throw new Error(error.message)

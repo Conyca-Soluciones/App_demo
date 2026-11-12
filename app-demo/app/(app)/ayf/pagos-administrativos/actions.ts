@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { obtenerUsuarioId } from "@/lib/permisos"
+import { obtenerUsuarioId, requerirPestana } from "@/lib/permisos"
 import { TAMANO_PAGINA, cortarPagina } from "@/lib/paginacion"
 import { limiteBusqueda } from "@/lib/busqueda"
 import { documentoFormateado } from "@/lib/terceros"
@@ -29,8 +29,16 @@ async function clienteConSesion() {
   return createClient()
 }
 
+// Los cuadros de pagos: pestaña ayf.pagos_administrativos de la matriz de
+// Roles (20270101001400). El buscador de terceros y las cuentas siguen solo con
+// sesión: también los usan Generar OC, actas y contratistas.
+async function clienteConPestana() {
+  await requerirPestana("ayf.pagos_administrativos")
+  return createClient()
+}
+
 export async function opcionesRequisicionAdmin(): Promise<OpcionesReqAdmin> {
-  const supabase = await clienteConSesion()
+  const supabase = await clienteConPestana()
   const { data, error } = await supabase.rpc("opciones_requisicion_admin")
   if (error) throw new Error(error.message)
   return mapOpciones(data)
@@ -79,7 +87,7 @@ function revisar(items: ItemFormReqAdmin[]) {
 
 export async function crearRequisicionAdmin(items: ItemFormReqAdmin[]): Promise<string> {
   const { metodo, payload } = revisar(items)
-  const supabase = await clienteConSesion()
+  const supabase = await clienteConPestana()
   const { data, error } = await supabase.rpc("crear_requisicion_admin", { p_metodo: metodo, p_items: payload })
   if (error) throw new Error(error.message)
   return data as string
@@ -88,14 +96,14 @@ export async function crearRequisicionAdmin(items: ItemFormReqAdmin[]): Promise<
 // Por aprobar: la modifica. Rechazada: la corrige y vuelve a A&F (mismo número).
 export async function modificarRequisicionAdmin(id: string, items: ItemFormReqAdmin[]): Promise<void> {
   const { metodo, payload } = revisar(items)
-  const supabase = await clienteConSesion()
+  const supabase = await clienteConPestana()
   const { error } = await supabase.rpc("modificar_requisicion_admin", { p_id: id, p_metodo: metodo, p_items: payload })
   if (error) throw new Error(error.message)
 }
 
 export async function cancelarRequisicionAdmin(id: string, motivo: string): Promise<void> {
   if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
-  const supabase = await clienteConSesion()
+  const supabase = await clienteConPestana()
   const { error } = await supabase.rpc("cancelar_requisicion_admin", { p_id: id, p_motivo: motivo.trim() })
   if (error) throw new Error(error.message)
 }
@@ -105,7 +113,7 @@ export async function listarMisRequisicionesAdmin(
   filtros: { estado?: EstadoReqAdmin; numero?: number; codigo?: string } = {},
   pagina = 0
 ): Promise<{ filas: RequisicionAdminFila[]; hayMas: boolean }> {
-  const supabase = await clienteConSesion()
+  const supabase = await clienteConPestana()
   // Por código de un pago (PA-001-0001): el cuadro al que pertenece.
   let numero = filtros.numero ?? null
   const codigo = filtros.codigo?.trim().toUpperCase()
@@ -134,7 +142,7 @@ export async function listarMisRequisicionesAdmin(
 
 // Quien la hizo o A&F / Gerencia (la base lo revisa).
 export async function obtenerRequisicionAdmin(id: string): Promise<RequisicionAdminDetalle> {
-  const supabase = await clienteConSesion()
+  const supabase = await clienteConPestana()
   const { data, error } = await supabase.rpc("detalle_requisicion_admin", { p_id: id })
   if (error) throw new Error(error.message)
   return mapDetalleReqAdmin(data)
