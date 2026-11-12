@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { confirmar, pedirTexto } from "@/components/ui/confirmar"
-import { Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
+import { CheckCircle2, Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
 import * as XLSX from "xlsx"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -20,6 +20,9 @@ import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { DetalleOrigenPago } from "@/components/detalle-origen-pago"
 import { EtiquetaEtapa, VentanaPagoLiquidacion } from "@/components/ventana-pago-liquidacion"
+import { MarcarPagadosDialog } from "@/components/marcar-pagados-dialog"
+import { cuentasParaPagar, deshacerPagoPse } from "@/app/(app)/ayf/realizar-pagos/actions"
+import type { CuentaEmpresa } from "@/lib/dispersores/pagos-dispersor"
 import { descargarExcelLiquidacion, leerFilasLiquidacion, type AvisoFilaLiquidacion, type ErrorFilaLiquidacion } from "@/lib/excel-liquidacion"
 import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
 import {
@@ -27,6 +30,7 @@ import {
   buscarTercerosParaPago,
   conteoEtapasConsolidado,
   cuentasDeTercero,
+  devolverPagosAPorLiquidar,
   enviarFiltradosALiquidar,
   enviarPagosALiquidar,
   moverPagosSemana,
@@ -45,6 +49,8 @@ import {
   ETIQUETA_ESTADO_PAGO,
   anticiposOrigen,
   formatoMoneda,
+  metodoDePago,
+  pagoSinCuenta,
   rutaSoporteDispersor,
   rutaSoportePago,
   semanaIso,
@@ -106,11 +112,14 @@ export function ConsolidadoPagosView({
   clave,
   puedeGestionar,
   puedeLiquidar,
+  puedePagarPse = false,
   etapaInicial = null,
 }: {
   clave: ClaveConsolidado
   puedeGestionar: boolean
   puedeLiquidar: boolean
+  // Pestaña PSE: marcar los PSE liquidados como pagados (acción pagar_pse).
+  puedePagarPse?: boolean
   // Desde Mis pendientes (?etapa=): abre esa pestaña, con todas las semanas y ya consultado.
   etapaInicial?: EtapaConsolidado | null
 }) {
@@ -121,6 +130,10 @@ export function ConsolidadoPagosView({
   // pago dispersado -> nombre del soporte individual de su dispersor
   const [dispersores, setDispersores] = useState<Record<string, string>>({})
   const [conteo, setConteo] = useState<ConteoEtapas | null>(null)
+  // Pestaña PSE: los pagos de la ventana "Marcar como pagado" (null = cerrada) y
+  // las cuentas a debitar (se cargan al abrirla la primera vez).
+  const [marcarPse, setMarcarPse] = useState<Pago[] | null>(null)
+  const [cuentasDebitar, setCuentasDebitar] = useState<CuentaEmpresa[]>([])
   const [cargando, setCargando] = useState(false)
   const [pagina, setPagina] = useState(0)
   const [hayMas, setHayMas] = useState(false)
@@ -285,13 +298,51 @@ export function ConsolidadoPagosView({
   }
 
   const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
+  // Los que no tienen cuenta bancaria (y no son PSE) se quedan en Preparación.
+  const textoEnvio = (r: { enviados: number; sinCuenta: number }) =>
+    `${plural(r.enviados, "pago enviado", "pagos enviados")} a liquidar.` +
+    (r.sinCuenta > 0
+      ? ` ${plural(r.sinCuenta, "pago se quedó", "pagos se quedaron")} en Preparación porque no ${r.sinCuenta === 1 ? "tiene" : "tienen"} cuenta bancaria: asígnala con "Tercero y cuenta" en la ventana del pago.`
+      : "")
 
   // ------------------------------------------------------------ acciones en lote
   const enviarSeleccionados = () =>
     correr("enviar", async () => {
-      const n = await enviarPagosALiquidar([...seleccion])
+      const r = await enviarPagosALiquidar([...seleccion])
       recargar()
-      return `${plural(n, "pago enviado", "pagos enviados")} a liquidar.`
+      return textoEnvio(r)
+    })
+
+  // Pestaña PSE: escoger la cuenta a debitar y marcarlos pagados.
+  const abrirMarcarPse = () =>
+    correr("cuentas", async () => {
+      if (cuentasDebitar.length === 0) setCuentasDebitar(await cuentasParaPagar())
+      setMarcarPse((pagos ?? []).filter((p) => seleccion.has(p.id)))
+      return null
+    })
+
+  const devolverLiquidados = () =>
+    correr("devolver_liq", async () => {
+      const motivo = await pedirTexto(
+        `${plural(seleccion.size, "pago liquidado vuelve", "pagos liquidados vuelven")} a Por liquidar con sus valores y su REF, para corregirlos.`,
+        { titulo: "Devolver a Por liquidar", etiqueta: "¿Qué hay que corregir?", boton: "Devolver", minimo: 3 }
+      )
+      if (motivo === null) return null
+      const n = await devolverPagosAPorLiquidar([...seleccion], motivo.trim())
+      recargar()
+      return `${plural(n, "pago devuelto", "pagos devueltos")} a Por liquidar.`
+    })
+
+  const pseNoSalio = () =>
+    correr("no_salio", async () => {
+      const motivo = await pedirTexto(
+        `${plural(seleccion.size, "pago PSE vuelve", "pagos PSE vuelven")} a la pestaña PSE, sin la cuenta a debitar ni el comprobante.`,
+        { titulo: "El pago no salió", etiqueta: "¿Por qué no salió?", boton: "Devolver a PSE", minimo: 3 }
+      )
+      if (motivo === null) return null
+      const n = await deshacerPagoPse([...seleccion], motivo.trim())
+      recargar()
+      return `${plural(n, "pago volvió", "pagos volvieron")} a la pestaña PSE.`
     })
 
   const moverSeleccionados = (semanas: 1 | -1) =>
@@ -317,9 +368,9 @@ export function ConsolidadoPagosView({
     correr("enviar_todos", async () => {
       if (!ultimosFiltros) return null
       if (!(await confirmar(`¿Enviar a liquidar los ${conteo?.preparacion ?? ""} pagos en preparación de estos filtros?`, { titulo: "Enviar todos a liquidar", boton: "Enviar" }))) return null
-      const n = await enviarFiltradosALiquidar(clave, ultimosFiltros)
+      const r = await enviarFiltradosALiquidar(clave, ultimosFiltros)
       recargar()
-      return `${plural(n, "pago enviado", "pagos enviados")} a liquidar.`
+      return textoEnvio(r)
     })
 
   const sinRetencionesSeleccionados = () =>
@@ -398,9 +449,25 @@ export function ConsolidadoPagosView({
   // ------------------------------------------------------------ columnas
   const enPreparacion = etapa === "preparacion"
   const enLiquidacion = etapa === "por_liquidar" || etapa === "observado"
-  const conSeleccion = (enPreparacion && puedeGestionar) || (enLiquidacion && (puedeLiquidar || puedeGestionar))
+  const enPse = etapa === "pse"
+  const enDispersados = etapa === "dispersado"
+  const enLiquidados = etapa === "liquidado"
+  // Liquidados y PSE: "Devolver a Por liquidar" (Contabilidad o Financiera).
+  const puedeDevolverLiquidado = puedeLiquidar || puedeGestionar
+  const conSeleccion =
+    (enPreparacion && puedeGestionar) ||
+    (enLiquidacion && (puedeLiquidar || puedeGestionar)) ||
+    (enLiquidados && puedeDevolverLiquidado) ||
+    (enPse && (puedePagarPse || puedeDevolverLiquidado)) ||
+    (enDispersados && puedePagarPse)
   const seleccionables = (pagos ?? []).filter((p) =>
-    enPreparacion ? p.estado === "aprobado" && p.liquidacionEstado == null : p.estado === "aprobado" && (p.liquidacionEstado === "por_liquidar" || p.liquidacionEstado === "observado")
+    enPreparacion
+      ? p.estado === "aprobado" && p.liquidacionEstado == null
+      : enPse || enLiquidados
+        ? p.estado === "aprobado" && p.liquidacionEstado === "liquidado"
+        : enDispersados
+          ? p.estado === "dispersado" && p.pagadoOtroMedio && p.metodoPago === "pse"
+          : p.estado === "aprobado" && (p.liquidacionEstado === "por_liquidar" || p.liquidacionEstado === "observado")
   )
   const idsSeleccionables = new Set(seleccionables.map((p) => p.id))
 
@@ -457,8 +524,21 @@ export function ConsolidadoPagosView({
     clave: "cuenta",
     titulo: "Titular y cuenta",
     ancho: 250,
-    texto: (p) => (p.cuentaTexto ? `${p.cuentaTitular ? `Titular: ${p.cuentaTitular} · ` : ""}${p.cuentaTexto}` : ""),
-    celda: (p) => (
+    texto: (p) =>
+      p.metodoPago === "pse"
+        ? `PSE${p.cuentaTitular ? ` · titular: ${p.cuentaTitular}` : ""}`
+        : p.cuentaTexto
+          ? `${p.cuentaTitular ? `Titular: ${p.cuentaTitular} · ` : ""}${p.cuentaTexto}`
+          : "",
+    celda: (p) =>
+      p.metodoPago === "pse" ? (
+        <div className="min-w-0">
+          <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular ?? p.terceroNombre ?? undefined}>
+            {p.cuentaTitular ?? p.terceroNombre ?? ""}
+          </div>
+          <div className="truncate">PSE (sin cuenta)</div>
+        </div>
+      ) : (
       <div className="min-w-0">
         <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular ?? p.terceroNombre ?? undefined}>
           {p.cuentaTitular ?? p.terceroNombre ?? ""}
@@ -468,7 +548,21 @@ export function ConsolidadoPagosView({
           {p.cuentaTexto && !p.cuentaVerificada && " (sin verificar)"}
         </div>
       </div>
-    ),
+      ),
+  }
+  const colMetodo: ColumnaExcel<Pago> = {
+    clave: "metodo",
+    titulo: "Método de pago",
+    ancho: 130,
+    texto: (p) => metodoDePago(p),
+    celda: (p) =>
+      p.metodoPago === "pse" ? (
+        <Badge variant="outline" className="border-violet-300 bg-violet-50 text-violet-800">
+          PSE
+        </Badge>
+      ) : (
+        metodoDePago(p)
+      ),
   }
   const colSolicita: ColumnaExcel<Pago> = { clave: "solicita", titulo: "Solicitante", ancho: 170, texto: (p) => p.solicitadoPorNombre ?? "" }
   const colOrigen: ColumnaExcel<Pago> = {
@@ -487,7 +581,7 @@ export function ConsolidadoPagosView({
   }
   const colProyecto: ColumnaExcel<Pago> = { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" }
   const colDocumento = columnaPesos("documento", "Valor documento", (p) => p.valorDocumento ?? p.valor)
-  const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" || etapa === "dispersado" ? p.valorAPagar : valorAPagarDe(p)), true)
+  const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" || enPse || enDispersados ? p.valorAPagar : valorAPagarDe(p)), true)
   const colEtapa: ColumnaExcel<Pago> = {
     clave: "etapa",
     titulo: "Etapa",
@@ -541,18 +635,20 @@ export function ConsolidadoPagosView({
     titulo: "Dispersor",
     ancho: 100,
     ordenable: false,
-    texto: (p) => dispersores[p.id] ?? "",
+    texto: (p) => dispersores[p.id] ?? (p.pagadoOtroMedio ? `Pagado sin dispersor${p.comprobanteOtroMedio ? ` · ${p.comprobanteOtroMedio}` : ""}` : ""),
     celda: (p) =>
-      dispersores[p.id] ? (
+      dispersores[p.id] || p.comprobanteOtroMedio ? (
         <a
           href={rutaSoporteDispersor(p.id)}
           target="_blank"
           rel="noreferrer"
-          title={dispersores[p.id]}
+          title={dispersores[p.id] ?? `Comprobante: ${p.comprobanteOtroMedio}`}
           className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
         >
           <FileText className="h-4 w-4" /> Ver
         </a>
+      ) : p.pagadoOtroMedio ? (
+        <span className="text-xs text-muted-foreground">Sin dispersor</span>
       ) : (
         <span className="text-muted-foreground/60">—</span>
       ),
@@ -568,14 +664,14 @@ export function ConsolidadoPagosView({
     columnaPesos("anticipos", "Anticipos y/o descuentos", (p) => p.liqAnticiposDescuentos ?? anticiposOrigen(p)),
   ]
 
-  const base = [colItem, colSemana, colEmpresa, colFactura]
+  const base = [colItem, colSemana, colEmpresa, colFactura, colMetodo]
   const columnas: ColumnaExcel<Pago>[] = [
     ...(conSeleccion ? [colSeleccion] : []),
     ...(enPreparacion
       ? [...base, colDocumento, colSolicita, colOrigen, colComentarios, colSoporte]
       : enLiquidacion
         ? [...base, colDocumento, colSolicita, ...colsLiquidacion, colValorAPagar, colComentarios, colSoporte]
-        : etapa === "liquidado"
+        : etapa === "liquidado" || enPse
           ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte]
           : etapa === "dispersado"
             ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte, colDispersor]
@@ -745,6 +841,36 @@ export function ConsolidadoPagosView({
                   Devolver a preparación{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
                 </Button>
               )}
+              {enPse && puedePagarPse && (
+                <Button size="sm" disabled={seleccion.size === 0 || ocupado !== null} onClick={abrirMarcarPse}>
+                  {ocupado === "cuentas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+                  Marcar como pagados{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                </Button>
+              )}
+              {(enLiquidados || enPse) && puedeDevolverLiquidado && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={seleccion.size === 0 || ocupado !== null}
+                  onClick={devolverLiquidados}
+                  title="Para corregir una liquidación: vuelve a Por liquidar con sus valores y su REF"
+                >
+                  {ocupado === "devolver_liq" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  Devolver a Por liquidar{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                </Button>
+              )}
+              {enDispersados && puedePagarPse && seleccionables.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={seleccion.size === 0 || ocupado !== null}
+                  onClick={pseNoSalio}
+                  title="Pagos PSE marcados como pagados que no salieron: vuelven a la pestaña PSE"
+                >
+                  {ocupado === "no_salio" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  El pago PSE no salió{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+                </Button>
+              )}
               {enLiquidacion && puedeLiquidar && (
                 <Button size="sm" disabled={seleccion.size === 0 || ocupado !== null} onClick={sinRetencionesSeleccionados}>
                   {ocupado === "sin" && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
@@ -799,11 +925,14 @@ export function ConsolidadoPagosView({
                 claveFila={(p) => p.id}
                 onDobleClickFila={(p) => setIndiceViendo(pagos.findIndex((x) => x.id === p.id))}
                 tituloFila={AYUDA_DOBLE_CLIC}
-                // Los anulados (no se pagan) van en gris; los observados, en rojo suave.
+                // Los anulados (no se pagan) van en gris; sin cuenta bancaria (y no
+                // PSE), en rojo; los observados, en rojo suave.
                 fondoFila={(p) =>
                   p.estado === "anulado" || p.estado === "rechazado"
                     ? "bg-muted/60 text-muted-foreground"
-                    : p.liquidacionEstado === "observado"
+                    : pagoSinCuenta(p)
+                      ? "bg-red-100/80"
+                      : p.liquidacionEstado === "observado"
                       ? "bg-red-50/70"
                       : undefined
                 }
@@ -814,9 +943,19 @@ export function ConsolidadoPagosView({
                   campos: camposTarjeta,
                 }}
               />
-              <div className="text-right text-sm text-muted-foreground">
+              <div className="flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
+                <span>
+                  {pagos.some(pagoSinCuenta) && (
+                    <>
+                      <span className="mr-1 inline-block h-3 w-3 rounded-sm border border-red-300 bg-red-100 align-middle" /> Sin cuenta bancaria:
+                      no pasa a liquidación hasta que tenga una.
+                    </>
+                  )}
+                </span>
+                <span>
                 {plural(pagos.length, "pago", "pagos")} en esta página · Total{" "}
                 <span className="font-medium text-foreground tabular-nums">{formatoMoneda(totalPagina)}</span>
+                </span>
               </div>
             </>
           )}
@@ -847,6 +986,26 @@ export function ConsolidadoPagosView({
         onResuelto={(p) => {
           setResolviendo(null)
           cambioDePago(p)
+        }}
+      />
+
+      <MarcarPagadosDialog
+        pagos={
+          marcarPse === null
+            ? null
+            : marcarPse.map((p) => ({
+                id: p.id,
+                valor: p.valorAPagar ?? p.valor,
+                titulo: `${p.terceroNombre ?? "Sin tercero"}${p.referencia ? ` · REF ${p.referencia}` : ""}`,
+              }))
+        }
+        cuentas={cuentasDebitar}
+        ayuda={'Si el pago no salió, en Dispersados usa "El pago PSE no salió".'}
+        onCerrar={() => setMarcarPse(null)}
+        onHecho={(n) => {
+          setMarcarPse(null)
+          setAviso(`${plural(n, "pago PSE quedó pagado", "pagos PSE quedaron pagados")} con fecha de hoy. Están en Dispersados.`)
+          recargar()
         }}
       />
 

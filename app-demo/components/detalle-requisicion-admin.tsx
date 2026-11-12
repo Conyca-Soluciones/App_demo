@@ -48,12 +48,22 @@ export function columnasItemsReqAdmin<T>(
     proyecto: string
     valor: number | null
     observaciones: string | null
+    // Código del pago (PA-001-0001); los ítems del formulario todavía no lo tienen.
+    codigo?: string | null
     // Factura o cuenta de cobro del ítem; con `ver`, se abre.
     soporte?: { nombre: string; ver?: () => void } | null
   }
 ): ColumnaExcel<T>[] {
   const columnas: ColumnaExcel<T>[] = [
-    { clave: "orden", titulo: "Ítem", ancho: 56, alinear: "center", fija: true, texto: (f) => String(leer(f).orden) },
+    {
+      clave: "orden",
+      titulo: "Ítem",
+      ancho: 120,
+      fija: true,
+      // El código del pago si ya lo tiene; si no, la posición en el cuadro.
+      texto: (f) => leer(f).codigo ?? String(leer(f).orden),
+      claseCelda: "tabular-nums",
+    },
     {
       clave: "metodo",
       titulo: "Se paga por",
@@ -149,6 +159,7 @@ export function columnasItemsReqAdmin<T>(
 
 const leerItem = (i: ItemReqAdmin) => ({
   orden: i.orden,
+  codigo: i.codigo,
   metodo: i.metodo,
   empresa: i.empresaNombre,
   facturaNombre: i.facturaNombre,

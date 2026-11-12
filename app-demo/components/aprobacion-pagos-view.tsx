@@ -46,7 +46,7 @@ import { lunesDeLaSemana } from "@/lib/tipo-pago-oc"
 import { DetalleRequisicionAdmin } from "@/components/detalle-requisicion-admin"
 import { leerNumero } from "@/lib/contratos"
 import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
-import type { RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
+import { etiquetaCuadroPa, type RequisicionAdminDetalle } from "@/lib/requisiciones-admin"
 
 type FiltroEstado = EstadoPago | "saldo_acta" | "pendientes"
 const ESTADOS_FILTRO: { valor: FiltroEstado; etiqueta: string }[] = [
@@ -67,6 +67,35 @@ const tipoFila = (p: Pago) =>
     : p.saldoActa
       ? "Saldo de acta (avance)"
       : ETIQUETA_TIPO_PAGO[p.tipo]
+// Origen de la fila de un cuadro de pagos administrativos: el código del primer
+// pago y cuántos más (cada pago tiene su código PA-001-0001).
+const origenFila = (p: Pago) =>
+  p.requisicionAdminLote && p.requisicionAdminLote.items > 1 && p.requisicionAdminLote.detalle.some((d) => d.codigo)
+    ? `${p.requisicionAdminLote.detalle.find((d) => d.codigo)?.codigo} y ${p.requisicionAdminLote.items - 1} más`
+    : p.origen
+
+// Desglose de un cuadro de pagos administrativos: se aprueba completo, pero se
+// ve cada pago. Con <span> (va también dentro del texto de la confirmación).
+function DesglosePa({ pago, compacto = false }: { pago: Pago; compacto?: boolean }) {
+  const lote = pago.requisicionAdminLote
+  if (!lote || lote.detalle.length === 0) return null
+  return (
+    <span className={`block space-y-0.5 ${compacto ? "pt-1 text-xs" : "pt-2 text-sm"}`}>
+      {lote.detalle.map((d) => (
+        <span key={d.pagoId || d.codigo} className="flex min-w-0 justify-between gap-3" title={d.concepto ?? undefined}>
+          <span className="min-w-0 truncate">
+            <span className="font-medium tabular-nums">{d.codigo ?? "—"}</span>
+            {` · ${d.factura ?? "—"}`}
+            {d.concepto && !compacto ? ` · ${d.concepto}` : ""}
+            {d.metodo === "pse" ? " · PSE" : ""}
+          </span>
+          <span className="shrink-0 tabular-nums">{formatoMoneda(d.valor)}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
 const terceroFila = (p: Pago) =>
   p.requisicionAdminLote && p.requisicionAdminLote.items > 1
     ? `${p.terceroNombre ?? "Sin tercero"} y ${p.requisicionAdminLote.items - 1} más`
@@ -315,7 +344,7 @@ export function AprobacionPagosView({
       titulo: "Origen",
       ancho: 150,
       fija: true,
-      texto: (p) => [p.origen, textoEtiquetasPago(p)].filter(Boolean).join(" · "),
+      texto: (p) => [origenFila(p), textoEtiquetasPago(p)].filter(Boolean).join(" · "),
       // Requisición administrativa: abre su detalle (todos sus ítems, cuentas y pagos).
       celda: (p) => (
         <div className="min-w-0 leading-tight">
@@ -326,7 +355,7 @@ export function AprobacionPagosView({
               title="Ver el pago administrativo"
               onClick={() => setRequisicionDe(p)}
             >
-              {p.origen}
+              {origenFila(p)}
             </button>
           ) : (
             <span className="block truncate" title={p.origen}>
@@ -351,11 +380,18 @@ export function AprobacionPagosView({
       texto: (p) => terceroFila(p) ?? "",
       celda: (p) => (
         <div className="min-w-0">
-          <div className="truncate" title={terceroFila(p) ?? undefined}>
-            {terceroFila(p) ?? <span className="text-muted-foreground/60">Sin tercero</span>}
-          </div>
-          {p.terceroDocumento && <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>}
-          {p.metodoPago === "pse" && p.cuentaTitular && (
+          {p.requisicionAdminLote && p.requisicionAdminLote.detalle.length > 0 ? (
+            // Cuadro de pagos administrativos: cada pago con su código y valor.
+            <DesglosePa pago={p} compacto />
+          ) : (
+            <div className="truncate" title={terceroFila(p) ?? undefined}>
+              {terceroFila(p) ?? <span className="text-muted-foreground/60">Sin tercero</span>}
+            </div>
+          )}
+          {!p.requisicionAdminLote && p.terceroDocumento && (
+            <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>
+          )}
+          {!p.requisicionAdminLote && p.metodoPago === "pse" && p.cuentaTitular && (
             <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular}>
               Titular PSE: {p.cuentaTitular}
             </div>
@@ -724,11 +760,18 @@ export function AprobacionPagosView({
             : `¿Aprobar el pago de ${porAprobar ? formatoMoneda(porAprobar.valor) : ""}?`
         }
         detalle={
-          porAprobar
-            ? `${terceroFila(porAprobar) ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
-                porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
-              }. ${porAprobar.requisicionAdminLote ? "Los pagos de todos sus ítems pasan al consolidado." : porAprobar.concepto}`
-            : ""
+          porAprobar?.requisicionAdminLote ? (
+            <>
+              Se aprueban juntos; cada pago pasa al consolidado.
+              <DesglosePa pago={porAprobar} />
+            </>
+          ) : porAprobar ? (
+            `${terceroFila(porAprobar) ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
+              porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
+            }. ${porAprobar.concepto}`
+          ) : (
+            ""
+          )
         }
         procesando={porAprobar !== null && procesandoId === porAprobar.id}
         onConfirmar={() => porAprobar && handleAprobar(porAprobar)}
@@ -818,7 +861,7 @@ function VerRequisicionAdminPago({ id, onCerrar, acciones }: { id: string; onCer
       <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-6xl overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>
-            Pago administrativo {actual?.detalle?.numero != null ? `N° ${actual.detalle.numero}` : ""}
+            Pago administrativo {actual?.detalle ? etiquetaCuadroPa(actual.detalle) : ""}
           </DialogTitle>
         </DialogHeader>
         {!actual ? (

@@ -20,7 +20,7 @@ export async function obtenerRequisicionAdminDePago(itemId: string): Promise<Req
   const { data, error } = await supabase
     .from("requisicion_admin_items")
     .select(
-      `metodo, factura_nombre, factura_nit, titular_nombre, titular_tipo_documento, titular_documento, concepto, valor, observaciones,
+      `metodo, codigo, factura_nombre, factura_nit, titular_nombre, titular_tipo_documento, titular_documento, concepto, valor, observaciones,
        empresa:empresas(razon_social),
        proyecto:proyectos(codigo, nombre),
        cuenta:terceros_cuentas(numero_cuenta, tipo_cuenta, banco:bancos(nombre)),
@@ -35,6 +35,7 @@ export async function obtenerRequisicionAdminDePago(itemId: string): Promise<Req
   const r = f.requisicion
   return {
     numero: r?.numero ?? null,
+    codigo: (f.codigo as string | null) ?? null, // PA-001-0001
     metodo: f.metodo ?? r?.metodo ?? "",
     estado: r?.estado ?? "",
     creadoPorNombre: r?.creador?.nombre ?? null,

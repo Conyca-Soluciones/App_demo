@@ -135,6 +135,7 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   enviado_liquidar: { etiqueta: "Enviado a liquidar", tono: "neutro" },
   devuelto_preparacion: { etiqueta: "Devuelto a preparación (conserva su REF)", tono: "aviso" },
+  devuelto_por_liquidar: { etiqueta: "Liquidación devuelta a Por liquidar para corregirla", tono: "aviso" },
   semana_cambiada: { etiqueta: "Semana de pago cambiada", tono: "aviso" },
   observado: { etiqueta: "Observado por Contabilidad", tono: "aviso" },
   devuelto_contabilidad: { etiqueta: "Corregido y devuelto a Contabilidad", tono: "neutro" },
@@ -143,6 +144,7 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   liquidacion_anulada: { etiqueta: "Liquidación deshecha", tono: "aviso" },
   dispersado: { etiqueta: "Pago dispersado", tono: "ok" },
   rebotado: { etiqueta: "Rebotó en el banco: vuelve a dispersión", tono: "aviso" },
+  pagado_otro_medio: { etiqueta: "Marcado como pagado (PSE u otro medio)", tono: "ok" },
   tercero_cambiado: { etiqueta: "Tercero o cuenta cambiados", tono: "aviso" },
   cuenta_modificada: { etiqueta: "La cuenta del tercero cambió", tono: "aviso" },
   valor_cambiado: { etiqueta: "Valor cambiado", tono: "aviso" },
@@ -410,6 +412,8 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
     if (e.evento === "enviado_liquidar" && d.referencia) return [`REF ${d.referencia}`]
+    if (e.evento === "pagado_otro_medio")
+      return [`Desde ${d.cuenta ?? "—"}${d.fecha ? ` el ${formatearFechaSinHora(String(d.fecha))}` : ""}`, ...(d.comprobante ? [`Comprobante: ${d.comprobante}`] : [])]
     if (e.evento === "semana_cambiada") return [`Semana ${d.de} de ${d.de_anio} → semana ${d.a} de ${d.a_anio}`]
     if (e.evento === "cuenta_modificada") return [`${formatoValor(d.cuenta_de)} → ${formatoValor(d.cuenta_a)}`]
     if (e.evento === "reliquidado" && d.neto != null) return [`Versión ${d.version}: neto ${pesosTexto(d.neto)}`]

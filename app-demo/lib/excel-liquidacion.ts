@@ -77,7 +77,7 @@ const ORDEN: { clave: ClaveColumna; ancho: number; editable?: boolean; pesos?: b
 // La protección de la hoja (no es seguridad: solo evita tocar otras columnas
 // por error; la app ignora lo demás al subir).
 const CLAVE_PROTECCION = "CONYCA-AYF"
-const SI = "Sí"
+const SI = "Si"
 
 const normal = (s: unknown) =>
   String(s ?? "")

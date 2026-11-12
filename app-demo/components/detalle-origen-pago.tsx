@@ -191,7 +191,9 @@ function DetalleRequisicionAdmin({
       abierta
       onCerrar={onCerrar}
       ancha
-      titulo={req ? `Pago administrativo${req.numero != null ? ` N° ${req.numero}` : ""}` : "Pago administrativo"}
+      titulo={
+        req ? `Pago administrativo ${req.codigo ?? (req.numero != null ? `N° ${req.numero}` : "")}`.trim() : "Pago administrativo"
+      }
       subtitulo={pago.referencia ? `REF ${pago.referencia}` : undefined}
       campos={campos}
     >

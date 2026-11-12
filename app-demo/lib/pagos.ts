@@ -4,6 +4,7 @@
 // componentes de cliente.
 // ---------------------------------------------------------------------------
 import { fechaIsoEnZona } from "@/lib/fechas"
+import { ETIQUETA_TIPO_PAGO_OC, esTipoPagoOC } from "@/lib/tipo-pago-oc"
 
 export type EstadoPago =
   | "programado"
@@ -44,6 +45,18 @@ export const ETIQUETA_TIPO_PAGO: Record<TipoPago, string> = {
   saldo: "Saldo",
 }
 
+// Un pago de un cuadro de pagos administrativos, para el desglose en Aprobación
+// de pagos (lote_requisicion_admin, 20270101000200).
+export type PagoDeCuadroPa = {
+  pagoId: string
+  codigo: string | null // PA-001-0001
+  factura: string | null
+  concepto: string | null
+  proyecto: string | null
+  valor: number
+  metodo: string | null
+}
+
 export type Pago = {
   id: string
   tipo: TipoPago
@@ -79,7 +92,7 @@ export type Pago = {
   // Fila de la requisición en Aprobación de pagos (el pago del ítem 1): se
   // aprueba o rechaza la requisición completa, con el total y los ítems de su
   // lote. null = no es la fila de una requisición.
-  requisicionAdminLote: { items: number; total: number } | null
+  requisicionAdminLote: { items: number; total: number; detalle: PagoDeCuadroPa[] } | null
   // Documento de donde sale el pago (para abrir su detalle).
   ordenCompraId: string | null
   actaId: string | null
@@ -94,6 +107,12 @@ export type Pago = {
   terceroId: string | null
   terceroNombre: string | null
   terceroDocumento: string | null
+  // Nombre del archivo del RUT de quien factura (null = no lo tiene).
+  terceroRut: string | null
+  // Pagado por PSE u otro medio en Realizar Pagos (20270101000300), con su
+  // comprobante si se adjuntó.
+  pagadoOtroMedio: boolean
+  comprobanteOtroMedio: string | null
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
@@ -137,12 +156,14 @@ export type Pago = {
 export type EtapaLiquidacion = "por_liquidar" | "observado" | "liquidado"
 // Pestañas del Consolidado: preparación = sin etapa (Financiera).
 // Dispersados = ya salieron en un dispersor (Realizar Pagos, 20261217000000).
-export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "dispersado" | "todos"
+export type EtapaConsolidado = "preparacion" | EtapaLiquidacion | "pse" | "dispersado" | "todos"
 export const ETAPAS_CONSOLIDADO: { clave: EtapaConsolidado; titulo: string }[] = [
   { clave: "preparacion", titulo: "Preparación" },
   { clave: "por_liquidar", titulo: "Por liquidar" },
   { clave: "observado", titulo: "Observados" },
   { clave: "liquidado", titulo: "Liquidados" },
+  // PSE liquidados por pagar (20270101000400): no van a Realizar Pagos.
+  { clave: "pse", titulo: "PSE" },
   { clave: "dispersado", titulo: "Dispersados" },
   { clave: "todos", titulo: "Todos" },
 ]
@@ -222,6 +243,7 @@ export function anticiposYDescuentos(p: Pick<Pago, "descuentoAnticipos" | "otros
 // el Consolidado o en Aprobación de pagos).
 export type RequisicionAdminDePago = {
   numero: number | null
+  codigo: string | null // PA-001-0001 (20270101000200)
   metodo: string
   estado: string
   creadoPorNombre: string | null
@@ -244,6 +266,20 @@ export type RequisicionAdminDePago = {
 export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
 // El soporte individual del dispersor en que salió el pago.
 export const rutaSoporteDispersor = (pagoId: string) => `/ayf/soporte-dispersor/${pagoId}`
+
+// Un pago pasa a liquidación con cuenta bancaria, salvo PSE (20270101000300;
+// la base lo exige en enviar_pagos_a_liquidar).
+export const puedeIrALiquidacion = (p: Pick<Pago, "metodoPago" | "cuentaId">) => p.metodoPago === "pse" || p.cuentaId != null
+
+// Fila en rojo del Consolidado: pago vivo (aprobado) sin cuenta y que no es PSE.
+export const pagoSinCuenta = (p: Pick<Pago, "metodoPago" | "cuentaId" | "estado">) => p.estado === "aprobado" && !puedeIrALiquidacion(p)
+
+// Columna "Método de pago": PSE, o por transferencia el tipo de pago de la OC
+// (De contado, Crédito, Fiducia); actas y pagos administrativos, Transferencia.
+export function metodoDePago(p: Pick<Pago, "metodoPago" | "ordenTipoPago">): string {
+  if (p.metodoPago === "pse") return "PSE"
+  return esTipoPagoOC(p.ordenTipoPago) ? ETIQUETA_TIPO_PAGO_OC[p.ordenTipoPago] : "Transferencia"
+}
 
 // Pestañas que dejan ver pagos: Aprobación de pagos y la de cada consolidado.
 export const PESTANA_CONSOLIDADO = (clave: string) => `ayf.consolidado_${clave}`

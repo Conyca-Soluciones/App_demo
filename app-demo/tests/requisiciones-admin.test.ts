@@ -8,6 +8,8 @@ import {
   limpiarNit,
   metodoDelCuadro,
   mapDetalleReqAdmin,
+  mapFilaReqAdmin,
+  etiquetaCuadroPa,
   totalItems,
   validarItemReqAdmin,
   validarRequisicionAdmin,
@@ -313,7 +315,28 @@ describe("pago de una requisición administrativa", () => {
     })
     expect(p.origen).toBe("Pago admin. N° 4 · PSE")
     expect(p.requisicionAdminId).toBe("r4")
-    expect(p.requisicionAdminLote).toEqual({ items: 3, total: 1500.5 })
+    expect(p.requisicionAdminLote).toEqual({ items: 3, total: 1500.5, detalle: [] })
+    // Con código (20270101000200): el origen es el código del pago y el cuadro trae su desglose.
+    const c = mapPago({
+      id: "g3",
+      fuente: "requisicion_admin",
+      requisicion_admin_principal: true,
+      lote: {
+        items: 2,
+        total: 300,
+        detalle: [
+          { pago_id: "g3", codigo: "PA-002-0001", factura: "ACME", concepto: "Papelería", proyecto: "002", valor: "100", metodo: "transferencia" },
+          { pago_id: "g4", codigo: "PA-001-0007", factura: "Distrito", concepto: "Impuesto", proyecto: "001", valor: 200, metodo: "pse" },
+        ],
+      },
+      req: { numero: 5, metodo: "mixto" },
+      req_item: { codigo: "PA-002-0001", metodo: "transferencia" },
+    })
+    expect(c.origen).toBe("PA-002-0001")
+    expect(c.requisicionAdminLote?.detalle.map((d) => [d.codigo, d.valor])).toEqual([
+      ["PA-002-0001", 100],
+      ["PA-001-0007", 200],
+    ])
     expect(mapPago({ id: "g2", fuente: "requisicion_admin", requisicion_admin_principal: false, lote: { items: 3, total: 1 } }).requisicionAdminLote).toBeNull()
     expect(p.terceroNombre).toBe("Distrito")
     expect(p.terceroDocumento).toBe("NIT 899999061")
@@ -324,5 +347,18 @@ describe("pago de una requisición administrativa", () => {
     expect(mapPago({ ...base, req_item: { metodo: "transferencia" } }).origen).toBe("Pago admin. N° 5")
     expect(mapPago({ ...base, req_item: { metodo: "pse" } }).origen).toBe("Pago admin. N° 5 · PSE")
     expect(mapPago({ ...base, req_item: { metodo: "pse" } }).metodoPago).toBe("pse")
+  })
+})
+
+describe("código de los pagos administrativos", () => {
+  it("nombra el cuadro por los códigos de sus pagos", () => {
+    expect(etiquetaCuadroPa({ codigos: ["PA-002-0001"], numero: 3 })).toBe("PA-002-0001")
+    expect(etiquetaCuadroPa({ codigos: ["PA-002-0001", "PA-001-0004", "PA-002-0002"], numero: 3 })).toBe("PA-002-0001 y 2 más")
+    expect(etiquetaCuadroPa({ codigos: [], numero: 3 })).toBe("N° 3")
+  })
+
+  it("lee los códigos de la lista o de los ítems del detalle", () => {
+    expect(mapFilaReqAdmin({ id: "1", codigos: ["PA-001-0001", null] }).codigos).toEqual(["PA-001-0001"])
+    expect(mapFilaReqAdmin({ id: "1", items: [{ codigo: "PA-001-0002" }] }).codigos).toEqual(["PA-001-0002"])
   })
 })

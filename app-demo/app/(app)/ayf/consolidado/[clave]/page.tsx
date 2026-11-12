@@ -21,11 +21,12 @@ export default async function ConsolidadoPage({
   const permisos = await obtenerPermisosRol()
   const puedeGestionar = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("gestionar_pagos"))
   const puedeLiquidar = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("liquidar_pagos"))
+  const puedePagarPse = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("pagar_pse"))
   const titulo = CONSOLIDADOS.find((c) => c.clave === clave)!.titulo
 
   return (
     <MarcoPagina titulo={titulo} subtitulo="Pagos aprobados: preparación, liquidación y pago">
-      <ConsolidadoPagosView key={clave} clave={clave} puedeGestionar={puedeGestionar} puedeLiquidar={puedeLiquidar} etapaInicial={etapaInicial} />
+      <ConsolidadoPagosView key={clave} clave={clave} puedeGestionar={puedeGestionar} puedeLiquidar={puedeLiquidar} puedePagarPse={puedePagarPse} etapaInicial={etapaInicial} />
     </MarcoPagina>
   )
 }

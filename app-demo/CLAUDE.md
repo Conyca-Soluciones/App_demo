@@ -1178,6 +1178,68 @@ vivo: solo agregan; los ajustes a funciones vivas son parches por texto exacto.
   (Realizar Pagos no lo toma). Una OC con saldo aplicado no se modifica (se
   cancela y se crea otra). El PDF muestra el saldo aplicado y el valor a pagar.
 
+## Pagos administrativos: código PA, envío a Gerencia y desglose (2026-11-11)
+
+Decisiones del usuario. `20270101000200_pagos_administrativos_codigo.sql` (reversa en `supabase/reversa/`).
+- **Cada pago (ítem del cuadro) tiene código** con el proyecto del ítem:
+  `requisicion_admin_items.codigo` = 'PA-001-0001' (`_codigo_pago_admin`, contador
+  `contadores_proyecto` tipo 'pago_admin', único). Lo da `_guardar_requisicion_admin`;
+  al modificar el cuadro, el ítem en la misma posición y con el mismo proyecto
+  conserva su código. Los ítems que ya existían lo recibieron en la migración.
+  El cuadro se nombra por sus códigos (`etiquetaCuadroPa`: "PA-001-0001 y 2 más";
+  sin códigos, "N° 3"). El origen del pago en Consolidado y Aprobación es el código.
+  Mis pagos administrativos busca por código (lleva al cuadro).
+- **"Enviar a Gerencia"** (antes "Enviar a A&F"): lo aprueba Gerencia en Aprobación de pagos.
+- **Desglose en Aprobación de pagos**: el cuadro se sigue aprobando completo, pero
+  `lote_requisicion_admin` trae `detalle` (código, quien factura, concepto, proyecto,
+  valor, método) y la fila y la confirmación muestran cada pago (`DesglosePa`).
+
+## Paquete E: A&F (2026-11-12)
+
+Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase/reversa/`); solo agrega, parches por texto exacto.
+- **Sin cuenta no pasa a liquidación**: `enviar_pagos_a_liquidar` salta los pagos sin `cuenta_tercero_id`
+  salvo PSE (`pago_es_pse(pagos)`, campo calculado: PSE del ítem/cuadro de la requisición administrativa,
+  de la OC o del contrato del acta). La app llama `enviar_pagos_a_liquidar_detalle` (dice cuántos se
+  quedaron) y la ventana del pago no deja enviarlo (`puedeIrALiquidacion`).
+- **Excel de liquidación**: la lista de "Liquidar sin retenciones" dice "Si" (sin tilde); al subir se
+  acepta con o sin tilde.
+- **Realizar Pagos**: doble clic abre el detalle (soporte del pago, documento de origen, historial,
+  soporte del dispersor o comprobante). En Otros pagos pendientes, "Marcar como pagados" (PSE u otro
+  medio): se escoge banco y cuenta desde la que se pagó (`cuentas_empresa`) y queda `dispersado` con la
+  fecha de hoy (`dispersado_en`), `pagado_manual_por`, la cuenta en `cuenta_debitar_id` y, opcional, el
+  comprobante (`pago_comprobante_*`, bucket `dispersores`, carpeta `pse/`; lo ve quien ve el pago).
+  Función `marcar_pagos_pagados`, evento `pagado_otro_medio`. Otros pagos pendientes tiene "Por pagar" y
+  "Pagados". "Rebotó en el banco" también los devuelve. El enlace fijo `/ayf/soporte-dispersor/<pago>`
+  sirve el comprobante cuando no hay dispersor. Antes los PSE de OC y contratos caían en Bloqueados
+  (esPse solo miraba la requisición administrativa).
+- **RUT del tercero** (`terceros.rut_*`): al crear un tercero son OBLIGATORIOS la cuenta, la
+  certificación bancaria y el RUT (`crear_tercero` lo exige; el formulario ya no tiene "Agregar su cuenta
+  ahora"). Se suben a `terceros/nuevo/<uid>/` y `_rut_tercero_nuevo` lo pega. Para los que ya existen,
+  `RutTercero` (`components/rut-tercero.tsx`): en la ficha (quien edita o verifica) y en la ventana del
+  pago en Preparación (`gestionar_pagos`), sube a `terceros/rut/<tercero>/` y llama
+  `guardar_rut_tercero`. Lo ven A&F (`_puede_ver_rut`: cuentas, gestionar pagos, algún consolidado,
+  Terceros, Aprobación de pagos) con `enlaceRutTercero`.
+- **Más de una cuenta por tercero**: ya existía (ficha del tercero › "Agregar cuenta", `editar_terceros`).
+- **PSE en el Consolidado** (`20270101000400_pse_en_consolidado.sql`, mismo día, cambia lo de arriba):
+  los PSE ya NO van a Realizar Pagos (`listarRealizarPagos` filtra `pago_es_pse = false`; ahí "Marcar
+  como pagados" queda solo para "otro medio"). Liquidados ya no tiene los PSE: van a la pestaña **PSE**
+  del Consolidado (`conteo_etapas_consolidado` trae `pse`; filtro por el campo calculado
+  `pago_es_pse`). Ahí quien tiene la acción **Pagar PSE** (`pagar_pse`, por omisión Financiera; para
+  tesorería) elige pagos, escoge la cuenta a debitar (las de `cuentas_empresa`; su política ya deja
+  leerlas con `pagar_pse`) y los marca pagados con `MarcarPagadosDialog`
+  (`components/marcar-pagados-dialog.tsx`, compartido con Realizar Pagos). Pagados pasan a Dispersados;
+  ahí "El pago PSE no salió" (`deshacer_pago_pse`, con motivo) los devuelve. `marcar_pagos_pagados`: PSE
+  con `pagar_pse`, otro medio con `generar_dispersores`.
+- **Liquidado = fijo** (`20270101000500_liquidado_fijo.sql`): un pago liquidado se ve pero no se
+  cambia (la ventana deshabilita los campos y "Observar"; `liquidar_pagos_lote` da error si cambian los
+  valores y deja "sin cambios" si son iguales, así el Excel de ida y vuelta no falla; `comentar_pago` no
+  deja observarlo). Para corregirlo: **"Devolver a Por liquidar"** (`devolver_pagos_a_por_liquidar`, con
+  motivo; Contabilidad o Financiera; ventana del pago y pestañas Liquidados y PSE), solo si no se ha
+  dispersado ni pagado. Conserva valores y REF, quita la cuenta a debitar; evento `devuelto_por_liquidar`.
+- **Consolidado**: columna "Método de pago" en todas las pestañas (`metodoDePago`: PSE, o De contado /
+  Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
+  es PSE (`pagoSinCuenta`).
+
 ## Paquete A: requisiciones administrativas y empresa que factura (2026-11-11)
 
 Decisiones del usuario. Migración `20261231999400_paquete_a_requisiciones.sql`
@@ -2012,7 +2074,7 @@ tres consolidados.
   CHECK, del código y de las funciones que los nombraban.
 - La ventana del pago (Consolidado) tiene "Soporte del dispersor" cuando el
   pago está dispersado.
-- **Pendiente**: soporte de los pagos por PSE.
+- Soporte de los pagos por PSE: "Marcar como pagados" (Paquete E, 2026-11-12).
 
 ## Liquidación de pagos: se quitó (2026-10-22)
 

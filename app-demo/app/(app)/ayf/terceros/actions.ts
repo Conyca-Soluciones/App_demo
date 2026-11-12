@@ -28,7 +28,7 @@ const CAMPOS_CUENTA = `
 `
 const CAMPOS_TERCERO = `
   id, tipo_documento, numero_documento, dv, razon_social, nombre_banco, nombres,
-  apellidos, observaciones
+  apellidos, observaciones, rut_nombre
 `
 
 function mapCuenta(c: any): CuentaTercero {
@@ -61,6 +61,7 @@ function mapTercero(t: any): Tercero {
     nombres: t.nombres,
     apellidos: t.apellidos,
     observaciones: t.observaciones,
+    rutNombre: t.rut_nombre ?? null,
     cuentas,
   }
 }
@@ -156,22 +157,25 @@ export async function buscarTerceroPorDocumento(documento: string): Promise<Terc
 // propia pantalla (Contratistas...); editarlo y verificar sus cuentas sigue
 // siendo de A&F (20261221000000). crear_tercero crea el tercero y su cuenta
 // (PENDIENTE) en una transacción y vuelve a validar todo.
+type ArchivoSubido = { ruta: string; nombre: string; mime: string }
+
 export async function crearTercero(
   crudo: DatosTercero,
-  cuentaCruda: DatosCuenta | null,
-  // Certificación de la cuenta ya subida a `terceros/nuevo/<uid>/` (20261231200000).
-  certificacion: { ruta: string; nombre: string; mime: string } | null = null
+  cuentaCruda: DatosCuenta,
+  // Ya subidos a `terceros/nuevo/<uid>/`: la certificación de la cuenta
+  // (20261231200000) y el RUT (20270101000300). Los tres son obligatorios.
+  certificacion: ArchivoSubido,
+  rut: ArchivoSubido
 ): Promise<TerceroBasico> {
   const r = validarTercero(crudo)
   if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del tercero.")
   const d = r.datos
 
-  let cuenta = null
-  if (cuentaCruda) {
-    const rc = validarCuenta(cuentaCruda)
-    if (!rc.ok) throw new Error(Object.values(rc.errores)[0] ?? "Revisa los datos de la cuenta.")
-    cuenta = rc.datos
-  }
+  const rc = validarCuenta(cuentaCruda)
+  if (!rc.ok) throw new Error(Object.values(rc.errores)[0] ?? "Revisa los datos de la cuenta.")
+  const cuenta = rc.datos
+  if (!certificacion?.ruta) throw new Error("Adjunta la certificación bancaria.")
+  if (!rut?.ruta) throw new Error("Adjunta el RUT.")
 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("crear_tercero", {
@@ -184,17 +188,16 @@ export async function crearTercero(
       nombres: d.nombres ?? "",
       apellidos: d.apellidos ?? "",
       observaciones: d.observaciones ?? "",
+      rut,
     },
-    p_cuenta: cuenta
-      ? {
-          banco_id: cuenta.bancoId,
-          tipo_cuenta: cuenta.tipoCuenta,
-          numero_cuenta: cuenta.numeroCuenta,
-          etiqueta: cuenta.etiqueta ?? "",
-          observaciones: cuenta.observaciones ?? "",
-          ...(certificacion ? { certificacion } : {}),
-        }
-      : null,
+    p_cuenta: {
+      banco_id: cuenta.bancoId,
+      tipo_cuenta: cuenta.tipoCuenta,
+      numero_cuenta: cuenta.numeroCuenta,
+      etiqueta: cuenta.etiqueta ?? "",
+      observaciones: cuenta.observaciones ?? "",
+      certificacion,
+    },
   })
   if (error) throw new Error(error.message)
   return mapBasico(data)

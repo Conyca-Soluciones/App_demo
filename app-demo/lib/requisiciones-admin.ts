@@ -279,11 +279,14 @@ export type RequisicionAdminFila = {
   resueltaPorNombre: string | null
   motivoRechazo: string | null
   empresas: string | null
+  // Código de cada pago del cuadro (PA-001-0001, 20270101000200), en orden.
+  codigos: string[]
 }
 
 export type ItemReqAdmin = {
   id: string
   orden: number
+  codigo: string | null // PA-001-0001
   metodo: MetodoReqAdmin
   empresaId: string
   empresaNombre: string
@@ -340,7 +343,18 @@ export function mapFilaReqAdmin(r: any): RequisicionAdminFila {
     resueltaPorNombre: r.resuelta_por_nombre ?? null,
     motivoRechazo: r.motivo_rechazo ?? null,
     empresas: r.empresas ?? null,
+    codigos: (Array.isArray(r.codigos) ? r.codigos : Array.isArray(r.items) ? r.items.map((i: any) => i.codigo) : [])
+      .filter((c: unknown): c is string => typeof c === "string" && c !== ""),
   }
+}
+
+/**
+ * Nombre de un cuadro de pagos administrativos por sus códigos: "PA-001-0001",
+ * "PA-001-0001 y 2 más". Sin códigos (antes de 20270101000200), "N° 3".
+ */
+export function etiquetaCuadroPa(c: { codigos: string[]; numero: number | null }): string {
+  if (c.codigos.length === 0) return c.numero != null ? `N° ${c.numero}` : ""
+  return c.codigos.length === 1 ? c.codigos[0] : `${c.codigos[0]} y ${c.codigos.length - 1} más`
 }
 
 export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
@@ -353,6 +367,7 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
     items: (Array.isArray(r.items) ? r.items : []).map((i: any) => ({
       id: String(i.id),
       orden: Number(i.orden),
+      codigo: i.codigo ?? null,
       metodo: (i.metodo ?? r.metodo) === "pse" ? "pse" : "transferencia",
       empresaId: String(i.empresa_id),
       empresaNombre: String(i.empresa_nombre ?? ""),

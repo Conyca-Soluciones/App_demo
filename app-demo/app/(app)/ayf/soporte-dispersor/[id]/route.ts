@@ -14,9 +14,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data, error } = await supabase.from("dispersion_pagos").select("soporte_ruta").eq("pago_id", id).is("rebotado_en", null).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!data) return NextResponse.json({ error: "Este pago no se ha dispersado o no tienes acceso." }, { status: 404 })
+  let ruta: string | null = data?.soporte_ruta ?? null
+  if (!ruta) {
+    // Pagado por PSE u otro medio (20270101000300): el comprobante adjunto.
+    const { data: pago, error: e } = await supabase
+      .from("pagos")
+      .select("pago_comprobante_ruta")
+      .eq("id", id)
+      .eq("estado", "dispersado")
+      .maybeSingle()
+    if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+    ruta = pago?.pago_comprobante_ruta ?? null
+  }
+  if (!ruta) return NextResponse.json({ error: "Este pago no tiene soporte del dispersor ni comprobante, o no tienes acceso." }, { status: 404 })
 
-  const { data: firmado, error: errorFirma } = await supabase.storage.from("dispersores").createSignedUrl(data.soporte_ruta, 300)
+  const { data: firmado, error: errorFirma } = await supabase.storage.from("dispersores").createSignedUrl(ruta, 300)
   if (errorFirma || !firmado) {
     return NextResponse.json({ error: "No se pudo abrir el soporte del dispersor (sin acceso al archivo)." }, { status: 404 })
   }

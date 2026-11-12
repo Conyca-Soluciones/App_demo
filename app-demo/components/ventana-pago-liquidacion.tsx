@@ -1,19 +1,22 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ChevronLeft, ChevronRight, FileText, History, Loader2, Paperclip, Send, Wrench } from "lucide-react"
+import { ChevronLeft, ChevronRight, FileText, History, Loader2, Paperclip, Send, Undo2, Wrench } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { pedirTexto } from "@/components/ui/confirmar"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { leerNumero } from "@/lib/contratos"
+import { RutTercero } from "@/components/rut-tercero"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
   anticiposOrigen,
   cuadreLiquidacion,
   etiquetaEtapa,
   formatoMoneda,
+  puedeIrALiquidacion,
   rutaSoporteDispersor,
   rutaSoportePago,
   type ComentarioPago,
@@ -24,6 +27,7 @@ import {
 } from "@/lib/pagos"
 import {
   comentarPago,
+  devolverPagosAPorLiquidar,
   enviarPagosALiquidar,
   liquidarPagos,
   listarComentariosPago,
@@ -185,7 +189,9 @@ function Contenido({
 
   const aprobado = pago.estado === "aprobado"
   const enLiquidacion = aprobado && pago.liquidacionEstado != null
-  const editable = puedeLiquidar && enLiquidacion
+  // Ya liquidado: sus valores no se cambian ni se observa (20270101000500).
+  const liquidado = pago.liquidacionEstado === "liquidado"
+  const editable = puedeLiquidar && enLiquidacion && !liquidado
   const documento = pago.valorDocumento ?? pago.valor
   const numeros = Object.fromEntries(CAMPOS.map((c) => [c.clave, form[c.clave].trim() === "" ? null : leerNumero(form[c.clave])])) as Record<
     ClaveCampo,
@@ -250,6 +256,21 @@ function Contenido({
     )
   }
 
+  async function devolverAPorLiquidar() {
+    const motivo = await pedirTexto(
+      "El pago vuelve a Por liquidar con sus valores (quedan de borrador) y su REF, para que Contabilidad lo corrija.",
+      { titulo: "Devolver a Por liquidar", etiqueta: "¿Qué hay que corregir?", boton: "Devolver", minimo: 3 }
+    )
+    if (motivo === null) return
+    await correr("devolver", async () => {
+      const n = await devolverPagosAPorLiquidar([pago.id], motivo.trim())
+      if (n === 0) throw new Error("No se pudo devolver: puede que ya se haya dispersado o pagado.")
+      await refrescar()
+      setComentarios(await listarComentariosPago(pago.id))
+      return "Devuelto a Por liquidar."
+    })
+  }
+
   async function comentar(tipo: TipoComentarioPago) {
     await correr(tipo, async () => {
       if (!nuevo.trim()) throw new Error("Escribe el comentario.")
@@ -286,6 +307,18 @@ function Contenido({
         <Dato titulo="Empresa que factura">
           {pago.terceroNombre ?? "Sin tercero"}
           {pago.terceroDocumento && <span className="block text-xs text-muted-foreground">{pago.terceroDocumento}</span>}
+          {/* RUT de quien factura: en Preparación Financiera lo sube si falta. */}
+          {pago.terceroId && (
+            <div className="mt-1">
+              <RutTercero
+                key={pago.terceroId}
+                terceroId={pago.terceroId}
+                nombreArchivo={pago.terceroRut}
+                puedeSubir={puedeGestionar && aprobado && pago.liquidacionEstado == null}
+                onCambio={() => void refrescar()}
+              />
+            </div>
+          )}
         </Dato>
         <Dato titulo="Solicitante">{pago.solicitadoPorNombre ?? "—"}</Dato>
         <Dato titulo="Origen">{pago.origen || "—"}</Dato>
@@ -307,7 +340,10 @@ function Contenido({
                 </span>
               </>
             ) : (
-              <span className="text-muted-foreground">Sin cuenta</span>
+              <span className={aprobado && pago.liquidacionEstado == null && !puedeIrALiquidacion(pago) ? "text-red-700" : "text-muted-foreground"}>
+                Sin cuenta
+                {aprobado && pago.liquidacionEstado == null && !puedeIrALiquidacion(pago) ? ": no pasa a liquidación hasta que tenga una." : ""}
+              </span>
             )}
           </div>
           {pago.novedad && <p className="mt-1 text-xs text-amber-700">{pago.novedad}</p>}
@@ -328,14 +364,14 @@ function Contenido({
           <span className="self-center text-sm text-muted-foreground">Sin soporte</span>
         )}
         {/* Dispersado: el soporte individual de su dispersor (el del intento vigente). */}
-        {pago.estado === "dispersado" && (
+        {pago.estado === "dispersado" && (!pago.pagadoOtroMedio || pago.comprobanteOtroMedio) && (
           <a
             href={rutaSoporteDispersor(pago.id)}
             target="_blank"
             rel="noreferrer"
             className={buttonVariants({ size: "sm", variant: "outline" })}
           >
-            <FileText className="mr-1.5 h-4 w-4" /> Soporte del dispersor
+            <FileText className="mr-1.5 h-4 w-4" /> {pago.pagadoOtroMedio ? "Comprobante del pago" : "Soporte del dispersor"}
           </a>
         )}
         <Button size="sm" variant="outline" onClick={onOrigen}>
@@ -353,13 +389,15 @@ function Contenido({
           <Button
             size="sm"
             className="ml-auto"
-            disabled={ocupado !== null}
+            disabled={ocupado !== null || !puedeIrALiquidacion(pago)}
+            title={puedeIrALiquidacion(pago) ? undefined : "Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta."}
             onClick={() =>
               correr(
                 "enviar",
                 async () => {
-                  await enviarPagosALiquidar([pago.id])
+                  const r = await enviarPagosALiquidar([pago.id])
                   await refrescar()
+                  if (r.sinCuenta > 0) throw new Error("Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta.")
                   return null
                 },
                 true
@@ -401,6 +439,17 @@ function Contenido({
               </label>
             ))}
           </div>
+          {liquidado && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Liquidado: los valores se ven pero no se cambian. Para corregirlos, devuélvelo a Por liquidar.</p>
+              {(puedeLiquidar || puedeGestionar) && (
+                <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={devolverAPorLiquidar}>
+                  {ocupado === "devolver" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Undo2 className="mr-1.5 h-4 w-4" />}
+                  Devolver a Por liquidar
+                </Button>
+              )}
+            </div>
+          )}
           {editable && (
             <div className="flex flex-wrap justify-end gap-2">
               <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={() => liquidar(true, true)}>
@@ -447,7 +496,7 @@ function Contenido({
               <Button size="sm" variant="outline" disabled={ocupado !== null || !nuevo.trim()} onClick={() => comentar("comentario")}>
                 Solo comentar
               </Button>
-              {puedeLiquidar && enLiquidacion && (
+              {editable && (
                 <Button size="sm" variant="outline" className="text-red-700" disabled={ocupado !== null || !nuevo.trim()} onClick={() => comentar("observacion")}>
                   Observar (a Financiera)
                 </Button>

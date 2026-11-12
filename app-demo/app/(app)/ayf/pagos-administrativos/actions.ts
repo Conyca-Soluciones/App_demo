@@ -102,14 +102,28 @@ export async function cancelarRequisicionAdmin(id: string, motivo: string): Prom
 
 // Mis requisiciones, una página de 50 (la más reciente primero).
 export async function listarMisRequisicionesAdmin(
-  filtros: { estado?: EstadoReqAdmin; numero?: number } = {},
+  filtros: { estado?: EstadoReqAdmin; numero?: number; codigo?: string } = {},
   pagina = 0
 ): Promise<{ filas: RequisicionAdminFila[]; hayMas: boolean }> {
   const supabase = await clienteConSesion()
+  // Por código de un pago (PA-001-0001): el cuadro al que pertenece.
+  let numero = filtros.numero ?? null
+  const codigo = filtros.codigo?.trim().toUpperCase()
+  if (codigo) {
+    const { data: item, error: e } = await supabase
+      .from("requisicion_admin_items")
+      .select("cuadro:requisiciones_admin!inner(numero)")
+      .eq("codigo", codigo)
+      .maybeSingle()
+    if (e) throw new Error(e.message)
+    const n = (item as { cuadro: { numero: number | null } | null } | null)?.cuadro?.numero
+    if (n == null) return { filas: [], hayMas: false }
+    numero = n
+  }
   const { data, error } = await supabase.rpc("listar_requisiciones_admin", {
     p_mias: true,
     p_estado: filtros.estado ?? null,
-    p_numero: filtros.numero ?? null,
+    p_numero: numero,
     p_offset: pagina * TAMANO_PAGINA,
     p_limite: TAMANO_PAGINA + 1,
   })
@@ -118,7 +132,7 @@ export async function listarMisRequisicionesAdmin(
   return { filas: filas.map(mapFilaReqAdmin), hayMas }
 }
 
-// Quien la hizo o A&F (la base lo revisa).
+// Quien la hizo o A&F / Gerencia (la base lo revisa).
 export async function obtenerRequisicionAdmin(id: string): Promise<RequisicionAdminDetalle> {
   const supabase = await clienteConSesion()
   const { data, error } = await supabase.rpc("detalle_requisicion_admin", { p_id: id })
