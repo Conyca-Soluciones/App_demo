@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PanelFiltros } from "@/components/panel-filtros"
 import { ConfirmarAprobacion } from "@/components/confirmar-aprobacion"
+import { obtenerMiFirma, type MiFirma } from "@/app/(app)/firma/actions"
+import { EVENTO_ABRIR_MI_FIRMA, EVENTO_FIRMA_GUARDADA } from "@/lib/firmas"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
@@ -185,6 +187,23 @@ export function AprobacionPagosView({
   const [rechazando, setRechazando] = useState<Pago | null>(null)
   // Aprobar un pago pide confirmación (ver ConfirmarAprobacion): es dinero.
   const [porAprobar, setPorAprobar] = useState<Pago | null>(null)
+  // Aprobar el pago de una OC o un acta la firma con la firma de quien aprueba.
+  // Sin firma registrada se aprueba igual (sin la imagen, se completa al
+  // registrarla): se avisa antes de confirmar para que no pase en silencio.
+  const [sinFirma, setSinFirma] = useState(false)
+  useEffect(() => {
+    let activo = true
+    const revisar = () =>
+      obtenerMiFirma()
+        .then((f: MiFirma) => activo && setSinFirma(f === null))
+        .catch(() => {}) // solo es un aviso
+    revisar()
+    window.addEventListener(EVENTO_FIRMA_GUARDADA, revisar)
+    return () => {
+      activo = false
+      window.removeEventListener(EVENTO_FIRMA_GUARDADA, revisar)
+    }
+  }, [])
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
   // Fila de una requisición administrativa abierta (su detalle con los botones).
   const [requisicionDe, setRequisicionDe] = useState<Pago | null>(null)
@@ -766,9 +785,24 @@ export function AprobacionPagosView({
               <DesglosePa pago={porAprobar} />
             </>
           ) : porAprobar ? (
-            `${terceroFila(porAprobar) ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
-              porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
-            }. ${porAprobar.concepto}`
+            <>
+              {`${terceroFila(porAprobar) ?? "Sin tercero"}${porAprobar.origen ? ` · ${porAprobar.origen}` : ""}${
+                porAprobar.proyectoCodigo ? ` · ${porAprobar.proyectoCodigo}` : ""
+              }. ${porAprobar.concepto}`}
+              {sinFirma && (porAprobar.ordenCompraId || porAprobar.actaId) && (
+                <span className="mt-2 block rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-900">
+                  No tienes firma registrada: {porAprobar.actaId ? "el acta" : "la orden de compra"} queda aprobada sin tu firma
+                  (se completa cuando la registres).{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline"
+                    onClick={() => window.dispatchEvent(new Event(EVENTO_ABRIR_MI_FIRMA))}
+                  >
+                    Registrar mi firma
+                  </button>
+                </span>
+              )}
+            </>
           ) : (
             ""
           )

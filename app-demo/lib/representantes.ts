@@ -129,6 +129,8 @@ export function principalActivo(reps: RepresentanteLegal[]): RepresentanteLegal 
 // ---------------------------------------------------------------- quién firma un contrato
 export type FirmaRepresentanteContrato =
   | { estado: "sin_registro" }
+  // La pantalla no pudo revisarlo (aprobar lo revisa igual en la base).
+  | { estado: "sin_revisar" }
   | { estado: "no_coincide"; empresa: string; minutaNombre: string | null; minutaDocumento: string | null }
   | { estado: "ok" | "sin_firma"; nombre: string; tipo: TipoRepresentante; empresa: string }
 
@@ -154,6 +156,8 @@ export function textoFirmaRepresentante(f: FirmaRepresentanteContrato): { texto:
         texto: `El representante de la minuta (${[f.minutaNombre, f.minutaDocumento && `C.C. ${f.minutaDocumento}`].filter(Boolean).join(", ") || "sin datos"}) no está registrado en ${f.empresa}: regístralo en Admin › Empresas o devuelve la minuta a Jurídica.`,
         bloquea: true,
       }
+    case "sin_revisar":
+      return { texto: "No se pudo revisar la firma del representante legal. Al aprobar se revisa otra vez; si falta, saldrá el error.", bloquea: false }
     default:
       return { texto: "La empresa no tiene representantes legales registrados: el contrato se aprueba sin su firma.", bloquea: false }
   }

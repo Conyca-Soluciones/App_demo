@@ -207,7 +207,7 @@ export async function pdfContratoFirmado(supabase: Supabase, id: string, c: Cont
 export async function pdfOtrosiFirmado(
   supabase: Supabase,
   id: string,
-  o: { estado: string; numero: number; minuta: MinutaOtrosi; nombre: string }
+  o: { estado: string; numero: number; minuta: MinutaOtrosi; nombre: string; nuevoValor?: number | null }
 ): Promise<PdfDocumento | null> {
   if (o.estado !== "aprobada") return null
   const f = await leerFirmas(supabase, "otrosi", id)
@@ -215,7 +215,7 @@ export async function pdfOtrosiFirmado(
   if (!principal) return null
   const generar = async () =>
     new Uint8Array(
-      await renderToBuffer(<OtrosiPDF minuta={o.minuta} numero={o.numero} logo={LOGO_CONYCA_PATH} firmaContratante={principal} />)
+      await renderToBuffer(<OtrosiPDF minuta={o.minuta} numero={o.numero} logo={LOGO_CONYCA_PATH} firmaContratante={principal} nuevoValor={o.nuevoValor} />)
     )
   return { nombre: o.nombre, ...(await pdfCongelado("otrosi", id, principal.codigo, f.congelado, generar)) }
 }

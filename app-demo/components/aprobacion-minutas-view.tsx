@@ -168,7 +168,15 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
     let vigente = true
     firmaRepresentanteContrato(idAprobar)
       .then((firma: FirmaRepresentanteContrato) => vigente && setFirmaRL({ id: idAprobar, firma }))
-      .catch(() => vigente && setFirmaRL(null))
+      // Si no se pudo revisar, se dice (antes no salía ningún aviso); aprobar
+      // igual lo vuelve a revisar en la base.
+      .catch(() =>
+        vigente &&
+        setFirmaRL({
+          id: idAprobar,
+          firma: { estado: "sin_revisar" },
+        })
+      )
     return () => {
       vigente = false
     }
