@@ -3,7 +3,7 @@ import { leerNumero } from "@/lib/contratos"
 import { blanco, cantidadEnLetras, fechaLarga, ordinalClausula, partesFecha, pesosSinSimbolo, totalItemsMinuta } from "@/lib/minuta-mano-obra"
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_OBRA, type MinutaObra } from "@/lib/minuta-obra"
-import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco, fechaEncabezadoHoy } from "@/components/minuta-mano-obra-pdf"
 import { LineaFirma } from "@/components/linea-firma-pdf"
 import type { FirmaDocumento } from "@/lib/firmas"
 
@@ -48,7 +48,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, f
   return (
     <Document title={`${nombreContrato} ${consecutivo}`} author={m.contratanteNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...encabezado} />
+        <Encabezado logo={logo} {...encabezado} fecha={fechaEncabezadoHoy()} />
         <Text style={s.footer} fixed render={pie} />
 
         <Text style={[s.titulo, { marginBottom: 2 }]}>{mo ? "CONTRATO DE MANO DE OBRA" : "CONTRATO DE MANO DE OBRA TC"}</Text>
@@ -379,7 +379,7 @@ export function MinutaObraPDF({ minuta: m, numero: numeroContrato, logo, foco, f
       </Page>
 
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...encabezado} />
+        <Encabezado logo={logo} {...encabezado} fecha={fechaEncabezadoHoy()} />
         <Text style={s.footer} fixed render={pie} />
         <Text style={s.titulo}>ANEXO N° 1 — ACTIVIDADES, CANTIDADES Y VALORES</Text>
         <P>

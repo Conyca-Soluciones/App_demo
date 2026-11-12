@@ -9,6 +9,7 @@
 
 import type { TipoDocumentoContratista, TipoPersona } from "@/lib/contratistas"
 import { numeroALetrasCOP, numeroATexto } from "@/lib/numero-a-letras"
+import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 
 export type TipoContrato =
   | "mano_obra"
@@ -309,6 +310,9 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   pagoObservaciones?: string | null
   // PSE con titular distinto del contratista (20261224000000); null = el contratista.
   pseTitularNombre?: string | null
+  // Transferencia a la cuenta de otro tercero (20270101000600); null = la del
+  // contratista. Lo carga titular_de_contrato (cuenta enmascarada).
+  titularCuenta?: TitularCuenta | null
   correoNotificacion: string
   observaciones: string | null
   domicilioDepartamento: string | null
@@ -471,6 +475,8 @@ export type SolicitudContratoForm = {
   pagoObservaciones: string
   pseTitularDistinto: boolean
   pseTitularNombre: string
+  // Transferencia: "Depositar a otro tercero" (null = cuenta del contratista).
+  titularCuenta: TitularCuenta | null
   plazoTipo: "fechas" | "duracion"
   fechaInicio: string
   fechaFin: string
@@ -506,6 +512,7 @@ export type CampoSolicitud =
   | "formaPago"
   | "pagoObservaciones"
   | "pseTitularNombre"
+  | "titularCuenta"
   | "plazo"
   | "correoNotificacion"
   | "obligaciones"
@@ -538,6 +545,7 @@ export type SolicitudContratoValida = {
   metodoPago: MetodoPagoContrato
   pagoObservaciones: string | null
   pseTitularNombre: string | null
+  titular: { tercero_id: string; cuenta_id: string } | null
   plazoTipo: "fechas" | "duracion"
   fechaInicio: string | null
   fechaFin: string | null
@@ -656,6 +664,7 @@ export function validarSolicitud(
   if (!f.formaPago.trim()) errores.formaPago = "Describe la forma de pago."
   const pagoObs = errorPagoContrato(f, errores)
   const pseTitular = titularPseContrato(f, errores)
+  const titular = titularTransferenciaContrato(f, errores)
 
   let fechaInicio: string | null = null
   let fechaFin: string | null = null
@@ -750,6 +759,7 @@ export function validarSolicitud(
       metodoPago: f.metodoPago,
       pagoObservaciones: pagoObs,
       pseTitularNombre: pseTitular,
+      titular,
       plazoTipo: f.plazoTipo,
       fechaInicio,
       fechaFin,
@@ -867,7 +877,23 @@ export function errorPagoContrato(
   return obs || null
 }
 
-// PSE con la casilla "El titular tiene otro nombre": el nombre (null = el
+// Transferencia con la casilla "Depositar a otro tercero": el tercero y su
+// cuenta en Terceros (null = la cuenta del contratista); anota el error si
+// falta alguno. La base lo vuelve a revisar (_fijar_pago_contrato).
+export function titularTransferenciaContrato(
+  f: { metodoPago: MetodoPagoContrato; titularCuenta: TitularCuenta | null },
+  errores: { titularCuenta?: string }
+): { tercero_id: string; cuenta_id: string } | null {
+  if (f.metodoPago !== "transferencia") return null
+  const r = titularParaGuardar(f.titularCuenta)
+  if (!r.ok) {
+    errores.titularCuenta = r.error
+    return null
+  }
+  return r.titular
+}
+
+// PSE con la casilla "Depositar a otro tercero": el nombre (null = el
 // contratista); anota el error si falta.
 export function titularPseContrato(
   f: { metodoPago: MetodoPagoContrato; pseTitularDistinto: boolean; pseTitularNombre: string },
@@ -897,6 +923,8 @@ export type ContratoGeneralForm = {
   pagoObservaciones: string
   pseTitularDistinto: boolean
   pseTitularNombre: string
+  // Transferencia: "Depositar a otro tercero" (null = cuenta del contratista).
+  titularCuenta: TitularCuenta | null
   retencionGarantiaPct: string
   retencionAnticipoPct: string
   retencionFicPct: string
@@ -921,6 +949,7 @@ export const CONTRATO_GENERAL_VACIO: ContratoGeneralForm = {
   pagoObservaciones: "",
   pseTitularDistinto: false,
   pseTitularNombre: "",
+  titularCuenta: null,
   retencionGarantiaPct: "0",
   retencionAnticipoPct: "0",
   retencionFicPct: "0",
@@ -942,6 +971,7 @@ export type ContratoGeneralValido = {
   metodoPago: MetodoPagoContrato
   pagoObservaciones: string | null
   pseTitularNombre: string | null
+  titular: { tercero_id: string; cuenta_id: string } | null
   retencionGarantiaPct: number
   retencionAnticipoPct: number
   retencionFicPct: number
@@ -974,6 +1004,7 @@ export function validarContratoGeneral(
   if (!f.formaPago.trim()) errores.formaPago = "Escribe la forma de pago."
   const pagoObs = errorPagoContrato(f, errores)
   const pseTitular = titularPseContrato(f, errores)
+  const titular = titularTransferenciaContrato(f, errores)
   const garantia = leerPorcentaje(f.retencionGarantiaPct)
   const anticipo = leerPorcentaje(f.retencionAnticipoPct)
   const fic = leerPorcentaje(f.retencionFicPct)
@@ -997,6 +1028,7 @@ export function validarContratoGeneral(
       metodoPago: f.metodoPago,
       pagoObservaciones: pagoObs,
       pseTitularNombre: pseTitular,
+      titular,
       retencionGarantiaPct: garantia!,
       retencionAnticipoPct: anticipo!,
       retencionFicPct: fic!,
@@ -1025,6 +1057,7 @@ export function contratoGeneralDesde(d: SolicitudContratoDetalle): ContratoGener
     pagoObservaciones: d.pagoObservaciones ?? "",
     pseTitularDistinto: Boolean(d.pseTitularNombre),
     pseTitularNombre: d.pseTitularNombre ?? "",
+    titularCuenta: d.metodoPago === "pse" ? null : (d.titularCuenta ?? null),
     retencionGarantiaPct: pctTexto(d.retencionGarantiaPct),
     retencionAnticipoPct: pctTexto(d.retencionAnticipoPct),
     retencionFicPct: pctTexto(d.retencionFicPct),

@@ -35,7 +35,7 @@ export const CLASE_ESTADO_ACTA: Record<EstadoActa, string> = {
   rechazada: "bg-red-100 text-red-800 hover:bg-red-100",
 }
 
-export type TipoSoporte = "factura" | "cuenta_cobro" | "memoria" | "foto" | "otro" | "firmada_contratista"
+export type TipoSoporte = "factura" | "cuenta_cobro" | "memoria" | "foto" | "otro" | "firmada_contratista" | "autorizacion_tercero"
 export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
   factura: "Factura del contratista",
   cuenta_cobro: "Cuenta de cobro del contratista",
@@ -43,6 +43,7 @@ export const ETIQUETA_SOPORTE: Record<TipoSoporte, string> = {
   foto: "Registro fotográfico",
   otro: "Otro",
   firmada_contratista: "Copia firmada por el contratista",
+  autorizacion_tercero: "Autorización para depositar a otro tercero",
 }
 // Dos grupos en el formulario (decisión del usuario, T4): el soporte de pago
 // (obligatorio si el acta tiene pago; lo exige también _pago_de_acta) y los demás.
@@ -98,6 +99,51 @@ export type ActaResumen = {
   creadoPorNombre: string | null
   // La hizo el usuario actual (solo quien la creó la puede editar).
   esMio: boolean
+  // Depositar a otro tercero (20270101000700): null = no aplica.
+  autorizacionEstado: EstadoAutorizacionTercero | null
+}
+
+// Autorización de Jurídica para depositar el pago de un acta a otro tercero.
+export type EstadoAutorizacionTercero = "por_revisar" | "aprobada" | "rechazada"
+export const ETIQUETA_AUTORIZACION_TERCERO: Record<EstadoAutorizacionTercero, string> = {
+  por_revisar: "Autorización en Jurídica",
+  aprobada: "Otro tercero autorizado",
+  rechazada: "Otro tercero no autorizado",
+}
+export const esEstadoAutorizacionTercero = (v: unknown): v is EstadoAutorizacionTercero =>
+  v === "por_revisar" || v === "aprobada" || v === "rechazada"
+
+// Una solicitud de autorización (pantalla de Jurídica).
+export type AutorizacionTercero = {
+  actaId: string
+  numero: number
+  tipo: TipoActa
+  estadoActa: EstadoActa
+  estado: EstadoAutorizacionTercero
+  motivo: string | null
+  resueltaAt: string | null
+  resueltaPorNombre: string | null
+  neto: number
+  solicitadaAt: string
+  creadoPorNombre: string | null
+  contratoId: string
+  numeroContrato: string
+  contratista: string
+  contratistaDocumento: string | null
+  proyecto: string | null
+  terceroNombre: string | null
+  terceroDocumento: string | null
+  cuenta: string | null
+  cuentaVerificada: boolean
+  soportes: { id: string; ruta: string; nombreArchivo: string; mime: string | null }[]
+}
+
+// Depositar a otro tercero que NO es el del contrato: pide la autorización.
+export function pideAutorizacionTercero(
+  titularTerceroId: string | null | undefined,
+  terceroDelContrato: string | null | undefined
+): boolean {
+  return Boolean(titularTerceroId) && titularTerceroId !== terceroDelContrato
 }
 
 // La edita solo quien la creó, y solo si no está aprobada (por aprobar o rechazada).

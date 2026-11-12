@@ -3,7 +3,7 @@ import { leerNumero } from "@/lib/contratos"
 import { blanco, cantidadEnLetras, ordinalClausula, partesFecha, pesosSinSimbolo, totalItemsMinuta } from "@/lib/minuta-mano-obra"
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_SUMINISTRO, type MinutaSuministro } from "@/lib/minuta-suministro"
-import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco, fechaEncabezadoHoy } from "@/components/minuta-mano-obra-pdf"
 import { LineaFirma } from "@/components/linea-firma-pdf"
 import type { FirmaDocumento } from "@/lib/firmas"
 
@@ -38,7 +38,7 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco, firmaContra
   return (
     <Document title={`Contrato de suministro ${consecutivo}`} author={m.contratanteNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...ENCABEZADO} fecha={fechaEncabezadoHoy()} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de suministro ${consecutivo} · Página ${pageNumber} de ${totalPages}`} />
 
         <Text style={[s.titulo, { marginBottom: 2 }]}>CONTRATO DE SUMINISTRO</Text>

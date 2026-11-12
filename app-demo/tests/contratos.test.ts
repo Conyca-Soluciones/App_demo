@@ -32,6 +32,7 @@ const base: SolicitudContratoForm = {
   pagoObservaciones: "",
   pseTitularDistinto: false,
   pseTitularNombre: "",
+  titularCuenta: null,
   plazoTipo: "fechas",
   fechaInicio: "2026-10-01",
   fechaFin: "2026-12-31",
@@ -112,6 +113,19 @@ describe("validarSolicitud", () => {
     expect(r.ok && r.datos.pseTitularNombre).toBe("Ana Pérez")
     const sin = validarSolicitud({ ...base, ...pse, pseTitularDistinto: false, pseTitularNombre: "Ana" })
     expect(sin.ok && sin.datos.pseTitularNombre).toBeNull()
+  })
+
+  it("transferencia a otro tercero exige el tercero y su cuenta; en PSE no se guarda", () => {
+    const vacio = { terceroId: null, nombre: "", documento: "", cuentaId: null, cuentaTexto: "", cuentaVerificada: false }
+    expect(errores({ titularCuenta: vacio }).titularCuenta).toMatch(/titular/)
+    expect(errores({ titularCuenta: { ...vacio, terceroId: "t1", nombre: "Ana" } }).titularCuenta).toMatch(/cuenta/)
+    const lleno = { ...vacio, terceroId: "t1", nombre: "Ana", cuentaId: "c1" }
+    const r = validarSolicitud({ ...base, titularCuenta: lleno })
+    expect(r.ok && r.datos.titular).toEqual({ tercero_id: "t1", cuenta_id: "c1" })
+    const sin = validarSolicitud({ ...base, titularCuenta: null })
+    expect(sin.ok && sin.datos.titular).toBeNull()
+    const pse = validarSolicitud({ ...base, metodoPago: "pse", pagoObservaciones: "Portal", titularCuenta: lleno })
+    expect(pse.ok && pse.datos.titular).toBeNull()
   })
 
   it("el objeto debe empezar con un verbo en infinitivo", () => {

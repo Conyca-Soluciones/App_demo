@@ -1499,6 +1499,9 @@ export type NotificacionTipo =
   | "requisicion_administrativa_aprobada"
   | "requisicion_administrativa_rechazada"
   | "insumo_aprobado"
+  | "autorizacion_tercero_por_revisar"
+  | "autorizacion_tercero_aprobada"
+  | "autorizacion_tercero_rechazada"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"

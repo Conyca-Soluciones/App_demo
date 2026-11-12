@@ -73,6 +73,7 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   pagoObservaciones: "",
   pseTitularDistinto: false,
   pseTitularNombre: "",
+  titularCuenta: null,
   plazoTipo: "fechas",
   fechaInicio: "",
   fechaFin: "",
@@ -121,6 +122,7 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     pagoObservaciones: d.pagoObservaciones ?? "",
     pseTitularDistinto: Boolean(d.pseTitularNombre),
     pseTitularNombre: d.pseTitularNombre ?? "",
+    titularCuenta: d.metodoPago === "pse" ? null : (d.titularCuenta ?? null),
     plazoTipo: d.plazoTipo,
     fechaInicio: d.fechaInicio ?? "",
     fechaFin: d.fechaFin ?? "",
@@ -1024,6 +1026,10 @@ export function SolicitudContratoForm({
               if (!v) cambiar("pseTitularNombre", "")
             }}
             onTitularNombre={(t) => cambiar("pseTitularNombre", t)}
+            titularCuenta={f.titularCuenta}
+            errorTitularCuenta={errores.titularCuenta}
+            quienFactura={contratista?.nombre ?? null}
+            onTitularCuenta={(v) => cambiar("titularCuenta", v)}
           />
         </div>
       </Seccion>

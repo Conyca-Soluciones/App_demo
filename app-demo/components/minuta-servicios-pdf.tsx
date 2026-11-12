@@ -3,7 +3,7 @@ import { leerNumero } from "@/lib/contratos"
 import { blanco, cantidadEnLetras, fechaLarga, ordinalClausula, partesFecha, pesosSinSimbolo } from "@/lib/minuta-mano-obra"
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import { PRIMERA_CLAUSULA_ADICIONAL_SERVICIOS, type MinutaServicios } from "@/lib/minuta-servicios"
-import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco, fechaEncabezadoHoy } from "@/components/minuta-mano-obra-pdf"
 import { LineaFirma } from "@/components/linea-firma-pdf"
 import type { FirmaDocumento } from "@/lib/firmas"
 
@@ -33,7 +33,7 @@ export function MinutaServiciosPDF({ minuta: m, numero: numeroContrato, logo, fo
   return (
     <Document title={`Contrato de prestación de servicios ${consecutivo}`} author={m.contratanteNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...ENCABEZADO} fecha={fechaEncabezadoHoy()} />
         <Text
           style={s.footer}
           fixed

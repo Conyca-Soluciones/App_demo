@@ -53,6 +53,7 @@ function rutaDestino(n: Notificacion): string {
       : `/contratos/solicitar?ver=${n.entidadId}`
   }
   // Actas aprobadas o rechazadas: a quien la hizo, a Elaboración de actas con el acta abierta.
+  if (n.tipo === "autorizacion_tercero_por_revisar") return `/contratos/autorizaciones-terceros?ver=${n.entidadId}`
   if (n.entidadTipo === "acta") return `/contratos/actas?ver=${n.entidadId}`
   // Otrosí: a Jurídica (por revisar, devuelto por Gerencia) y a Gerencia
   // (por aprobar), a Aprobación de otrosí; al ingeniero (devuelto, rechazado,

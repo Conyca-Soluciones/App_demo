@@ -13,7 +13,7 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { Button } from "@/components/ui/button"
 import { ExportTemplateButton } from "@/components/export-template-button"
 
-import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError } from "@/lib/calcular-nivel"
+import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError, resolverPadreImport } from "@/lib/calcular-nivel"
 import { parseApuSheet, type BloqueApu } from "@/lib/parse-apu-excel"
 import { agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
 import { RevisionApuDialog } from "@/components/revision-apu-dialog"
@@ -29,6 +29,7 @@ import {
   actualizarCantidadPresupuestoItem,
   listarVersiones,
   crearNuevaVersion,
+  contarLineasSinResolverVersion,
   crearVersionVacia,
   actualizarEstadoPresupuesto,
   matchearYGuardarImportApu,
@@ -219,7 +220,7 @@ class ErrorFilasInvalidas extends Error {
 
 function procesarOrdenPresupuesto(data: Record<string, unknown>[]): ItemPresupuesto[] {
   const colMap = detectarColumnas(data)
-  const stackIds: string[] = [] // stack de UUIDs -- así el padreId es un UUID real
+  const pilaPadres: { id: string; nivel: number }[] = [] // ítems abiertos, para el padreId (UUID real)
   const stackCodigos = nuevoStackNiveles() // stack de códigos de texto, para resolver el patrón B (dígitos seguidos) por contexto -- ver lib/calcular-nivel.ts
   const items: ItemPresupuesto[] = []
   const filasInvalidas: string[] = []
@@ -251,12 +252,8 @@ function procesarOrdenPresupuesto(data: Record<string, unknown>[]): ItemPresupue
     }
 
     const nivel = resultado.nivel
-    while (stackIds.length >= nivel) {
-      stackIds.pop()
-    }
-    const padreId = nivel === 1 ? null : stackIds[nivel - 2] ?? null
     const id = crypto.randomUUID()
-    stackIds.push(id)
+    const padreId = resolverPadreImport(pilaPadres, id, nivel)
 
     const unidad = colMap.unidad ? fila[colMap.unidad] : null
     const cantidadRaw = colMap.cantidad ? fila[colMap.cantidad] : null
@@ -809,6 +806,24 @@ function PresupuestoDeProyecto() {
     setCreandoVersion(true)
     setError(null)
     try {
+      // crear_nueva_version no copia lo que falta por revisar: se avisa antes.
+      const { pendientes, esperandoSolicitud } = await contarLineasSinResolverVersion(presupuestoDbId)
+      if (pendientes + esperandoSolicitud > 0) {
+        const partes: string[] = []
+        if (pendientes > 0)
+          partes.push(`• ${pendientes.toLocaleString("es-CO")} línea(s) pendiente(s) en "Revisar pendientes"`)
+        if (esperandoSolicitud > 0)
+          partes.push(
+            `• ${esperandoSolicitud.toLocaleString("es-CO")} línea(s) esperando aprobación de una solicitud de insumo (al aprobarse, el insumo entra en la versión anterior, no en la nueva)`
+          )
+        const seguro = await confirmar(
+          "La versión nueva copia los ítems y los APU con sus precios, pero NO lo que falta por revisar:\n\n" +
+            partes.join("\n") +
+            "\n\nEsas líneas no quedarán en el APU de la versión nueva. Lo recomendable es terminar de revisarlas antes.\n\n¿Crear la versión de todas formas?",
+          { titulo: "Se perderán líneas pendientes", boton: "Crear de todas formas", peligro: true }
+        )
+        if (!seguro) return
+      }
       const nueva = await crearNuevaVersion(presupuestoDbId, nombreNuevaVersion.trim())
       const [{ items, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente }, listaVersiones] =
         await Promise.all([cargarItemsConEstadoApu(presupuestoDbId), listarVersiones(presupuestoDbId)])

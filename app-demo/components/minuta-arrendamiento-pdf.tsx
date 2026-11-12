@@ -7,7 +7,7 @@ import {
   tipoDocumentoArrendador,
   type MinutaArrendamiento,
 } from "@/lib/minuta-arrendamiento"
-import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco } from "@/components/minuta-mano-obra-pdf"
+import { Clausula, Encabezado, Lista, P, s, campoResaltable, renglonConFoco, fechaEncabezadoHoy } from "@/components/minuta-mano-obra-pdf"
 import { LineaFirma } from "@/components/linea-firma-pdf"
 import type { FirmaDocumento } from "@/lib/firmas"
 
@@ -37,7 +37,7 @@ export function MinutaArrendamientoPDF({ minuta: m, numero, logo, foco, firmaCon
   return (
     <Document title={`Contrato de arrendamiento ${consecutivo}`} author={m.arrendatarioNombre}>
       <Page size="LETTER" style={s.page}>
-        <Encabezado logo={logo} {...ENCABEZADO} />
+        <Encabezado logo={logo} {...ENCABEZADO} fecha={fechaEncabezadoHoy()} />
         <Text style={s.footer} fixed render={({ pageNumber, totalPages }) => `Contrato de arrendamiento ${consecutivo} · Página ${pageNumber} de ${totalPages}`} />
 
         <Text style={[s.titulo, { marginBottom: 2 }]}>CONTRATO DE ARRENDAMIENTO</Text>

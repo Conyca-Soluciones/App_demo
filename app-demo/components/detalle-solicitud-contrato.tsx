@@ -237,7 +237,11 @@ export function DetalleSolicitudContrato({
                       ? `PSE${detalle.pseTitularNombre ? ` · titular: ${detalle.pseTitularNombre}` : ""}${
                           detalle.pagoObservaciones ? ` · ${detalle.pagoObservaciones}` : ""
                         }`
-                      : "Transferencia",
+                      : detalle.titularCuenta
+                        ? `Transferencia · a otro tercero: ${detalle.titularCuenta.nombre}${
+                            detalle.titularCuenta.cuentaTexto ? ` (${detalle.titularCuenta.cuentaTexto})` : ""
+                          }`
+                        : "Transferencia",
                   ],
                   ["Póliza", detalle.requierePoliza === false ? "No requiere póliza" : "Requiere póliza"],
                   [

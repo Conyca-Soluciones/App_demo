@@ -12,6 +12,7 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleSolicitudContrato, fechaContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
+import { BotonModificarContrato } from "@/components/boton-modificar-contrato"
 import { MinutaSegunTipo } from "@/components/minuta-segun-tipo"
 import {
   CLASE_ETAPA_CONTRATO,
@@ -322,6 +323,17 @@ export function PreaprobacionContratosView({ puedeResolver, verInicial }: { pued
             <Button onClick={() => setAccion({ tipo: "enviar", detalle: d })}>
               <Send className="size-4" /> {d.minutaEstado === "devuelta" ? "Enviar otra vez a Gerencia" : "Enviar a Gerencia"}
             </Button>
+          ) : d.estado === "aprobada" && puedeResolver && (d.minutaEstado === "en_revision" || d.minutaEstado === "aprobada") ? (
+            // Antes de aprobar la póliza (20270101000800): la minuta vuelve a Jurídica.
+            <BotonModificarContrato
+              contratoId={d.id}
+              parte="minuta"
+              onReabierto={() => {
+                cerrarDetalle()
+                setAviso(`${d.numeroContrato ?? d.codigo}: minuta reabierta. Ábrela, edítala y envíala otra vez a Gerencia.`)
+                cargar()
+              }}
+            />
           ) : null
         }
       />

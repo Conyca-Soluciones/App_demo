@@ -361,6 +361,10 @@ export function ContratoGeneralFormulario({
             if (!v) cambiar("pseTitularNombre", "")
           }}
           onTitularNombre={(t) => cambiar("pseTitularNombre", t)}
+          titularCuenta={f.titularCuenta}
+          errorTitularCuenta={errores.titularCuenta}
+          quienFactura={contratista?.nombre ?? null}
+          onTitularCuenta={(v) => cambiar("titularCuenta", v)}
         />
       </Seccion>
 
