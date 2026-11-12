@@ -453,14 +453,24 @@ function TabEmpresas({
   }
 
   async function handleEliminar(e: Empresa) {
-    if (!(await confirmar(`¿Eliminar la empresa "${e.razonSocial}"?`, { boton: "Eliminar", peligro: true }))) return
+    if (
+      !(await confirmar(
+        `¿Eliminar la empresa "${e.razonSocial}"? También se borran sus cuentas bancarias, sus cuentas a debitar y sus representantes. No se puede deshacer.`,
+        { titulo: "Eliminar empresa", boton: "Eliminar", peligro: true }
+      ))
+    )
+      return
     setEliminandoId(e.id)
     setError(null)
     try {
       await eliminarEmpresa(e.id)
       setEmpresas((prev) => prev.filter((x) => x.id !== e.id))
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar la empresa.")
+      // En una ventana: el aviso de arriba queda lejos del botón en una lista larga.
+      await confirmar(err instanceof Error ? err.message : "No se pudo eliminar la empresa.", {
+        titulo: "No se eliminó la empresa",
+        boton: "Entendido",
+      })
     } finally {
       setEliminandoId(null)
     }

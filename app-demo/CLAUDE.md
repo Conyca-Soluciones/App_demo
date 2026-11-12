@@ -1240,6 +1240,14 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Eliminar empresa (2026-11-12)
+
+`20270101000600_eliminar_empresa.sql`. Admin › Empresas › Eliminar llama `eliminar_empresa` (solo
+Administrador): no borra si hay proyectos, pagos, OC, pagos administrativos, saldos a favor o cuentas a
+debitar usadas en pagos o dispersores (dice cuáles); si no, borra sus cuentas a debitar sin uso y la
+empresa. Antes casi todas fallaban por `cuentas_empresa` (sin cascada) y el error salía lejos del botón;
+ahora sale en una ventana.
+
 ## Paquete A: requisiciones administrativas y empresa que factura (2026-11-11)
 
 Decisiones del usuario. Migración `20261231999400_paquete_a_requisiciones.sql`
