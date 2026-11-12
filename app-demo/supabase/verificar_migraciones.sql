@@ -698,5 +698,10 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'firmados_de_contrato')
          and exists (select 1 from pg_proc where proname = '_guardar_acta' and prosrc like '%Falta subir el contrato firmado%')
          and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%mi_contrato_por_firmar%')
+  union all
+  select '20270101002400_mano_obra_por_unidad_del_item',
+         exists (select 1 from information_schema.columns where table_name = 'solicitudes_mano_obra' and column_name = 'unidad')
+         and exists (select 1 from pg_proc where proname = 'solicitudes_recurso_por_aprobar')
+         and exists (select 1 from pg_proc where proname = 'sincronizar_apu_import_revision_mano_obra' and prosrc like '%new.categoria_asignada_id, 1, 1%')
 ) t
 order by 1;

@@ -3,15 +3,22 @@
 import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { Suspense, useEffect, useMemo, useState } from "react"
 import {
-  listarSolicitudesManoObra,
-  aprobarSolicitudManoObra,
+  listarSolicitudesRecursoParaAprobar,
+  aprobarSolicitudesRecurso,
+  categoriaRecursoPorNombre,
   rechazarSolicitudManoObra,
-  listarSolicitudesEquipo,
-  aprobarSolicitudEquipo,
   rechazarSolicitudEquipo,
-  type SolicitudManoObra,
-  type SolicitudEquipo,
+  type CategoriaRecursoExistente,
 } from "@/app/(app)/presupuestos/actions"
+import {
+  capitulosDe,
+  codigosItems,
+  grupoDesdeCapitulo,
+  unidadPropuesta,
+  type SolicitudRecursoAprobar,
+} from "@/lib/solicitudes-recurso"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ExcelAprobacionRecursos } from "@/components/excel-aprobacion-recursos"
 import { createClient } from "@/lib/supabase/client"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { Button } from "@/components/ui/button"
@@ -52,7 +59,7 @@ const FILTROS: { valor: Vista; etiqueta: string }[] = [
 
 type TipoRecurso = "mano_obra" | "equipo"
 
-type SolicitudRecurso = SolicitudManoObra | SolicitudEquipo
+type SolicitudRecurso = SolicitudRecursoAprobar
 
 const RECURSOS: Record<
   TipoRecurso,
@@ -64,7 +71,6 @@ const RECURSOS: Record<
     unidadesConocidas: string[]
     placeholderGrupo: string
     listar: () => Promise<SolicitudRecurso[]>
-    aprobar: (input: { solicitudId: string; valorUnitario: number; grupo: string | null; unidad: string }) => Promise<unknown>
     rechazar: (id: string, motivo?: string) => Promise<void>
   }
 > = {
@@ -73,10 +79,9 @@ const RECURSOS: Record<
     titulo: "Solicitudes de mano de obra",
     subtitulo: "Categorías de actividad nuevas pedidas por ingenieros",
     tablaCatalogo: "mano_obra_categorias",
-    unidadesConocidas: ["M", "M2", "M3", "ML", "UN", "JUEGO", "PTO"],
+    unidadesConocidas: ["UND", "UN", "M", "ML", "M2", "M3", "KG", "JUEGO", "PTO", "GLOBAL"],
     placeholderGrupo: "ej. DEMOLICION",
-    listar: listarSolicitudesManoObra,
-    aprobar: aprobarSolicitudManoObra,
+    listar: () => listarSolicitudesRecursoParaAprobar("mano_obra"),
     rechazar: rechazarSolicitudManoObra,
   },
   equipo: {
@@ -86,8 +91,7 @@ const RECURSOS: Record<
     tablaCatalogo: "equipo_categorias",
     unidadesConocidas: ["HORA", "DIA", "MES"],
     placeholderGrupo: "ej. TRANSPORTE PESADO",
-    listar: listarSolicitudesEquipo,
-    aprobar: aprobarSolicitudEquipo,
+    listar: () => listarSolicitudesRecursoParaAprobar("equipo"),
     rechazar: rechazarSolicitudEquipo,
   },
 }
@@ -106,6 +110,15 @@ function AdminManoObraContent() {
   const [cargadoPara, setCargadoPara] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
+  const [filtroCapitulo, setFiltroCapitulo] = useState("todos")
+  const [aviso, setAviso] = useState<string | null>(null)
+  // Casillas para "Juntar seleccionadas".
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
+  const [juntando, setJuntando] = useState(false)
+  // Nombre que ya existe en el catálogo: se confirma antes de enlazar.
+  const [enlace, setEnlace] = useState<{ ids: string[]; datos: DatosAprobacion; existente: CategoriaRecursoExistente } | null>(null)
+  // Grupos que ya usa el catálogo (para la lista de Grupo), por recurso.
+  const [gruposCatalogo, setGruposCatalogo] = useState<{ recurso: TipoRecurso; grupos: string[] } | null>(null)
 
   const config = RECURSOS[recurso]
 
@@ -145,10 +158,45 @@ function AdminManoObraContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claveCarga])
 
+  useEffect(() => {
+    let activo = true
+    traerTodo<{ grupo: string | null }>((desde, hasta) =>
+      createClient().from(config.tablaCatalogo).select("grupo").order("grupo").order("id").range(desde, hasta)
+    )
+      .then((filas) => {
+        if (!activo) return
+        const grupos = Array.from(new Set(filas.map((f) => (f.grupo ?? "").trim()).filter(Boolean))).sort()
+        setGruposCatalogo({ recurso, grupos })
+      })
+      .catch(() => {}) // sin la lista, el grupo se escribe a mano
+    return () => {
+      activo = false
+    }
+    // config sale de `recurso`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recurso])
+
+  // Capítulos de las solicitudes (filtro) y lo que se muestra.
+  const capitulosPendientes = useMemo(
+    () => Array.from(new Set(solicitudes.flatMap((s) => capitulosDe(s.items)))).sort((a, b) => a.localeCompare(b, "es", { numeric: true })),
+    [solicitudes]
+  )
+  const solicitudesVisibles = useMemo(
+    () => (filtroCapitulo === "todos" ? solicitudes : solicitudes.filter((s) => capitulosDe(s.items).includes(filtroCapitulo))),
+    [solicitudes, filtroCapitulo]
+  )
+  // Grupo: los del catálogo y los capítulos de lo pendiente (en mayúsculas, sin número).
+  const listaGrupos = useMemo(() => {
+    const deCatalogo = gruposCatalogo && gruposCatalogo.recurso === recurso ? gruposCatalogo.grupos : []
+    const deCapitulos = solicitudes.map((s) => grupoDesdeCapitulo(s.items)).filter(Boolean)
+    return Array.from(new Set([...deCapitulos, ...deCatalogo])).sort()
+  }, [gruposCatalogo, recurso, solicitudes])
+
   // Cambiar de recurso vuelve siempre a "Pendientes".
   function cambiarRecurso(nuevo: TipoRecurso) {
     setRecurso(nuevo)
     setVista("pendiente")
+    setFiltroCapitulo("todos")
   }
 
   function marcarProcesando(id: string, activo: boolean) {
@@ -160,22 +208,53 @@ function AdminManoObraContent() {
     })
   }
 
-  async function handleAprobar(solicitud: SolicitudRecurso, valor: number, grupo: string, unidad: string) {
-    marcarProcesando(solicitud.id, true)
+  // Aprobar una o varias (juntas) con el nombre escrito. Si el nombre ya
+  // existe en el catálogo, primero se pregunta si enlazar a esa categoría.
+  async function handleAprobar(ids: string[], datos: DatosAprobacion) {
+    setError(null)
+    setAviso(null)
+    try {
+      const existente = await categoriaRecursoPorNombre(recurso, datos.nombre)
+      if (existente) {
+        setEnlace({ ids, datos, existente })
+        return
+      }
+      await aprobarDirecto(ids, datos, false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo aprobar.")
+    }
+  }
+
+  async function aprobarDirecto(ids: string[], datos: DatosAprobacion, enlazar: boolean) {
+    ids.forEach((id) => marcarProcesando(id, true))
     setError(null)
     try {
-      await config.aprobar({
-        solicitudId: solicitud.id,
-        valorUnitario: valor,
-        grupo: grupo || null,
-        unidad,
+      const r = await aprobarSolicitudesRecurso(recurso, {
+        solicitudIds: ids,
+        nombre: datos.nombre,
+        grupo: datos.grupo || null,
+        unidad: datos.unidad,
+        valorUnitario: datos.valor,
+        enlazarSiExiste: enlazar,
       })
-      setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
+      quitarResueltas(r.aprobadas)
+      setAviso(
+        r.enlazada
+          ? `${r.aprobadas.length} actividad(es) enlazada(s) a "${r.categoria}".`
+          : `"${r.categoria}" quedó en el catálogo${r.aprobadas.length > 1 ? ` con ${r.aprobadas.length} actividades` : ""}.`
+      )
+      setJuntando(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo aprobar la solicitud.")
+      setError(e instanceof Error ? e.message : "No se pudo aprobar.")
     } finally {
-      marcarProcesando(solicitud.id, false)
+      ids.forEach((id) => marcarProcesando(id, false))
     }
+  }
+
+  function quitarResueltas(ids: string[]) {
+    const quitar = new Set(ids)
+    setSolicitudes((prev) => prev.filter((s) => !quitar.has(s.id)))
+    setSeleccion((prev) => new Set([...prev].filter((id) => !quitar.has(id))))
   }
 
   // `motivo` es OBLIGATORIO -- si se rechaza una solicitud que vino de un
@@ -186,7 +265,7 @@ function AdminManoObraContent() {
     setError(null)
     try {
       await config.rechazar(solicitud.id, motivo)
-      setSolicitudes((prev) => prev.filter((s) => s.id !== solicitud.id))
+      quitarResueltas([solicitud.id])
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo rechazar la solicitud.")
     } finally {
@@ -258,14 +337,99 @@ function AdminManoObraContent() {
           No hay solicitudes pendientes.
         </p>
       ) : (
-        <TablaPendientes
-          solicitudes={solicitudes}
-          idsEnProceso={idsEnProceso}
-          unidadesConocidas={config.unidadesConocidas}
-          placeholderGrupo={config.placeholderGrupo}
-          onAprobar={handleAprobar}
-          onRechazar={handleRechazar}
-        />
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {solicitudes.length} actividad(es) ·{" "}
+                {solicitudes.reduce((n, s) => n + s.items.length, 0)} ítem(s)
+              </span>
+              {capitulosPendientes.length > 1 && (
+                <select
+                  value={filtroCapitulo}
+                  onChange={(e) => setFiltroCapitulo(e.target.value)}
+                  className="h-8 rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="todos">Todos los capítulos</option>
+                  {capitulosPendientes.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button size="sm" variant="outline" disabled={seleccion.size < 2} onClick={() => setJuntando(true)}>
+                Juntar seleccionadas{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+              </Button>
+            </div>
+            <ExcelAprobacionRecursos
+              key={recurso}
+              tipo={recurso}
+              solicitudes={solicitudes}
+              listas={{ unidades: config.unidadesConocidas, grupos: listaGrupos }}
+              rechazar={config.rechazar}
+              onResueltas={quitarResueltas}
+            />
+          </div>
+          {aviso && <p className="text-sm text-emerald-700">{aviso}</p>}
+          <TablaPendientes
+            solicitudes={solicitudesVisibles}
+            idsEnProceso={idsEnProceso}
+            unidadesConocidas={config.unidadesConocidas}
+            grupos={listaGrupos}
+            seleccion={seleccion}
+            onSeleccion={setSeleccion}
+            onAprobar={(s, datos) => handleAprobar([s.id], datos)}
+            onRechazar={handleRechazar}
+          />
+          {juntando && (
+            <DialogoJuntar
+              solicitudes={solicitudes.filter((s) => seleccion.has(s.id))}
+              unidadesConocidas={config.unidadesConocidas}
+              grupos={listaGrupos}
+              procesando={[...seleccion].some((id) => idsEnProceso.has(id))}
+              onCerrar={() => setJuntando(false)}
+              onAprobar={(datos) => handleAprobar([...seleccion], datos)}
+            />
+          )}
+          <Dialog open={enlace !== null} onOpenChange={(a) => !a && setEnlace(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Ya existe en el catálogo</DialogTitle>
+              </DialogHeader>
+              {enlace && (
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <span className="font-medium">{enlace.existente.categoria}</span> ·{" "}
+                    {enlace.existente.unidad || "sin unidad"} ·{" "}
+                    {enlace.existente.valorUnitario != null
+                      ? `$${enlace.existente.valorUnitario.toLocaleString("es-CO", { maximumFractionDigits: 2 })}`
+                      : "sin valor"}
+                    {enlace.existente.grupo ? ` · ${enlace.existente.grupo}` : ""}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {enlace.ids.length === 1 ? "Los ítems de esta actividad" : `Los ítems de estas ${enlace.ids.length} actividades`}{" "}
+                    quedarán con esa categoría y su valor. No se crea otra. Si es otra actividad, cancela y cambia el nombre.
+                  </p>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEnlace(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    const e = enlace
+                    setEnlace(null)
+                    if (e) aprobarDirecto(e.ids, e.datos, true)
+                  }}
+                >
+                  Enlazar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       )}
     </main>
     </>
@@ -291,36 +455,75 @@ export default function AdminManoObraPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Tabla de PENDIENTES -- con los campos editables (grupo/valor) antes de
-// aprobar. Igual que /admin-insumos, pero sin selector de "tipo" (ni
-// mano de obra ni equipo tienen tipo) -- en su lugar, un campo de texto
-// libre para el grupo (con lo que el ingeniero sugirió como valor
-// inicial).
+// Tabla de PENDIENTES (2026-11-12): una fila por actividad (las solicitudes
+// iguales ya vienen juntas), con su capítulo y los ítems que la usan. El
+// nombre se edita: con el nombre de una categoría que ya existe, los ítems
+// se enlazan a ella. Las casillas sirven para "Juntar seleccionadas".
+// En el APU la mano de obra es 1 por unidad del ítem.
 // ---------------------------------------------------------------------------
+
+type DatosAprobacion = { nombre: string; grupo: string; unidad: string; valor: number | null }
 
 function TablaPendientes({
   solicitudes,
   idsEnProceso,
   unidadesConocidas,
-  placeholderGrupo,
+  grupos,
+  seleccion,
+  onSeleccion,
   onAprobar,
   onRechazar,
 }: {
   solicitudes: SolicitudRecurso[]
   idsEnProceso: Set<string>
   unidadesConocidas: string[]
-  placeholderGrupo: string
-  onAprobar: (s: SolicitudRecurso, valor: number, grupo: string, unidad: string) => void
+  grupos: string[]
+  seleccion: Set<string>
+  onSeleccion: (s: Set<string>) => void
+  onAprobar: (s: SolicitudRecurso, datos: DatosAprobacion) => void
   onRechazar: (s: SolicitudRecurso, motivo: string) => void
 }) {
+  const todasMarcadas = solicitudes.length > 0 && solicitudes.every((s) => seleccion.has(s.id))
+  function marcar(id: string, si: boolean) {
+    const nueva = new Set(seleccion)
+    if (si) nueva.add(id)
+    else nueva.delete(id)
+    onSeleccion(nueva)
+  }
   return (
     <div className={CLASE_MARCO_EXCEL}>
+      <datalist id="grupos-catalogo">
+        {grupos.map((g) => (
+          <option key={g} value={g} />
+        ))}
+      </datalist>
+      <datalist id="unidades-catalogo">
+        {unidadesConocidas.map((u) => (
+          <option key={u} value={u} />
+        ))}
+      </datalist>
       <table className={CLASE_TABLA_EXCEL}>
         <thead>
           <tr>
-            <th className={`${headClasses} w-64`}>Categoría</th>
-            <th className={`${headClasses} w-40`}>Origen</th>
-            <th className={`${headClasses} w-40`}>Grupo</th>
+            <th className={`${headClasses} w-9 text-center`}>
+              <Checkbox
+                aria-label="Marcar todas"
+                checked={todasMarcadas}
+                onCheckedChange={(v) => {
+                  const nueva = new Set(seleccion)
+                  for (const s of solicitudes) {
+                    if (v === true) nueva.add(s.id)
+                    else nueva.delete(s.id)
+                  }
+                  onSeleccion(nueva)
+                }}
+                className="border-primary-foreground"
+              />
+            </th>
+            <th className={`${headClasses} w-36`}>Capítulo</th>
+            <th className={`${headClasses} w-80`}>Actividad</th>
+            <th className={`${headClasses} w-40`}>Ítems</th>
+            <th className={`${headClasses} w-44`}>Grupo</th>
             <th className={`${headClasses} w-24 text-center`}>Unidad</th>
             <th className={`${headClasses} w-28 text-right`}>Valor</th>
             <th className={`${headClasses} w-56 text-center`}>Acciones</th>
@@ -332,8 +535,8 @@ function TablaPendientes({
               key={s.id}
               solicitud={s}
               procesando={idsEnProceso.has(s.id)}
-              unidadesConocidas={unidadesConocidas}
-              placeholderGrupo={placeholderGrupo}
+              marcada={seleccion.has(s.id)}
+              onMarcar={(si) => marcar(s.id, si)}
               onAprobar={onAprobar}
               onRechazar={onRechazar}
             />
@@ -347,48 +550,50 @@ function TablaPendientes({
 function FilaPendiente({
   solicitud,
   procesando,
-  unidadesConocidas,
-  placeholderGrupo,
+  marcada,
+  onMarcar,
   onAprobar,
   onRechazar,
 }: {
   solicitud: SolicitudRecurso
   procesando: boolean
-  unidadesConocidas: string[]
-  placeholderGrupo: string
-  onAprobar: (s: SolicitudRecurso, valor: number, grupo: string, unidad: string) => void
+  marcada: boolean
+  onMarcar: (si: boolean) => void
+  onAprobar: (s: SolicitudRecurso, datos: DatosAprobacion) => void
   onRechazar: (s: SolicitudRecurso, motivo: string) => void
 }) {
+  const [nombre, setNombre] = useState(solicitud.descripcion)
   const [valor, setValor] = useState(solicitud.valorPropuesto ? String(solicitud.valorPropuesto) : "")
-  const [grupo, setGrupo] = useState(solicitud.grupoSugerido ?? "")
+  const [grupo, setGrupo] = useState((solicitud.grupoSugerido ?? "").toUpperCase() || grupoDesdeCapitulo(solicitud.items))
+  const [unidad, setUnidad] = useState(unidadPropuesta(solicitud.unidad, solicitud.items))
   const [viendo, setViendo] = useState(false)
-  const [unidad, setUnidad] = useState("")
   const [error, setError] = useState<string | null>(null)
 
-  // Caja de observaciones para el rechazo -- se abre solo cuando le dan
-  // "Rechazar" la primera vez, mismo patrón que /admin-insumos. El
-  // motivo es OBLIGATORIO -- sin él no se puede confirmar el rechazo.
+  // Motivo OBLIGATORIO para rechazar: el ingeniero lo ve en el presupuesto.
   const [mostrandoRechazo, setMostrandoRechazo] = useState(false)
   const [motivoRechazo, setMotivoRechazo] = useState("")
 
-  // Datalist único por fila (id de la solicitud) -- antes era fijo
-  // ("unidades-conocidas-mo") y con Equipo en la misma página dos filas
-  // de recursos distintos podían coincidir en pantalla con datalists
-  // duplicados con el mismo id.
-  const datalistId = `unidades-conocidas-${solicitud.id}`
+  const capitulos = capitulosDe(solicitud.items)
+  const n = solicitud.items.length
 
   function intentarAprobar() {
-    const valorNum = Number(valor)
-    if (!valor || valorNum <= 0) {
-      setError("Ingresa un valor real.")
+    if (!nombre.trim()) {
+      setError("Escribe el nombre de la actividad.")
       return
     }
     if (!unidad.trim()) {
       setError("Elige la unidad -- es importante para saber cómo aplicar el valor.")
       return
     }
+    // El valor puede quedar vacío solo si el nombre ya existe (se enlaza):
+    // eso lo revisa el servidor.
+    const valorNum = valor.trim() ? Number(valor) : null
+    if (valorNum != null && !(valorNum > 0)) {
+      setError("Ingresa un valor real.")
+      return
+    }
     setError(null)
-    onAprobar(solicitud, valorNum, grupo, unidad.trim().toUpperCase())
+    onAprobar(solicitud, { nombre: nombre.trim(), grupo: grupo.trim().toUpperCase(), unidad: unidad.trim().toUpperCase(), valor: valorNum })
   }
 
   function confirmarRechazo() {
@@ -402,46 +607,58 @@ function FilaPendiente({
 
   return (
     <tr
-      className={`align-top hover:bg-muted/30 ${CLASE_FILA_DOBLE_CLIC}`}
+      className={`align-top hover:bg-muted/30 ${marcada ? "bg-primary/5" : ""} ${CLASE_FILA_DOBLE_CLIC}`}
       title={AYUDA_DOBLE_CLIC}
       onDoubleClick={alDobleClic(() => setViendo(true))}
     >
-      <td className={celda}>
-        <p className="font-medium">{solicitud.descripcion}</p>
+      <td className={`${celda} text-center`}>
+        <Checkbox aria-label="Marcar para juntar" checked={marcada} onCheckedChange={(v) => onMarcar(v === true)} />
       </td>
-      <td className={`${celda} text-muted-foreground`}>
-        <p>{solicitud.solicitadoPorNombre ?? "alguien"}</p>
-        <p>{formatearFechaSinHora(solicitud.createdAt)}</p>
-        {solicitud.proyectoNombre && (
-          <p className="truncate">
-            {solicitud.proyectoNombre}
-            {solicitud.itemCodigo && ` — ${solicitud.itemCodigo}`}
-          </p>
+      <td className={celda}>
+        {capitulos.length === 0 ? <span className="text-muted-foreground">—</span> : capitulos.map((c) => <p key={c}>{c}</p>)}
+      </td>
+      <td className={celda}>
+        <Input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          disabled={mostrandoRechazo}
+          title={nombre}
+          className="h-8 text-xs font-medium"
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {solicitud.solicitadoPorNombre ?? "alguien"} · {formatearFechaSinHora(solicitud.createdAt)}
+        </p>
+      </td>
+      <td className={celda}>
+        {n === 0 ? (
+          <span className="text-muted-foreground">Sin ítems</span>
+        ) : (
+          <>
+            <p>{n === 1 ? "1 ítem" : `${n} ítems`}</p>
+            <p className="line-clamp-2 text-[11px] text-muted-foreground" title={codigosItems(solicitud.items)}>
+              {codigosItems(solicitud.items)}
+            </p>
+          </>
         )}
       </td>
       <td className={celda}>
         <Input
+          list="grupos-catalogo"
           value={grupo}
           onChange={(e) => setGrupo(e.target.value)}
           disabled={mostrandoRechazo}
-          placeholder={placeholderGrupo}
+          placeholder="ej. ESTRUCTURAS"
           className="h-8 text-xs"
         />
       </td>
       <td className={celda}>
         <Input
-          list={datalistId}
+          list="unidades-catalogo"
           value={unidad}
           onChange={(e) => setUnidad(e.target.value)}
           disabled={mostrandoRechazo}
-          placeholder={unidadesConocidas[0] ?? ""}
           className="h-8 text-center text-xs"
         />
-        <datalist id={datalistId}>
-          {unidadesConocidas.map((u) => (
-            <option key={u} value={u} />
-          ))}
-        </datalist>
       </td>
       <td className={celda}>
         <Input
@@ -457,12 +674,7 @@ function FilaPendiente({
         <div className="flex flex-col items-stretch gap-1.5">
           {!mostrandoRechazo ? (
             <div className="flex justify-center gap-1.5">
-              <Button
-                size="sm"
-                className="h-7 px-2 text-[11px]"
-                onClick={intentarAprobar}
-                disabled={procesando}
-              >
+              <Button size="sm" className="h-7 px-2 text-[11px]" onClick={intentarAprobar} disabled={procesando}>
                 {procesando ? "…" : "Aprobar"}
               </Button>
               <Button
@@ -489,13 +701,7 @@ function FilaPendiente({
                 className="w-full rounded-md border bg-background px-2 py-1 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <div className="flex justify-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={confirmarRechazo}
-                  disabled={procesando}
-                >
+                <Button size="sm" variant="destructive" className="h-7 px-2 text-[11px]" onClick={confirmarRechazo} disabled={procesando}>
                   {procesando ? "…" : "Confirmar rechazo"}
                 </Button>
                 <Button
@@ -516,24 +722,125 @@ function FilaPendiente({
           )}
           {error && <p className="text-[10px] text-destructive">{error}</p>}
         </div>
+        <VentanaDetalle
+          abierta={viendo}
+          onCerrar={() => setViendo(false)}
+          titulo={solicitud.descripcion}
+          subtitulo="Solicitud por aprobar: los datos para aprobarla se llenan en la fila."
+          campos={[
+            { etiqueta: "Solicitado por", valor: solicitud.solicitadoPorNombre ?? "" },
+            { etiqueta: "Fecha", valor: formatearFechaSinHora(solicitud.createdAt) },
+            { etiqueta: "Capítulo", valor: capitulos.join(" · ") },
+            { etiqueta: "Unidad del ítem", valor: solicitud.unidad ?? "" },
+            { etiqueta: "Ítems", valor: codigosItems(solicitud.items), ancho: "completo" },
+          ]}
+        />
       </td>
-      {/* Solo datos de la solicitud: aprobar y rechazar se hacen en la fila,
-          donde están los campos que hay que llenar. */}
-      <VentanaDetalle
-        abierta={viendo}
-        onCerrar={() => setViendo(false)}
-        titulo={solicitud.descripcion}
-        subtitulo="Solicitud por aprobar: los datos para aprobarla se llenan en la fila."
-        campos={[
-          { etiqueta: "Solicitado por", valor: solicitud.solicitadoPorNombre ?? "" },
-          { etiqueta: "Fecha", valor: formatearFechaSinHora(solicitud.createdAt) },
-          { etiqueta: "Proyecto", valor: solicitud.proyectoNombre ?? "" },
-          { etiqueta: "Ítem", valor: solicitud.itemCodigo ?? "" },
-          { etiqueta: "Grupo sugerido", valor: solicitud.grupoSugerido ?? "" },
-          { etiqueta: "Valor propuesto", valor: solicitud.valorPropuesto != null ? `$${Math.round(solicitud.valorPropuesto).toLocaleString("es-CO")}` : "" },
-        ]}
-      />
     </tr>
+  )
+}
+
+// Juntar varias actividades en UNA categoría: se escriben una vez el nombre,
+// el grupo, la unidad y el valor. Todas deben ir en la misma unidad.
+function DialogoJuntar({
+  solicitudes,
+  unidadesConocidas,
+  grupos,
+  procesando,
+  onCerrar,
+  onAprobar,
+}: {
+  solicitudes: SolicitudRecurso[]
+  unidadesConocidas: string[]
+  grupos: string[]
+  procesando: boolean
+  onCerrar: () => void
+  onAprobar: (datos: DatosAprobacion) => void
+}) {
+  const primera = solicitudes[0]
+  const [nombre, setNombre] = useState(primera?.descripcion ?? "")
+  const [grupo, setGrupo] = useState(primera ? (primera.grupoSugerido ?? "").toUpperCase() || grupoDesdeCapitulo(primera.items) : "")
+  const [unidad, setUnidad] = useState(primera ? unidadPropuesta(primera.unidad, primera.items) : "")
+  const [valor, setValor] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  const unidades = Array.from(new Set(solicitudes.map((s) => unidadPropuesta(s.unidad, s.items)).filter(Boolean)))
+  const totalItems = solicitudes.reduce((n, s) => n + s.items.length, 0)
+
+  function aprobar() {
+    if (unidades.length > 1) {
+      setError(`Van en unidades distintas (${unidades.join(", ")}): no se pueden juntar.`)
+      return
+    }
+    if (!nombre.trim()) return setError("Escribe el nombre de la actividad.")
+    if (!unidad.trim()) return setError("Elige la unidad.")
+    const valorNum = valor.trim() ? Number(valor) : null
+    if (valorNum != null && !(valorNum > 0)) return setError("Ingresa un valor real.")
+    setError(null)
+    onAprobar({ nombre: nombre.trim(), grupo: grupo.trim().toUpperCase(), unidad: unidad.trim().toUpperCase(), valor: valorNum })
+  }
+
+  return (
+    <Dialog open onOpenChange={(a) => !a && onCerrar()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Juntar en una actividad</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="max-h-40 overflow-y-auto rounded-md border px-3 py-2 text-xs">
+            {solicitudes.map((s) => (
+              <p key={s.id} className="truncate" title={s.descripcion}>
+                {s.descripcion} <span className="text-muted-foreground">· {s.items.length} ítem(s)</span>
+              </p>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {solicitudes.length} actividades y {totalItems} ítems quedarán con una sola categoría. Si el nombre ya existe en el
+            catálogo, se enlazan a esa.
+          </p>
+          <label className="block space-y-1">
+            <span className="text-xs font-medium">Nombre</span>
+            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="ej. TALA DE ARBOL" />
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="col-span-3 block space-y-1 sm:col-span-1">
+              <span className="text-xs font-medium">Grupo</span>
+              <Input list="grupos-catalogo-juntar" value={grupo} onChange={(e) => setGrupo(e.target.value)} />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium">Unidad</span>
+              <Input list="unidades-catalogo-juntar" value={unidad} onChange={(e) => setUnidad(e.target.value)} />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium">Valor</span>
+              <Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="$" />
+            </label>
+          </div>
+          <datalist id="grupos-catalogo-juntar">
+            {grupos.map((g) => (
+              <option key={g} value={g} />
+            ))}
+          </datalist>
+          <datalist id="unidades-catalogo-juntar">
+            {unidadesConocidas.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
+          {unidades.length > 1 && (
+            <p className="text-xs text-destructive">Van en unidades distintas ({unidades.join(", ")}): no se pueden juntar.</p>
+          )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCerrar}>
+            Cancelar
+          </Button>
+          <Button onClick={aprobar} disabled={procesando || unidades.length > 1}>
+            {procesando ? "Aprobando…" : "Aprobar juntas"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

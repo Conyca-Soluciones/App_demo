@@ -151,8 +151,25 @@ describe("resolverLineasRevisionEnLote", () => {
     expect(errores).toEqual([])
     const lineas = Array.from(itemApu.values())
     expect(lineas.filter((l) => l.mano_obra_categoria_id === "mo-1" && l.insumo_id === null)).toHaveLength(5)
+    // mano de obra: 1 por unidad del ítem, no las horas de la línea del Excel (2)
+    expect(lineas.filter((l) => l.mano_obra_categoria_id === "mo-1").every((l) => l.cantidad === 1)).toBe(true)
     expect(lineas.filter((l) => l.equipo_categoria_id === "eq-1" && l.factor_unidad === 1)).toHaveLength(5)
     expect(lineas.filter((l) => l.insumo_id === "ins-1" && l.precio_unitario_congelado === 5000)).toHaveLength(5)
+  })
+
+  it("dos líneas de mano de obra del mismo ítem y actividad quedan en UNA fila del APU", async () => {
+    crearRevisiones(2, "MO")
+    const [a, b] = Array.from(revisiones.keys())
+    revisiones.get(b).apu_id = revisiones.get(a).apu_id
+    revisiones.get(b).presupuesto_item_id = revisiones.get(a).presupuesto_item_id
+    const { errores } = await resolverLineasRevisionEnLote(
+      [a, b].map((id) => ({ revisionId: id, accion: "mano_obra" as const, manoObraCategoriaId: "mo-1" }))
+    )
+    expect(errores).toEqual([])
+    expect(itemApu.size).toBe(1)
+    expect(revisiones.get(a).estado).toBe("resuelto")
+    expect(revisiones.get(b).estado).toBe("resuelto")
+    expect(revisiones.get(b).item_apu_id).toBe(revisiones.get(a).item_apu_id)
   })
 
   it("una línea con la unidad que no cuadra queda con error y las demás se guardan", async () => {

@@ -32,6 +32,13 @@ import type {
   FilaImportTransporte,
 } from "@/lib/apu-import-types"
 import type { FilaPrecioInsumo, ListasPreciosInsumos, SolicitudParaPrecio } from "@/lib/excel-precios-insumos"
+import {
+  claveActividad,
+  claveSolicitudRecurso,
+  claveUnidad,
+  mapSolicitudRecursoAprobar,
+  type SolicitudRecursoAprobar,
+} from "@/lib/solicitudes-recurso"
 
 //Aprobado
 
@@ -2261,12 +2268,47 @@ export type SolicitudManoObraInput = {
   grupoSugerido?: string | null
   valorPropuesto?: number | null
   presupuestoItemId?: string | null
+  // Unidad del ítem. Si no viene, se toma del ítem (presupuestoItemId).
+  unidad?: string | null
+}
+
+// Solicitud pendiente con la misma actividad y la misma unidad (2026-11-12):
+// las líneas que piden lo mismo se cuelgan de ella en vez de crear otra. Cada
+// línea conserva su ítem y su cantidad (apu_import_revision).
+async function solicitudRecursoPendienteIgual(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tabla: "solicitudes_mano_obra" | "solicitudes_equipo",
+  descripcion: string,
+  unidad: string | null
+): Promise<any | null> {
+  const texto = descripcion.trim().replace(/\s+/g, " ")
+  if (!texto) return null
+  const { data, error } = await supabase
+    .from(tabla)
+    .select("*")
+    .eq("estado", "pendiente")
+    .ilike("descripcion", `${texto.replace(/[\\%_]/g, (c: string) => `\\${c}`).replace(/ /g, "%")}`)
+    .order("created_at")
+    .order("id")
+    .limit(50)
+  if (error) throw new Error(error.message)
+  const clave = claveActividad(texto)
+  const claveU = claveUnidad(unidad)
+  return (data ?? []).find((s: any) => claveActividad(s.descripcion) === clave && claveUnidad(s.unidad) === claveU) ?? null
 }
 
 export async function crearSolicitudManoObra(input: SolicitudManoObraInput) {
   const supabase = await createClient()
 
   const userId = await obtenerUsuarioId()
+
+  let unidad = input.unidad ?? null
+  if (unidad == null && input.presupuestoItemId) {
+    const { data: item } = await supabase.from("presupuesto_items").select("unidad").eq("id", input.presupuestoItemId).maybeSingle()
+    unidad = item?.unidad ?? null
+  }
+  const igual = await solicitudRecursoPendienteIgual(supabase, "solicitudes_mano_obra", input.descripcion, unidad)
+  if (igual) return igual
 
   const { data, error } = await supabase
     .from("solicitudes_mano_obra")
@@ -2276,6 +2318,7 @@ export async function crearSolicitudManoObra(input: SolicitudManoObraInput) {
       valor_propuesto: input.valorPropuesto ?? null,
       solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
+      unidad,
       estado: "pendiente",
     })
     .select()
@@ -2310,6 +2353,18 @@ export type SolicitudManoObra = {
 
 // Solo pendientes: las resueltas se borran (ver borrarSolicitudResuelta).
 // Completas por páginas: un import grande puede dejar más de 1000.
+// Aprobación de mano de obra y equipos: cada solicitud pendiente con los
+// ítems que la usan (código, cantidad, unidad, capítulo y proyecto).
+export async function listarSolicitudesRecursoParaAprobar(
+  tipo: "mano_obra" | "equipo"
+): Promise<SolicitudRecursoAprobar[]> {
+  await requerirScope("admin_mano_obra")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("solicitudes_recurso_por_aprobar", { p_tipo: tipo })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as any[]).map(mapSolicitudRecursoAprobar)
+}
+
 export async function listarSolicitudesManoObra(): Promise<SolicitudManoObra[]> {
   await requerirScope("admin_mano_obra")
   const supabase = await createClient()
@@ -2566,12 +2621,18 @@ export type SolicitudEquipoInput = {
   grupoSugerido?: string | null
   valorPropuesto?: number | null
   presupuestoItemId?: string | null
+  // Unidad de la línea del Excel (hora, día...).
+  unidad?: string | null
 }
 
 export async function crearSolicitudEquipo(input: SolicitudEquipoInput) {
   const supabase = await createClient()
 
   const userId = await obtenerUsuarioId()
+
+  const unidad = input.unidad ?? null
+  const igual = await solicitudRecursoPendienteIgual(supabase, "solicitudes_equipo", input.descripcion, unidad)
+  if (igual) return igual
 
   const { data, error } = await supabase
     .from("solicitudes_equipo")
@@ -2581,6 +2642,7 @@ export async function crearSolicitudEquipo(input: SolicitudEquipoInput) {
       valor_propuesto: input.valorPropuesto ?? null,
       solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
+      unidad,
       estado: "pendiente",
     })
     .select()
@@ -2770,6 +2832,169 @@ export async function aprobarSolicitudEquipo(
     valorUnitario: categoriaNueva.valor_unitario,
     unidad: categoriaNueva.unidad,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Aprobar mano de obra o equipo con el nombre que se escriba (2026-11-12).
+// Una o varias solicitudes quedan en UNA categoría: si ya hay una con ese
+// nombre en el catálogo, se enlazan a ella (misma unidad); si no, se crea.
+// Cada solicitud aprobada dispara su sincronizador, que mete la línea en el
+// APU de cada ítem (mano de obra: 1 por unidad del ítem).
+// ---------------------------------------------------------------------------
+
+export type CategoriaRecursoExistente = {
+  id: string
+  categoria: string
+  grupo: string | null
+  unidad: string
+  valorUnitario: number | null
+}
+
+const TABLA_CATEGORIA: Record<"mano_obra" | "equipo", "mano_obra_categorias" | "equipo_categorias"> = {
+  mano_obra: "mano_obra_categorias",
+  equipo: "equipo_categorias",
+}
+const TABLA_SOLICITUD: Record<"mano_obra" | "equipo", "solicitudes_mano_obra" | "solicitudes_equipo"> = {
+  mano_obra: "solicitudes_mano_obra",
+  equipo: "solicitudes_equipo",
+}
+
+async function leerCategoriaRecurso(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tipo: "mano_obra" | "equipo",
+  nombre: string
+): Promise<CategoriaRecursoExistente | null> {
+  const encontrada = await buscarCategoriaExistentePorNombre(supabase, TABLA_CATEGORIA[tipo], nombre)
+  if (!encontrada) return null
+  const { data, error } = await supabase
+    .from(TABLA_CATEGORIA[tipo])
+    .select("id, categoria, grupo, unidad, valor_unitario")
+    .eq("id", encontrada.id)
+    .single()
+  if (error) throw new Error(error.message)
+  return {
+    id: data.id,
+    categoria: data.categoria,
+    grupo: data.grupo ?? null,
+    unidad: data.unidad ?? "",
+    valorUnitario: data.valor_unitario == null ? null : Number(data.valor_unitario),
+  }
+}
+
+/** La categoría del catálogo con ese nombre (sin mayúsculas ni espacios de más), para avisar antes de aprobar. */
+export async function categoriaRecursoPorNombre(
+  tipo: "mano_obra" | "equipo",
+  nombre: string
+): Promise<CategoriaRecursoExistente | null> {
+  await requerirScope("admin_mano_obra")
+  if (!nombre.trim()) return null
+  return leerCategoriaRecurso(await createClient(), tipo, nombre)
+}
+
+export async function aprobarSolicitudesRecurso(
+  tipo: "mano_obra" | "equipo",
+  input: {
+    solicitudIds: string[]
+    nombre: string
+    grupo: string | null
+    unidad: string
+    valorUnitario: number | null
+    // Si el nombre ya existe en el catálogo: true = enlazar a esa categoría.
+    enlazarSiExiste: boolean
+    // Al enlazar, exigir que el valor escrito sea el de la categoría (Excel).
+    exigirMismoValor?: boolean
+  }
+): Promise<{ categoria: string; enlazada: boolean; aprobadas: string[] }> {
+  await requerirScope("admin_mano_obra")
+  const supabase = await createClient()
+  const userId = await obtenerUsuarioId()
+
+  const ids = Array.from(new Set(input.solicitudIds))
+  if (ids.length === 0) throw new Error("No hay solicitudes para aprobar.")
+  if (ids.length > 200) throw new Error("Máximo 200 actividades a la vez.")
+  const nombre = input.nombre.trim().replace(/\s+/g, " ")
+  if (!nombre) throw new Error("Escribe el nombre de la actividad.")
+  const unidad = input.unidad.trim().toUpperCase()
+  if (!unidad) throw new Error("Falta la unidad (M2, M3, UND, ML...).")
+
+  const { data: solicitudes, error: errorLectura } = await supabase
+    .from(TABLA_SOLICITUD[tipo])
+    .select("id, descripcion, unidad, estado")
+    .in("id", ids)
+  if (errorLectura) throw new Error(errorLectura.message)
+  if ((solicitudes ?? []).length !== ids.length || (solicitudes ?? []).some((x: any) => x.estado !== "pendiente")) {
+    throw new Error("Alguna de estas solicitudes ya fue resuelta por otra persona. Actualiza la página.")
+  }
+  // Todas en la misma unidad: el valor es por esa unidad.
+  const unidades = Array.from(
+    new Set((solicitudes ?? []).map((x: any) => normalizarUnidad(x.unidad)).filter((u): u is string => !!u))
+  )
+  if (unidades.length > 1) {
+    throw new Error(`Estas actividades van en unidades distintas (${unidades.join(", ")}): no se pueden juntar en una.`)
+  }
+
+  const existente = await leerCategoriaRecurso(supabase, tipo, nombre)
+  let categoriaId: string
+  let categoria: string
+  if (existente) {
+    if (!input.enlazarSiExiste) {
+      throw new Error(`Ya existe "${existente.categoria}" en el catálogo. Enlázala o cambia el nombre.`)
+    }
+    if (normalizarUnidad(existente.unidad) !== normalizarUnidad(unidad)) {
+      throw new Error(
+        `Ya existe "${existente.categoria}" en ${existente.unidad || "otra unidad"} y estas actividades van en ${unidad}: cambia el nombre.`
+      )
+    }
+    if (existente.valorUnitario == null) {
+      throw new Error(`"${existente.categoria}" no tiene valor en el catálogo: ponle valor antes de enlazarla.`)
+    }
+    if (
+      input.exigirMismoValor &&
+      input.valorUnitario != null &&
+      Math.abs(existente.valorUnitario - input.valorUnitario) > 0.005
+    ) {
+      throw new Error(
+        `Ya existe "${existente.categoria}" con valor $${existente.valorUnitario.toLocaleString("es-CO")}: pon ese valor para enlazarla o cambia el nombre.`
+      )
+    }
+    categoriaId = existente.id
+    categoria = existente.categoria
+  } else {
+    if (input.valorUnitario == null || input.valorUnitario <= 0) {
+      throw new Error("Escribe el valor: no puede quedar en 0 ni vacío.")
+    }
+    const { data: nueva, error: errorCategoria } = await supabase
+      .from(TABLA_CATEGORIA[tipo])
+      .insert({ categoria: nombre, grupo: input.grupo?.trim() || null, valor_unitario: input.valorUnitario, unidad })
+      .select("id, categoria")
+      .single()
+    if (errorCategoria) throw new Error(errorCategoria.message)
+    categoriaId = nueva.id
+    categoria = nueva.categoria
+  }
+
+  // Una por una: cada aprobación mete sus líneas en los APU y recalcula.
+  const aprobadas: string[] = []
+  for (const id of ids) {
+    const { data, error } = await supabase
+      .from(TABLA_SOLICITUD[tipo])
+      .update({
+        estado: "aprobado",
+        categoria_asignada_id: categoriaId,
+        resuelto_at: new Date().toISOString(),
+        resuelto_por: userId ?? null,
+      })
+      .eq("id", id)
+      .eq("estado", "pendiente")
+      .select("id")
+    if (error) throw new Error(error.message)
+    if (data && data.length > 0) {
+      aprobadas.push(id)
+      await borrarSolicitudResuelta(supabase, tipo, id)
+    }
+  }
+  if (aprobadas.length === 0) throw new Error("Estas solicitudes ya fueron resueltas por otra persona. Actualiza la página.")
+  return { categoria, enlazada: !!existente, aprobadas }
 }
 
 export async function rechazarSolicitudEquipo(solicitudId: string, motivo?: string) {
@@ -4074,7 +4299,7 @@ export async function resolverLineaRevision(input: {
   const { data: fila, error: errorLectura } = await supabase
     .from("apu_import_revision")
     .select(
-      "apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion)"
+      "apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion, unidad)"
     )
     .eq("id", input.revisionId)
     .single()
@@ -4092,6 +4317,7 @@ export async function resolverLineaRevision(input: {
     const solicitud = await crearSolicitudManoObra({
       descripcion: nombreItem,
       presupuestoItemId: fila.presupuesto_item_id,
+      unidad: (fila as any).presupuesto_items?.unidad ?? null,
     })
 
     const { error: errorUpdate } = await supabase
@@ -4107,6 +4333,7 @@ export async function resolverLineaRevision(input: {
     const solicitud = await crearSolicitudEquipo({
       descripcion: fila.descripcion_original,
       presupuestoItemId: fila.presupuesto_item_id,
+      unidad: fila.unidad ?? null,
     })
 
     const { error: errorUpdate } = await supabase
@@ -4191,7 +4418,7 @@ export async function resolverLineasRevisionEnLote(
         const { data, error } = await supabase
           .from("apu_import_revision")
           .select(
-            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion)"
+            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion, unidad)"
           )
           .in("id", lote)
         if (error) throw new Error(error.message)
@@ -4283,6 +4510,26 @@ export async function resolverLineasRevisionEnLote(
     valoresCategorias("equipo_categorias", resolucionesEquipo.map((r) => r.equipoCategoriaId)),
   ])
 
+  // Mano de obra: UNA línea por ítem y actividad (cantidad 1 por unidad del
+  // ítem). Si el ítem ya la tiene, o si otra línea de este mismo guardado la
+  // pide, las demás líneas del Excel se enlazan a esa fila.
+  const enlazarManoObra: { revisionId: string; presupuestoItemId: string; clave: string; categoriaId: string }[] = []
+  const filaManoObraExistente = new Map<string, string>()
+  const apusManoObra = Array.from(
+    new Set(resolucionesManoObra.map((r) => filaPorId.get(r.revisionId)?.apu_id).filter((x): x is string => !!x))
+  )
+  for (const lote of trocear(apusManoObra, 150)) {
+    const { data, error } = await supabase
+      .from("item_apu")
+      .select("id, apu_id, mano_obra_categoria_id")
+      .in("apu_id", lote)
+    if (error) throw new Error(error.message)
+    for (const f of (data ?? []) as any[]) {
+      if (f.mano_obra_categoria_id) filaManoObraExistente.set(`${f.apu_id}|${f.mano_obra_categoria_id}`, f.id)
+    }
+  }
+  const manoObraEnEsteGuardado = new Set<string>()
+
   for (const r of resolucionesManoObra) {
     const fila = filaAbierta(r.revisionId)
     if (!fila) continue
@@ -4298,13 +4545,22 @@ export async function resolverLineasRevisionEnLote(
       })
       continue
     }
+    const claveMo = `${fila.apu_id}|${r.manoObraCategoriaId}`
+    if (filaManoObraExistente.has(claveMo) || manoObraEnEsteGuardado.has(claveMo)) {
+      enlazarManoObra.push({ revisionId: r.revisionId, presupuestoItemId: fila.presupuesto_item_id, clave: claveMo, categoriaId: r.manoObraCategoriaId })
+      continue
+    }
+    manoObraEnEsteGuardado.add(claveMo)
     porInsertar.push({
       revisionId: r.revisionId,
       presupuestoItemId: fila.presupuesto_item_id,
+      // 1 por unidad del ítem: la mano de obra se contrata por unidad de la
+      // actividad (los cálculos ya ignoraban la cantidad; se guarda 1 para que
+      // no queden las horas de cuadrilla del Excel). 2026-11-12.
       linea: {
         apu_id: fila.apu_id,
         mano_obra_categoria_id: r.manoObraCategoriaId,
-        cantidad: Number(fila.cantidad),
+        cantidad: 1,
         rendimiento: 1,
         tipo: "MO",
       },
@@ -4411,6 +4667,31 @@ export async function resolverLineasRevisionEnLote(
     itemsAfectados.add(p.presupuestoItemId)
   })
 
+  // Las líneas de mano de obra que se enlazan a una fila que ya existe (o que
+  // se acaba de insertar para el mismo ítem y actividad).
+  if (enlazarManoObra.length > 0) {
+    const apuPorRevision = new Map(porInsertar.map((x) => [x.revisionId, x.linea.apu_id as string]))
+    for (const p of insertadas) {
+      const cat = (p.asignado as any).mano_obra_categoria_id_asignado
+      const apu = apuPorRevision.get(p.revisionId)
+      if (cat && apu) filaManoObraExistente.set(`${apu}|${cat}`, p.itemApuId)
+    }
+  }
+  await procesarEnLotes(enlazarManoObra, 25, async (e) => {
+    const itemApuId = filaManoObraExistente.get(e.clave)
+    if (!itemApuId) {
+      errores.push({ revisionId: e.revisionId, mensaje: "No se pudo guardar la mano de obra de este ítem. Intenta otra vez." })
+      return
+    }
+    const { error } = await supabase
+      .from("apu_import_revision")
+      .update({ estado: "resuelto", item_apu_id: itemApuId, mano_obra_categoria_id_asignado: e.categoriaId })
+      .eq("id", e.revisionId)
+      .neq("estado", "resuelto")
+    if (error) errores.push({ revisionId: e.revisionId, mensaje: error.message })
+    else itemsAfectados.add(e.presupuestoItemId)
+  })
+
   // ---- resoluciones "solicitud_equipo" (pedir categoría de equipo nueva) ----
   // DEDUPLICADAS por descripción, igual que "solicitud" (insumo) más
   // abajo -- a diferencia de mano de obra, el mismo equipo SÍ puede
@@ -4422,7 +4703,7 @@ export async function resolverLineasRevisionEnLote(
   for (const r of resolucionesSolicitudEquipo) {
     const fila = filaPorId.get(r.revisionId)
     if (!fila || fila.estado === "resuelto") continue
-    const clave = fila.descripcion_original.trim().toLowerCase()
+    const clave = claveSolicitudRecurso(fila.descripcion_original, fila.unidad)
     const grupo = gruposEquipoPorDescripcion.get(clave) ?? []
     grupo.push(r)
     gruposEquipoPorDescripcion.set(clave, grupo)
@@ -4434,6 +4715,7 @@ export async function resolverLineasRevisionEnLote(
       const solicitud = await crearSolicitudEquipo({
         descripcion: primeraFila.descripcion_original,
         presupuestoItemId: primeraFila.presupuesto_item_id,
+        unidad: primeraFila.unidad ?? null,
       })
 
       const idsDelGrupo = grupo.map((r) => r.revisionId)
@@ -4454,35 +4736,43 @@ export async function resolverLineasRevisionEnLote(
   })
 
   // ---- resoluciones "solicitud_mano_obra" (pedir categoría nueva) ----
-  // Cada una independiente -- no hace falta deduplicar como la solicitud
-  // de insumo, porque ya es una línea de mano de obra por bloque.
+  // Agrupadas por actividad (nombre del ítem) y unidad del ítem: las líneas
+  // que piden lo mismo van a UNA solicitud (la pendiente igual, si ya hay),
+  // cada una con su ítem y su cantidad (2026-11-12).
   const resolucionesSolicitudManoObra = resoluciones.filter((r) => r.accion === "solicitud_mano_obra")
-
-  await procesarEnLotes(resolucionesSolicitudManoObra, 15, async (r) => {
+  const gruposManoObra = new Map<string, typeof resolucionesSolicitudManoObra>()
+  for (const r of resolucionesSolicitudManoObra) {
     const fila = filaPorId.get(r.revisionId)
     if (!fila) {
       errores.push({ revisionId: r.revisionId, mensaje: "No se encontró esa línea de revisión." })
-      return
+      continue
     }
-    if (fila.estado === "resuelto") return
+    if (fila.estado === "resuelto") continue
+    const item = (fila as any).presupuesto_items
+    const clave = claveSolicitudRecurso(item?.descripcion ?? fila.descripcion_original, item?.unidad ?? null)
+    const grupo = gruposManoObra.get(clave) ?? []
+    grupo.push(r)
+    gruposManoObra.set(clave, grupo)
+  }
 
+  await procesarEnLotes(Array.from(gruposManoObra.values()), 15, async (grupo) => {
+    const fila = filaPorId.get(grupo[0].revisionId)!
+    const item = (fila as any).presupuesto_items
     try {
-      const nombreItem = (fila as any).presupuesto_items?.descripcion ?? fila.descripcion_original
       const solicitud = await crearSolicitudManoObra({
-        descripcion: nombreItem,
+        descripcion: item?.descripcion ?? fila.descripcion_original,
         presupuestoItemId: fila.presupuesto_item_id,
+        unidad: item?.unidad ?? null,
       })
 
       const { error: errorUpdate } = await supabase
         .from("apu_import_revision")
         .update({ estado: "solicitud_pendiente", solicitud_mano_obra_id: solicitud.id })
-        .eq("id", r.revisionId)
+        .in("id", grupo.map((r) => r.revisionId))
       if (errorUpdate) throw new Error(errorUpdate.message)
     } catch (e) {
-      errores.push({
-        revisionId: r.revisionId,
-        mensaje: e instanceof Error ? e.message : "No se pudo crear la solicitud.",
-      })
+      const mensaje = e instanceof Error ? e.message : "No se pudo crear la solicitud."
+      for (const r of grupo) errores.push({ revisionId: r.revisionId, mensaje })
     }
   })
 

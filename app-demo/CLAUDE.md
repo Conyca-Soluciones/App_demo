@@ -2898,6 +2898,59 @@ cantidad; la línea de alambre (5502) del ítem 1.1 del Malecón se congeló otr
 vez a $7.500/kg. Otro proyecto de prueba: `update proyectos set
 excluir_de_precios = true where codigo = '...'` (no hay pantalla).
 
+## Aprobación de mano de obra y equipos rediseñada (2026-11-12)
+
+`20270101002400_mano_obra_por_unidad_del_item.sql` (decisiones del usuario).
+- **Mano de obra = 1 por unidad del ítem** (se contrata por unidad de la
+  actividad; total del ítem = valor × cantidad del ítem). Los cálculos YA lo
+  hacían (`recalcular_valor_apus`, `_valor_mano_obra_item`, `control_proyecto`,
+  el editor y el Excel de APU ignoran `item_apu.cantidad` de la mano de obra);
+  lo que cambió es que el aprobador (`sincronizar_apu_import_revision_mano_obra`)
+  y "Guardar" de Revisar pendientes guardan 1 en vez de las horas de cuadrilla
+  del Excel, y UNA línea por APU y actividad (dos líneas sumaban el valor dos
+  veces; las demás líneas del Excel se enlazan a esa fila). Las 52 líneas con
+  horas que ya había no se tocaron: no cambian ningún valor. Equipo sigue con
+  su cantidad del Excel.
+- **Solicitudes iguales = una**: misma actividad (`_clave_actividad`, nombre sin
+  mayúsculas ni espacios de más) y misma unidad (`_clave_unidad`, "m²" = "m2").
+  `solicitudes_mano_obra.unidad` (la del ítem) y `solicitudes_equipo.unidad`
+  (la de la línea). `crearSolicitudManoObra` / `crearSolicitudEquipo` reutilizan
+  la pendiente igual (`solicitudRecursoPendienteIgual`) y "Guardar" agrupa antes
+  de crear. Cada línea conserva su ítem y su cantidad (`apu_import_revision`).
+  La migración juntó las 237 pendientes del Malecón en 105.
+- **Pantalla** (`admin-mo/page.tsx`): una fila por actividad con casilla,
+  Capítulo, Actividad (nombre EDITABLE: con él entra al catálogo), Ítems
+  (cuántos y sus códigos; sin cantidades, decisión del usuario: en el APU es 1
+  por unidad), Grupo (viene el capítulo sin número, lista con los grupos del
+  catálogo), Unidad (la del ítem), Valor y Aprobar / Rechazar. Filtro por
+  capítulo. Datos de `solicitudes_recurso_por_aprobar(tipo)`
+  (`listarSolicitudesRecursoParaAprobar`, con la RLS de quien consulta). Sin
+  "parecida en el catálogo" (decisión del usuario). Lógica pura en
+  `lib/solicitudes-recurso.ts`.
+- **Varias actividades en una categoría** (ej. las tres talas = "TALA DE
+  ARBOL"): `aprobarSolicitudesRecurso(tipo, {solicitudIds, nombre, grupo,
+  unidad, valor, enlazarSiExiste, exigirMismoValor})` aprueba una o varias
+  solicitudes con UNA categoría: si el nombre ya existe en el catálogo
+  (`categoriaRecursoPorNombre`, sin mayúsculas ni espacios de más) la pantalla
+  pregunta y las enlaza a esa (misma unidad; toma su valor); si no, la crea.
+  Todas deben ir en la misma unidad. "Juntar seleccionadas" (casillas) pide
+  nombre, grupo, unidad y valor una vez. Sin migración: aprobar = asignar
+  `categoria_asignada_id` y el sincronizador mete las líneas en los APU.
+  `aprobarSolicitudManoObra` / `aprobarSolicitudEquipo` quedan sin uso en esta
+  pantalla.
+- **Excel** (`lib/excel-aprobacion-recursos.ts`, `components/excel-aprobacion-recursos.tsx`):
+  una fila por actividad; se llenan Actividad (nombre), Grupo, Unidad y Valor
+  (aprueba) o "Rechazar: motivo" (rechaza). Las filas con el mismo nombre y
+  unidad (`agruparAprobaciones`) quedan en una categoría; con valores distintos
+  no se aprueban. Si el nombre ya existe en el catálogo se enlazan solo si el
+  valor es el mismo (`exigirMismoValor`). 3 trabajos a la vez. ID interno
+  oculto. Instrucciones arriba de la tabla (`INSTRUCCIONES_EXCEL_RECURSOS`:
+  llenar los amarillos, motivo solo para rechazar, mismo nombre = conectadas).
+  Pruebas en `tests/excel-aprobacion-recursos.test.ts`.
+- **IVA**: los precios de mano de obra son SIN IVA (Excel de origen en
+  `docs/fuentes-precios/`: costos directos de ISVIMED y contrato de Pesquera,
+  ninguno con IVA). El presupuesto suma IVA solo a insumos.
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
