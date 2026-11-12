@@ -3,6 +3,9 @@
 import { useMemo, useRef, useState } from "react"
 import { Download, FileSpreadsheet, Loader2, Pencil, Plus, Send, Trash2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { columnasItemsReqAdmin } from "@/components/detalle-requisicion-admin"
@@ -12,8 +15,11 @@ import { descargarPlantillaReqAdminPse, leerFilasReqAdminPse, type ErrorFilaReqA
 import {
   ETIQUETA_METODO_REQ_ADMIN,
   MAX_ITEMS_REQ_ADMIN,
+  descuentosItem,
+  etiquetaProyecto,
   itemVacio,
   metodoDelCuadro,
+  totalItem,
   totalItems,
   validarRequisicionAdmin,
   valorItem,
@@ -58,6 +64,22 @@ export function RequisicionAdminForm({
   const [leyendoExcel, setLeyendoExcel] = useState(false)
   const [descargando, setDescargando] = useState(false)
   const archivoRef = useRef<HTMLInputElement>(null)
+  // "¿Todos los pagos son del mismo proyecto?": los ítems nuevos vienen con ese
+  // proyecto (y su empresa); al escogerlo se pone también en los que ya hay.
+  const [mismoProyecto, setMismoProyecto] = useState(false)
+  const [proyectoComun, setProyectoComun] = useState("")
+
+  function escogerProyectoComun(id: string) {
+    setProyectoComun(id)
+    const p = opciones.proyectos.find((x) => x.id === id)
+    if (!p) return
+    setItems((lista) => lista.map((it) => ({ ...it, proyectoId: p.id, empresaId: p.empresaId || it.empresaId })))
+  }
+  function itemNuevo(): ItemFormReqAdmin {
+    const it = itemVacio()
+    const p = mismoProyecto ? opciones.proyectos.find((x) => x.id === proyectoComun) : undefined
+    return p ? { ...it, proyectoId: p.id, empresaId: p.empresaId ?? "" } : it
+  }
 
   const empresaPorId = useMemo(() => new Map(opciones.empresas.map((e) => [e.id, e.razonSocial])), [opciones])
   const proyectoPorId = useMemo(() => new Map(opciones.proyectos.map((p) => [p.id, p.codigo ?? p.nombre])), [opciones])
@@ -186,6 +208,7 @@ export function RequisicionAdminForm({
             concepto: it.concepto,
             proyecto: proyectoPorId.get(it.proyectoId) ?? "",
             valor: valorItem(it),
+            descuentos: descuentosItem(it),
             observaciones: it.observaciones || null,
             soporte: it.archivoSoporte ? { nombre: it.archivoSoporte.name } : it.soporte ? { nombre: it.soporte.nombre } : null,
           }
@@ -236,6 +259,41 @@ export function RequisicionAdminForm({
           )}
         </div>
       )}
+
+      <section className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/20 p-3">
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+          <Checkbox
+            checked={mismoProyecto}
+            onCheckedChange={(v) => {
+              setMismoProyecto(v === true)
+              if (v !== true) setProyectoComun("")
+            }}
+          />
+          ¿Todos los pagos son del mismo proyecto?
+        </label>
+        {mismoProyecto && (
+          <div className="w-80 max-w-full space-y-1">
+            <Label className="text-xs">Proyecto de todos los pagos</Label>
+            <Select value={proyectoComun} onValueChange={(v) => escogerProyectoComun(String(v ?? ""))}>
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder="Escoge el proyecto" />
+              </SelectTrigger>
+              <SelectContent>
+                {opciones.proyectos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {etiquetaProyecto(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <p className="basis-full text-xs text-muted-foreground">
+          {mismoProyecto
+            ? "Cada ítem nuevo viene con este proyecto y su grupo empresarial; en cada ítem se puede cambiar el grupo empresarial."
+            : "Escoge el proyecto en cada ítem. El grupo empresarial se llena con el del proyecto y se puede cambiar."}
+        </p>
+      </section>
 
       <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -301,7 +359,7 @@ export function RequisicionAdminForm({
               tarjeta={{
                 titulo: (f) => `${f.indice + 1}. ${f.item.facturaNombre || "Sin empresa que factura"}`,
                 subtitulo: (f) => f.item.concepto,
-                esquina: (f) => <span className="text-sm font-medium tabular-nums">{formatoMoneda(valorItem(f.item) ?? 0)}</span>,
+                esquina: (f) => <span className="text-sm font-medium tabular-nums">{formatoMoneda(totalItem(f.item) ?? 0)}</span>,
                 campos: ["metodo", "empresa", "titular", "banco", "numeroCuenta", "proyecto", "acciones"],
               }}
             />
@@ -312,7 +370,7 @@ export function RequisicionAdminForm({
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button variant="outline" onClick={() => setEditando({ indice: -1, item: itemVacio() })} disabled={lleno}>
+            <Button variant="outline" onClick={() => setEditando({ indice: -1, item: itemNuevo() })} disabled={lleno}>
               <Plus className="size-4" /> Agregar ítem
             </Button>
             <p className="text-sm">

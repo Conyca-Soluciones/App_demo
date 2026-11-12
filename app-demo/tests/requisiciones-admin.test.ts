@@ -3,6 +3,8 @@ import {
   MAX_ITEMS_REQ_ADMIN,
   itemFormDesdeDetalle,
   itemParaGuardar,
+  descuentosItem,
+  totalItem,
   itemParaMetodo,
   itemVacio,
   limpiarNit,
@@ -102,7 +104,16 @@ describe("valores y lo que se guarda", () => {
   it("valor en formato colombiano y total", () => {
     expect(valorItem({ valor: "1.250.000,50" })).toBe(1250000.5)
     expect(valorItem({ valor: "38.500" })).toBe(38500)
-    expect(totalItems([{ valor: "1.250.000,50" }, { valor: "49.999,50" }, { valor: "" }])).toBe(1300000)
+    expect(totalItems([{ valor: "1.250.000,50", descuentos: "" }, { valor: "49.999,50", descuentos: "" }, { valor: "", descuentos: "" }])).toBe(1300000)
+  })
+
+  it("anticipos y/o descuentos: total = valor − descuentos", () => {
+    expect(descuentosItem({ descuentos: "" })).toBe(0)
+    expect(descuentosItem({ descuentos: "250.000" })).toBe(250000)
+    expect(totalItem({ valor: "1.000.000", descuentos: "250.000" })).toBe(750000)
+    expect(totalItems([{ valor: "1.000.000", descuentos: "250.000" }, { valor: "500.000", descuentos: "" }])).toBe(1250000)
+    expect(validarItemReqAdmin(transferencia({ descuentos: "2.000.000" }))).toMatch(/menores que el valor/)
+    expect(validarItemReqAdmin(transferencia({ descuentos: "250.000" }))).toBeNull()
   })
 
   it("limpia el NIT", () => {
@@ -118,6 +129,7 @@ describe("valores y lo que se guarda", () => {
       proyecto_id: "p1",
       concepto: "Papelería",
       valor: 1250000.5,
+      descuentos: 0,
       observaciones: "urgente",
       tercero_factura_id: "t1",
       titular_tercero_id: "t1",

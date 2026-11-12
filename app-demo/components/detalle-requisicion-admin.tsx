@@ -47,6 +47,8 @@ export function columnasItemsReqAdmin<T>(
     concepto: string
     proyecto: string
     valor: number | null
+    // Anticipos y/o descuentos (20270101001300); total = valor − descuentos.
+    descuentos?: number | null
     observaciones: string | null
     // Código del pago (PA-001-0001); los ítems del formulario todavía no lo tienen.
     codigo?: string | null
@@ -125,6 +127,28 @@ export function columnasItemsReqAdmin<T>(
       },
     },
     {
+      clave: "descuentos",
+      titulo: "Anticipos y/o descuentos",
+      ancho: 150,
+      alinear: "right",
+      claseCelda: "tabular-nums",
+      texto: (f) => {
+        const d = leer(f).descuentos
+        return d ? formatoMoneda(d) : ""
+      },
+    },
+    {
+      clave: "total",
+      titulo: "Total",
+      ancho: 140,
+      alinear: "right",
+      claseCelda: "tabular-nums font-medium",
+      texto: (f) => {
+        const l = leer(f)
+        return l.valor == null ? "" : formatoMoneda(l.valor - (l.descuentos ?? 0))
+      },
+    },
+    {
       clave: "observaciones",
       titulo: "Observaciones",
       ancho: 200,
@@ -174,6 +198,7 @@ const leerItem = (i: ItemReqAdmin) => ({
   concepto: i.concepto,
   proyecto: i.proyectoCodigo ?? i.proyectoNombre,
   valor: i.valor,
+  descuentos: i.descuentos,
   observaciones: i.observaciones,
   soporte: i.soporte ? { nombre: i.soporte.nombre, ver: () => verSoporteReqAdmin(i.soporte!.ruta) } : null,
 })

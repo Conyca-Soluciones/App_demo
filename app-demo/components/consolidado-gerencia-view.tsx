@@ -21,6 +21,7 @@ import {
   listarConsolidadoGerencia,
   movimientosConsolidadoGerencia,
   opcionesConsolidadoGerencia,
+  totalConsolidadoGerencia,
   soportesDePagos,
 } from "@/app/(app)/ayf/consolidado-gerencia/actions"
 import {
@@ -55,6 +56,8 @@ export function ConsolidadoGerenciaView() {
   const [viendoMov, setViendoMov] = useState<MovimientoGerencia | null>(null)
   const [incluirIngresos, setIncluirIngresos] = useState(false)
   const [incluirEgresos, setIncluirEgresos] = useState(false)
+  // Total de todo lo filtrado (no solo la página); se pide al consultar.
+  const [totalFiltrado, setTotalFiltrado] = useState<{ pagos: number; valor: number; anulados: number } | null>(null)
 
   const actual = semanaIso()
   const [anios, setAnios] = useState<number[]>([actual.anio])
@@ -83,6 +86,12 @@ export function ConsolidadoGerenciaView() {
     setUltimos(filtros)
     setCargando(true)
     setError(null)
+    if (pag === 0) {
+      setTotalFiltrado(null)
+      totalConsolidadoGerencia(filtros)
+        .then((t: { pagos: number; valor: number; anulados: number }) => setTotalFiltrado(t))
+        .catch(() => setTotalFiltrado(null))
+    }
     Promise.all([
       listarConsolidadoGerencia(filtros, pag),
       pag === 0 && (filtros.incluirIngresos || filtros.incluirEgresos) ? movimientosConsolidadoGerencia(filtros) : Promise.resolve([]),
@@ -424,6 +433,13 @@ export function ConsolidadoGerenciaView() {
                   {pagos.length} {pagos.length === 1 ? "pago" : "pagos"} en esta página · Total de la página{" "}
                   <span className="font-medium text-foreground tabular-nums">{formatoMoneda(totalPagina)}</span>
                 </span>
+                {totalFiltrado && (
+                  <span className="basis-full" title="Todos los pagos con estos filtros, en todas las páginas (sin anulados ni rechazados)">
+                    Total de lo filtrado ({totalFiltrado.pagos - totalFiltrado.anulados} {totalFiltrado.pagos - totalFiltrado.anulados === 1 ? "pago" : "pagos"}
+                    {ultimos.proyectoId ? " del proyecto" : ""}){" "}
+                    <span className="text-base font-semibold text-foreground tabular-nums">{formatoMoneda(totalFiltrado.valor)}</span>
+                  </span>
+                )}
               </div>
             </>
           )}

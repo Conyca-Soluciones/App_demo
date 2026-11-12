@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,13 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { CampoSoporte } from "@/components/campo-soporte"
+import { NuevoTerceroDialogo } from "@/components/tercero-dialogo"
+import { listarBancos } from "@/app/(app)/ayf/terceros/actions"
+import type { Banco, TerceroBasico } from "@/lib/terceros"
 import { formatoMoneda } from "@/lib/pagos"
 import {
   ETIQUETA_SOPORTE_REQ_ADMIN,
   TIPOS_DOCUMENTO_PSE,
   etiquetaProyecto,
   itemParaMetodo,
+  descuentosItem,
   textoCuenta,
+  totalItem,
   validarItemReqAdmin,
   valorItem,
   type CuentaReqAdmin,
@@ -35,6 +40,12 @@ function partesDocumento(sub: string | null | undefined): { tipo: string; numero
   const [tipo = "", ...resto] = (sub ?? "").trim().split(/\s+/)
   const conDv = resto.join("").replace(/\./g, "")
   return { tipo, numero: conDv.split("-")[0].replace(/\D/g, ""), nit: conDv }
+}
+
+// El tercero creado (o el que ya existía) como opción del buscador.
+function opcionDeTercero(t: TerceroBasico): OpcionBuscador {
+  const doc = t.dv ? `${t.numeroDocumento}-${t.dv}` : t.numeroDocumento
+  return { id: t.id, etiqueta: t.razonSocial, subetiqueta: `${t.tipoDocumento} ${doc}` }
 }
 
 function Campo({ etiqueta, children, ayuda }: { etiqueta: string; children: React.ReactNode; ayuda?: string }) {
@@ -102,6 +113,38 @@ export function ItemRequisicionAdminDialog({
 
   const cambiar = (p: Partial<ItemFormReqAdmin>) => setItem((it) => ({ ...it, ...p }))
 
+  // "Crear tercero" (el formulario normal de Terceros): para quien factura o para el titular.
+  const [crearPara, setCrearPara] = useState<"factura" | "titular" | null>(null)
+  const [bancos, setBancos] = useState<Banco[] | null>(null)
+  const [cargandoBancos, setCargandoBancos] = useState(false)
+  async function abrirCrearTercero(para: "factura" | "titular") {
+    setError(null)
+    if (!bancos) {
+      setCargandoBancos(true)
+      try {
+        setBancos(await listarBancos())
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudieron cargar los bancos.")
+        return
+      } finally {
+        setCargandoBancos(false)
+      }
+    }
+    setCrearPara(para)
+  }
+  function usarTercero(t: TerceroBasico) {
+    const o = opcionDeTercero(t)
+    if (crearPara === "titular") elegirTitular(o)
+    else elegirFactura(o)
+    setCrearPara(null)
+  }
+  const botonCrearTercero = (para: "factura" | "titular") => (
+    <Button type="button" variant="outline" size="sm" className="shrink-0" disabled={cargandoBancos} onClick={() => abrirCrearTercero(para)}>
+      {cargandoBancos ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <UserPlus className="mr-1.5 size-4" />}
+      Crear tercero
+    </Button>
+  )
+
   const facturaSeleccionada: OpcionBuscador | null = item.terceroFacturaId
     ? { id: item.terceroFacturaId, etiqueta: item.facturaNombre, subetiqueta: item.facturaNit ? `NIT ${item.facturaNit}` : null }
     : null
@@ -165,8 +208,8 @@ export function ItemRequisicionAdminDialog({
   }
   function elegirProyecto(id: string) {
     const p = opciones.proyectos.find((x) => x.id === id)
-    // El grupo empresarial se propone con la empresa del proyecto.
-    setItem((it) => ({ ...it, proyectoId: id, empresaId: it.empresaId || p?.empresaId || "" }))
+    // El grupo empresarial se llena con la empresa del proyecto (se puede cambiar).
+    setItem((it) => ({ ...it, proyectoId: id, empresaId: p?.empresaId || it.empresaId }))
   }
 
   function guardar() {
@@ -179,6 +222,8 @@ export function ItemRequisicionAdminDialog({
   }
 
   const valor = valorItem(item)
+  const descuentos = descuentosItem(item)
+  const total = totalItem(item)
 
   return (
     <Dialog open={abierto} onOpenChange={(a) => !a && onCerrar()}>
@@ -187,7 +232,7 @@ export function ItemRequisicionAdminDialog({
           <DialogTitle>Ítem {numero}</DialogTitle>
           <DialogDescription>
             {metodo === "transferencia"
-              ? "Pago por transferencia: el tercero que factura y el titular de la cuenta tienen que estar inscritos en Terceros."
+              ? "Pago por transferencia: el tercero que factura y el titular de la cuenta salen de Terceros. Si no existe, créalo aquí."
               : "Pago por PSE: escribe los datos de quien factura y del titular (no lleva cuenta bancaria)."}
           </DialogDescription>
         </DialogHeader>
@@ -248,13 +293,18 @@ export function ItemRequisicionAdminDialog({
 
         {metodo === "transferencia" ? (
           <div className="space-y-4 rounded-lg border p-3">
-            <Campo etiqueta="Empresa que factura" ayuda="Busca por nombre o NIT. Si no aparece, pídele a A&F que la inscriba en Terceros.">
-              <BuscadorAsync
-                placeholder="Nombre o NIT del tercero"
-                valorSeleccionado={facturaSeleccionada}
-                onSeleccionar={elegirFactura}
-                buscar={buscarTercerosRequisicionAdmin}
-              />
+            <Campo etiqueta="Empresa que factura" ayuda="Busca por nombre o NIT. Si no aparece, créala con su cuenta, certificación bancaria y RUT.">
+              <div className="flex gap-2">
+                <div className="min-w-0 flex-1">
+                  <BuscadorAsync
+                    placeholder="Nombre o NIT del tercero"
+                    valorSeleccionado={facturaSeleccionada}
+                    onSeleccionar={elegirFactura}
+                    buscar={buscarTercerosRequisicionAdmin}
+                  />
+                </div>
+                {botonCrearTercero("factura")}
+              </div>
             </Campo>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={titularDistinto} onCheckedChange={(v) => titularEsOtro(Boolean(v))} />
@@ -262,12 +312,17 @@ export function ItemRequisicionAdminDialog({
             </label>
             {titularDistinto && (
               <Campo etiqueta="Titular de la cuenta">
-                <BuscadorAsync
-                  placeholder="Nombre o documento del titular"
-                  valorSeleccionado={titularSeleccionado}
-                  onSeleccionar={elegirTitular}
-                  buscar={buscarTercerosRequisicionAdmin}
-                />
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <BuscadorAsync
+                      placeholder="Nombre o documento del titular"
+                      valorSeleccionado={titularSeleccionado}
+                      onSeleccionar={elegirTitular}
+                      buscar={buscarTercerosRequisicionAdmin}
+                    />
+                  </div>
+                  {botonCrearTercero("titular")}
+                </div>
               </Campo>
             )}
             {titularId && (
@@ -280,7 +335,7 @@ export function ItemRequisicionAdminDialog({
                   <p className="text-sm text-destructive">{errorCuentas}</p>
                 ) : cuentasDelTitular && cuentasDelTitular.length === 0 ? (
                   <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    Este tercero no tiene cuentas registradas. Pídele a A&F que la registre en Terceros.
+                    Este tercero no tiene cuenta bancaria registrada. A&F se la agrega desde su ficha en Terceros; si el titular es otro, márcalo arriba.
                   </p>
                 ) : (
                   <Select
@@ -356,12 +411,23 @@ export function ItemRequisicionAdminDialog({
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-[1fr_14rem]">
-          <Campo etiqueta="Concepto de la factura">
-            <Input value={item.concepto} onChange={(e) => cambiar({ concepto: e.target.value })} />
-          </Campo>
+        <Campo etiqueta="Concepto de la factura">
+          <Input value={item.concepto} onChange={(e) => cambiar({ concepto: e.target.value })} />
+        </Campo>
+        <div className="grid gap-4 sm:grid-cols-3">
           <Campo etiqueta="Valor documento" ayuda={valor != null && valor > 0 ? formatoMoneda(valor) : undefined}>
             <Input inputMode="decimal" value={item.valor} onChange={(e) => cambiar({ valor: e.target.value })} placeholder="1.250.000" />
+          </Campo>
+          <Campo
+            etiqueta="Anticipos y/o descuentos"
+            ayuda={descuentos == null ? "Escribe un número o déjalo vacío." : descuentos > 0 ? formatoMoneda(descuentos) : "Opcional"}
+          >
+            <Input inputMode="decimal" value={item.descuentos} onChange={(e) => cambiar({ descuentos: e.target.value })} placeholder="0" />
+          </Campo>
+          <Campo etiqueta="Total a pagar">
+            <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 font-medium tabular-nums">
+              {total != null && valor != null && valor > 0 ? formatoMoneda(total) : "—"}
+            </div>
           </Campo>
         </div>
         <Campo etiqueta="Observaciones (opcional)">
@@ -387,6 +453,16 @@ export function ItemRequisicionAdminDialog({
           </Button>
           <Button onClick={guardar}>Guardar ítem</Button>
         </DialogFooter>
+        {bancos && (
+          <NuevoTerceroDialogo
+            abierto={crearPara !== null}
+            bancos={bancos}
+            onCerrar={() => setCrearPara(null)}
+            onCreado={usarTercero}
+            onExistente={usarTercero}
+            textoExistente="Usar este tercero"
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

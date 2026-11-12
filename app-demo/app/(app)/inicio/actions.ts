@@ -16,6 +16,8 @@ export async function listarMisProyectos(): Promise<ProyectoLanding[]> {
   const { data, error } = await supabase
     .from("proyectos")
     .select("id, numero, codigo, nombre, cliente, ciudad")
+    // Los proyectos "solo pagos" (de Google, 20270101001300) no son de AdPro.
+    .eq("solo_pagos", false)
     .order("codigo", { ascending: false, nullsFirst: false })
 
   if (error) throw new Error(error.message)

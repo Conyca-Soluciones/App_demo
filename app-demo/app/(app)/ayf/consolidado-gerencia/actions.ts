@@ -116,3 +116,25 @@ export async function movimientosConsolidadoGerencia(filtros: FiltrosConsolidado
   if (error) throw new Error(error.message)
   return ((data ?? []) as any[]).map(mapMovimientoGerencia)
 }
+
+// Total de TODOS los pagos con los filtros (no solo la página): con el filtro de
+// proyecto, lo gastado en ese proyecto (20270101001300). Sin anulados ni rechazados.
+export async function totalConsolidadoGerencia(filtros: FiltrosConsolidadoGerencia = {}): Promise<{ pagos: number; valor: number; anulados: number }> {
+  await requerirPestana(PESTANA_CONSOLIDADO_GERENCIA)
+  for (const v of [filtros.empresaId, filtros.proyectoId, filtros.solicitanteId]) if (v && !UUID.test(v)) throw new Error("Filtro no válido.")
+  const rangos = rangosCreacion(filtros)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("total_consolidado_gerencia", {
+    p_anios: enteros(filtros.anios, 2020, 2100, "un año no válido"),
+    p_semanas: enteros(filtros.semanas, 1, 53, "una semana no válida"),
+    p_empresa_id: filtros.empresaId ?? null,
+    p_proyecto_id: filtros.proyectoId ?? null,
+    p_solicitante_id: filtros.solicitanteId ?? null,
+    p_tercero: filtros.tercero?.trim() || null,
+    p_creado_desde: rangos.map((r) => r.desde),
+    p_creado_hasta: rangos.map((r) => r.hasta),
+  })
+  if (error) throw new Error(error.message)
+  const r = (data ?? {}) as { pagos?: number; valor?: number; anulados?: number }
+  return { pagos: Number(r.pagos ?? 0), valor: Number(r.valor ?? 0), anulados: Number(r.anulados ?? 0) }
+}

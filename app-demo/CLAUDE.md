@@ -1242,6 +1242,17 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Pagos administrativos para proyectos de Google (2026-11-12)
+
+`20270101001300_pagos_admin_google.sql` (reversa en `supabase/reversa/`). `proyectos.solo_pagos`: proyectos
+que siguen en Google, solo para pagos (no salen en inicio, selector, almacén, compras ni presupuestos);
+Admin › Proyectos los marca y los importa desde Excel (Código, Nombre, Empresa; `lib/proyectos-solo-pagos.ts`).
+Rol "Solicitante de pagos" (`solicitante_pagos`, sin pestañas). Cuadro: casilla "¿Todos los pagos son del
+mismo proyecto?", el proyecto llena el grupo empresarial (editable), botón "Crear tercero" en el ítem,
+anticipos y/o descuentos por ítem (`requisicion_admin_items.descuentos`; el pago sale por el total y lleva
+`valor_documento` y `descuento_anticipos`). Proyectos del cuadro: los que la persona ve, más FUNCIONAMIENTO.
+Consolidado Gerencia: total de todo lo filtrado (`total_consolidado_gerencia`).
+
 ## Balances (A&F, 2026-11-12)
 
 `20270101001200_balances.sql` (reversa en `supabase/reversa/`; solo agrega, más un parche a
