@@ -20,6 +20,13 @@
 
 begin;
 
+-- La app está en uso: se toman las dos tablas que se alteran desde el principio
+-- (en un solo paso, siempre en el mismo orden) para no quedar en un bloqueo
+-- cruzado con alguien que las esté leyendo. Si en 10 s no se pueden tomar,
+-- falla sin cambiar nada y se vuelve a correr.
+set local lock_timeout = '10s';
+lock table public.proyectos, public.requisicion_admin_items in access exclusive mode;
+
 create or replace function pg_temp._parche(p_fn regprocedure, p_a text, p_b text)
 returns void
 language plpgsql
