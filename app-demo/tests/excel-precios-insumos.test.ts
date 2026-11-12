@@ -6,7 +6,7 @@ const listas = {
   agrupaciones: ["006 - 006 - CONCRETOS Y MORTEROS", "020 - 020 - FERRETERIA MENOR"],
 }
 
-const encabezado = [C.insumo, C.unidadPedida, C.cantidad, C.proyectos, C.tipo, C.uM, C.agrupacion, C.precio, C.iva, C.id]
+const encabezado = [C.insumo, C.unidadPedida, C.cantidad, C.cantidadTotal, C.proyectos, C.tipo, C.uM, C.agrupacion, C.precio, C.iva, C.id]
 
 // El archivo real trae el logo y el título arriba: 5 filas antes del encabezado.
 function hoja(...filas: unknown[][]): unknown[][] {
@@ -18,6 +18,7 @@ function fila(p: Partial<Record<keyof typeof C, unknown>>): unknown[] {
     insumo: "Cemento gris 50 kg",
     unidadPedida: "kg",
     cantidad: 500,
+    cantidadTotal: 12500,
     proyectos: "MAL",
     tipo: "MATERIAL - M",
     uM: "UNIDAD - UND",
@@ -109,9 +110,9 @@ describe("Excel de solicitudes: ida y vuelta", () => {
     const { construirLibroPreciosInsumos } = await import("@/lib/excel-precios-insumos")
     const libro = await construirLibroPreciosInsumos(
       [
-        { id: "s1", descripcion: "Arena lavada de rio", unidadPedida: "m³", cantidad: 36.5, proyectos: ["MAL"], tipo: null, uM: null, agrupacion: null },
-        { id: "s2", descripcion: "Repisa ordinaria 3 m", unidadPedida: "m", cantidad: 37, proyectos: ["MAL"], tipo: "MATERIAL - M", uM: null, agrupacion: null },
-        { id: "s3", descripcion: "Tierra negra abonada", unidadPedida: "Ins", cantidad: 2, proyectos: ["MAL"], tipo: null, uM: null, agrupacion: null },
+        { id: "s1", descripcion: "Arena lavada de rio", unidadPedida: "m³", cantidad: 36.5, cantidadTotal: 3650, proyectos: ["MAL"], tipo: null, uM: null, agrupacion: null },
+        { id: "s2", descripcion: "Repisa ordinaria 3 m", unidadPedida: "m", cantidad: 37, cantidadTotal: null, proyectos: ["MAL"], tipo: "MATERIAL - M", uM: null, agrupacion: null },
+        { id: "s3", descripcion: "Tierra negra abonada", unidadPedida: "Ins", cantidad: 2, cantidadTotal: 40, proyectos: ["MAL"], tipo: null, uM: null, agrupacion: null },
       ],
       listas,
       null
@@ -123,14 +124,16 @@ describe("Excel de solicitudes: ida y vuelta", () => {
       if (String(r.getCell(1).value) === C.insumo) filaEncabezado = n
     })
     const primera = hojaExcel.getRow(filaEncabezado + 1)
-    expect(primera.getCell(6).value).toBe("METRO CUBICO - M3") // por defecto, la del presupuesto ("m³")
-    expect(primera.getCell(6).dataValidation?.type).toBe("list") // y se puede cambiar a la de compra
+    expect(primera.getCell(7).value).toBe("METRO CUBICO - M3") // por defecto, la del presupuesto ("m³")
+    expect(primera.getCell(7).dataValidation?.type).toBe("list") // y se puede cambiar a la de compra
     const tercera = hojaExcel.getRow(filaEncabezado + 3)
-    expect(tercera.getCell(6).value).toBe("") // "Ins" no es una unidad: se elige
-    expect(primera.getCell(9).value).toBe(19)
-    primera.getCell(5).value = "MATERIAL - M"
-    primera.getCell(7).value = "006 - 006 - CONCRETOS Y MORTEROS"
-    primera.getCell(8).value = 95000
+    expect(tercera.getCell(7).value).toBe("") // "Ins" no es una unidad: se elige
+    expect(primera.getCell(10).value).toBe(19)
+    expect(primera.getCell(4).value).toBe(3650) // total del presupuesto
+    expect(hojaExcel.getRow(filaEncabezado + 2).getCell(4).value).toBeNull() // sin cantidad del ítem: vacío
+    primera.getCell(6).value = "MATERIAL - M"
+    primera.getCell(8).value = "006 - 006 - CONCRETOS Y MORTEROS"
+    primera.getCell(9).value = 95000
 
     const buffer = await libro.xlsx.writeBuffer()
     const leido = XLSX.read(new Uint8Array(buffer as ArrayBuffer), { type: "array" })
