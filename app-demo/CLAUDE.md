@@ -2828,6 +2828,21 @@ general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
 - Aviso `requisicion_extraordinaria` a quienes tienen la acción y ven el
   proyecto; Mis pendientes `req_extra_por_aprobar` (parche sobre `_pendientes_de`).
 
+## Precios: sin compras de proyectos de prueba (2026-11-12)
+
+`20270101001300_precios_sin_proyectos_de_prueba.sql` (decisión del usuario).
+`precios_efectivos_insumos` ya no promedia las OC de proyectos con
+`proyectos.excluir_de_precios = true` (marcado: CAPACITACION). Antes las
+compras de prueba (concreto, alambre a $20, tela verde a $1.000) se metían en
+el precio de todos los proyectos y se congelaron en APU del Malecón. Arreglo de
+datos el mismo día: se borraron los insumos 5500 (Tabla chapa 0.30 m) y 5501
+(Concreto 4000 psi), creados con precio de prueba, con OC-002-0001, OC-002-0004,
+RQ-002-0001 y la línea de tabla de RQ-002-0003 (CAPACITACION); sus 117 líneas
+del Malecón y 115 de CAPACITACION volvieron a "Revisar pendientes" con su
+cantidad; la línea de alambre (5502) del ítem 1.1 del Malecón se congeló otra
+vez a $7.500/kg. Otro proyecto de prueba: `update proyectos set
+excluir_de_precios = true where codigo = '...'` (no hay pantalla).
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo

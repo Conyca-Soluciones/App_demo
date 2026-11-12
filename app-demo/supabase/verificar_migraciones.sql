@@ -669,6 +669,10 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'titular_de_contrato')
          and exists (select 1 from pg_proc where proname = '_fijar_pago_contrato' and prosrc like '%_titular_valido%')
   union all
+  select '20270101001300_precios_sin_proyectos_de_prueba',
+         exists (select 1 from information_schema.columns where table_name = 'proyectos' and column_name = 'excluir_de_precios')
+         and exists (select 1 from pg_proc where proname = 'precios_efectivos_insumos' and prosrc like '%excluir_de_precios%')
+  union all
   select '20270101000700_acta_autorizacion_tercero',
          exists (select 1 from information_schema.columns where table_name = 'actas' and column_name = 'autorizacion_estado')
          and exists (select 1 from pg_proc where proname = 'resolver_autorizacion_acta')
