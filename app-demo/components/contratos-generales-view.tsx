@@ -11,6 +11,8 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { ContratoGeneralFormulario } from "@/components/contrato-general-form"
 import { BotonDescargarContrato } from "@/components/descargar-contrato"
+import { columnaFirmado } from "@/components/copia-firmada"
+import { puedeSubirFirmados } from "@/app/(app)/contratos/firmados/actions"
 import { BotonModificarContrato } from "@/components/boton-modificar-contrato"
 import { DetalleSolicitudContrato, fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { useProyectoActual } from "@/components/proyecto-provider"
@@ -81,6 +83,14 @@ function Solicitudes({
   // ?ver=<id> (desde la campanita) abre el detalle de esa solicitud.
   const [detalleId, setDetalleId] = useState<string | null>(verInicial)
 
+  // Mismos permisos que pólizas para adjuntar la copia firmada.
+  const [puedeSubirFirmado, setPuedeSubirFirmado] = useState(false)
+  useEffect(() => {
+    puedeSubirFirmados()
+      .then((v: boolean) => setPuedeSubirFirmado(v))
+      .catch(() => {})
+  }, [])
+
   function cargar() {
     listarContratosGenerales(proyectoId)
       .then((lista: SolicitudContratoFila[]) => setSolicitudes(lista))
@@ -130,6 +140,8 @@ function Solicitudes({
         texto: (s) => (s.polizaEstado ? ETIQUETA_POLIZA_CONTRATO[s.polizaEstado] : ""),
         celda: (s) => <BadgePolizaContrato estado={s.polizaEstado} />,
       },
+      // Copia firmada por el contratista (20270101001900): sin ella no hay actas.
+      columnaFirmado(puedeSubirFirmado, () => cargar()),
       { clave: "solicitante", titulo: "Solicitado por", ancho: 150, texto: (s) => s.solicitadoPorNombre ?? "" },
       { clave: "fecha", titulo: "Enviada", ancho: 110, texto: (s) => fechaContrato(s.enviadoAt), claseCelda: "tabular-nums" },
       {
@@ -142,7 +154,8 @@ function Solicitudes({
         celda: (s) => <BotonDescargarContrato contrato={s} compacto />,
       },
     ],
-    []
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cargar cambia en cada render
+    [puedeSubirFirmado]
   )
 
   const devueltas = solicitudes?.filter((s) => s.estado === "devuelta").length ?? 0

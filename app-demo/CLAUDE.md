@@ -846,6 +846,13 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   privileges for role postgres revoke execute on functions from public`); si
   una función nueva la llama la app, darle `grant execute ... to authenticated`. `test_fase1_compras` (prueba que inserta datos) sin permiso
   para nadie -- pendiente decidir si se borra.
+  **Ojo: una función que se usa DENTRO de una política (RLS o Storage) también
+  necesita `grant execute ... to authenticated`, aunque empiece por `_`**: la
+  política se evalúa con los permisos de quien consulta. Pasó el 2026-11-12:
+  `terceros_rut_select` llamaba a `_puede_ver_rut` sin ese permiso y, como las
+  políticas de lectura de Storage se juntan para todos los buckets, abrir una
+  póliza fallaba con "permission denied for function _puede_ver_rut"
+  (arreglado en `20270101001500`).
 - Permisos fallan CERRADO: si `permisos_rol_usuario` falla, el middleware
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
@@ -2196,7 +2203,9 @@ Decisiones del usuario:
   Excel = todas las solicitudes pendientes (insumo, unidad y cantidad pedida,
   proyectos; se llenan tipo, unidad de compra, agrupación, precio SIN IVA, IVA y
   presentación opcional, con listas desplegables desde una hoja oculta; ID interno en
-  columna oculta). Subir = cada fila con precio y completa se aprueba con
+  columna oculta). Junto a Insumo, "Ítem del presupuesto": los códigos de los
+  ítems donde se usa (`textoItemsSolicitud`, 2026-11-12, decisión del usuario:
+  solo el código); informativo, la subida no lo lee. Subir = cada fila con precio y completa se aprueba con
   `aprobarSolicitudInsumo` (mismas reglas que la pantalla; tandas de 5, 3 a la vez,
   `aprobarSolicitudesInsumoDesdeExcel`); sin precio se deja para después; errores
   por fila. Exige `aprobar_insumos`.
@@ -2893,6 +2902,21 @@ general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
 - Aviso `requisicion_extraordinaria` a quienes tienen la acción y ven el
   proyecto; Mis pendientes `req_extra_por_aprobar` (parche sobre `_pendientes_de`).
 
+## Precios: sin compras de proyectos de prueba (2026-11-12)
+
+`20270101001600_precios_sin_proyectos_de_prueba.sql` (decisión del usuario).
+`precios_efectivos_insumos` ya no promedia las OC de proyectos con
+`proyectos.excluir_de_precios = true` (marcado: CAPACITACION). Antes las
+compras de prueba (concreto, alambre a $20, tela verde a $1.000) se metían en
+el precio de todos los proyectos y se congelaron en APU del Malecón. Arreglo de
+datos el mismo día: se borraron los insumos 5500 (Tabla chapa 0.30 m) y 5501
+(Concreto 4000 psi), creados con precio de prueba, con OC-002-0001, OC-002-0004,
+RQ-002-0001 y la línea de tabla de RQ-002-0003 (CAPACITACION); sus 117 líneas
+del Malecón y 115 de CAPACITACION volvieron a "Revisar pendientes" con su
+cantidad; la línea de alambre (5502) del ítem 1.1 del Malecón se congeló otra
+vez a $7.500/kg. Otro proyecto de prueba: `update proyectos set
+excluir_de_precios = true where codigo = '...'` (no hay pantalla).
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
@@ -3583,6 +3607,41 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
   huecos de "pegar amparos / soporte de pago" son una tabla y un texto; página
   de control de cambios fija; "BORRADOR" sin aprobar). El ingeniero ve el acta
   de las aprobadas en Pólizas ("Acta").
+
+## Pólizas sin PDF, documentos del contrato y copia firmada (2026-11-12)
+
+Decisiones del usuario. Migraciones `20270101001700`, `20270101001800`,
+`20270101001900`, `20270101002000` (todas aplicadas; van ANTES del código:
+`SELECT_FILA_CONTRATO` lee `firmado_*`).
+- **Póliza sin acta en PDF** (1700): Jurídica llena los mismos datos del acta
+  GJ-F-013 (aseguradora al aprobar, amparos, certificado...) y quedan guardados
+  con la póliza (`contrato_polizas.acta_datos`); ya no se genera ni congela el
+  PDF ni se firma (se quitó `trg_firmar_poliza_aprobada`; `ActaPolizaEditor` es
+  solo el formulario). El ingeniero ve los datos con "Datos" (`DatosPoliza`).
+  Antes de que Jurídica la revise, el ingeniero puede cambiar el archivo
+  (`reemplazar_poliza`, evento `poliza_reemplazada`). La ruta
+  `/contratos/poliza-acta/[id]` quedó sin uso desde las pantallas.
+- **Documentos del contrato**: el detalle de un contrato aprobado (doble clic,
+  `components/documentos-del-contrato.tsx`, después del anexo) agrupa copia
+  firmada, póliza (ver y datos) y otrosí (PDF y su copia firmada). Las actas NO
+  (decisión del usuario: se quedan en su módulo). La 1800 (actas visibles con
+  las pestañas de contratos) se aplicó y la deshizo `20270101002000`: la
+  lectura de actas quedó como antes.
+- **Copia firmada por el contratista** (1900): `contratos.firmado_*` y
+  `otrosis.firmado_*`, archivo en el bucket `contratos` carpeta
+  `<contrato>/firmado/`. Se sube con la pestaña Pólizas (o Administrador):
+  columna "Firmado" en las listas de contratos (`columnaFirmado`) y botones en
+  el detalle (`components/copia-firmada.tsx`, `subir_contrato_firmado` /
+  `subir_otrosi_firmado`; reemplazar = subir otra). Sin la del contrato no hay
+  actas (`_guardar_acta`; también los contratos de antes) y es pendiente del
+  ingeniero que lo pidió (`mi_contrato_por_firmar`). La del otrosí no bloquea
+  nada, solo es pendiente (`mi_otrosi_por_firmar`). `_puede_ver_firmado` y
+  `_ruta_firmado_registrada` las usan políticas de Storage: tienen EXECUTE para
+  authenticated.
+- **Plantilla de presupuesto** (Paquete J, sin migración): columna Unidad (hoja
+  Presupuesto) y unidad (hoja APU) con lista desplegable (`UNIDADES_PLANTILLA`
+  en `lib/unidades.ts`, hoja oculta "Listas"; `listas` en
+  `exportarPlantillaExcel`). Otro valor se acepta con aviso.
 
 ## Firmas electrónicas, fase 1 (2026-10-21, `20261129000000_firmas.sql`)
 

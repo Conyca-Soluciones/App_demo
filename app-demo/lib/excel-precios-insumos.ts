@@ -27,10 +27,28 @@ export type SolicitudParaPrecio = {
   // ítem (ej. 100 adaptadores). null = no se pudo calcular.
   cantidadTotal: number | null
   proyectos: string[]
+  // códigos de los ítems del presupuesto donde se usa (informativo). Opcional.
+  items?: string[]
   // lo que ya traiga la solicitud, solo si es válido (para prellenar)
   tipo: string | null
   uM: string | null
   agrupacion: string | null
+}
+
+// Columna "Ítem del presupuesto": los códigos de los ítems donde se usa,
+// sin repetir y en el orden del presupuesto (1.2 antes que 1.10).
+export function textoItemsSolicitud(codigos: string[] | undefined): string {
+  const orden = (c: string) => c.split(".").map((p) => Number(p.replace(/\D/g, "")) || 0)
+  const unicos = [...new Set((codigos ?? []).map((c) => c.trim()).filter(Boolean))]
+  return unicos
+    .map((c) => ({ c, o: orden(c) }))
+    .sort((a, b) => {
+      for (let k = 0; k < Math.max(a.o.length, b.o.length); k++)
+        if ((a.o[k] ?? -1) !== (b.o[k] ?? -1)) return (a.o[k] ?? -1) - (b.o[k] ?? -1)
+      return 0
+    })
+    .map((x) => x.c)
+    .join(", ")
 }
 
 export type ListasPreciosInsumos = {
@@ -57,6 +75,7 @@ export const IVAS_EXCEL = [0, 5, 19]
 
 export const COLUMNAS_PRECIOS_INSUMOS = {
   insumo: "Insumo",
+  items: "Ítem del presupuesto",
   unidadPedida: "Unidad del presupuesto",
   cantidad: "Cantidad por unidad del ítem",
   cantidadTotal: "Cantidad total en el presupuesto",
@@ -73,6 +92,7 @@ type ClaveColumna = keyof typeof COLUMNAS_PRECIOS_INSUMOS
 
 const ORDEN: { clave: ClaveColumna; ancho: number; llenar?: boolean }[] = [
   { clave: "insumo", ancho: 48, llenar: true },
+  { clave: "items", ancho: 30 },
   { clave: "unidadPedida", ancho: 14 },
   { clave: "cantidad", ancho: 14 },
   { clave: "cantidadTotal", ancho: 16 },
@@ -258,6 +278,7 @@ export async function construirLibroPreciosInsumos(
       celda.note =
         "En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae (ej. ROLLO X 100 M). El ingeniero confirma la conversión en su presupuesto."
     }
+    if (c.clave === "items") celda.note = "Códigos de los ítems del presupuesto donde se usa. Solo informativo: no se sube."
     if (c.clave === "precio") celda.note = "Precio por la unidad de compra, sin IVA."
     if (c.clave === "cantidad") celda.note = "Lo que pide el APU por cada unidad del ítem (sumado entre los ítems que lo usan)."
     if (c.clave === "cantidadTotal")
@@ -271,6 +292,7 @@ export async function construirLibroPreciosInsumos(
     const fila = hoja.getRow(primera + 1 + k)
     const valores: Record<ClaveColumna, string | number | null> = {
       insumo: s.descripcion.trim().replace(/\s+/g, " ").toUpperCase(),
+      items: textoItemsSolicitud(s.items),
       unidadPedida: s.unidadPedida ?? "",
       cantidad: s.cantidad,
       cantidadTotal: s.cantidadTotal,

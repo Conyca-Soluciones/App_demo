@@ -12,8 +12,7 @@ import { BuscadorAsync, type OpcionBuscador } from "@/components/buscador-async"
 import { VisorDocumento } from "@/components/visor-documento"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
 import { VerContratoOtrosi } from "@/components/ver-contrato-otrosi"
-import { PanelVistaPrevia, useVistaPreviaMinuta } from "@/components/minuta-comun"
-import { rutaPdfActaPoliza } from "@/components/acta-poliza-editor"
+import { ActaPolizaEditor } from "@/components/acta-poliza-editor"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -33,8 +32,11 @@ import {
   buscarContratosParaPoliza,
   contratosDeContratistaParaPoliza,
   enlacePoliza,
+  obtenerActaPoliza,
   polizasDeContrato,
+  reemplazarPoliza,
   subirPoliza,
+  type DocumentoActaPoliza,
 } from "@/app/(app)/contratos/polizas/actions"
 
 // ---------------------------------------------------------------------------
@@ -224,10 +226,18 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
       const { error: e } = await supabase.storage.from("polizas").upload(ruta, archivo, { contentType: archivo.type, upsert: false })
       if (e) throw new Error(`No se pudo subir el archivo: ${e.message}`)
       subido = true
-      await subirPoliza(contratoId, { ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type })
+      const datosArchivo = { ruta, nombreArchivo: archivo.name, tamano: archivo.size, mime: archivo.type }
+      // Por revisar: se cambia el archivo de esa póliza (20270101001700).
+      const porRevisar = datos.polizas.find((p) => p.estado === "por_revisar")
+      if (porRevisar) {
+        const anterior = await reemplazarPoliza(porRevisar.id, datosArchivo)
+        if (anterior) await supabase.storage.from("polizas").remove([anterior])
+      } else {
+        await subirPoliza(contratoId, datosArchivo)
+      }
       setArchivo(null)
       if (entrada.current) entrada.current.value = ""
-      setAviso("Póliza enviada a Jurídica para su revisión.")
+      setAviso(porRevisar ? "Póliza cambiada: Jurídica revisa el archivo nuevo." : "Póliza enviada a Jurídica para su revisión.")
       const d = await polizasDeContrato(contratoId)
       setDatos(d)
       onCambio(d.contrato)
@@ -279,15 +289,19 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
         </div>
       )}
 
-      {c.polizaEstado === "pendiente" && (
+      {(c.polizaEstado === "pendiente" || c.polizaEstado === "recibida") && (
         <div className="space-y-2 rounded-md border border-dashed p-4">
           {ultima?.estado === "devuelta" && (
             <p className="rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900">
               Jurídica devolvió la póliza anterior: {ultima.motivo}
             </p>
           )}
-          <p className="text-sm font-medium">Subir la póliza</p>
-          <p className="text-xs text-muted-foreground">PDF, JPG o PNG, máximo 10 MB. Jurídica la revisa; mientras no la apruebe no se pueden hacer actas.</p>
+          <p className="text-sm font-medium">{c.polizaEstado === "recibida" ? "Cambiar la póliza" : "Subir la póliza"}</p>
+          <p className="text-xs text-muted-foreground">
+            {c.polizaEstado === "recibida"
+              ? "La póliza está en revisión de Jurídica. Mientras no la revise, puedes cambiar el archivo."
+              : "PDF, JPG o PNG, máximo 10 MB. Jurídica la revisa; mientras no la apruebe no se pueden hacer actas."}
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <input
               ref={entrada}
@@ -302,13 +316,11 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
               className="max-w-full text-sm file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm"
             />
             <Button onClick={subir} disabled={!archivo || subiendo}>
-              {subiendo ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />} Enviar a Jurídica
+              {subiendo ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}{" "}
+              {c.polizaEstado === "recibida" ? "Cambiar archivo" : "Enviar a Jurídica"}
             </Button>
           </div>
         </div>
-      )}
-      {c.polizaEstado === "recibida" && (
-        <p className="text-sm text-muted-foreground">La póliza está en revisión de Jurídica. Si la devuelve, aquí se sube otra.</p>
       )}
       {c.polizaEstado === "aprobada" && <p className="text-sm text-muted-foreground">La póliza está aprobada: ya se pueden hacer actas del contrato.</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -337,8 +349,8 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
                   <Eye className="size-3.5" /> Ver
                 </Button>
                 {p.estado === "aprobada" && (
-                  <Button size="xs" variant="outline" onClick={() => setVerActa(p)} title="Acta de aprobación de la póliza (GJ-F-013)">
-                    <FileText className="size-3.5" /> Acta
+                  <Button size="xs" variant="outline" onClick={() => setVerActa(p)} title="Aseguradora y amparos que registró Jurídica">
+                    <FileText className="size-3.5" /> Datos
                   </Button>
                 )}
               </li>
@@ -365,24 +377,49 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
       </Dialog>
       <VerContratoOtrosi contrato={verContrato ? { id: c.id, numeroContrato: c.numeroContrato } : null} onCerrar={() => setVerContrato(false)} />
       <Dialog open={verActa !== null} onOpenChange={(abierto) => !abierto && setVerActa(null)}>
-        <DialogContent className="flex h-[98svh] max-h-[98svh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-hidden sm:max-w-[min(1400px,calc(100vw-2rem))]">
+        <DialogContent className="flex max-h-[92svh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-hidden sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Acta de aprobación de la póliza · contrato {c.numeroContrato}</DialogTitle>
+            <DialogTitle>Datos de la póliza · contrato {c.numeroContrato}</DialogTitle>
           </DialogHeader>
-          {verActa && <PdfActa polizaId={verActa.id} />}
+          {verActa && <DatosPoliza polizaId={verActa.id} />}
         </DialogContent>
       </Dialog>
     </section>
   )
 }
 
-const SIN_CAMBIOS = {}
-// El acta guardada (la póliza ya está aprobada: la ruta ignora lo que se mande).
-function PdfActa({ polizaId }: { polizaId: string }) {
-  const vista = useVistaPreviaMinuta(polizaId, SIN_CAMBIOS, null, rutaPdfActaPoliza(polizaId))
+// Lo que registró Jurídica al aprobar (aseguradora, amparos...): solo lectura.
+// Ya no hay acta en PDF (20270101001700).
+export function DatosPoliza({ polizaId }: { polizaId: string }) {
+  const [doc, setDoc] = useState<{ id: string; doc: DocumentoActaPoliza | null; error: string | null } | null>(null)
+  useEffect(() => {
+    let activo = true
+    obtenerActaPoliza(polizaId)
+      .then((d: DocumentoActaPoliza) => activo && setDoc({ id: polizaId, doc: d, error: null }))
+      .catch((e) => activo && setDoc({ id: polizaId, doc: null, error: mensaje(e, "No se pudieron cargar los datos.") }))
+    return () => {
+      activo = false
+    }
+  }, [polizaId])
+  const actual = doc?.id === polizaId ? doc : null
+  if (!actual)
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> Cargando...
+      </p>
+    )
+  if (!actual.doc) return <p className="text-sm text-destructive">{actual.error}</p>
   return (
-    <div className="min-h-0 flex-1">
-      <PanelVistaPrevia {...vista} />
+    <div className="min-h-0 overflow-auto">
+      <ActaPolizaEditor
+        polizaId={polizaId}
+        documento={actual.doc}
+        acta={actual.doc.acta}
+        cambios={false}
+        editable={false}
+        onChange={() => {}}
+        onGuardada={() => {}}
+      />
     </div>
   )
 }

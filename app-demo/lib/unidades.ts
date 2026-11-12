@@ -295,3 +295,13 @@ export function lineaNecesitaConversion(
   if (!esUnidadReconocida(unidadLinea)) return false
   return normalizarUnidad(unidadLinea) !== normalizarUnidad(unidadCompra)
 }
+
+/**
+ * Lista desplegable de "Unidad" en la plantilla de presupuesto (Paquete J,
+ * 2026-11-12). Formas cortas que el import reconoce (normalizarUnidad); la
+ * celda acepta otra con un aviso.
+ */
+export const UNIDADES_PLANTILLA = [
+  "und", "m", "m2", "m3", "kg", "g", "ton", "lb", "l", "cc", "gal", "cm", "mm",
+  "gl", "dia", "hr", "sm", "mes", "viaje", "km", "rollo", "bulto", "cuñete", "jgo", "par", "%",
+]

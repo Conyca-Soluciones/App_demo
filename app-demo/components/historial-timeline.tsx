@@ -106,11 +106,14 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   firma_representante: { etiqueta: "Firma del representante legal puesta en el contrato", tono: "ok" },
   poliza_devuelta: { etiqueta: "Póliza devuelta por Jurídica", tono: "aviso" },
   poliza_no_aplica: { etiqueta: "El contrato no requiere póliza", tono: "neutro" },
+  poliza_reemplazada: { etiqueta: "Archivo de la póliza cambiado (antes de que Jurídica la revisara)", tono: "neutro" },
+  firmado_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
 }
 
 // Eventos de un OTROSÍ (Jurídica y Gerencia).
 const EVENTOS_OTROSI: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
   creado: { etiqueta: "Otrosí solicitado", tono: "neutro" },
+  firmado_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
   reenviado: { etiqueta: "Otrosí corregido y enviado otra vez", tono: "neutro" },
   devuelto: { etiqueta: "Devuelto al ingeniero por Jurídica", tono: "aviso" },
   rechazado: { etiqueta: "Rechazado por Jurídica", tono: "malo" },

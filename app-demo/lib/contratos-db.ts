@@ -16,6 +16,7 @@ export const SELECT_FILA_CONTRATO = `
   duracion_unidad, created_at, enviado_at, motivo_resolucion, resuelto_at,
   minuta_estado, minuta_enviada_at, minuta_resuelta_at, minuta_motivo, numero_contrato,
   clase, tipo_detalle, referencia, retencion_garantia_pct, retencion_anticipo_pct, retencion_fic_pct, liquidado_at, otrosis_aprobados, fecha_fin_vigente, poliza_estado,
+  firmado_ruta, firmado_nombre, firmado_mime, firmado_subido_at,
   minuta_enviador:perfiles!contratos_minuta_enviada_por_fkey(nombre),
   minuta_resolutor:perfiles!contratos_minuta_resuelta_por_fkey(nombre),
   proyecto:proyectos!contratos_proyecto_id_fkey(codigo, nombre),
@@ -74,6 +75,9 @@ export function mapFilaContrato(f: any): SolicitudContratoFila {
       f.poliza_estado === "pendiente" || f.poliza_estado === "recibida" || f.poliza_estado === "aprobada" || f.poliza_estado === "no_aplica"
         ? f.poliza_estado
         : null,
+    firmado: f.firmado_ruta
+      ? { ruta: f.firmado_ruta, nombre: f.firmado_nombre ?? "contrato-firmado", mime: f.firmado_mime ?? "application/pdf", subidoAt: f.firmado_subido_at ?? "", subidoPorNombre: null }
+      : null,
   }
 }
 

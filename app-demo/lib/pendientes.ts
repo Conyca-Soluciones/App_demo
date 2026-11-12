@@ -39,6 +39,9 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   mi_acta_por_facturar: { titulo: "Actas aprobadas: subir la factura", accion: "Subir factura", orden: 3.5 },
   mi_firma: { titulo: "Mi firma", accion: "Registrar", orden: 4 },
   mi_poliza_por_subir: { titulo: "Pólizas por subir", accion: "Subir póliza", orden: 5 },
+  // 20270101001900: copia firmada por el contratista (sin la del contrato no hay actas).
+  mi_contrato_por_firmar: { titulo: "Contratos: subir la copia firmada por el contratista", accion: "Adjuntar", orden: 5.1 },
+  mi_otrosi_por_firmar: { titulo: "Otrosí: subir la copia firmada por el contratista", accion: "Adjuntar", orden: 5.2 },
   mi_req_admin_rechazada: { titulo: "Mis pagos administrativos rechazados", accion: "Corregir", orden: 6 },
   req_por_aprobar: { titulo: "Requisiciones por aprobar", accion: "Aprobar", orden: 10 },
   req_extra_por_aprobar: { titulo: "Requisiciones extraordinarias por aprobar", accion: "Aprobar", orden: 10.5 },

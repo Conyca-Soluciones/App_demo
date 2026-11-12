@@ -105,11 +105,15 @@ export async function listarActasDeContrato(contratoId: string): Promise<ActaRes
 export async function obtenerContratoParaActa(contratoId: string, excluirActa?: string): Promise<InfoContratoActa> {
   await requerirAlgunaPestana(PESTANAS_ELABORAR_ACTAS)
   const supabase = await createClient()
-  const { data: d, error } = await supabase.rpc("contrato_para_acta", {
-    p_contrato_id: contratoId,
-    p_excluir_acta: excluirActa ?? null,
-  })
+  const [{ data: d, error }, firmados] = await Promise.all([
+    supabase.rpc("contrato_para_acta", {
+      p_contrato_id: contratoId,
+      p_excluir_acta: excluirActa ?? null,
+    }),
+    supabase.rpc("firmados_de_contrato", { p_contrato_id: contratoId }),
+  ])
   if (error) throw new Error(error.message)
+  if (firmados.error) throw new Error(firmados.error.message)
   return {
     valor: Number(d.valor),
     valorInicial: Number(d.valor_inicial ?? d.valor),
@@ -121,6 +125,7 @@ export async function obtenerContratoParaActa(contratoId: string, excluirActa?: 
     liquidado: Boolean(d.liquidado),
     listoParaActas: Boolean(d.listo_para_actas),
     polizaEstado: esEstadoPolizaContrato(d.poliza_estado) ? d.poliza_estado : null,
+    firmadoContratista: Boolean((firmados.data as { contrato?: unknown } | null)?.contrato),
     metodoPago: d.metodo_pago === "pse" ? "pse" : "transferencia",
     tieneFinal: Boolean(d.tiene_final),
     tieneLiquidacion: Boolean(d.tiene_liquidacion),

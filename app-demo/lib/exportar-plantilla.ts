@@ -36,6 +36,39 @@ import {
  * de completa.
  */
 
+// Listas desplegables por columna (nombre de la columna -> valores). Los
+// valores van en una hoja oculta "Listas"; la celda avisa si se escribe otro
+// valor, pero lo deja (el import valida después).
+const FILAS_CON_LISTA = 500
+function agregarListas(
+  workbook: ExcelJS.Workbook,
+  hoja: ExcelJS.Worksheet,
+  filaEncabezado: number,
+  columnas: string[],
+  listas: Record<string, string[]>
+) {
+  for (const [columna, valores] of Object.entries(listas)) {
+    const i = columnas.indexOf(columna)
+    if (i < 0 || valores.length === 0) continue
+    const hojaListas = workbook.getWorksheet("Listas") ?? workbook.addWorksheet("Listas", { state: "hidden" })
+    const colListas = hojaListas.actualColumnCount + 1
+    valores.forEach((v, k) => (hojaListas.getRow(k + 1).getCell(colListas).value = v))
+    const letra = hojaListas.getColumn(colListas).letter
+    const rango = `Listas!$${letra}$1:$${letra}$${valores.length}`
+    for (let f = filaEncabezado + 1; f <= filaEncabezado + FILAS_CON_LISTA; f++) {
+      hoja.getRow(f).getCell(i + 1).dataValidation = {
+        type: "list",
+        allowBlank: true,
+        formulae: [rango],
+        showErrorMessage: true,
+        errorStyle: "warning",
+        errorTitle: "Unidad fuera de la lista",
+        error: "Elige un valor de la lista. Si es otra, se acepta y se revisa al subir el archivo.",
+      }
+    }
+  }
+}
+
 function escribirTablaEnHoja(
   hoja: ExcelJS.Worksheet,
   filaInicio: number,
@@ -81,6 +114,7 @@ export async function exportarPlantillaExcel({
   titulo,
   subtitulo,
   hojasAdicionales = [],
+  listas = {},
 }: {
   columnas: string[]
   nombreArchivo: string
@@ -97,7 +131,10 @@ export async function exportarPlantillaExcel({
     titulo: string
     columnas: string[]
     filasEjemplo?: (string | number)[][]
+    listas?: Record<string, string[]>
   }[]
+  // Listas desplegables de la hoja principal (nombre de columna -> valores).
+  listas?: Record<string, string[]>
 }) {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = "CONYCA Soluciones SAS"
@@ -112,6 +149,7 @@ export async function exportarPlantillaExcel({
     bufferLogo,
   })
   escribirTablaEnHoja(hoja, filaInicioTabla, columnas, filasEjemplo)
+  agregarListas(workbook, hoja, filaInicioTabla, columnas, listas)
 
   // ---------- Hojas adicionales (título compacto, sin logo) ----------
   for (const extra of hojasAdicionales) {
@@ -121,6 +159,7 @@ export async function exportarPlantillaExcel({
       numColumnas: extra.columnas.length,
     })
     escribirTablaEnHoja(hojaExtra, filaInicioExtra, extra.columnas, extra.filasEjemplo ?? [])
+    agregarListas(workbook, hojaExtra, filaInicioExtra, extra.columnas, extra.listas ?? {})
   }
 
   const buffer = await workbook.xlsx.writeBuffer()

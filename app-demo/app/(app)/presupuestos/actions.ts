@@ -1359,8 +1359,8 @@ export async function listarSolicitudesInsumoParaPrecio(): Promise<{
         .from("solicitudes_insumos")
         .select(
           "id, descripcion, tipo, u_m, agrupacion, cantidad, created_at, " +
-            "item:presupuesto_items(cantidad, presupuestos(proyectos(codigo)))," +
-            "lineas:apu_import_revision!apu_import_revision_solicitud_id_fkey(cantidad, presupuesto_items(cantidad, presupuestos(proyectos(codigo))))"
+            "item:presupuesto_items(codigo, cantidad, presupuestos(proyectos(codigo)))," +
+            "lineas:apu_import_revision!apu_import_revision_solicitud_id_fkey(cantidad, presupuesto_items(codigo, cantidad, presupuestos(proyectos(codigo))))"
         )
         .eq("estado", "pendiente")
         .order("descripcion")
@@ -1380,6 +1380,8 @@ export async function listarSolicitudesInsumoParaPrecio(): Promise<{
     }
     const codigoSolicitud = codigoProyecto(s.item)
     if (codigoSolicitud) proyectos.add(codigoSolicitud)
+    // Códigos de los ítems donde se usa (columna informativa del Excel).
+    const items: string[] = [...lineas.map((l) => l.presupuesto_items?.codigo), s.item?.codigo].filter(Boolean)
     // Del import: la suma de lo que pide cada línea del presupuesto. Del
     // editor de APU (sin líneas): la cantidad que escribió quien lo pidió.
     const cantidad =
@@ -1406,6 +1408,7 @@ export async function listarSolicitudesInsumoParaPrecio(): Promise<{
       cantidad,
       cantidadTotal,
       proyectos: Array.from(proyectos).sort(),
+      items,
       tipo: s.tipo && TIPOS_MAESTRO.has(s.tipo) ? s.tipo : null,
       uM: unidadMaestro(s.u_m),
       agrupacion: s.agrupacion,

@@ -10,6 +10,8 @@ import { formatearFechaSinHora } from "@/lib/fechas"
 import { pesos } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, type OtrosiDeContrato } from "@/lib/otrosi"
 import { otrosisDeContrato } from "@/app/(app)/contratos/otrosi/actions"
+import type { ArchivoFirmado } from "@/lib/contratos-firmados"
+import { BotonSubirFirmado, BotonVerFirmado } from "@/components/copia-firmada"
 
 // ---------------------------------------------------------------------------
 // Rastro de los otrosí en el contrato: la lista de los otrosí de un contrato
@@ -23,7 +25,19 @@ import { otrosisDeContrato } from "@/app/(app)/contratos/otrosi/actions"
 const fecha = (iso: string) =>
   formatearFechaSinHora(iso)
 
-export function OtrosisDelContrato({ contratoId }: { contratoId: string }) {
+// firmados / puedeSubirFirmado (20270101001900): la copia del otrosí aprobado
+// firmada por el contratista; los botones salen de documentos-del-contrato.
+export function OtrosisDelContrato({
+  contratoId,
+  firmados,
+  puedeSubirFirmado = false,
+  onFirmado,
+}: {
+  contratoId: string
+  firmados?: Record<string, ArchivoFirmado>
+  puedeSubirFirmado?: boolean
+  onFirmado?: () => void
+}) {
   const [carga, setCarga] = useState<{ id: string; otrosis: OtrosiDeContrato[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [viendo, setViendo] = useState<OtrosiDeContrato | null>(null)
@@ -72,6 +86,16 @@ export function OtrosisDelContrato({ contratoId }: { contratoId: string }) {
             <Button size="xs" variant="outline" onClick={() => setViendo(o)}>
               <Eye className="size-3.5" /> Ver
             </Button>
+            {firmados && o.estado === "aprobada" && (
+              <CopiaFirmadaOtrosi
+                contratoId={contratoId}
+                otrosiId={o.id}
+                numero={o.numero}
+                archivo={firmados[o.id] ?? null}
+                puedeSubir={puedeSubirFirmado}
+                onSubido={() => onFirmado?.()}
+              />
+            )}
           </li>
         ))}
       </ul>
@@ -101,5 +125,32 @@ function PdfOtrosi({ id }: { id: string }) {
     <div className="min-h-0 flex-1">
       <PanelVistaPrevia {...vista} />
     </div>
+  )
+}
+
+function CopiaFirmadaOtrosi(props: {
+  contratoId: string
+  otrosiId: string
+  numero: number | null
+  archivo: ArchivoFirmado | null
+  puedeSubir: boolean
+  onSubido: () => void
+}) {
+  return (
+    <>
+      {props.archivo ? (
+        <BotonVerFirmado
+          contratoId={props.contratoId}
+          archivo={props.archivo}
+          titulo={`Otrosí N° ${props.numero ?? ""} firmado por el contratista`}
+          compacto
+        />
+      ) : (
+        <span className="text-xs text-amber-700">Falta la copia firmada</span>
+      )}
+      {props.puedeSubir && (
+        <BotonSubirFirmado contratoId={props.contratoId} otrosiId={props.otrosiId} hay={Boolean(props.archivo)} onSubido={props.onSubido} compacto />
+      )}
+    </>
   )
 }

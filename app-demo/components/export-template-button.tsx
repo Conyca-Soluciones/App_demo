@@ -13,6 +13,7 @@ export function ExportTemplateButton({
   titulo,
   subtitulo,
   hojasAdicionales,
+  listas,
   etiqueta = "Plantilla",
 }: {
   columnas: string[]
@@ -26,7 +27,10 @@ export function ExportTemplateButton({
     titulo: string
     columnas: string[]
     filasEjemplo?: (string | number)[][]
+    listas?: Record<string, string[]>
   }[]
+  // Listas desplegables por columna (nombre -> valores).
+  listas?: Record<string, string[]>
   etiqueta?: string
 }) {
   // exportarPlantillaExcel ahora es async (arma el Excel con ExcelJS y
@@ -49,6 +53,7 @@ export function ExportTemplateButton({
         titulo,
         subtitulo,
         hojasAdicionales,
+        listas,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo generar la plantilla.")

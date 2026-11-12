@@ -1,9 +1,7 @@
 "use server"
 
-import { after } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { pdfActaPoliza } from "@/lib/documentos-firmados"
 import { requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { puedeBuscar } from "@/lib/busqueda"
 import { PESTANAS_VER_OTROSI } from "@/lib/otrosi"
@@ -103,6 +101,28 @@ export async function subirPoliza(
   return data as string
 }
 
+// Cambiar el archivo de una póliza que Jurídica todavía no revisa
+// (20270101001700). El navegador ya subió el nuevo; devuelve la ruta del
+// anterior para borrarlo.
+export async function reemplazarPoliza(
+  polizaId: string,
+  archivo: { ruta: string; nombreArchivo: string; tamano: number; mime: string }
+): Promise<string | null> {
+  await requerirPestana("contratos.polizas")
+  const problema = validarArchivoPoliza({ name: archivo.nombreArchivo, size: archivo.tamano, type: archivo.mime })
+  if (problema) throw new Error(problema)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("reemplazar_poliza", {
+    p_poliza_id: polizaId,
+    p_ruta: archivo.ruta,
+    p_nombre_archivo: archivo.nombreArchivo,
+    p_tamano: archivo.tamano,
+    p_mime: archivo.mime,
+  })
+  if (error) throw new Error(error.message)
+  return (data as string | null) ?? null
+}
+
 // Enlace temporal (2 minutos) para ver el archivo. Decide la RLS de
 // contrato_polizas (la fila se lee con la sesión del usuario); el enlace se
 // firma con el cliente de servicio, porque la firma con la sesión del usuario
@@ -162,17 +182,8 @@ export async function resolverPoliza(id: string, accion: "aprobar" | "devolver",
     p_acta: accion === "aprobar" && acta ? limpiarActaPoliza(acta) : null,
   })
   if (error) throw new Error(error.message)
-  // Aprobada (con la firma de quien aprobó): congela el PDF del acta después
-  // de responder. Si falla, se congela la primera vez que alguien lo abra.
-  if (accion === "aprobar") {
-    after(async () => {
-      try {
-        await pdfActaPoliza(await createClient(), id)
-      } catch (e) {
-        console.error("No se pudo congelar el acta de la póliza:", e)
-      }
-    })
-  }
+  // Desde 20270101001700 no se genera ni se firma el acta: los datos quedan
+  // guardados con la póliza y la app avisa al ingeniero.
 }
 
 // ---------------------------------------------------------------- acta de aprobación
