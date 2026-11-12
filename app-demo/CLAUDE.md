@@ -1249,6 +1249,38 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Correos de 360 (2026-11-12)
+
+`20270101002100_correos.sql` y `20270101002200_correos_preferencias.sql`. Los avisos de la campanita
+también salen por correo, al correo con el que inicia sesión cada persona, desde
+`notificaciones@conycasoluciones.com` (alias de Google Workspace; API de Gmail con cuenta de servicio y
+delegación de dominio, permiso solo `gmail.send`). La llave vive en los secretos de la función de
+Supabase **`enviar-correos`** (`supabase/functions/enviar-correos/index.ts`, Deno; se publica desde el
+panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITENTE`, `GMAIL_NOMBRE`).
+- `trg_correo_notificacion` (AFTER INSERT en `notificaciones`) encola en `correos_salientes` si la
+  persona tiene `perfiles.correo_avisos = 'inmediato'` (por omisión `'nunca'`) y el envío general está
+  encendido (`ajustes_correo.activo`). Si falla, el aviso se crea igual.
+- pg_cron `enviar-correos` cada minuto llama la función por pg_net solo si hay por enviar; la función
+  toma con `tomar_correos` y marca con `marcar_correo` (solo service_role); hasta 5 intentos.
+- "Abrir en 360" = `ajustes_correo.url_app` + `/notificaciones/<id>` (`app/(app)/notificaciones/[id]/route.ts`:
+  marca leída y lleva a `rutaNotificacion`, `lib/notificaciones-rutas.ts`, la misma de la campanita).
+- Se configura en la app: Admin › Usuarios y accesos (columna "Correos" y "Envío de correos de 360") y
+  cada usuario en su menú ("Recibir avisos por correo"). `encolar_correo_prueba(correo)` para probar.
+- **Qué avisos van por correo** (`20270101002300_correos_resumenes.sql`, decisión del usuario): solo los
+  tipos de `ajustes_correo.tipos` (contratos, minutas, otrosí, pólizas, actas aprobadas/por facturar/
+  rechazadas y autorización a otro tercero, requisiciones compradas/extraordinarias/rechazadas/
+  administrativas, OC aprobada o rechazada, pagos administrativos aprobados o rechazados). La campanita
+  no cambia. Un tipo nuevo que deba ir por correo se agrega a esa lista.
+- Avisos nuevos: `requisicion_comprada` (al aprobarse la OC, a quien pidió cada requisición,
+  `trg_avisar_requisiciones_compradas`; ya está en `notificaciones_tipo_check`) y OC aprobada/rechazada
+  también a Líder Compras (`trg_avisar_oc_lider_compras`).
+- **Resúmenes** (`perfiles.correo_resumen`, por omisión sí; solo si hay algo que contar): pg_cron
+  `resumen-diario-pagos` (12:00 lunes a viernes, `0 17 * * 1-5` UTC: pagos por aprobar, por liquidar,
+  por preparar, por dispersar, PSE por pagar y cuentas por verificar, según acciones) y
+  `resumen-semanal-pendientes` (lunes 8:00, `0 13 * * 1`: todos sus pendientes de `_pendientes_de`).
+  `_lineas_resumen`, `_encolar_resumenes`; `vista_previa_resumenes('diario'|'semanal')` muestra a quién
+  y qué sin enviar. Columna "Resúmenes" en Usuarios y accesos y "Recibir resúmenes por correo" en el menú.
+
 ## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
 
 `20270101001400`: ya no son "para todos" (se quitó `PESTANAS_PARA_TODOS`); son las pestañas
