@@ -300,12 +300,14 @@ describe("menú y ruta", () => {
     todosProyectos: false,
   }
 
-  it("cualquier usuario ve Pagos y Requisiciones administrativas en A&F y las rutas son libres", () => {
-    const ayf = construirModulos(sinPestanas).find((m) => m.clave === "ayf")!
-    const grupo = ayf.grupos.find((g) => g.titulo === "Administrativo")!
-    expect(grupo.items.map((i) => i.url)).toEqual(["/ayf/pagos-administrativos", "/ayf/requisiciones-administrativas"])
-    expect(evaluarRuta("/ayf/pagos-administrativos")).toEqual({ tipo: "libre" })
-    expect(evaluarRuta("/ayf/requisiciones-administrativas")).toEqual({ tipo: "libre" })
+  it("Pagos y Requisiciones administrativas son pestañas de la matriz (20270101001400)", () => {
+    const sinGrupo = construirModulos(sinPestanas).find((m) => m.clave === "ayf")!.grupos.find((g) => g.titulo === "Administrativo")
+    expect(sinGrupo).toBeUndefined()
+    const solicitante = { ...sinPestanas, pestanas: ["ayf.pagos_administrativos"] }
+    const grupo = construirModulos(solicitante).find((m) => m.clave === "ayf")!.grupos.find((g) => g.titulo === "Administrativo")!
+    expect(grupo.items.map((i) => i.url)).toEqual(["/ayf/pagos-administrativos"])
+    expect(evaluarRuta("/ayf/pagos-administrativos")).toEqual({ tipo: "pestanas", claves: ["ayf.pagos_administrativos"] })
+    expect(evaluarRuta("/ayf/requisiciones-administrativas")).toEqual({ tipo: "pestanas", claves: ["ayf.requisiciones_administrativas"] })
   })
 })
 

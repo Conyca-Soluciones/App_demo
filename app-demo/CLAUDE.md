@@ -1242,6 +1242,14 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
+
+`20270101001400`: ya no son "para todos" (se quitó `PESTANAS_PARA_TODOS`); son las pestañas
+`ayf.pagos_administrativos` y `ayf.requisiciones_administrativas`. La migración se las dio a todos los
+roles que existían (al Solicitante de pagos solo la primera). Las acciones de los cuadros exigen la
+pestaña; `buscarTercerosRequisicionAdmin` y `cuentasTerceroRequisicionAdmin` siguen solo con sesión
+porque también las usan Generar OC, actas y contratistas. Las funciones de la base siguen pidiendo solo sesión.
+
 ## Pagos administrativos para proyectos de Google (2026-11-12)
 
 `20270101001300_pagos_admin_google.sql` (reversa en `supabase/reversa/`). `proyectos.solo_pagos`: proyectos
