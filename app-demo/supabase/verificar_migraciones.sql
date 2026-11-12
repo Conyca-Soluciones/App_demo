@@ -669,7 +669,7 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'titular_de_contrato')
          and exists (select 1 from pg_proc where proname = '_fijar_pago_contrato' and prosrc like '%_titular_valido%')
   union all
-  select '20270101001300_precios_sin_proyectos_de_prueba',
+  select '20270101001600_precios_sin_proyectos_de_prueba',
          exists (select 1 from information_schema.columns where table_name = 'proyectos' and column_name = 'excluir_de_precios')
          and exists (select 1 from pg_proc where proname = 'precios_efectivos_insumos' and prosrc like '%excluir_de_precios%')
   union all

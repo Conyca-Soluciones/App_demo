@@ -846,6 +846,13 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   privileges for role postgres revoke execute on functions from public`); si
   una función nueva la llama la app, darle `grant execute ... to authenticated`. `test_fase1_compras` (prueba que inserta datos) sin permiso
   para nadie -- pendiente decidir si se borra.
+  **Ojo: una función que se usa DENTRO de una política (RLS o Storage) también
+  necesita `grant execute ... to authenticated`, aunque empiece por `_`**: la
+  política se evalúa con los permisos de quien consulta. Pasó el 2026-11-12:
+  `terceros_rut_select` llamaba a `_puede_ver_rut` sin ese permiso y, como las
+  políticas de lectura de Storage se juntan para todos los buckets, abrir una
+  póliza fallaba con "permission denied for function _puede_ver_rut"
+  (arreglado en `20270101001500`).
 - Permisos fallan CERRADO: si `permisos_rol_usuario` falla, el middleware
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
@@ -2876,7 +2883,7 @@ general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
 
 ## Precios: sin compras de proyectos de prueba (2026-11-12)
 
-`20270101001300_precios_sin_proyectos_de_prueba.sql` (decisión del usuario).
+`20270101001600_precios_sin_proyectos_de_prueba.sql` (decisión del usuario).
 `precios_efectivos_insumos` ya no promedia las OC de proyectos con
 `proyectos.excluir_de_precios = true` (marcado: CAPACITACION). Antes las
 compras de prueba (concreto, alambre a $20, tela verde a $1.000) se metían en
