@@ -132,6 +132,8 @@ export const PESTANAS: Pestana[] = [
   // Dispersores (20261217000000): los pagos liquidados de los tres consolidados.
   { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
+  // Saldos de las cuentas a debitar e ingresos / egresos / traslados (20270101001200).
+  { clave: "ayf.balances", titulo: "Balances", modulo: "ayf", seccion: "Balances", url: "/ayf/balances", rutas: ["/ayf/balances"] },
 ]
 
 // Pestañas de TODOS los usuarios con sesión (no están en la matriz de roles y
@@ -183,6 +185,7 @@ export const ACCIONES: Accion[] = [
   { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
   { clave: "generar_dispersores", titulo: "Generar dispersores", descripcion: "En Realizar Pagos: asignar la cuenta a debitar, confirmar cuentas, sacar pagos del dispersor y generar los archivos del banco (los pagos quedan dispersados).", seccion: "A&F" },
   { clave: "pagar_pse", titulo: "Pagar PSE", descripcion: "En el Consolidado, pestaña PSE: escoger la cuenta a debitar y marcar como pagados los pagos por PSE ya liquidados (con el comprobante), o deshacerlo si el pago no salió.", seccion: "A&F" },
+  { clave: "registrar_movimientos_bancarios", titulo: "Registrar movimientos bancarios", descripcion: "En Balances: saldos de inicio de las cuentas, ingresos, egresos externos y traslados internos (crear, editar y eliminar).", seccion: "A&F" },
   { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Corregir terceros y agregar o corregir sus cuentas bancarias (crear un tercero lo puede cualquiera; las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]

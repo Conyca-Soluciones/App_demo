@@ -304,6 +304,9 @@ export type FiltrosConsolidadoGerencia = FiltroCreacion & {
   proyectoId?: string
   solicitanteId?: string
   tercero?: string
+  // Movimientos de Balances (20270101001200): ingresos y egresos externos.
+  incluirIngresos?: boolean
+  incluirEgresos?: boolean
 }
 export type OpcionesConsolidadoGerencia = {
   empresas: { id: string; nombre: string }[]

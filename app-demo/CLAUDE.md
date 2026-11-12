@@ -1242,6 +1242,30 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Balances (A&F, 2026-11-12)
+
+`20270101001200_balances.sql` (reversa en `supabase/reversa/`; solo agrega, más un parche a
+`eliminar_empresa`). Pestaña `ayf.balances` (`/ayf/balances`, Gerencia y Financiera) y acción
+`registrar_movimientos_bancarios` (las dos; decisión del usuario: Gerencia casi no registra pero la tiene).
+- **Cuentas**: las 29 cuentas a debitar (`cuentas_empresa`). Saldo = saldo de inicio
+  (`cuentas_saldo_inicial`, con fecha de corte) + ingresos − egresos ± traslados − pagos `dispersado`
+  con esa `cuenta_debitar_id` (dispersor, PSE u otro medio), todo desde la fecha de corte; el pago
+  cuenta por `trunc(valor_a_pagar)` y la fecha de `dispersado_en` (hora Colombia). Un rebote o "no salió"
+  lo devuelve solo. No se guarda saldo: `_lineas_balance` (interna), `saldos_bancarios()`,
+  `extracto_cuenta(cuenta, desde, hasta)` (saldo acumulado por línea; "hasta" = saldo a esa fecha).
+- **Movimientos** (`movimientos_bancarios`): ingreso `IN-0001`, egreso externo `PE-0001` (pago externo),
+  traslado interno `TR-0001` (contador `contadores_balances`, 4 dígitos, sin proyecto). Cuenta (y destino
+  en traslados), fecha (no futura), valor, concepto y titular de texto libre (traslado sin titular),
+  soporte opcional (bucket `balances`, `<uid>/...`). Se editan (`guardar_movimiento_bancario`, el tipo no
+  cambia) y se eliminan con motivo (lógico, `eliminar_movimiento_bancario`); todo cambio de saldo de inicio
+  o movimiento queda en `balances_cambios`. Pantalla: `components/balances-view.tsx` (Saldos bancarios con
+  doble clic al extracto; Registrar movimientos: saldos de inicio y Registros).
+- **Consolidado Gerencia**: casillas "Incluir ingresos" e "Incluir egresos externos" (por omisión no);
+  `movimientos_consolidado_gerencia` filtra por semana ISO de la fecha, grupo empresarial (empresa de la
+  cuenta), tercero = titular, solicitante = quien registró y semana de creación; con filtro de proyecto no
+  salen. Van arriba, solo en la primera página, con la etiqueta INGRESO / EGRESO EXTERNO; los traslados no.
+- `eliminar_empresa` no borra una empresa cuyas cuentas tengan saldo de inicio o movimientos.
+
 ## Eliminar empresa (2026-11-12)
 
 `20270101001000_eliminar_empresa.sql`. Admin › Empresas › Eliminar llama `eliminar_empresa` (solo
