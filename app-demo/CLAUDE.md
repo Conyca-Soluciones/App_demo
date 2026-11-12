@@ -1242,6 +1242,25 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   Crédito / Fiducia de la OC, o Transferencia) y fila en rojo si el pago está aprobado sin cuenta y no
   es PSE (`pagoSinCuenta`).
 
+## Correos de 360 (2026-11-12)
+
+`20270101002100_correos.sql` y `20270101002200_correos_preferencias.sql`. Los avisos de la campanita
+también salen por correo, al correo con el que inicia sesión cada persona, desde
+`notificaciones@conycasoluciones.com` (alias de Google Workspace; API de Gmail con cuenta de servicio y
+delegación de dominio, permiso solo `gmail.send`). La llave vive en los secretos de la función de
+Supabase **`enviar-correos`** (`supabase/functions/enviar-correos/index.ts`, Deno; se publica desde el
+panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITENTE`, `GMAIL_NOMBRE`).
+- `trg_correo_notificacion` (AFTER INSERT en `notificaciones`) encola en `correos_salientes` si la
+  persona tiene `perfiles.correo_avisos = 'inmediato'` (por omisión `'nunca'`) y el envío general está
+  encendido (`ajustes_correo.activo`). Si falla, el aviso se crea igual.
+- pg_cron `enviar-correos` cada minuto llama la función por pg_net solo si hay por enviar; la función
+  toma con `tomar_correos` y marca con `marcar_correo` (solo service_role); hasta 5 intentos.
+- "Abrir en 360" = `ajustes_correo.url_app` + `/notificaciones/<id>` (`app/(app)/notificaciones/[id]/route.ts`:
+  marca leída y lleva a `rutaNotificacion`, `lib/notificaciones-rutas.ts`, la misma de la campanita).
+- Se configura en la app: Admin › Usuarios y accesos (columna "Correos" y "Envío de correos de 360") y
+  cada usuario en su menú ("Recibir avisos por correo"). `encolar_correo_prueba(correo)` para probar.
+- Pendiente: resumen diario.
+
 ## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
 
 `20270101001400`: ya no son "para todos" (se quitó `PESTANAS_PARA_TODOS`); son las pestañas

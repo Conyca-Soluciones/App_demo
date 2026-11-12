@@ -28,6 +28,7 @@ import {
   type UsuarioAcceso,
 } from "@/app/(app)/admin/accesos/actions"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
+import { cambiarEnvioCorreos, cambiarPreferenciaCorreo, estadoCorreos, type PreferenciaCorreo } from "@/app/(app)/correos-actions"
 import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
 
 const SIN_ROL = "__sin_rol__"
@@ -67,6 +68,37 @@ export function UsuariosAccesosView() {
   const [guardandoPassword, setGuardandoPassword] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
   const [viendo, setViendo] = useState<UsuarioAcceso | null>(null)
+  // Correos de 360: el interruptor general y quién recibe los avisos por correo.
+  const [correos, setCorreos] = useState<{ activo: boolean; usuarios: Record<string, PreferenciaCorreo> } | null>(null)
+  const [guardandoCorreo, setGuardandoCorreo] = useState<string | null>(null)
+
+  async function cambiarCorreo(u: UsuarioAcceso, recibe: boolean) {
+    setGuardandoCorreo(u.id)
+    setError(null)
+    try {
+      const valor: PreferenciaCorreo = recibe ? "inmediato" : "nunca"
+      await cambiarPreferenciaCorreo(u.id, valor)
+      setCorreos((c) => (c ? { ...c, usuarios: { ...c.usuarios, [u.id]: valor } } : c))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar el correo.")
+    } finally {
+      setGuardandoCorreo(null)
+    }
+  }
+
+  async function cambiarGeneral(activo: boolean) {
+    setGuardandoCorreo("general")
+    setError(null)
+    try {
+      await cambiarEnvioCorreos(activo)
+      setCorreos((c) => (c ? { ...c, activo } : c))
+      setAviso(activo ? "Envío de correos de 360 encendido." : "Envío de correos de 360 apagado: no sale ningún correo hasta encenderlo.")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar el envío de correos.")
+    } finally {
+      setGuardandoCorreo(null)
+    }
+  }
 
   function cargar() {
     Promise.all([listarUsuariosAcceso(), listarRolesConPermisos(), listarProyectosAdmin()])
@@ -76,6 +108,9 @@ export function UsuariosAccesosView() {
         setProyectos(p)
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la información."))
+    estadoCorreos()
+      .then((c: { activo: boolean; usuarios: Record<string, PreferenciaCorreo> }) => setCorreos(c))
+      .catch(() => setCorreos(null))
   }
 
   useEffect(cargar, [])
@@ -245,6 +280,24 @@ export function UsuariosAccesosView() {
       ),
     },
     {
+      clave: "avisosCorreo",
+      titulo: "Correos",
+      ancho: 90,
+      alinear: "center",
+      ordenable: false,
+      texto: (u) => (correos?.usuarios[u.id] === "inmediato" ? "Sí" : "No"),
+      celda: (u) =>
+        correos ? (
+          <Checkbox
+            checked={correos.usuarios[u.id] === "inmediato"}
+            disabled={guardandoCorreo === u.id}
+            aria-label={`Enviar los avisos de ${u.nombre} por correo`}
+            title={`Enviar los avisos de la campanita a ${u.email ?? u.username ?? "su correo"}`}
+            onCheckedChange={(v) => cambiarCorreo(u, v === true)}
+          />
+        ) : null,
+    },
+    {
       clave: "clave",
       titulo: "Contraseña",
       ancho: 110,
@@ -287,7 +340,20 @@ export function UsuariosAccesosView() {
         <Button onClick={abrirNuevoUsuario}>
           <Plus className="mr-1 h-4 w-4" /> Nuevo usuario
         </Button>
+        {correos && (
+          <label
+            className="ml-auto flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+            title="Apagado, no sale ningún correo de 360 aunque las personas tengan los correos activados."
+          >
+            <Checkbox checked={correos.activo} disabled={guardandoCorreo === "general"} onCheckedChange={(v) => cambiarGeneral(v === true)} />
+            Envío de correos de 360
+            <span className={correos.activo ? "text-emerald-700" : "text-muted-foreground"}>{correos.activo ? "encendido" : "apagado"}</span>
+          </label>
+        )}
       </div>
+      <p className="-mt-2 text-xs text-muted-foreground">
+        &quot;Correos&quot;: a quién le llegan los avisos de la campanita al correo con el que inicia sesión. Cada persona también lo puede cambiar en su menú.
+      </p>
 
       {aviso && (
         <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">

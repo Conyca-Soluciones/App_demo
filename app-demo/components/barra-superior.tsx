@@ -3,9 +3,17 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { LogOut, PenLine, ShieldCheck } from "lucide-react"
+import { LogOut, Mail, PenLine, ShieldCheck } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { cambiarMiPreferenciaCorreo, miPreferenciaCorreo, type PreferenciaCorreo } from "@/app/(app)/correos-actions"
 import { MiFirmaDialog } from "@/components/mi-firma-dialog"
 import { VerificarDocumentoDialog } from "@/components/verificar-documento-dialog"
 import { EVENTO_ABRIR_MI_FIRMA } from "@/lib/firmas"
@@ -36,6 +44,27 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
   const nombre = nombreUsuario ?? "Usuario"
   const rolVisible = permisos?.rolNombre ?? (permisos?.esAdministrador ? "Administrador" : ROL_POR_DEFECTO)
   const [dialogo, setDialogo] = useState<"firma" | "verificar" | null>(null)
+  // "Recibir avisos por correo": se lee al abrir el menú la primera vez.
+  const [correo, setCorreo] = useState<PreferenciaCorreo | null>(null)
+  const [guardandoCorreo, setGuardandoCorreo] = useState(false)
+  function leerCorreo(abierto: boolean) {
+    if (!abierto || correo !== null) return
+    miPreferenciaCorreo()
+      .then((v: PreferenciaCorreo) => setCorreo(v))
+      .catch(() => {})
+  }
+  async function alternarCorreo(recibe: boolean) {
+    const valor: PreferenciaCorreo = recibe ? "inmediato" : "nunca"
+    setGuardandoCorreo(true)
+    try {
+      await cambiarMiPreferenciaCorreo(valor)
+      setCorreo(valor)
+    } catch {
+      // se deja como estaba
+    } finally {
+      setGuardandoCorreo(false)
+    }
+  }
   // El pendiente "Registra tu firma" (Mis pendientes) abre este mismo diálogo.
   useEffect(() => {
     const abrir = () => setDialogo("firma")
@@ -61,7 +90,7 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
         <CampanitaNotificaciones />
 
         <div className="flex items-center gap-2 border-l pl-2 sm:pl-3">
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={leerCorreo}>
             <DropdownMenuTrigger
               className="flex min-w-0 items-center gap-2 rounded-md p-0.5 text-left transition-colors hover:bg-accent"
               title={`${nombre} · ${rolVisible}`}
@@ -81,6 +110,14 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
               <DropdownMenuItem onClick={() => setDialogo("verificar")}>
                 <ShieldCheck /> Verificar documento
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={correo === "inmediato"}
+                disabled={correo === null || guardandoCorreo}
+                onCheckedChange={(v) => alternarCorreo(v === true)}
+              >
+                <Mail /> Recibir avisos por correo
+              </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Tooltip>
