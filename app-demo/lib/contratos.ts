@@ -9,6 +9,7 @@
 
 import type { TipoDocumentoContratista, TipoPersona } from "@/lib/contratistas"
 import { numeroALetrasCOP, numeroATexto } from "@/lib/numero-a-letras"
+import type { ArchivoFirmado } from "@/lib/contratos-firmados"
 import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 
 export type TipoContrato =
@@ -277,6 +278,8 @@ export type SolicitudContratoFila = {
   // Póliza (20261126000000_polizas.sql): null hasta que Gerencia aprueba;
   // "no_aplica" si el contrato no la pide (20261208000000).
   polizaEstado?: "pendiente" | "recibida" | "aprobada" | "no_aplica" | null
+  // Copia firmada por el contratista (20270101001900); null = falta.
+  firmado?: ArchivoFirmado | null
 }
 
 export type ClaseContrato = "grupo" | "general"

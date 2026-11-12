@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { Button } from "@/components/ui/button"
 import { ExportTemplateButton } from "@/components/export-template-button"
+import { UNIDADES_PLANTILLA } from "@/lib/unidades"
 
 import { calcularNivelDesdeCodigo, nuevoStackNiveles, mensajeError, resolverPadreImport } from "@/lib/calcular-nivel"
 import { parseApuSheet, type BloqueApu } from "@/lib/parse-apu-excel"
@@ -1733,6 +1734,7 @@ function PresupuestoDeProyecto() {
             <ExportTemplateButton
               columnas={["Código", "Descripción", "Unidad", "Cantidad","Valor Unitario"]}
               nombreArchivo="plantilla-presupuesto.xlsx"
+              listas={{ Unidad: UNIDADES_PLANTILLA }}
               nombreHoja="Presupuesto"
               titulo="Plantilla de Presupuesto"
               filasEjemplo={[
@@ -1748,12 +1750,13 @@ function PresupuestoDeProyecto() {
                   // unidad/Cantidad, Tipo en MO/INSUMO/EQUIPO/TRANSPORTE)
                   // -- ver Test-presupuesto.xlsx, hoja APU.
                   columnas: ["Código", "Nombre", "Tipo", "unidad", "Cantidad"],
+                  listas: { unidad: UNIDADES_PLANTILLA },
                   filasEjemplo: [
                     ["1.1", "Cerramiento o cerca en tela verde h=2.10 m", "", "m", ""],
-                    ["", "Cuadrilla AA (Albañilería)", "MO", "h", "0.45"],
+                    ["", "Cuadrilla AA (Albañilería)", "MO", "hr", "0.45"],
                     ["", "Alambre galvanizado No. 12", "INSUMO", "kg", "0.05"],
-                    ["", "Volqueta (6 m3)", "EQUIPO", "HR", "0.0152"],
-                    ["", "Transporte de materiales - m³", "TRANSPORTE", "m³", "1"],
+                    ["", "Volqueta (6 m3)", "EQUIPO", "hr", "0.0152"],
+                    ["", "Transporte de materiales - m³", "TRANSPORTE", "m3", "1"],
                   ],
                 },
               ]}

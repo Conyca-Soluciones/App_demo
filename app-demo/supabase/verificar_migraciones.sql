@@ -682,5 +682,21 @@ select * from (
          exists (select 1 from pg_proc where proname = 'reabrir_solicitud_contrato')
          and exists (select 1 from pg_proc where proname = 'reabrir_minuta_contrato')
          and exists (select 1 from pg_proc where proname = 'contrato_modificable')
+  union all
+  select '20270101001700_polizas_sin_acta_pdf',
+         exists (select 1 from pg_proc where proname = 'reemplazar_poliza')
+         and not exists (select 1 from pg_trigger where tgname = 'trg_firmar_poliza_aprobada')
+  union all
+  -- 1800 (actas visibles desde el contrato) la deshizo 2000: se revisa la reversa.
+  select '20270101002000_revertir_actas_visibles_desde_contrato',
+         exists (select 1 from pg_proc where proname = 'puede_ver_actas' and prosrc like '%actas_generales%' and prosrc not like '%contratos.solicitar%')
+         and exists (select 1 from pg_policies where tablename = 'actas' and policyname = 'actas_select' and qual not like '%contratos.solicitar%')
+  union all
+  select '20270101001900_contrato_firmado_contratista',
+         exists (select 1 from information_schema.columns where table_name = 'contratos' and column_name = 'firmado_ruta')
+         and exists (select 1 from information_schema.columns where table_name = 'otrosis' and column_name = 'firmado_ruta')
+         and exists (select 1 from pg_proc where proname = 'firmados_de_contrato')
+         and exists (select 1 from pg_proc where proname = '_guardar_acta' and prosrc like '%Falta subir el contrato firmado%')
+         and exists (select 1 from pg_proc where proname = '_pendientes_de' and prosrc like '%mi_contrato_por_firmar%')
 ) t
 order by 1;

@@ -9,6 +9,7 @@ import { VisorDocumento } from "@/components/visor-documento"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
+import { CopiaFirmadaContrato, DocumentosAsociados, useFirmados } from "@/components/documentos-del-contrato"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import {
   CLASE_ETAPA_CONTRATO,
@@ -77,6 +78,10 @@ export function DetalleSolicitudContrato({
     }
   }, [id])
 
+  // Contrato aprobado: su copia firmada, póliza, otrosí y actas (20270101001800/1900).
+  const aprobado = Boolean(detalle && detalle.estado === "aprobada" && detalle.minutaEstado === "aprobada")
+  const conDocumentos = aprobado && !resumen
+  const { firmados, puedeSubir, recargar } = useFirmados(conDocumentos && detalle ? detalle.id : null)
   const tipo = detalle ? TIPO_CONTRATO_POR_VALOR.get(detalle.tipo) : null
   // Contrato general: sin minuta ni ítems; lleva referencia y retenciones.
   const general = detalle?.clase === "general"
@@ -111,6 +116,11 @@ export function DetalleSolicitudContrato({
               </Badge>
             )}
             {detalle?.numeroContrato && <span className="text-sm font-normal text-muted-foreground">Contrato {detalle.numeroContrato}</span>}
+            {conDocumentos && detalle && (
+              <span className="text-sm font-normal">
+                <CopiaFirmadaContrato contratoId={detalle.id} firmados={firmados} puedeSubir={puedeSubir} onCambio={recargar} />
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -303,6 +313,16 @@ export function DetalleSolicitudContrato({
                 </div>
               )}
 
+              {/* Lo asociado al contrato aprobado: copia firmada, póliza, otrosí y actas. */}
+              {conDocumentos && (
+                <DocumentosAsociados
+                  contratoId={detalle.id}
+                  polizaEstado={detalle.polizaEstado}
+                  firmados={firmados}
+                  puedeSubir={puedeSubir}
+                  onCambio={recargar}
+                />
+              )}
 
               {/* En modo resumen (Control del proyecto) no salen los documentos. */}
               {/* Sin documentos: en modo resumen (Control del proyecto) y en los
@@ -367,8 +387,8 @@ export function DetalleSolicitudContrato({
                 </>
               )}
 
-              {/* Rastro de los otrosí (solo los contratos aprobados pueden tenerlos). */}
-              {detalle.estado === "aprobada" && detalle.minutaEstado === "aprobada" && (
+              {/* Control del proyecto (resumen): solo la póliza y los otrosí, sin documentos. */}
+              {aprobado && resumen && (
                 <div className="space-y-2">
                   {detalle.polizaEstado && (
                     <p className="flex items-center gap-2 text-sm">

@@ -26,6 +26,7 @@ const info = (cambios: Partial<InfoContratoActa> = {}): InfoContratoActa => ({
   liquidado: false,
   listoParaActas: true,
   polizaEstado: "aprobada",
+  firmadoContratista: true,
   metodoPago: "transferencia",
   tieneFinal: false,
   tieneLiquidacion: false,
@@ -42,6 +43,14 @@ const info = (cambios: Partial<InfoContratoActa> = {}): InfoContratoActa => ({
   ...cambios,
 })
 const form = (cambios: Partial<FormActa> = {}): FormActa => ({ ...formActaVacio(), ...cambios })
+
+describe("actas: copia firmada por el contratista", () => {
+  it("sin la copia firmada no deja hacer actas", () => {
+    const r = tiposPermitidos(info({ firmadoContratista: false }))
+    expect(r.tipos).toEqual([])
+    expect(r.motivo).toMatch(/firmado por el contratista/)
+  })
+})
 
 describe("calcularActa: valores unitarios", () => {
   it("valor = cantidad × valor unitario pactado; solo las actividades con cantidad", () => {

@@ -180,6 +180,8 @@ export type InfoContratoActa = {
   listoParaActas: boolean
   // Póliza del contrato (20261126000000): sin aprobar no hay actas.
   polizaEstado: EstadoPolizaContrato | null
+  // Copia del contrato firmada por el contratista (20270101001900): sin ella no hay actas.
+  firmadoContratista: boolean
   // Contrato por PSE (20261220000000): sin cuenta ni titular aparte.
   metodoPago: "transferencia" | "pse"
   tieneFinal: boolean
@@ -199,6 +201,8 @@ export function tiposPermitidos(info: InfoContratoActa): { tipos: TipoActa[]; mo
   if (info.liquidado) return { tipos: [], motivo: "El contrato ya está liquidado." }
   const sinPoliza = motivoSinActasPorPoliza(info.polizaEstado)
   if (sinPoliza) return { tipos: [], motivo: sinPoliza }
+  if (!info.firmadoContratista)
+    return { tipos: [], motivo: "Falta subir el contrato firmado por el contratista (en el detalle del contrato): sin él no se pueden hacer actas." }
   const tipos: TipoActa[] = []
   let motivo: string | null = null
   if (info.vencido) motivo = "El contrato está vencido: solo se puede hacer el acta de liquidación (para ampliar el plazo hará falta un otrosí)."

@@ -2,33 +2,29 @@
 
 import { useState } from "react"
 import { confirmar } from "@/components/ui/confirmar"
-import { Download, Eye, Loader2, PencilLine, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
+import { Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   CampoMinuta,
   ChipOrigen,
   LeyendaOrigen,
-  PanelVistaPrevia,
   Seccion,
   claseCampo,
-  descargarPdfMinuta,
-  useVistaPreviaMinuta,
 } from "@/components/minuta-comun"
 import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import type { OrigenDato } from "@/lib/minuta-mano-obra"
-import { nombreArchivoActaPoliza, origenCampoActaPoliza, type ActaPoliza, type AmparoActaPoliza } from "@/lib/acta-poliza"
+import { origenCampoActaPoliza, type ActaPoliza, type AmparoActaPoliza } from "@/lib/acta-poliza"
 import { guardarActaPoliza, type DocumentoActaPoliza } from "@/app/(app)/contratos/polizas/actions"
 
 // ---------------------------------------------------------------------------
-// Acta de aprobación de la póliza (plantilla GJ-F-013): datos prellenados del
-// contrato y editables, con la vista previa del PDF y la descarga. El estado
-// del acta vive en quien lo usa (Aprobación de pólizas), porque "Aprobar"
-// manda el acta de pantalla.
+// Datos de la póliza (los que traía el acta GJ-F-013): prellenados del
+// contrato y editables. Desde 20270101001700 ya no se genera el PDF ni se firma
+// (la app avisa la aprobación): Jurídica llena estos datos y aprueba, y quedan
+// guardados con la póliza. El estado vive en quien lo usa (Aprobación de
+// pólizas), porque "Aprobar" manda lo de pantalla.
 // ---------------------------------------------------------------------------
 
 type CampoTexto = { [K in keyof ActaPoliza]: ActaPoliza[K] extends string ? K : never }[keyof ActaPoliza]
-
-export const rutaPdfActaPoliza = (id: string) => `/contratos/poliza-acta/${id}`
 
 export function ActaPolizaEditor({
   polizaId,
@@ -47,11 +43,8 @@ export function ActaPolizaEditor({
   onChange: (acta: ActaPoliza) => void
   onGuardada: (guardadaAt: string) => void
 }) {
-  const [modo, setModo] = useState<"editar" | "pdf">(editable ? "editar" : "pdf")
   const [guardando, setGuardando] = useState(false)
-  const [descargando, setDescargando] = useState(false)
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null)
-  const ruta = rutaPdfActaPoliza(polizaId)
   const deshabilitado = !editable || guardando
   const defecto = documento.porDefecto
 
@@ -88,27 +81,16 @@ export function ActaPolizaEditor({
     try {
       const r = await guardarActaPoliza(polizaId, acta)
       onGuardada(r.guardadaAt)
-      setAviso({ ok: true, texto: "Acta guardada." })
+      setAviso({ ok: true, texto: "Datos guardados." })
     } catch (e) {
-      setAviso({ ok: false, texto: e instanceof Error ? e.message : "No se pudo guardar el acta." })
+      setAviso({ ok: false, texto: e instanceof Error ? e.message : "No se pudieron guardar los datos." })
     } finally {
       setGuardando(false)
     }
   }
 
-  async function descargar() {
-    setDescargando(true)
-    try {
-      await descargarPdfMinuta(polizaId, acta, nombreArchivoActaPoliza(acta.numeroContrato), ruta)
-    } catch (e) {
-      setAviso({ ok: false, texto: e instanceof Error ? e.message : "No se pudo generar el PDF." })
-    } finally {
-      setDescargando(false)
-    }
-  }
-
   async function restablecer() {
-    if (!(await confirmar("¿Volver a llenar el acta con los datos del contrato? Se pierde lo que se haya editado (lo guardado no cambia hasta que guardes).", { boton: "Volver a llenar" }))) return
+    if (!(await confirmar("¿Volver a llenar los datos de la póliza con los del contrato? Se pierde lo que se haya editado (lo guardado no cambia hasta que guardes).", { boton: "Volver a llenar" }))) return
     onChange(defecto)
     setAviso(null)
   }
@@ -116,16 +98,8 @@ export function ActaPolizaEditor({
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 p-2">
-        <div className="flex gap-1" role="tablist">
-          <Button size="sm" role="tab" aria-selected={modo === "editar"} variant={modo === "editar" ? "default" : "outline"} onClick={() => setModo("editar")}>
-            <PencilLine className="size-4" /> {editable ? "Llenar" : "Datos"}
-          </Button>
-          <Button size="sm" role="tab" aria-selected={modo === "pdf"} variant={modo === "pdf" ? "default" : "outline"} onClick={() => setModo("pdf")}>
-            <Eye className="size-4" /> Vista previa
-          </Button>
-        </div>
+        <span className="text-sm font-medium">Datos de la póliza</span>
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          GJ-F-013 v03 ·{" "}
           {documento.guardadaAt
             ? `guardada el ${fechaContrato(documento.guardadaAt)}${documento.guardadaPorNombre ? ` por ${documento.guardadaPorNombre}` : ""}`
             : "sin guardar"}
@@ -137,9 +111,6 @@ export function ActaPolizaEditor({
             <RotateCcw className="size-4" /> Restablecer
           </Button>
         )}
-        <Button type="button" size="sm" variant="outline" onClick={descargar} disabled={descargando}>
-          {descargando ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} PDF
-        </Button>
         {editable && (
           <Button type="button" size="sm" onClick={guardar} disabled={guardando || !cambios}>
             {guardando ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />} Guardar
@@ -148,9 +119,7 @@ export function ActaPolizaEditor({
       </div>
       {aviso && <p className={`text-sm ${aviso.ok ? "text-emerald-700" : "text-destructive"}`}>{aviso.texto}</p>}
 
-      {modo === "pdf" ? (
-        <VistaPreviaActa polizaId={polizaId} acta={acta} ruta={ruta} />
-      ) : (
+      {(
         <div className="min-h-0 space-y-3 overflow-auto">
           <LeyendaOrigen />
           <Seccion titulo="Encabezado" ayuda="El número sale del contrato; el supervisor y el correo, del director que pidió el contrato.">
@@ -232,11 +201,11 @@ export function ActaPolizaEditor({
               )}
             </div>
           </Seccion>
-          <Seccion titulo="Certificado de pago y aprobación">
+          <Seccion titulo="Certificado de pago y revisión">
             <div className="grid gap-3 sm:grid-cols-2">
               {campo("soportePago", "Certificado de pago de la póliza", { filas: 2, placeholder: "Recibo / referencia, fecha y valor pagado" })}
               {campo("fechaAprobacion", "Fecha de aprobación", { tipo: "date" })}
-              {campo("asesorNombre", "Asesor jurídico que firma")}
+              {campo("asesorNombre", "Asesor jurídico que revisa")}
               {campo("asesorCargo", "Cargo")}
             </div>
           </Seccion>
@@ -244,9 +213,4 @@ export function ActaPolizaEditor({
       )}
     </div>
   )
-}
-
-function VistaPreviaActa({ polizaId, acta, ruta }: { polizaId: string; acta: ActaPoliza; ruta: string }) {
-  const vista = useVistaPreviaMinuta(polizaId, acta, null, ruta)
-  return <PanelVistaPrevia {...vista} />
 }

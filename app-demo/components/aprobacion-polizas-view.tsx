@@ -39,8 +39,8 @@ import {
 // ---------------------------------------------------------------------------
 // Aprobación de pólizas (ruta /contratos/aprobacion-polizas): Jurídica ve las
 // pólizas que suben los ingenieros (de todos los proyectos que ve) y, al abrir
-// una, la póliza, el contrato en PDF y los datos del contrato y del
-// contratista. La aprueba (ya se pueden hacer actas) o la devuelve con motivo
+// una, la póliza (para registrar aseguradora y amparos), el contrato en PDF y
+// los datos del contrato y del contratista. La aprueba (ya se pueden hacer actas) o la devuelve con motivo
 // (el ingeniero sube otra). ?ver=<id del contrato> (campanita) abre la que
 // está por revisar de ese contrato.
 // ---------------------------------------------------------------------------
@@ -279,12 +279,12 @@ function DetallePoliza({
 
   function pedirAprobacion() {
     if (!actaPantalla) {
-      setErrorAprobar("El acta todavía no ha cargado.")
+      setErrorAprobar("Los datos de la póliza todavía no han cargado.")
       return
     }
     const problema = validarActaPoliza(actaPantalla)
     if (problema) {
-      setErrorAprobar(`Acta de aprobación: ${problema}`)
+      setErrorAprobar(`Datos de la póliza: ${problema}`)
       setPestana("poliza")
       return
     }
@@ -335,7 +335,7 @@ function DetallePoliza({
                 <div className="flex gap-1" role="tablist">
                   {(
                     [
-                      ["poliza", "Póliza y acta"],
+                      ["poliza", "Póliza y datos"],
                       ["contrato", "Contrato"],
                       ["informacion", "Contrato y contratista"],
                     ] as [Pestana, string][]
@@ -354,12 +354,12 @@ function DetallePoliza({
               )}
               <div className="min-h-0 flex-1 overflow-auto">
                 {pestana === "poliza" ? (
-                  // Lado a lado: la póliza y el acta de aprobación (editable y exportable).
+                  // Lado a lado: la póliza y sus datos (aseguradora, amparos...), sin PDF (20270101001700).
                   <div className="grid gap-4 lg:h-full lg:min-h-[78svh] lg:grid-cols-2">
                     <ArchivoPoliza poliza={p} />
                     {!acta ? (
                       <div className="flex items-center justify-center text-muted-foreground">
-                        <Loader2 className="mr-2 size-4 animate-spin" /> Cargando acta...
+                        <Loader2 className="mr-2 size-4 animate-spin" /> Cargando datos...
                       </div>
                     ) : !acta.doc || !actaPantalla ? (
                       <p className="text-sm text-destructive">{acta.error}</p>
@@ -424,7 +424,7 @@ function DetallePoliza({
               </DialogHeader>
               <p className="text-sm text-muted-foreground">
                 {accion === "aprobar"
-                  ? "Se aprueba con el acta que está en pantalla (queda fija). El contrato queda con la póliza aprobada y ya se pueden hacer actas. Quien la subió y el director reciben una notificación."
+                  ? "Se aprueba con los datos que están en pantalla (quedan guardados con la póliza; ya no se genera ni se firma un acta). El contrato queda con la póliza aprobada y ya se pueden hacer actas. Quien la subió y el director reciben una notificación."
                   : "El contrato vuelve a quedar con la póliza pendiente; quien la subió y el director reciben el motivo y suben otra."}
               </p>
               {accion === "devolver" && (

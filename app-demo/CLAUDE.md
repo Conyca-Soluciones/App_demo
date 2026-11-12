@@ -3587,6 +3587,41 @@ aprobada no hay actas; los contratos ya aprobados quedan pendientes y se avisa.
   de control de cambios fija; "BORRADOR" sin aprobar). El ingeniero ve el acta
   de las aprobadas en Pólizas ("Acta").
 
+## Pólizas sin PDF, documentos del contrato y copia firmada (2026-11-12)
+
+Decisiones del usuario. Migraciones `20270101001700`, `20270101001800`,
+`20270101001900`, `20270101002000` (todas aplicadas; van ANTES del código:
+`SELECT_FILA_CONTRATO` lee `firmado_*`).
+- **Póliza sin acta en PDF** (1700): Jurídica llena los mismos datos del acta
+  GJ-F-013 (aseguradora al aprobar, amparos, certificado...) y quedan guardados
+  con la póliza (`contrato_polizas.acta_datos`); ya no se genera ni congela el
+  PDF ni se firma (se quitó `trg_firmar_poliza_aprobada`; `ActaPolizaEditor` es
+  solo el formulario). El ingeniero ve los datos con "Datos" (`DatosPoliza`).
+  Antes de que Jurídica la revise, el ingeniero puede cambiar el archivo
+  (`reemplazar_poliza`, evento `poliza_reemplazada`). La ruta
+  `/contratos/poliza-acta/[id]` quedó sin uso desde las pantallas.
+- **Documentos del contrato**: el detalle de un contrato aprobado (doble clic,
+  `components/documentos-del-contrato.tsx`, después del anexo) agrupa copia
+  firmada, póliza (ver y datos) y otrosí (PDF y su copia firmada). Las actas NO
+  (decisión del usuario: se quedan en su módulo). La 1800 (actas visibles con
+  las pestañas de contratos) se aplicó y la deshizo `20270101002000`: la
+  lectura de actas quedó como antes.
+- **Copia firmada por el contratista** (1900): `contratos.firmado_*` y
+  `otrosis.firmado_*`, archivo en el bucket `contratos` carpeta
+  `<contrato>/firmado/`. Se sube con la pestaña Pólizas (o Administrador):
+  columna "Firmado" en las listas de contratos (`columnaFirmado`) y botones en
+  el detalle (`components/copia-firmada.tsx`, `subir_contrato_firmado` /
+  `subir_otrosi_firmado`; reemplazar = subir otra). Sin la del contrato no hay
+  actas (`_guardar_acta`; también los contratos de antes) y es pendiente del
+  ingeniero que lo pidió (`mi_contrato_por_firmar`). La del otrosí no bloquea
+  nada, solo es pendiente (`mi_otrosi_por_firmar`). `_puede_ver_firmado` y
+  `_ruta_firmado_registrada` las usan políticas de Storage: tienen EXECUTE para
+  authenticated.
+- **Plantilla de presupuesto** (Paquete J, sin migración): columna Unidad (hoja
+  Presupuesto) y unidad (hoja APU) con lista desplegable (`UNIDADES_PLANTILLA`
+  en `lib/unidades.ts`, hoja oculta "Listas"; `listas` en
+  `exportarPlantillaExcel`). Otro valor se acepta con aviso.
+
 ## Firmas electrónicas, fase 1 (2026-10-21, `20261129000000_firmas.sql`)
 
 Decisiones: cada usuario registra su firma (dibujada o foto con el fondo
