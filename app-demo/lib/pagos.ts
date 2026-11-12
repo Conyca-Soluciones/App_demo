@@ -97,6 +97,8 @@ export type Pago = {
   ordenCompraId: string | null
   actaId: string | null
   requisicionAdminItemId: string | null
+  // Pago de un cuadro de SINCO (20270101002500): su fila (el soporte vive ahí).
+  sincoFilaId?: string | null
   origen: string
   actaBruto: number | null
   proyectoId: string | null
@@ -320,6 +322,7 @@ export type SoportePago =
   | { origen: "orden_compra"; id: string; ruta: string; nombre: string; tipo: string }
   | { origen: "acta"; ruta: string; nombre: string; tipo: string }
   | { origen: "requisicion_admin"; ruta: string; nombre: string; tipo: string }
+  | { origen: "sinco"; ruta: string; nombre: string; tipo: string }
 
 // "Pendientes" en Aprobación de pagos (decisión del usuario, 2026-11-11): por
 // aprobar, programados y en espera (crédito, factura del acta, saldos de

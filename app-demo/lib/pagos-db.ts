@@ -16,7 +16,8 @@ export const CAMPOS_PAGO = `
   descuento_anticipos, retencion_garantia, otros_descuentos,
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
   liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario, pagado_manual_por, pago_comprobante_nombre,
-  requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin, saldo_acta,
+  requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin, saldo_acta, sinco_fila_id,
+  sinco:sinco_filas(item, solicita, cuadro:sinco_cuadros(numero)),
   orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, pago_inmediato, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
   acta:actas(numero, valor_bruto, contrato:contratos(numero_contrato, metodo_pago, pago_observaciones, pse_titular_nombre)),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(numero, metodo),
@@ -109,6 +110,7 @@ export function mapPago(f: any): Pago {
     ordenCompraId: f.orden_compra_id ?? null,
     actaId: f.acta_id ?? null,
     requisicionAdminItemId: f.requisicion_admin_item_id ?? null,
+    sincoFilaId: f.sinco_fila_id ?? null,
     requisicionAdminId: f.requisicion_admin_id ?? null,
     requisicionAdminLote:
       f.requisicion_admin_principal && f.lote
@@ -140,7 +142,9 @@ export function mapPago(f: any): Pago {
               f.req_item?.codigo
               ? `${f.req_item.codigo}${reqPse ? " · PSE" : ""}`
               : `Pago admin.${f.req?.numero != null ? ` N° ${f.req.numero}` : ""}${reqPse ? " · PSE" : ""}`
-            : "",
+            : f.fuente === "sinco"
+              ? `SINCO${f.sinco?.cuadro?.numero != null ? ` N° ${f.sinco.cuadro.numero}` : ""}${f.sinco?.item != null ? ` · ítem ${f.sinco.item}` : ""}`
+              : "",
     // Valor bruto del acta (antes de descuentos); el pago es el neto. Null si
     // no es de acta o quien consulta no lee el acta (RLS).
     actaBruto: f.acta?.valor_bruto != null ? Number(f.acta.valor_bruto) : null,
@@ -185,7 +189,8 @@ export function mapPago(f: any): Pago {
     metodoPago: pse ? "pse" : "transferencia",
     pagoObservaciones: f.orden?.pago_observaciones ?? f.acta?.contrato?.pago_observaciones ?? null,
     numeroFactura: f.numero_factura ?? null,
-    solicitadoPorNombre: f.solicitante?.nombre ?? null,
+    // Pagos de SINCO: quien lo pidió allá (texto del cuadro).
+    solicitadoPorNombre: f.solicitante?.nombre ?? f.sinco?.solicita ?? null,
     valorDocumento: num(f.valor_documento),
     baseGravable: num(f.base_gravable),
     iva: num(f.iva),

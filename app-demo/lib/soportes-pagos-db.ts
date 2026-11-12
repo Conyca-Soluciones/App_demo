@@ -12,12 +12,14 @@ export type PagoParaSoporte = {
   ordenCompraId: string | null
   actaId: string | null
   requisicionAdminItemId: string | null
+  sincoFilaId?: string | null
 }
 
 export const BUCKET_SOPORTE: Record<SoportePago["origen"], string> = {
   orden_compra: "ordenes_compra",
   acta: "actas",
   requisicion_admin: "requisiciones_admin",
+  sinco: "sinco",
 }
 
 const unicos = (lista: (string | null)[]) => [...new Set(lista.filter((x): x is string => Boolean(x)))]
@@ -28,9 +30,10 @@ export async function buscarSoportesDePagos(supabase: any, pagos: PagoParaSoport
   const ocs = unicos(pagos.map((p) => p.ordenCompraId))
   const actas = unicos(pagos.map((p) => p.actaId))
   const items = unicos(pagos.map((p) => p.requisicionAdminItemId))
+  const sinco = unicos(pagos.map((p) => p.sincoFilaId ?? null))
   const vacio = Promise.resolve({ data: [], error: null })
 
-  const [rOc, rActa, rItem] = await Promise.all([
+  const [rOc, rActa, rItem, rSinco] = await Promise.all([
     ocs.length
       ? supabase.from("orden_compra_soportes").select("id, orden_compra_id, tipo, ruta, nombre_archivo, created_at").in("orden_compra_id", ocs)
       : vacio,
@@ -48,8 +51,11 @@ export async function buscarSoportesDePagos(supabase: any, pagos: PagoParaSoport
           .in("id", items)
           .not("soporte_ruta", "is", null)
       : vacio,
+    sinco.length
+      ? supabase.from("sinco_filas").select("id, soporte_ruta, soporte_nombre").in("id", sinco).not("soporte_ruta", "is", null)
+      : vacio,
   ])
-  for (const r of [rOc, rActa, rItem]) if (r.error) throw new Error(r.error.message)
+  for (const r of [rOc, rActa, rItem, rSinco]) if (r.error) throw new Error(r.error.message)
 
   // Uno por documento: el más reciente, y en las OC la factura o cuenta de
   // cobro antes que la cotización.
@@ -67,15 +73,18 @@ export async function buscarSoportesDePagos(supabase: any, pagos: PagoParaSoport
     if (!previo || s.created_at > previo.created_at) porActa.set(s.acta_id, s)
   }
   const porItem = new Map<string, any>(((rItem.data ?? []) as any[]).map((i) => [i.id, i]))
+  const porSinco = new Map<string, any>(((rSinco.data ?? []) as any[]).map((i) => [i.id, i]))
 
   const salida: Record<string, SoportePago> = {}
   for (const p of pagos) {
     const oc = p.ordenCompraId ? porOc.get(p.ordenCompraId) : null
     const acta = p.actaId ? porActa.get(p.actaId) : null
     const item = p.requisicionAdminItemId ? porItem.get(p.requisicionAdminItemId) : null
+    const filaSinco = p.sincoFilaId ? porSinco.get(p.sincoFilaId) : null
     if (oc) salida[p.id] = { origen: "orden_compra", id: oc.id, ruta: oc.ruta, nombre: oc.nombre_archivo, tipo: oc.tipo }
     else if (acta) salida[p.id] = { origen: "acta", ruta: acta.ruta, nombre: acta.nombre_archivo, tipo: acta.tipo }
     else if (item) salida[p.id] = { origen: "requisicion_admin", ruta: item.soporte_ruta, nombre: item.soporte_nombre, tipo: item.soporte_tipo }
+    else if (filaSinco) salida[p.id] = { origen: "sinco", ruta: filaSinco.soporte_ruta, nombre: filaSinco.soporte_nombre, tipo: "factura" }
   }
   return salida
 }

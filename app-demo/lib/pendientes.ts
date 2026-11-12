@@ -65,6 +65,7 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   cuenta_por_verificar: { titulo: "Cuentas de terceros por verificar", accion: "Verificar", orden: 42 },
   pago_observado: { titulo: "Pagos observados por Contabilidad", accion: "Responder", orden: 43 },
   pago_por_liquidar: { titulo: "Pagos por liquidar", accion: "Liquidar", orden: 44 },
+  soporte_sinco: { titulo: "Soportes de cuadros de SINCO por adjuntar", accion: "Adjuntar", orden: 45 },
   mi_req_atrasada: { titulo: "Mis requisiciones atrasadas", accion: "Ver", orden: 90 },
 }
 

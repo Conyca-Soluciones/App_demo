@@ -299,10 +299,13 @@ export function ConsolidadoPagosView({
 
   const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`
   // Los que no tienen cuenta bancaria (y no son PSE) se quedan en Preparación.
-  const textoEnvio = (r: { enviados: number; sinCuenta: number }) =>
+  const textoEnvio = (r: { enviados: number; sinCuenta: number; sinSoporte: number }) =>
     `${plural(r.enviados, "pago enviado", "pagos enviados")} a liquidar.` +
     (r.sinCuenta > 0
       ? ` ${plural(r.sinCuenta, "pago se quedó", "pagos se quedaron")} en Preparación porque no ${r.sinCuenta === 1 ? "tiene" : "tienen"} cuenta bancaria: asígnala con "Tercero y cuenta" en la ventana del pago.`
+      : "") +
+    (r.sinSoporte > 0
+      ? ` ${plural(r.sinSoporte, "pago de SINCO se quedó", "pagos de SINCO se quedaron")} en Preparación porque falta su soporte (lo adjuntan en Cuadros de SINCO).`
       : "")
 
   // ------------------------------------------------------------ acciones en lote

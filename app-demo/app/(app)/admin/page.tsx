@@ -227,8 +227,9 @@ function TabProyectos({
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3 text-sm">
         <span className="min-w-0 flex-1 text-muted-foreground">
-          Proyectos de Google (solo pagos): sube un Excel con las columnas <b>Código</b>, <b>Nombre</b> (opcional) y <b>Empresa</b> (razón social o
-          NIT, como está en Empresas). Se crean marcados &quot;Solo pagos&quot; con el número siguiente; los que ya existen se saltan.
+          Proyectos de Google o de SINCO (solo pagos): sube un Excel con las columnas <b>Código</b>, <b>Nombre</b> (opcional), <b>Empresa</b> (razón
+          social o NIT, como está en Empresas) y <b>Número</b> (opcional: el de SINCO, ej. 112; si falta, el siguiente). Se crean marcados &quot;Solo
+          pagos&quot;; los que ya existen se saltan.
         </span>
         <Button size="sm" variant="outline" disabled={importando} onClick={() => excelRef.current?.click()}>
           {importando ? "Importando..." : "Importar Excel"}

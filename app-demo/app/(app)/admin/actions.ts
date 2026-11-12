@@ -332,7 +332,7 @@ export async function importarProyectosSoloPagos(filas: FilaProyectoSoloPagos[])
     }
     const { error } = await supabase
       .from("proyectos")
-      .insert({ codigo, nombre: (f.nombre || codigo).trim(), empresa_id: empresa.id, solo_pagos: true })
+      .insert({ codigo, nombre: (f.nombre || codigo).trim(), empresa_id: empresa.id, solo_pagos: true, ...(f.numero != null ? { numero: f.numero } : {}) })
     if (error) {
       resultados.push({ fila: f.fila, codigo, resultado: "error", mensaje: error.message })
       continue
