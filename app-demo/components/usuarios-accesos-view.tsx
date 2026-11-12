@@ -28,7 +28,14 @@ import {
   type UsuarioAcceso,
 } from "@/app/(app)/admin/accesos/actions"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { cambiarEnvioCorreos, cambiarPreferenciaCorreo, estadoCorreos, type PreferenciaCorreo } from "@/app/(app)/correos-actions"
+import {
+  cambiarEnvioCorreos,
+  cambiarPreferenciaCorreo,
+  cambiarResumenCorreo,
+  estadoCorreos,
+  type EstadoCorreos,
+  type PreferenciaCorreo,
+} from "@/app/(app)/correos-actions"
 import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
 
 const SIN_ROL = "__sin_rol__"
@@ -69,7 +76,7 @@ export function UsuariosAccesosView() {
   const [aviso, setAviso] = useState<string | null>(null)
   const [viendo, setViendo] = useState<UsuarioAcceso | null>(null)
   // Correos de 360: el interruptor general y quién recibe los avisos por correo.
-  const [correos, setCorreos] = useState<{ activo: boolean; usuarios: Record<string, PreferenciaCorreo> } | null>(null)
+  const [correos, setCorreos] = useState<EstadoCorreos | null>(null)
   const [guardandoCorreo, setGuardandoCorreo] = useState<string | null>(null)
 
   async function cambiarCorreo(u: UsuarioAcceso, recibe: boolean) {
@@ -81,6 +88,19 @@ export function UsuariosAccesosView() {
       setCorreos((c) => (c ? { ...c, usuarios: { ...c.usuarios, [u.id]: valor } } : c))
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el correo.")
+    } finally {
+      setGuardandoCorreo(null)
+    }
+  }
+
+  async function cambiarResumen(u: UsuarioAcceso, recibe: boolean) {
+    setGuardandoCorreo("r-" + u.id)
+    setError(null)
+    try {
+      await cambiarResumenCorreo(u.id, recibe)
+      setCorreos((c) => (c ? { ...c, resumen: { ...c.resumen, [u.id]: recibe } } : c))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar el resumen.")
     } finally {
       setGuardandoCorreo(null)
     }
@@ -109,7 +129,7 @@ export function UsuariosAccesosView() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar la información."))
     estadoCorreos()
-      .then((c: { activo: boolean; usuarios: Record<string, PreferenciaCorreo> }) => setCorreos(c))
+      .then((c: EstadoCorreos) => setCorreos(c))
       .catch(() => setCorreos(null))
   }
 
@@ -298,6 +318,24 @@ export function UsuariosAccesosView() {
         ) : null,
     },
     {
+      clave: "resumenCorreo",
+      titulo: "Resúmenes",
+      ancho: 100,
+      alinear: "center",
+      ordenable: false,
+      texto: (u) => (correos?.resumen[u.id] !== false ? "Sí" : "No"),
+      celda: (u) =>
+        correos ? (
+          <Checkbox
+            checked={correos.resumen[u.id] !== false}
+            disabled={guardandoCorreo === "r-" + u.id}
+            aria-label={"Resúmenes por correo de " + u.nombre}
+            title="Mediodía de lunes a viernes: pagos y cuentas pendientes. Lunes 8:00: sus pendientes de la semana."
+            onCheckedChange={(v) => cambiarResumen(u, v === true)}
+          />
+        ) : null,
+    },
+    {
       clave: "clave",
       titulo: "Contraseña",
       ancho: 110,
@@ -352,7 +390,7 @@ export function UsuariosAccesosView() {
         )}
       </div>
       <p className="-mt-2 text-xs text-muted-foreground">
-        &quot;Correos&quot;: a quién le llegan los avisos de la campanita al correo con el que inicia sesión. Cada persona también lo puede cambiar en su menú.
+        &quot;Correos&quot;: le llegan por correo los avisos de su campanita (contratos, otrosí, pólizas, actas, requisiciones, órdenes de compra y pagos administrativos). &quot;Resúmenes&quot;: a mediodía (lunes a viernes) sus pagos y cuentas pendientes, y el lunes a las 8:00 sus pendientes de la semana, solo si tiene algo. Cada persona también los cambia en su menú.
       </p>
 
       {aviso && (

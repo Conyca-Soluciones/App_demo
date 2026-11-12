@@ -1266,7 +1266,20 @@ panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITEN
   marca leída y lleva a `rutaNotificacion`, `lib/notificaciones-rutas.ts`, la misma de la campanita).
 - Se configura en la app: Admin › Usuarios y accesos (columna "Correos" y "Envío de correos de 360") y
   cada usuario en su menú ("Recibir avisos por correo"). `encolar_correo_prueba(correo)` para probar.
-- Pendiente: resumen diario.
+- **Qué avisos van por correo** (`20270101002300_correos_resumenes.sql`, decisión del usuario): solo los
+  tipos de `ajustes_correo.tipos` (contratos, minutas, otrosí, pólizas, actas aprobadas/por facturar/
+  rechazadas y autorización a otro tercero, requisiciones compradas/extraordinarias/rechazadas/
+  administrativas, OC aprobada o rechazada, pagos administrativos aprobados o rechazados). La campanita
+  no cambia. Un tipo nuevo que deba ir por correo se agrega a esa lista.
+- Avisos nuevos: `requisicion_comprada` (al aprobarse la OC, a quien pidió cada requisición,
+  `trg_avisar_requisiciones_compradas`; ya está en `notificaciones_tipo_check`) y OC aprobada/rechazada
+  también a Líder Compras (`trg_avisar_oc_lider_compras`).
+- **Resúmenes** (`perfiles.correo_resumen`, por omisión sí; solo si hay algo que contar): pg_cron
+  `resumen-diario-pagos` (12:00 lunes a viernes, `0 17 * * 1-5` UTC: pagos por aprobar, por liquidar,
+  por preparar, por dispersar, PSE por pagar y cuentas por verificar, según acciones) y
+  `resumen-semanal-pendientes` (lunes 8:00, `0 13 * * 1`: todos sus pendientes de `_pendientes_de`).
+  `_lineas_resumen`, `_encolar_resumenes`; `vista_previa_resumenes('diario'|'semanal')` muestra a quién
+  y qué sin enviar. Columna "Resúmenes" en Usuarios y accesos y "Recibir resúmenes por correo" en el menú.
 
 ## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
 

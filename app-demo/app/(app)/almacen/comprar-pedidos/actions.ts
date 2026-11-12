@@ -1503,6 +1503,8 @@ export type NotificacionTipo =
   | "autorizacion_tercero_por_revisar"
   | "autorizacion_tercero_aprobada"
   | "autorizacion_tercero_rechazada"
+  // Al aprobarse la OC, a quien pidió la requisición (20270101002300).
+  | "requisicion_comprada"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"
