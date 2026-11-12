@@ -2,6 +2,7 @@ import { Document, Page, View, Text } from "@react-pdf/renderer"
 import { blanco, cantidadEnLetras, ordinalClausula, partesFecha } from "@/lib/minuta-mano-obra"
 import { tipoDocumentoArrendador } from "@/lib/minuta-arrendamiento"
 import type { MinutaOtrosi } from "@/lib/otrosi"
+import { pesosEnLetras } from "@/lib/contratos"
 import type { FirmaDocumento } from "@/lib/firmas"
 import { LineaFirma } from "@/components/linea-firma-pdf"
 import { Clausula, Encabezado, P, s, campoResaltable, renglonConFoco, resaltado, unirTexto } from "@/components/minuta-mano-obra-pdf"
@@ -24,8 +25,12 @@ export function OtrosiPDF({
   logo,
   foco,
   firmaContratante,
+  nuevoValor,
 }: {
   minuta: MinutaOtrosi
+  // El otrosí cambia el valor total del contrato: sale en una cláusula, en
+  // letras y en números (decisión del usuario, 2026-11-12).
+  nuevoValor?: number | null
   numero: number
   logo: string | Buffer
   foco?: string
@@ -41,6 +46,8 @@ export function OtrosiPDF({
     : "a los ____ días del mes de ________ del año ____"
   const contrato = blanco(m.numeroContrato)
   const mods = m.modificaciones.length > 0 ? m.modificaciones : [{ clausula: "", redaccion: "" }]
+  const conValor = nuevoValor != null && nuevoValor > 0
+  const extra = conValor ? 1 : 0
   const pie = ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
     `Otrosí N° ${numero} al contrato No. ${contrato} · Página ${pageNumber} de ${totalPages}`
 
@@ -92,11 +99,17 @@ export function OtrosiPDF({
           )
         })}
 
-        <Clausula titulo={`${ordinalClausula(mods.length + 1).toUpperCase()}. CLÁUSULAS NO MODIFICADAS:`}>
+        {conValor && (
+          <Clausula titulo={`${ordinalClausula(mods.length + 1).toUpperCase()}. VALOR DEL CONTRATO:`}>
+            Con el presente otrosí el valor total del contrato No. {contrato} queda en la suma de {pesosEnLetras(nuevoValor!)} M/CTE.
+          </Clausula>
+        )}
+
+        <Clausula titulo={`${ordinalClausula(mods.length + 1 + extra).toUpperCase()}. CLÁUSULAS NO MODIFICADAS:`}>
           Las demás cláusulas y estipulaciones contenidas en el {res("nombreContrato", blanco(m.nombreContrato))} No. {contrato} continúan vigentes de
           acuerdo a lo convenido en el contrato inicial. El presente Otrosí hace parte integral del enunciado contrato.
         </Clausula>
-        <Clausula titulo={`${ordinalClausula(mods.length + 2).toUpperCase()}.`}>El presente documento se perfecciona con la firma de las partes.</Clausula>
+        <Clausula titulo={`${ordinalClausula(mods.length + 2 + extra).toUpperCase()}.`}>El presente documento se perfecciona con la firma de las partes.</Clausula>
 
         <P>
           En constancia de lo anterior, se firma en la ciudad de {res("ciudadFirma", blanco(m.ciudadFirma))} {res("fechaFirma", lugarFecha)}.

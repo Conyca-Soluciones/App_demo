@@ -1357,8 +1357,8 @@ export async function listarSolicitudesInsumoParaPrecio(): Promise<{
         .from("solicitudes_insumos")
         .select(
           "id, descripcion, tipo, u_m, agrupacion, cantidad, created_at, " +
-            "item:presupuesto_items(presupuestos(proyectos(codigo)))," +
-            "lineas:apu_import_revision!apu_import_revision_solicitud_id_fkey(cantidad, presupuesto_items(presupuestos(proyectos(codigo))))"
+            "item:presupuesto_items(cantidad, presupuestos(proyectos(codigo)))," +
+            "lineas:apu_import_revision!apu_import_revision_solicitud_id_fkey(cantidad, presupuesto_items(cantidad, presupuestos(proyectos(codigo))))"
         )
         .eq("estado", "pendiente")
         .order("descripcion")
@@ -1386,11 +1386,23 @@ export async function listarSolicitudesInsumoParaPrecio(): Promise<{
         : s.cantidad != null
           ? Number(s.cantidad)
           : null
+    // Total del presupuesto: cada línea × la cantidad de su ítem (el APU pide
+    // por unidad del ítem). Si algún ítem no tiene cantidad, no se calcula.
+    const total = (porUnidad: unknown, item: any): number | null =>
+      item?.cantidad == null || porUnidad == null ? null : Number(porUnidad) * Number(item.cantidad)
+    const partes =
+      lineas.length > 0
+        ? lineas.map((l) => total(l.cantidad, l.presupuesto_items))
+        : s.cantidad != null && s.item
+          ? [total(s.cantidad, s.item)]
+          : [null]
+    const cantidadTotal = partes.some((p) => p == null) ? null : redondear2(partes.reduce((n: number, p) => n + (p as number), 0))
     return {
       id: s.id,
       descripcion: s.descripcion,
       unidadPedida: s.u_m,
       cantidad,
+      cantidadTotal,
       proyectos: Array.from(proyectos).sort(),
       tipo: s.tipo && TIPOS_MAESTRO.has(s.tipo) ? s.tipo : null,
       uM: unidadMaestro(s.u_m),

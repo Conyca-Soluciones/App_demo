@@ -2855,6 +2855,22 @@ general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
 - Aviso `requisicion_extraordinaria` a quienes tienen la acción y ven el
   proyecto; Mis pendientes `req_extra_por_aprobar` (parche sobre `_pendientes_de`).
 
+## Paquete H (2026-11-12, sin migraciones)
+
+- **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
+  amortiza en las actas, que exigen póliza aprobada o "no aplica"). Con
+  anticipo, la solicitud ya no deja quitar la póliza (`validarSolicitud`).
+- **Otrosí con nuevo valor**: el PDF agrega la cláusula "VALOR DEL CONTRATO"
+  con el valor total en letras y números (`OtrosiPDF nuevoValor`).
+- **Firmas**: Aprobación de pagos avisa antes de aprobar el pago de una OC o
+  un acta si quien aprueba no tiene firma registrada (se aprueba igual, sin la
+  imagen; `trg_completar_firmas_pendientes` la completa al registrarla).
+  Aprobación de contratos dice "No se pudo revisar la firma" si falla la
+  revisión previa (antes no salía nada; estado `sin_revisar`).
+- **Acta: "¿A qué cuenta se deposita?"** (`TitularActa`): una lista que
+  arranca en la cuenta que estipula el contrato (o la del contratista) y, al
+  lado, "Pagar a alguien nuevo".
+
 ## Lint (2026-10-14)
 
 `npx eslint .` quedó solo con `@typescript-eslint/no-explicit-any` (134, en
@@ -4229,6 +4245,18 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
 ## Pendientes conocidos (no hechos)
+- **Paquete H: lo que necesita migración** (2026-11-12, decisión del usuario:
+  sin migraciones en esta ronda). (1) **Otrosí: "Depositar a otro tercero"**
+  como en el contrato: columnas `otrosis.titular_tercero_id` /
+  `cuenta_tercero_id`, guardarlas en `crear_otrosi` / `reenviar_otrosi` (con
+  `_titular_valido`) y, al aprobarlo, pasarlas a `contratos.titular_*` (las
+  actas nuevas ya toman el tercero del contrato). (2) **Póliza obligatoria con
+  anticipo también en la base**: hoy solo lo hace la pantalla
+  (`validarSolicitud`: `requierePoliza` = obligatoria || casilla || anticipo);
+  falta en `_fijar_requiere_poliza`. (3) **Aviso previo de la firma del
+  representante en Aprobación de otrosí**: `_representante_que_firma_otrosi`
+  no tiene EXECUTE para usuarios; con un envoltorio público se avisaría antes
+  de aprobar, como en contratos (hoy el error sale al aprobar).
 - **Versiones del presupuesto** (2026-11-11, en pausa por decisión del usuario).
   `crear_nueva_version` copia ítems, APU y precios congelados, pero NO las
   líneas de `apu_import_revision` pendientes ni las que esperan solicitud: se

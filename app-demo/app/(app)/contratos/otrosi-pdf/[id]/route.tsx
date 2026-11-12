@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         numero,
         minuta,
         nombre: nombreArchivoOtrosi(detalle.numeroContrato, numero),
+        nuevoValor: detalle.nuevoValor,
       })
       if (firmado) {
         return new NextResponse(firmado.pdf as BodyInit, {
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const foco = typeof cuerpo.foco === "string" && /^[A-Za-z]+(:\d{1,3})?$/.test(cuerpo.foco) ? cuerpo.foco : undefined
 
-  const pdf = await renderToBuffer(<OtrosiPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} />)
+  const pdf = await renderToBuffer(<OtrosiPDF minuta={minuta} numero={numero} logo={LOGO_CONYCA_PATH} foco={foco} nuevoValor={detalle.nuevoValor} />)
   const marca = foco ? buscarMarcaEnPdf(pdf) : null
   return new NextResponse(new Uint8Array(pdf), {
     headers: {

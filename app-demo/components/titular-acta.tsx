@@ -3,15 +3,15 @@
 import { useState } from "react"
 import { FileText, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
 import { titularVacio, type TitularCuenta } from "@/lib/titular-cuenta"
 import { MIME_SOPORTES, validarSoporte, pideAutorizacionTercero } from "@/lib/actas"
 
-// "Depositar a otro tercero" en el acta (20270101000700):
-// - La lista trae el tercero que estipula el contrato (ya marcado al crear).
+// "¿A qué cuenta se deposita?" en el acta (20270101000700):
+// - Por defecto, la cuenta de otro tercero que estipula el contrato; si no
+//   estipula ninguna, la del contratista. La lista deja cambiar entre ellas.
 // - "Pagar a alguien nuevo" abre un diálogo: se busca el tercero en Terceros,
 //   se elige su cuenta y se sube la autorización firmada (obligatoria). Ese
 //   pago espera a que Jurídica lo autorice antes de pasar a A&F.
@@ -35,77 +35,66 @@ export function TitularActa({
 }) {
   const [dialogo, setDialogo] = useState(false)
   const esNuevo = pideAutorizacionTercero(valor?.terceroId, contratoTitular?.terceroId)
-  const seleccion = !valor?.terceroId ? "" : esNuevo ? "nuevo" : "contrato"
+  // El último "alguien nuevo" elegido, para poder volver a él en la lista.
+  const [nuevoElegido, setNuevoElegido] = useState<TitularCuenta | null>(esNuevo ? valor : null)
+  const seleccion = valor === null ? "contratista" : esNuevo ? "nuevo" : "contrato"
+  // Al corregir un acta, su tercero nuevo llega después de montar: sale de valor.
+  const opcionNueva = esNuevo ? valor : nuevoElegido
 
   return (
-    <div className="space-y-3">
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox
-          checked={valor !== null}
-          onCheckedChange={(v) => {
-            if (!v) {
+    <div className="space-y-2">
+      <p className="text-sm font-medium">¿A qué cuenta se deposita?</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={seleccion}
+          onValueChange={(v) => {
+            if (esNuevo) setNuevoElegido(valor) // para poder volver a él
+            if (v === "contratista") {
               onCambiar(null)
               onArchivo(null)
-            } else onCambiar(contratoTitular ?? titularVacio())
+            } else if (v === "contrato" && contratoTitular) {
+              onCambiar(contratoTitular)
+              onArchivo(null)
+            } else if (v === "nuevo" && opcionNueva) {
+              onCambiar(opcionNueva)
+            }
           }}
-        />
-        Depositar a otro tercero
-      </label>
-      {valor === null ? (
-        <p className="text-xs text-muted-foreground">Se paga en la cuenta de {quienFactura}.</p>
-      ) : (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={seleccion}
-              onValueChange={(v) => {
-                if (v === "contrato" && contratoTitular) {
-                  onCambiar(contratoTitular)
-                  onArchivo(null)
-                }
-              }}
-            >
-              <SelectTrigger className="w-full max-w-xl">
-                <SelectValue placeholder={contratoTitular ? "Elige a quién se deposita" : "El contrato no estipula otro tercero"} />
-              </SelectTrigger>
-              <SelectContent>
-                {contratoTitular && (
-                  <SelectItem value="contrato">
-                    {contratoTitular.nombre} · {contratoTitular.cuentaTexto} (estipulado en el contrato)
-                  </SelectItem>
-                )}
-                {esNuevo && valor.terceroId && (
-                  <SelectItem value="nuevo">
-                    {valor.nombre} · {valor.cuentaTexto} (nuevo)
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            <Button type="button" variant="outline" size="sm" onClick={() => setDialogo(true)}>
-              <UserPlus className="size-4" /> Pagar a alguien nuevo
-            </Button>
-          </div>
-          {!contratoTitular && !valor.terceroId && (
-            <p className="text-xs text-muted-foreground">
-              El contrato no estipula otro tercero: usa «Pagar a alguien nuevo».
-            </p>
-          )}
-          {valor.terceroId && valor.cuentaId && !valor.cuentaVerificada && (
-            <p className="text-xs text-amber-700">A&F todavía no ha verificado esta cuenta: lo revisará antes de pagar.</p>
-          )}
-          {esNuevo && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <p className="flex items-center gap-1.5">
-                <FileText className="size-3.5" />
-                {archivo
-                  ? `Autorización: ${archivo.name}`
-                  : autorizacionGuardada
-                    ? "Autorización ya adjunta en el acta."
-                    : "Falta la autorización firmada (usa «Pagar a alguien nuevo»)."}
-              </p>
-              <p className="mt-1">Jurídica debe autorizarlo: hasta entonces el pago no pasa a Aprobación de pagos.</p>
-            </div>
-          )}
+        >
+          <SelectTrigger className="w-full max-w-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {contratoTitular && (
+              <SelectItem value="contrato">
+                {contratoTitular.nombre} · {contratoTitular.cuentaTexto} (estipulada en el contrato)
+              </SelectItem>
+            )}
+            <SelectItem value="contratista">Cuenta de {quienFactura} (contratista)</SelectItem>
+            {opcionNueva?.terceroId && (
+              <SelectItem value="nuevo">
+                {opcionNueva.nombre} · {opcionNueva.cuentaTexto} (nuevo)
+              </SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        <Button type="button" variant="outline" size="sm" onClick={() => setDialogo(true)}>
+          <UserPlus className="size-4" /> Pagar a alguien nuevo
+        </Button>
+      </div>
+      {valor?.terceroId && valor.cuentaId && !valor.cuentaVerificada && (
+        <p className="text-xs text-amber-700">A&F todavía no ha verificado esta cuenta: lo revisará antes de pagar.</p>
+      )}
+      {esNuevo && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="flex items-center gap-1.5">
+            <FileText className="size-3.5" />
+            {archivo
+              ? `Autorización: ${archivo.name}`
+              : autorizacionGuardada
+                ? "Autorización ya adjunta en el acta."
+                : "Falta la autorización firmada (usa «Pagar a alguien nuevo»)."}
+          </p>
+          <p className="mt-1">Jurídica debe autorizarlo: hasta entonces el pago no pasa a Aprobación de pagos.</p>
         </div>
       )}
       {dialogo && (
@@ -113,6 +102,7 @@ export function TitularActa({
           contratoTitularId={contratoTitular?.terceroId ?? null}
           onCancelar={() => setDialogo(false)}
           onElegir={(t, f) => {
+            setNuevoElegido(t)
             onCambiar(t)
             onArchivo(f)
             setDialogo(false)

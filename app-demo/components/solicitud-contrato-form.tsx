@@ -968,6 +968,11 @@ export function SolicitudContratoForm({
                 <p className="text-sm text-muted-foreground">
                   Este tipo de contrato siempre requiere póliza: Jurídica la revisa antes de las actas.
                 </p>
+              ) : f.tieneAnticipo ? (
+                // Con anticipo la póliza es obligatoria (amparo de buen manejo del anticipo).
+                <p className="text-sm text-muted-foreground">
+                  Con anticipo el contrato requiere póliza: Jurídica la revisa antes de las actas.
+                </p>
               ) : (
                 <>
                   <label className="flex cursor-pointer items-center gap-2 text-sm">

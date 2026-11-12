@@ -754,7 +754,8 @@ export function validarSolicitud(
       items,
       tieneAnticipo: f.tieneAnticipo,
       anticipoPorcentaje,
-      requierePoliza: polizaObligatoria(f.tipo) || f.requierePoliza,
+      // Con anticipo, siempre póliza (no hay anticipo sin póliza).
+      requierePoliza: polizaObligatoria(f.tipo) || f.requierePoliza || f.tieneAnticipo,
       formaPago: f.formaPago.trim(),
       metodoPago: f.metodoPago,
       pagoObservaciones: pagoObs,

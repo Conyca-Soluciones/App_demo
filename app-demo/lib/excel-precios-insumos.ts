@@ -21,8 +21,11 @@ export type SolicitudParaPrecio = {
   descripcion: string
   // unidad en que lo pidió el presupuesto (la del Excel del APU)
   unidadPedida: string | null
-  // total pedido en esa unidad (suma de las líneas del presupuesto)
+  // por unidad del ítem, en esa unidad (suma de lo que pide cada línea del APU)
   cantidad: number | null
+  // lo que hace falta para todo el presupuesto: cada línea × la cantidad de su
+  // ítem (ej. 100 adaptadores). null = no se pudo calcular.
+  cantidadTotal: number | null
   proyectos: string[]
   // lo que ya traiga la solicitud, solo si es válido (para prellenar)
   tipo: string | null
@@ -55,7 +58,8 @@ export const IVAS_EXCEL = [0, 5, 19]
 export const COLUMNAS_PRECIOS_INSUMOS = {
   insumo: "Insumo",
   unidadPedida: "Unidad del presupuesto",
-  cantidad: "Cantidad pedida",
+  cantidad: "Cantidad por unidad del ítem",
+  cantidadTotal: "Cantidad total en el presupuesto",
   proyectos: "Proyectos",
   tipo: "Tipo",
   uM: "Unidad de compra",
@@ -71,6 +75,7 @@ const ORDEN: { clave: ClaveColumna; ancho: number; llenar?: boolean }[] = [
   { clave: "insumo", ancho: 48, llenar: true },
   { clave: "unidadPedida", ancho: 14 },
   { clave: "cantidad", ancho: 14 },
+  { clave: "cantidadTotal", ancho: 16 },
   { clave: "proyectos", ancho: 22 },
   { clave: "tipo", ancho: 24, llenar: true },
   { clave: "uM", ancho: 26, llenar: true },
@@ -254,6 +259,9 @@ export async function construirLibroPreciosInsumos(
         "En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae (ej. ROLLO X 100 M). El ingeniero confirma la conversión en su presupuesto."
     }
     if (c.clave === "precio") celda.note = "Precio por la unidad de compra, sin IVA."
+    if (c.clave === "cantidad") celda.note = "Lo que pide el APU por cada unidad del ítem (sumado entre los ítems que lo usan)."
+    if (c.clave === "cantidadTotal")
+      celda.note = "Lo que hace falta para todo el presupuesto: cantidad del APU × cantidad de cada ítem, sumado. En la unidad del presupuesto."
   })
   encabezado.height = 32
 
@@ -265,6 +273,7 @@ export async function construirLibroPreciosInsumos(
       insumo: s.descripcion.trim().replace(/\s+/g, " ").toUpperCase(),
       unidadPedida: s.unidadPedida ?? "",
       cantidad: s.cantidad,
+      cantidadTotal: s.cantidadTotal,
       proyectos: s.proyectos.join(", "),
       tipo: s.tipo && tipos.has(s.tipo) ? s.tipo : "",
       // por defecto, la del presupuesto
@@ -281,8 +290,10 @@ export async function construirLibroPreciosInsumos(
       const lista = listaDe[c.clave]
       if (lista) celda.dataValidation = { type: "list", allowBlank: true, formulae: [lista] }
     })
-    if (s.cantidad != null) fila.getCell(3).numFmt = formatoCantidad(s.cantidad)
-    fila.getCell(8).numFmt = "#,##0.00"
+    const columna = (clave: ClaveColumna) => ORDEN.findIndex((c) => c.clave === clave) + 1
+    if (s.cantidad != null) fila.getCell(columna("cantidad")).numFmt = formatoCantidad(s.cantidad)
+    if (s.cantidadTotal != null) fila.getCell(columna("cantidadTotal")).numFmt = formatoCantidad(s.cantidadTotal)
+    fila.getCell(columna("precio")).numFmt = "#,##0.00"
   })
   // La columna del ID es la llave al subir el archivo: oculta.
   hoja.getColumn(n).hidden = true
