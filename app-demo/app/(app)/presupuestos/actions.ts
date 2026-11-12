@@ -2911,7 +2911,8 @@ export async function aprobarSolicitudesRecurso(
 
   const ids = Array.from(new Set(input.solicitudIds))
   if (ids.length === 0) throw new Error("No hay solicitudes para aprobar.")
-  if (ids.length > 200) throw new Error("Máximo 200 actividades a la vez.")
+  // 100 como máximo: los ids van en la URL del .in() y con cientos falla.
+  if (ids.length > 100) throw new Error("Máximo 100 actividades a la vez: aprueba por partes.")
   const nombre = input.nombre.trim().replace(/\s+/g, " ")
   if (!nombre) throw new Error("Escribe el nombre de la actividad.")
   const unidad = input.unidad.trim().toUpperCase()

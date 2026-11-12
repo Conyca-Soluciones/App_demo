@@ -703,5 +703,9 @@ select * from (
          exists (select 1 from information_schema.columns where table_name = 'solicitudes_mano_obra' and column_name = 'unidad')
          and exists (select 1 from pg_proc where proname = 'solicitudes_recurso_por_aprobar')
          and exists (select 1 from pg_proc where proname = 'sincronizar_apu_import_revision_mano_obra' and prosrc like '%new.categoria_asignada_id, 1, 1%')
+  union all
+  select '20270101002500_ajustes_revision_2026_11_12',
+         exists (select 1 from pg_proc where proname = '_clave_unidad' and proconfig is not null)
+         and exists (select 1 from pg_proc where proname = '_fmt_pesos' and proconfig is not null)
 ) t
 order by 1;

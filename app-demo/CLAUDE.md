@@ -2949,7 +2949,16 @@ excluir_de_precios = true where codigo = '...'` (no hay pantalla).
   (la de la línea). `crearSolicitudManoObra` / `crearSolicitudEquipo` reutilizan
   la pendiente igual (`solicitudRecursoPendienteIgual`) y "Guardar" agrupa antes
   de crear. Cada línea conserva su ítem y su cantidad (`apu_import_revision`).
-  La migración juntó las 237 pendientes del Malecón en 105.
+  La migración juntó las 237 pendientes del Malecón en 105. `20270101002500`
+  (revisión del día) completó la unidad de 120 que creó la versión anterior
+  mientras se publicaba la nueva, juntó 7 repetidas y fijó el search_path de
+  `_clave_unidad`, `_clave_actividad` y `_fmt_pesos`. `aprobarSolicitudesRecurso`
+  acepta hasta 100 a la vez (los ids van en la URL del `.in()`).
+- **Revisión del 2026-11-12** (todo lo del día, de los dos): sin funciones sin
+  permiso en políticas, RPC, disparadores ni columnas; los errores del día ya
+  estaban corregidos. Lecciones: aplicar la migración ANTES de publicar el
+  código (saldos_bancarios dio 404) y fuera de horario o con `lock_timeout`
+  (dos deadlocks con la app en uso).
 - **Pantalla** (`admin-mo/page.tsx`): una fila por actividad con casilla,
   Capítulo, Actividad (nombre EDITABLE: con él entra al catálogo), Ítems
   (cuántos y sus códigos; sin cantidades, decisión del usuario: en el APU es 1
