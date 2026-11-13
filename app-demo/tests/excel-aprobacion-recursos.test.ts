@@ -107,6 +107,18 @@ describe("agruparAprobaciones: mismo nombre y unidad = una categoría", () => {
     expect(grupos[0]).toMatchObject({ nombre: "TALA DE ARBOL", unidad: "UND", grupo: "PRELIMINARES", valor: 50000 })
   })
 
+  it("con el mismo nombre y unidad, basta el valor en una fila: las demás entran con ese valor", () => {
+    const sv = (f: number, id: string, actividad: string, unidad: string) => ({ fila: f, solicitudId: id, actividad, grupo: null, unidad })
+    const { grupos, errores, sumadasSinValor } = agruparAprobaciones(
+      [ap(7, "t1", "TALA DE ARBOL", "UND", 50000, "PRELIMINARES")],
+      [sv(8, "t2", "tala de arbol", "UND"), sv(9, "t3", "TALA DE ARBOL", "UN"), sv(10, "t4", "TALA DE ARBOL", "M2"), sv(11, "x", "Otra cosa", "UND")]
+    )
+    expect(errores).toEqual([])
+    expect(sumadasSinValor).toBe(2)
+    expect(grupos).toHaveLength(1)
+    expect(grupos[0].filas.map((f) => [f.solicitudId, f.valor])).toEqual([["t1", 50000], ["t2", 50000], ["t3", 50000]])
+  })
+
   it("mismo nombre y unidad con valores distintos: ninguna de esas filas se aprueba", () => {
     const { grupos, errores } = agruparAprobaciones([ap(7, "a", "Tala", "UND", 50000), ap(8, "b", "TALA", "UND", 60000), ap(9, "c", "Otra", "UND", 1)])
     expect(grupos.map((g) => g.nombre)).toEqual(["Otra"])

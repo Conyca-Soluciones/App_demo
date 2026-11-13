@@ -50,41 +50,70 @@ export type ErrorFilaRecurso = { fila: number; actividad: string; mensaje: strin
 
 type FilaAprobar = Extract<FilaAprobacionRecurso, { accion: "aprobar" }>
 
+// Fila sin valor ni motivo: se aprueba solo si otra fila con el MISMO nombre y
+// unidad trae el valor (2026-11-13: cambiar el nombre de las 3 talas al mismo y
+// poner el valor solo en la primera). Si no, se deja para después.
+export type FilaSinValor = { fila: number; solicitudId: string; actividad: string; grupo: string | null; unidad: string }
+
+const claveGrupo = (actividad: string, unidad: string) => `${claveActividad(actividad)}|${normalizarUnidad(unidad) ?? unidad.trim().toUpperCase()}`
+
 // Las filas por aprobar que van en UNA categoría: mismo nombre (sin
 // mayúsculas ni espacios de más) y misma unidad. Si en un grupo hay valores
-// distintos, ninguna de sus filas se aprueba (sale como error).
-export function agruparAprobaciones(filas: FilaAprobar[]): {
+// distintos, ninguna de sus filas se aprueba (sale como error). Las filas sin
+// valor que comparten nombre y unidad con un grupo se suman a él con su valor.
+export function agruparAprobaciones(
+  filas: FilaAprobar[],
+  sinValor: FilaSinValor[] = []
+): {
   grupos: { nombre: string; unidad: string; grupo: string | null; valor: number; filas: FilaAprobar[] }[]
   errores: ErrorFilaRecurso[]
+  // Filas sin valor que entraron a un grupo (ya no cuentan como "sin llenar").
+  sumadasSinValor: number
 } {
   const porClave = new Map<string, FilaAprobar[]>()
   for (const f of filas) {
-    const clave = `${claveActividad(f.actividad)}|${normalizarUnidad(f.unidad) ?? f.unidad}`
+    const clave = claveGrupo(f.actividad, f.unidad)
     const lista = porClave.get(clave) ?? []
     lista.push(f)
     porClave.set(clave, lista)
   }
+  const sinValorPorClave = new Map<string, FilaSinValor[]>()
+  for (const f of sinValor) {
+    if (!f.actividad || !f.unidad) continue
+    const clave = claveGrupo(f.actividad, f.unidad)
+    if (!porClave.has(clave)) continue
+    const lista = sinValorPorClave.get(clave) ?? []
+    lista.push(f)
+    sinValorPorClave.set(clave, lista)
+  }
   const grupos: { nombre: string; unidad: string; grupo: string | null; valor: number; filas: FilaAprobar[] }[] = []
   const errores: ErrorFilaRecurso[] = []
-  for (const lista of porClave.values()) {
+  let sumadasSinValor = 0
+  for (const [clave, lista] of porClave) {
+    const extra = sinValorPorClave.get(clave) ?? []
+    sumadasSinValor += extra.length
     const valores = new Set(lista.map((f) => f.valor))
     if (valores.size > 1) {
-      const filasTexto = lista.map((f) => f.fila).join(", ")
-      for (const f of lista) {
+      const filasTexto = [...lista.map((f) => f.fila), ...extra.map((f) => f.fila)].sort((a, b) => a - b).join(", ")
+      for (const f of [...lista, ...extra]) {
         errores.push({ fila: f.fila, actividad: f.actividad, mensaje: `Mismo nombre que las filas ${filasTexto} pero con otro valor: deja un solo valor.` })
       }
       continue
     }
     const primera = lista[0]
+    const todas: FilaAprobar[] = [
+      ...lista,
+      ...extra.map((f) => ({ fila: f.fila, solicitudId: f.solicitudId, actividad: f.actividad, accion: "aprobar" as const, grupo: f.grupo, unidad: f.unidad, valor: primera.valor })),
+    ].sort((a, b) => a.fila - b.fila)
     grupos.push({
       nombre: primera.actividad,
       unidad: primera.unidad,
-      grupo: lista.find((f) => f.grupo)?.grupo ?? null,
+      grupo: todas.find((f) => f.grupo)?.grupo ?? null,
       valor: primera.valor,
-      filas: lista,
+      filas: todas,
     })
   }
-  return { grupos, errores }
+  return { grupos, errores, sumadasSinValor }
 }
 
 const normal = (s: unknown) =>
@@ -105,12 +134,15 @@ function numeroCelda(v: unknown): number | null {
 /**
  * Lee las filas como las da XLSX con `header: 1`. Busca el encabezado por el
  * "ID interno" y las columnas por nombre. Fila con valor = aprobar (pide
- * unidad); con motivo = rechazar; con las dos = error; sin nada = se salta.
+ * unidad); con motivo = rechazar; con las dos = error; sin nada = va a
+ * `sinValor` (agruparAprobaciones la suma si otra fila con el mismo nombre y
+ * unidad trae el valor; si no, se deja para después).
  */
 export function leerFilasAprobacionRecursos(filas: unknown[][]): {
   filas: FilaAprobacionRecurso[]
   errores: ErrorFilaRecurso[]
   sinLlenar: number
+  sinValor: FilaSinValor[]
 } {
   const iEncabezado = filas.findIndex((f) => f.some((c) => normal(c).startsWith("id interno")))
   if (iEncabezado < 0) {
@@ -128,6 +160,7 @@ export function leerFilasAprobacionRecursos(filas: unknown[][]): {
   const resultado: FilaAprobacionRecurso[] = []
   const errores: ErrorFilaRecurso[] = []
   const vistos = new Set<string>()
+  const sinValor: FilaSinValor[] = []
   let sinLlenar = 0
 
   for (let i = iEncabezado + 1; i < filas.length; i++) {
@@ -140,6 +173,11 @@ export function leerFilasAprobacionRecursos(filas: unknown[][]): {
     const motivo = texto(celda(f, "motivo"))
     if (!valorCrudo && !motivo) {
       sinLlenar++
+      if (!vistos.has(id)) {
+        vistos.add(id)
+        const grupoSinValor = texto(celda(f, "grupo")).replace(/\s+/g, " ").toUpperCase()
+        sinValor.push({ fila, solicitudId: id, actividad, grupo: grupoSinValor || null, unidad: texto(celda(f, "unidad")).toUpperCase() })
+      }
       continue
     }
     const error = (mensaje: string) => errores.push({ fila, actividad, mensaje })
@@ -173,7 +211,7 @@ export function leerFilasAprobacionRecursos(filas: unknown[][]): {
     const grupo = texto(celda(f, "grupo")).replace(/\s+/g, " ").toUpperCase()
     resultado.push({ fila, solicitudId: id, actividad, accion: "aprobar", grupo: grupo || null, unidad, valor: Math.round(valor * 100) / 100 })
   }
-  return { filas: resultado, errores, sinLlenar }
+  return { filas: resultado, errores, sinLlenar, sinValor }
 }
 
 // Instrucciones que van arriba de la tabla (decisión del usuario, 2026-11-12).
@@ -181,7 +219,7 @@ export const INSTRUCCIONES_EXCEL_RECURSOS = [
   "Cómo llenar este Excel",
   "1. En cada actividad que vas a aprobar, llena los campos amarillos: Actividad (nombre), Grupo, Unidad y Valor unitario sin IVA.",
   '2. Deja vacía la columna "Rechazar: motivo", salvo que vayas a rechazar esa actividad: en ese caso escribe ahí el motivo y deja el valor vacío.',
-  "3. Si varias actividades son la misma (por ejemplo, las talas de árbol de distintos diámetros), cámbiales el nombre para que sea el mismo, con la misma unidad y el mismo valor: quedarán conectadas en una sola categoría. Si ese nombre ya existe en el catálogo, se conectan a esa (con su mismo valor).",
+  "3. Si varias actividades son la misma (por ejemplo, las talas de árbol de distintos diámetros), cámbiales el nombre para que sea el mismo, con la misma unidad: quedarán conectadas en una sola categoría. Basta con poner el valor en una de ellas (si lo pones en varias, debe ser el mismo). Si ese nombre ya existe en el catálogo, se conectan a esa (con su mismo valor).",
   "4. Las filas sin valor ni motivo se dejan para después. No borres ni cambies la columna oculta del ID interno.",
 ]
 

@@ -2991,7 +2991,9 @@ excluir_de_precios = true where codigo = '...'` (no hay pantalla).
   una fila por actividad; se llenan Actividad (nombre), Grupo, Unidad y Valor
   (aprueba) o "Rechazar: motivo" (rechaza). Las filas con el mismo nombre y
   unidad (`agruparAprobaciones`) quedan en una categoría; con valores distintos
-  no se aprueban. Si el nombre ya existe en el catálogo se enlazan solo si el
+  no se aprueban. Basta el valor en UNA de ellas (2026-11-13): las filas sin
+  valor ni motivo con el mismo nombre y unidad (`sinValor`) entran al grupo con
+  ese valor; si ninguna trae valor, se dejan para después. Si el nombre ya existe en el catálogo se enlazan solo si el
   valor es el mismo (`exigirMismoValor`). 3 trabajos a la vez. ID interno
   oculto. Instrucciones arriba de la tabla (`INSTRUCCIONES_EXCEL_RECURSOS`:
   llenar los amarillos, motivo solo para rechazar, mismo nombre = conectadas).
