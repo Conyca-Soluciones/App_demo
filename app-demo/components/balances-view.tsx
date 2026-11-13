@@ -70,7 +70,7 @@ const COLOR_TIPO: Record<TipoMovimiento, string> = {
 
 export function EtiquetaTipoMovimiento({ tipo }: { tipo: TipoMovimiento }) {
   return (
-    <Badge variant="outline" className={`h-6 px-2 text-xs ${COLOR_TIPO[tipo]}`}>
+    <Badge variant="outline" className={`min-h-6 px-2 text-xs ${COLOR_TIPO[tipo]}`}>
       {tipo === "ingreso" ? "INGRESO" : tipo === "egreso" ? "EGRESO EXTERNO" : "TRASLADO"}
     </Badge>
   )
@@ -269,7 +269,7 @@ function SaldosBancarios({ cuentas, onExtracto }: { cuentas: SaldoCuenta[]; onEx
           {sinInicio > 0 && <div className="text-xs text-amber-700">{sinInicio} sin saldo de inicio (no suman)</div>}
         </div>
       </div>
-      <TablaExcel
+      <TablaExcel dosLineas
         filas={visibles}
         columnas={columnas}
         claveFila={(c) => c.id}
@@ -628,7 +628,7 @@ function RegistrarMovimientos({
         <p className="text-xs text-muted-foreground">
           El saldo de cada cuenta en la fecha de corte. Desde esa fecha cuentan los movimientos y los pagos; lo de antes no.
         </p>
-        <TablaExcel
+        <TablaExcel dosLineas
           filas={cuentas}
           columnas={colsInicio}
           claveFila={(c) => c.id}
@@ -690,7 +690,7 @@ function RegistrarMovimientos({
           <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No hay movimientos con estos filtros.</p>
         ) : (
           <>
-            <TablaExcel
+            <TablaExcel dosLineas
               filas={filas}
               columnas={colsRegistros}
               claveFila={(m) => m.id}

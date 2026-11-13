@@ -75,6 +75,8 @@ type Props<T> = {
   // Celdas vacías en blanco en vez de "—" (tablas con filas que agrupan,
   // como la vista detallada de órdenes de compra).
   vacioEnBlanco?: boolean
+  // Texto en hasta dos líneas en vez de cortado en una (tablas de A&F, 2026-11-13).
+  dosLineas?: boolean
 }
 
 export function TablaExcel<T>({
@@ -89,6 +91,7 @@ export function TablaExcel<T>({
   claseAltoMax = "max-h-[calc(100svh-19.5rem)]",
   fondoFila,
   vacioEnBlanco = false,
+  dosLineas = false,
 }: Props<T>) {
   // Offset izquierdo de cada columna fija: suma de los anchos anteriores.
   const izquierda = new Map<string, number>()
@@ -197,7 +200,7 @@ export function TablaExcel<T>({
                         </div>
                       ) : (
                         <div
-                          className={`truncate px-3 py-2 ${alineacion(c.alinear)} ${c.claseCelda ?? ""}`}
+                          className={`${dosLineas ? "line-clamp-2 break-words" : "truncate"} px-3 py-2 ${alineacion(c.alinear)} ${c.claseCelda ?? ""}`}
                           title={texto || undefined}
                         >
                           {texto || (vacioEnBlanco ? null : <span className="text-muted-foreground/60">—</span>)}

@@ -257,7 +257,7 @@ function MisRequisicionesAdmin({
             Ningún pago administrativo coincide con los filtros.
           </div>
         ) : (
-          <TablaExcel
+          <TablaExcel dosLineas
             filas={filas}
             columnas={columnas}
             claveFila={(r) => r.id}

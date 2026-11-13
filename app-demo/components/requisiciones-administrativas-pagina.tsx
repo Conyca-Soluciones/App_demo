@@ -46,7 +46,7 @@ const formatoCantidad = (n: number) => n.toLocaleString("es-CO", { maximumFracti
 function EtiquetaEtapa({ r }: { r: Pick<ReqAdministrativaFila, "estado" | "estadoCompra"> }) {
   const e = etapaReqAdministrativa(r)
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${e.clase}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${e.clase}`}>
       {e.etiqueta}
     </Badge>
   )
@@ -261,7 +261,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
         </div>
         {aviso && <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">{aviso}</p>}
         {lineas.length > 0 ? (
-          <TablaExcel
+          <TablaExcel dosLineas
             filas={lineas.map((l, i) => ({ l, i }))}
             columnas={columnas}
             claveFila={(f) => f.l.insumoId}
@@ -440,7 +440,7 @@ function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null;
         <p className="py-10 text-center text-sm text-muted-foreground">Todavía no has hecho requisiciones administrativas.</p>
       ) : datos ? (
         <>
-          <TablaExcel
+          <TablaExcel dosLineas
             filas={datos.filas}
             columnas={columnas}
             claveFila={(r) => r.id}

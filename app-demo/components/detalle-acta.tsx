@@ -142,7 +142,7 @@ export function DetalleActa({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {v ? `${ETIQUETA_TIPO_ACTA[v.tipo]} N° ${numeroActa(v.numero)} · ${v.numeroContrato}` : "Acta"}
-            {v && <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[v.estado]}`}>{ETIQUETA_ESTADO_ACTA[v.estado]}</Badge>}
+            {v && <Badge className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[v.estado]}`}>{ETIQUETA_ESTADO_ACTA[v.estado]}</Badge>}
             {v && (
               <a
                 href={`/contratos/acta-pdf/${v.id}`}

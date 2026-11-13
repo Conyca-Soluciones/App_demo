@@ -114,7 +114,7 @@ export function AprobacionPolizasView({ puedeResolver, verInicial }: { puedeReso
         alinear: "center",
         texto: (p) => ETIQUETA_ESTADO_POLIZA[p.estado],
         celda: (p) => (
-          <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
+          <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
             {ETIQUETA_ESTADO_POLIZA[p.estado]}
           </Badge>
         ),
@@ -345,7 +345,7 @@ function DetallePoliza({
                     </Button>
                   ))}
                 </div>
-                <Badge variant="outline" className={`ml-auto h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
+                <Badge variant="outline" className={`ml-auto min-h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
                   {ETIQUETA_ESTADO_POLIZA[p.estado]}
                 </Badge>
               </div>
@@ -582,7 +582,7 @@ function InformacionContrato({ poliza }: { poliza: PolizaConContrato }) {
                     {x.motivo && ` · Motivo: ${x.motivo}`}
                   </span>
                 </span>
-                <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[x.estado]}`}>
+                <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[x.estado]}`}>
                   {ETIQUETA_ESTADO_POLIZA[x.estado]}
                 </Badge>
               </li>

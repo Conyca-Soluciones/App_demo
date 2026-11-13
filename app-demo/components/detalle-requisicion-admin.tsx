@@ -20,7 +20,7 @@ import {
 
 export function EtiquetaEstadoReqAdmin({ estado }: { estado: EstadoReqAdmin }) {
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_REQ_ADMIN[estado]}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_REQ_ADMIN[estado]}`}>
       {ETIQUETA_ESTADO_REQ_ADMIN[estado]}
     </Badge>
   )
@@ -72,7 +72,7 @@ export function columnasItemsReqAdmin<T>(
       ancho: 120,
       texto: (f) => ETIQUETA_METODO_REQ_ADMIN[leer(f).metodo],
       celda: (f) => (
-        <Badge variant="outline" className={`h-6 px-2 text-xs ${leer(f).metodo === "pse" ? "border-sky-300 bg-sky-50 text-sky-800" : ""}`}>
+        <Badge variant="outline" className={`min-h-6 px-2 text-xs ${leer(f).metodo === "pse" ? "border-sky-300 bg-sky-50 text-sky-800" : ""}`}>
           {ETIQUETA_METODO_REQ_ADMIN[leer(f).metodo]}
         </Badge>
       ),
@@ -242,7 +242,7 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
       const estado = i.pagoEstado as EstadoPago
       return (
         <div className="flex min-w-0 items-center gap-1.5">
-          <Badge variant="outline" className={`h-6 shrink-0 px-2 text-xs ${CLASE_ESTADO_PAGO[estado] ?? ""}`}>
+          <Badge variant="outline" className={`min-h-6 shrink-0 px-2 text-xs ${CLASE_ESTADO_PAGO[estado] ?? ""}`}>
             {ETIQUETA_ESTADO_PAGO[estado] ?? i.pagoEstado}
           </Badge>
           {i.pagoSemana != null && (
@@ -292,7 +292,7 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
         </p>
       )}
 
-      <TablaExcel
+      <TablaExcel dosLineas
         filas={detalle.items}
         columnas={columnas}
         claveFila={(i) => i.id}

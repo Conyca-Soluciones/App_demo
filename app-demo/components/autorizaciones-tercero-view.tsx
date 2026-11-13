@@ -86,7 +86,7 @@ export function AutorizacionesTerceroView({ puedeResolver, verInicial }: { puede
       ancho: 190,
       alinear: "center",
       texto: (a) => ETIQUETA_AUTORIZACION_TERCERO[a.estado],
-      celda: (a) => <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO[a.estado]}`}>{ETIQUETA_AUTORIZACION_TERCERO[a.estado]}</Badge>,
+      celda: (a) => <Badge className={`min-h-6 px-3 text-xs ${CLASE_ESTADO[a.estado]}`}>{ETIQUETA_AUTORIZACION_TERCERO[a.estado]}</Badge>,
     },
   ]
 
@@ -139,7 +139,7 @@ export function AutorizacionesTerceroView({ puedeResolver, verInicial }: { puede
               tarjeta={{
                 titulo: (a) => `${nombreActa(a)} · ${a.numeroContrato}`,
                 subtitulo: (a) => a.contratista,
-                esquina: (a) => <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO[a.estado]}`}>{ETIQUETA_AUTORIZACION_TERCERO[a.estado]}</Badge>,
+                esquina: (a) => <Badge className={`min-h-6 px-3 text-xs ${CLASE_ESTADO[a.estado]}`}>{ETIQUETA_AUTORIZACION_TERCERO[a.estado]}</Badge>,
                 campos: ["tercero", "neto", "fecha"],
               }}
             />

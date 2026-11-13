@@ -93,7 +93,7 @@ export function RepresentantesLegalesView({ puedeEditar }: { puedeEditar: boolea
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">
                           {r.nombre}
-                          <Badge variant="outline" className="ml-2 h-5 px-2 text-[11px]">
+                          <Badge variant="outline" className="ml-2 min-h-5 px-2 text-xs">
                             {r.tipo === "principal" ? "Representante legal" : ETIQUETA_TIPO_REPRESENTANTE[r.tipo]}
                           </Badge>
                         </p>

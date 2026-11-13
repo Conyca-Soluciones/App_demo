@@ -106,7 +106,7 @@ export function CuadrosSincoView({ puedeCargar }: { puedeCargar: boolean }) {
       ) : cuadros.length === 0 ? (
         <p className="text-sm text-muted-foreground">Todavía no hay cuadros.</p>
       ) : (
-        <TablaExcel
+        <TablaExcel dosLineas
           filas={ordenadas}
           columnas={columnas}
           claveFila={(c) => c.id}
@@ -556,7 +556,7 @@ export function CuadroSincoDetalle({ id }: { id: string }) {
           if (f) void subir(f)
         }}
       />
-      <TablaExcel
+      <TablaExcel dosLineas
         filas={ordenadas}
         columnas={columnas}
         claveFila={(f) => f.id}

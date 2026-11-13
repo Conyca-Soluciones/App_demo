@@ -313,9 +313,9 @@ function ContratoActas({
           : ETIQUETA_ESTADO_ACTA[a.estado],
       celda: (a) =>
         a.estado === "pendiente" && a.autorizacionEstado === "por_revisar" ? (
-          <Badge className="h-6 px-3 text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">{ETIQUETA_AUTORIZACION_TERCERO.por_revisar}</Badge>
+          <Badge className="min-h-6 px-3 text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">{ETIQUETA_AUTORIZACION_TERCERO.por_revisar}</Badge>
         ) : (
-          <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>
+          <Badge className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>
         ),
     },
     ...(puedeElaborar
@@ -375,9 +375,9 @@ function ContratoActas({
               <th>Número de contrato</th>
               <td className="font-medium">
                 {contrato.numeroContrato}
-                {info?.liquidado && <Badge className="ml-2 h-6 bg-slate-200 px-3 text-xs text-slate-700 hover:bg-slate-200">Liquidado</Badge>}
+                {info?.liquidado && <Badge className="ml-2 min-h-6 bg-slate-200 px-3 text-xs text-slate-700 hover:bg-slate-200">Liquidado</Badge>}
                 {info?.vencido && !info.liquidado && (
-                  <Badge className="ml-2 h-6 bg-red-100 px-3 text-xs text-red-800 hover:bg-red-100">Vencido</Badge>
+                  <Badge className="ml-2 min-h-6 bg-red-100 px-3 text-xs text-red-800 hover:bg-red-100">Vencido</Badge>
                 )}
               </td>
             </tr>

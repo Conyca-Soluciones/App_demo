@@ -85,7 +85,7 @@ export function AprobacionActasView() {
         ancho: 130,
         alinear: "center",
         texto: (a) => ETIQUETA_ESTADO_ACTA[a.estado],
-        celda: (a) => <Badge className={`h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>,
+        celda: (a) => <Badge className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_ACTA[a.estado]}`}>{ETIQUETA_ESTADO_ACTA[a.estado]}</Badge>,
       },
       { clave: "elaborada", titulo: "Elaborada por", ancho: 150, texto: (a) => a.creadoPorNombre ?? "" },
       { clave: "fecha", titulo: "Fecha", ancho: 110, texto: (a) => formatearFechaSinHora(a.createdAt), claseCelda: "tabular-nums" },

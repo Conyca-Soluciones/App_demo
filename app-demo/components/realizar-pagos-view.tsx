@@ -289,27 +289,27 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           },
         ]
       : []),
-    { clave: "item", titulo: "REF", ancho: 100, fija: true, alinear: "center", texto: (p) => p.item, valorOrden: (p) => p.item },
+    { clave: "item", titulo: "REF", ancho: 96, fija: true, alinear: "center", texto: (p) => p.item, valorOrden: (p) => p.item, claseCelda: "font-medium tabular-nums" },
     {
       clave: "semana",
       titulo: "Semana",
-      ancho: 90,
+      ancho: 80,
       alinear: "center",
       texto: (p) => (p.semana != null ? `${p.semana} · ${p.anio}` : ""),
       valorOrden: (p) => (p.anio ?? 0) * 100 + (p.semana ?? 0),
     },
-    { clave: "consolidado", titulo: "Consolidado", ancho: 140, texto: (p) => p.consolidado },
-    { clave: "grupo", titulo: "Grupo empresarial", ancho: 190, texto: (p) => p.grupo },
+    { clave: "consolidado", titulo: "Consolidado", ancho: 120, texto: (p) => p.consolidado },
+    { clave: "grupo", titulo: "Grupo empresarial", ancho: 160, texto: (p) => p.grupo },
     { clave: "proyecto", titulo: "Proyecto", ancho: 120, texto: (p) => p.proyecto },
     {
       clave: "beneficiario",
       titulo: "Titular de la cuenta",
-      ancho: 260,
+      ancho: 220,
       flexible: true,
       texto: (p) => p.beneficiario?.razonSocial ?? p.factura ?? "",
       celda: (p) => (
         <div className="min-w-0">
-          <div className="truncate">{p.beneficiario?.razonSocial ?? p.factura ?? <span className="text-muted-foreground/60">Sin tercero</span>}</div>
+          <div className="line-clamp-2 break-words">{p.beneficiario?.razonSocial ?? p.factura ?? <span className="text-muted-foreground/60">Sin tercero</span>}</div>
           {p.beneficiario && (
             <div className="truncate text-xs text-muted-foreground">
               {p.beneficiario.tipoDocumento} {p.beneficiario.numeroDocumento}
@@ -319,7 +319,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
         </div>
       ),
     },
-    { clave: "cuenta", titulo: "Cuenta del beneficiario", ancho: 250, texto: (p) => (p.cuenta ? descripcionCuenta(p.cuenta) : "") },
+    { clave: "cuenta", titulo: "Cuenta del beneficiario", ancho: 220, texto: (p) => (p.cuenta ? descripcionCuenta(p.cuenta) : "") },
     {
       clave: "valor",
       titulo: "Valor a pagar",
@@ -332,16 +332,16 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
     {
       clave: "estado",
       titulo: "Estado",
-      ancho: 260,
+      ancho: 230,
       texto: (p) => `${ETIQUETA_ESTADO_DISPERSOR[p.estado]}${p.alertas[0] ? `: ${p.alertas[0].mensaje}` : ""}`,
       celda: (p) => (
         <div className="min-w-0" title={p.alertas.map((a) => `${a.mensaje}${a.detalle ? ` (${a.detalle})` : ""}`).join("\n")}>
-          <Badge className={`h-6 px-3 text-xs ${COLOR_ESTADO[p.estado]}`}>{ETIQUETA_ESTADO_DISPERSOR[p.estado]}</Badge>
+          <Badge className={`min-h-6 px-3 text-xs ${COLOR_ESTADO[p.estado]}`}>{ETIQUETA_ESTADO_DISPERSOR[p.estado]}</Badge>
           {p.rebote && p.estado !== "dispersado" && (
-            <div className="truncate text-xs text-amber-700">Rebotó: {p.rebote.motivo}</div>
+            <div className="line-clamp-2 text-xs text-amber-700">Rebotó: {p.rebote.motivo}</div>
           )}
           {p.alertas[0] && p.estado !== "listo" && p.estado !== "asignado" && (
-            <div className="truncate text-xs text-muted-foreground">
+            <div className="line-clamp-2 text-xs text-muted-foreground">
               {p.alertas[0].mensaje}
               {p.alertas[0].detalle ? ` · ${p.alertas[0].detalle}` : ""}
             </div>
@@ -427,7 +427,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
     >
       {titulo}
       {n != null && pagos && (
-        <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+        <Badge variant="secondary" className="min-h-5 px-1.5 text-xs">
           {n}
         </Badge>
       )}
@@ -578,7 +578,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
       <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-10 text-center text-muted-foreground">{vacio}</div>
     ) : (
       <>
-        <TablaExcel
+        <TablaExcel dosLineas
           filas={filas}
           columnas={cols}
           claveFila={(p) => p.id}
@@ -587,7 +587,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           tarjeta={{
             titulo: (p) => p.beneficiario?.razonSocial ?? p.factura ?? "Sin tercero",
             subtitulo: (p) => `REF ${p.item} · semana ${p.semana ?? "—"} · ${p.grupo}`,
-            esquina: (p) => <Badge className={`h-6 px-3 text-xs ${COLOR_ESTADO[p.estado]}`}>{ETIQUETA_ESTADO_DISPERSOR[p.estado]}</Badge>,
+            esquina: (p) => <Badge className={`min-h-6 px-3 text-xs ${COLOR_ESTADO[p.estado]}`}>{ETIQUETA_ESTADO_DISPERSOR[p.estado]}</Badge>,
             campos: ["cuenta", "valor", "debitar"],
           }}
         />
