@@ -172,34 +172,36 @@ export function ConsolidadoGerenciaView() {
 
   // Columnas de los pagos (las de siempre).
   const columnasPago: ColumnaExcel<Pago>[] = [
-    { clave: "item", titulo: "REF", ancho: 100, fija: true, alinear: "center", texto: (p) => p.referencia ?? "" },
+    { clave: "item", titulo: "REF", ancho: 96, fija: true, alinear: "center", texto: (p) => p.referencia ?? "", claseCelda: "font-medium tabular-nums" },
+    // Origen fijo junto a la REF (decisión del usuario, 2026-11-13).
+    { clave: "origen", titulo: "Origen", ancho: 160, fija: true, texto: (p) => p.origen ?? "" },
     {
       clave: "semana",
       titulo: "Semana / año",
-      ancho: 110,
+      ancho: 90,
       alinear: "center",
       texto: (p) => (p.semana != null ? `${p.semana} · ${p.anio}` : ""),
       valorOrden: (p) => (p.anio ?? 0) * 100 + (p.semana ?? 0),
       claseCelda: "tabular-nums",
     },
-    { clave: "empresa", titulo: "Grupo empresarial", ancho: 220, texto: (p) => p.empresaNombre ?? "" },
+    { clave: "empresa", titulo: "Grupo empresarial", ancho: 170, texto: (p) => p.empresaNombre ?? "" },
     {
       clave: "tercero",
       titulo: "Tercero",
-      ancho: 280,
+      ancho: 220,
       flexible: true,
       texto: (p) => p.terceroNombre ?? "",
       celda: (p) => (
         <div className="min-w-0">
-          <div className="truncate" title={p.terceroNombre ?? undefined}>
+          <div className="line-clamp-2 break-words" title={p.terceroNombre ?? undefined}>
             {p.terceroNombre ?? <span className="text-muted-foreground/60">Sin tercero</span>}
           </div>
           {p.terceroDocumento && <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>}
         </div>
       ),
     },
-    { clave: "proyecto", titulo: "Proyecto", ancho: 160, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" },
-    { clave: "solicita", titulo: "Solicitante", ancho: 180, texto: (p) => p.solicitadoPorNombre ?? "" },
+    { clave: "proyecto", titulo: "Proyecto", ancho: 130, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" },
+    { clave: "solicita", titulo: "Solicitante", ancho: 150, texto: (p) => p.solicitadoPorNombre ?? "" },
     {
       clave: "valor",
       titulo: "Valor a pagar",
@@ -391,7 +393,7 @@ export function ConsolidadoGerenciaView() {
             </div>
           ) : (
             <>
-              <TablaExcel
+              <TablaExcel dosLineas
                 filas={filas}
                 columnas={columnas}
                 claveFila={(f) => f.id}
@@ -412,7 +414,7 @@ export function ConsolidadoGerenciaView() {
                     f.clase === "pago"
                       ? `REF ${f.pago.referencia ?? "—"}${f.pago.semana != null ? ` · semana ${f.pago.semana} de ${f.pago.anio}` : ""} · ${f.pago.empresaNombre ?? ""}`
                       : `${f.mov.codigo} · ${f.mov.tipo === "ingreso" ? "INGRESO" : "EGRESO EXTERNO"} · ${formatearFechaSinHora(f.mov.fecha)}`,
-                  campos: ["proyecto", "solicita", "valor", "soporte"],
+                  campos: ["origen", "proyecto", "solicita", "valor", "soporte"],
                 }}
               />
               <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-right text-sm text-muted-foreground">

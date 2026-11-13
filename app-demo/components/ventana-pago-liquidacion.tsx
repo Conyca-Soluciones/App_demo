@@ -82,7 +82,7 @@ const CLASE_ETAPA: Record<string, string> = {
 export function EtiquetaEtapa({ pago }: { pago: Pick<Pago, "estado" | "liquidacionEstado"> }) {
   const t = etiquetaEtapa(pago)
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ETAPA[t] ?? "border-gray-300 bg-gray-50 text-gray-600"}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ETAPA[t] ?? "border-gray-300 bg-gray-50 text-gray-600"}`}>
       {t}
     </Badge>
   )

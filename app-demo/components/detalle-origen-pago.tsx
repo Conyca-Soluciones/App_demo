@@ -29,7 +29,7 @@ import {
 
 export function EtiquetaEstadoPago({ estado }: { estado: EstadoPago }) {
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[estado]}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_PAGO[estado]}`}>
       {ETIQUETA_ESTADO_PAGO[estado]}
     </Badge>
   )

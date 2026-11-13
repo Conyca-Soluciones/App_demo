@@ -166,7 +166,7 @@ function PolizasDelContrato({ contratoId }: { contratoId: string }) {
                 {p.resueltaAt && ` · revisada el ${formatearFechaSinHora(p.resueltaAt)}`}
               </span>
             </span>
-            <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
+            <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
               {ETIQUETA_ESTADO_POLIZA[p.estado]}
             </Badge>
             <Button size="xs" variant="outline" onClick={() => setViendo(p)}>

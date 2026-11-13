@@ -342,7 +342,7 @@ function PolizaDelContrato({ contratoId, onCambio }: { contratoId: string; onCam
                     {p.estado === "devuelta" && p.motivo && ` · Motivo: ${p.motivo}`}
                   </span>
                 </span>
-                <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
+                <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_POLIZA[p.estado]}`}>
                   {ETIQUETA_ESTADO_POLIZA[p.estado]}
                 </Badge>
                 <Button size="xs" variant="outline" onClick={() => setViendo(p)}>

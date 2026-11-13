@@ -5,7 +5,7 @@ import { CLASE_POLIZA_CONTRATO, ETIQUETA_POLIZA_CONTRATO, type EstadoPolizaContr
 export function BadgePolizaContrato({ estado }: { estado: EstadoPolizaContrato | null | undefined }) {
   if (!estado) return null
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_POLIZA_CONTRATO[estado]}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_POLIZA_CONTRATO[estado]}`}>
       {ETIQUETA_POLIZA_CONTRATO[estado]}
     </Badge>
   )

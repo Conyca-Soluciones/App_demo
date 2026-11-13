@@ -107,7 +107,7 @@ const terceroFila = (p: Pago) =>
 
 function EtiquetaEstado({ pago }: { pago: Pago }) {
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${claseEstadoPago(pago)}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${claseEstadoPago(pago)}`}>
       {etiquetaEstadoPago(pago)}
     </Badge>
   )
@@ -671,7 +671,7 @@ export function AprobacionPagosView({
               Ningún pago coincide con los filtros.
             </div>
           ) : (
-            <TablaExcel
+            <TablaExcel dosLineas
               filas={pagos}
               columnas={columnas}
               claveFila={(p) => p.id}

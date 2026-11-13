@@ -234,12 +234,12 @@ export function CuentasPorVerificar({ puedeEditar, puedeVerificar }: { puedeEdit
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {c.pagos > 0 && (
-                        <Badge variant="outline" className="h-5 border-amber-300 bg-amber-50 px-1.5 text-[10px] text-amber-800">
+                        <Badge variant="outline" className="min-h-5 border-amber-300 bg-amber-50 px-1.5 text-xs text-amber-800">
                           {c.pagos} {c.pagos === 1 ? "pago espera" : "pagos esperan"}
                         </Badge>
                       )}
                       {!c.certificacion && (
-                        <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+                        <Badge variant="outline" className="min-h-5 px-1.5 text-xs text-muted-foreground">
                           Sin certificación
                         </Badge>
                       )}

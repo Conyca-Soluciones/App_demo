@@ -49,7 +49,7 @@ const formatoFecha = (iso: string) => formatearFechaSinHora(iso)
 
 function Etiqueta({ estado }: { estado: CuentaTercero["estado"] }) {
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_CUENTA[estado]}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_CUENTA[estado]}`}>
       {ETIQUETA_ESTADO_CUENTA[estado]}
     </Badge>
   )

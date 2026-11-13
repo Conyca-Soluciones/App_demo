@@ -498,25 +498,25 @@ export function ConsolidadoPagosView({
         />
       ) : null,
   }
-  const colItem: ColumnaExcel<Pago> = { clave: "item", titulo: "REF", ancho: 100, fija: true, alinear: "center", texto: (p) => p.referencia ?? "" }
+  const colItem: ColumnaExcel<Pago> = { clave: "item", titulo: "REF", ancho: 96, fija: true, alinear: "center", texto: (p) => p.referencia ?? "", claseCelda: "font-medium tabular-nums" }
   const colSemana: ColumnaExcel<Pago> = {
     clave: "semana",
     titulo: "Semana",
-    ancho: 90,
+    ancho: 80,
     alinear: "center",
     texto: (p) => (p.semana != null ? `${p.semana} · ${p.anio}` : ""),
     claseCelda: "tabular-nums",
   }
-  const colEmpresa: ColumnaExcel<Pago> = { clave: "empresa", titulo: "Grupo empresarial", ancho: 200, texto: (p) => p.empresaNombre ?? "" }
+  const colEmpresa: ColumnaExcel<Pago> = { clave: "empresa", titulo: "Grupo empresarial", ancho: 160, texto: (p) => p.empresaNombre ?? "" }
   const colFactura: ColumnaExcel<Pago> = {
     clave: "tercero",
     titulo: "Empresa que factura",
-    ancho: 260,
+    ancho: 210,
     flexible: true,
     texto: (p) => p.terceroNombre ?? "",
     celda: (p) => (
       <div className="min-w-0">
-        <div className="truncate" title={p.terceroNombre ?? undefined}>
+        <div className="line-clamp-2 break-words" title={p.terceroNombre ?? undefined}>
           {p.terceroNombre ?? <span className="text-muted-foreground/60">Sin tercero</span>}
         </div>
         {p.terceroDocumento && <div className="truncate text-xs text-muted-foreground">{p.terceroDocumento}</div>}
@@ -526,7 +526,7 @@ export function ConsolidadoPagosView({
   const colCuenta: ColumnaExcel<Pago> = {
     clave: "cuenta",
     titulo: "Titular y cuenta",
-    ancho: 250,
+    ancho: 220,
     texto: (p) =>
       p.metodoPago === "pse"
         ? `PSE${p.cuentaTitular ? ` · titular: ${p.cuentaTitular}` : ""}`
@@ -546,7 +546,7 @@ export function ConsolidadoPagosView({
         <div className="truncate text-xs text-muted-foreground" title={p.cuentaTitular ?? p.terceroNombre ?? undefined}>
           {p.cuentaTitular ?? p.terceroNombre ?? ""}
         </div>
-        <div className={`truncate ${p.cuentaTexto && !p.cuentaVerificada ? "text-amber-700" : ""}`} title={p.cuentaTexto ?? undefined}>
+        <div className={`line-clamp-2 break-words ${p.cuentaTexto && !p.cuentaVerificada ? "text-amber-700" : ""}`} title={p.cuentaTexto ?? undefined}>
           {p.cuentaTexto ?? <span className="text-muted-foreground/60">Sin cuenta</span>}
           {p.cuentaTexto && !p.cuentaVerificada && " (sin verificar)"}
         </div>
@@ -556,7 +556,7 @@ export function ConsolidadoPagosView({
   const colMetodo: ColumnaExcel<Pago> = {
     clave: "metodo",
     titulo: "Método de pago",
-    ancho: 130,
+    ancho: 110,
     texto: (p) => metodoDePago(p),
     celda: (p) =>
       p.metodoPago === "pse" ? (
@@ -567,22 +567,24 @@ export function ConsolidadoPagosView({
         metodoDePago(p)
       ),
   }
-  const colSolicita: ColumnaExcel<Pago> = { clave: "solicita", titulo: "Solicitante", ancho: 170, texto: (p) => p.solicitadoPorNombre ?? "" }
+  const colSolicita: ColumnaExcel<Pago> = { clave: "solicita", titulo: "Solicitante", ancho: 140, texto: (p) => p.solicitadoPorNombre ?? "" }
   const colOrigen: ColumnaExcel<Pago> = {
     clave: "origen",
     titulo: "Origen",
-    ancho: 170,
+    ancho: 160,
+    // Fija junto a la REF: siempre a la vista (decisión del usuario, 2026-11-13).
+    fija: true,
     texto: (p) => [p.origen, textoEtiquetasPago(p)].filter(Boolean).join(" · "),
     celda: (p) => (
       <div className="min-w-0 leading-tight">
-        <div className="truncate" title={p.origen}>
+        <div className="line-clamp-2 break-words" title={p.origen}>
           {p.origen}
         </div>
         <EtiquetasPago pago={p} />
       </div>
     ),
   }
-  const colProyecto: ColumnaExcel<Pago> = { clave: "proyecto", titulo: "Proyecto", ancho: 150, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" }
+  const colProyecto: ColumnaExcel<Pago> = { clave: "proyecto", titulo: "Proyecto", ancho: 130, texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "" }
   const colDocumento = columnaPesos("documento", "Valor documento", (p) => p.valorDocumento ?? p.valor)
   const colValorAPagar = columnaPesos("valor", "Valor a pagar", (p) => (enLiquidacion || etapa === "liquidado" || enPse || enDispersados ? p.valorAPagar : valorAPagarDe(p)), true)
   const colEtapa: ColumnaExcel<Pago> = {
@@ -596,13 +598,13 @@ export function ConsolidadoPagosView({
   const colComentarios: ColumnaExcel<Pago> = {
     clave: "comentarios",
     titulo: "Comentarios",
-    ancho: 240,
+    ancho: 200,
     ordenable: false,
     texto: (p) => p.ultimoComentario?.texto ?? "",
     celda: (p) =>
       p.ultimoComentario ? (
         <div className="min-w-0" title={p.ultimoComentario.texto}>
-          <div className={`truncate ${p.ultimoComentario.tipo === "observacion" ? "text-red-700" : ""}`}>{p.ultimoComentario.texto}</div>
+          <div className={`line-clamp-2 break-words ${p.ultimoComentario.tipo === "observacion" ? "text-red-700" : ""}`}>{p.ultimoComentario.texto}</div>
           <div className="truncate text-xs text-muted-foreground">
             {p.ultimoComentario.autor ?? ""}
             {p.ultimoComentario.total > 1 ? ` · ${p.ultimoComentario.total} comentarios` : ""}
@@ -615,7 +617,7 @@ export function ConsolidadoPagosView({
   const colSoporte: ColumnaExcel<Pago> = {
     clave: "soporte",
     titulo: "Soporte",
-    ancho: 100,
+    ancho: 80,
     ordenable: false,
     texto: (p) => soportes[p.id]?.nombre ?? "",
     celda: (p) =>
@@ -636,7 +638,7 @@ export function ConsolidadoPagosView({
   const colDispersor: ColumnaExcel<Pago> = {
     clave: "dispersor",
     titulo: "Dispersor",
-    ancho: 100,
+    ancho: 90,
     ordenable: false,
     texto: (p) =>
       dispersores[p.id] ??
@@ -669,18 +671,19 @@ export function ConsolidadoPagosView({
     columnaPesos("anticipos", "Anticipos y/o descuentos", (p) => p.liqAnticiposDescuentos ?? anticiposOrigen(p)),
   ]
 
-  const base = [colItem, colSemana, colEmpresa, colFactura, colMetodo]
+  // REF y Origen fijos a la izquierda en todas las pestañas.
+  const base = [colItem, colOrigen, colSemana, colEmpresa, colFactura, colMetodo]
   const columnas: ColumnaExcel<Pago>[] = [
     ...(conSeleccion ? [colSeleccion] : []),
     ...(enPreparacion
-      ? [...base, colDocumento, colSolicita, colOrigen, colComentarios, colSoporte]
+      ? [...base, colDocumento, colSolicita, colComentarios, colSoporte]
       : enLiquidacion
         ? [...base, colDocumento, colSolicita, ...colsLiquidacion, colValorAPagar, colComentarios, colSoporte]
         : etapa === "liquidado" || enPse
           ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte]
           : etapa === "dispersado"
             ? [...base, colCuenta, colValorAPagar, colComentarios, colSoporte, colDispersor]
-          : [...base, colCuenta, colOrigen, colProyecto, colSolicita, colDocumento, colValorAPagar, colEtapa, colSoporte]),
+          : [...base, colCuenta, colProyecto, colSolicita, colDocumento, colValorAPagar, colEtapa, colSoporte]),
   ]
   const camposTarjeta = columnas.map((c) => c.clave).filter((c) => !["sel", "item", "semana", "empresa", "tercero"].includes(c))
   const pagoOrigen = origenDe
@@ -761,7 +764,7 @@ export function ConsolidadoPagosView({
               >
                 {e.titulo}
                 {conteo && (
-                  <Badge variant="secondary" className={`h-5 px-1.5 text-xs ${e.clave === "observado" && conteo.observado > 0 ? "bg-red-100 text-red-700" : ""}`}>
+                  <Badge variant="secondary" className={`min-h-5 px-1.5 text-xs ${e.clave === "observado" && conteo.observado > 0 ? "bg-red-100 text-red-700" : ""}`}>
                     {conteo[e.clave]}
                   </Badge>
                 )}
@@ -924,7 +927,7 @@ export function ConsolidadoPagosView({
             </div>
           ) : (
             <>
-              <TablaExcel
+              <TablaExcel dosLineas
                 filas={pagos}
                 columnas={columnas}
                 claveFila={(p) => p.id}

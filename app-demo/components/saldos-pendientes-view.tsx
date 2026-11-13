@@ -37,7 +37,7 @@ function EtiquetaDias({ dias }: { dias: number }) {
         ? "border-amber-300 bg-amber-50 text-amber-700"
         : "border-gray-300 bg-gray-50 text-gray-600"
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${clase}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${clase}`}>
       {dias === 0 ? "hoy" : `${dias} ${dias === 1 ? "día" : "días"}`}
     </Badge>
   )

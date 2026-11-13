@@ -32,18 +32,18 @@ const ESTADOS_FILTRO: { valor: EstadoCuentaTercero; etiqueta: string }[] = [
 function EstadoTercero({ t }: { t: Tercero }) {
   const pendientes = t.cuentas.filter((c) => c.estado === "PENDIENTE").length
   if (t.cuentas.length === 0) {
-    return <Badge variant="outline" className="h-6 border-gray-300 bg-gray-50 px-3 text-xs text-gray-600">Sin cuentas</Badge>
+    return <Badge variant="outline" className="min-h-6 border-gray-300 bg-gray-50 px-3 text-xs text-gray-600">Sin cuentas</Badge>
   }
   if (pendientes > 0) {
     return (
-      <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_CUENTA.PENDIENTE}`}>
+      <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_CUENTA.PENDIENTE}`}>
         {pendientes} por verificar
       </Badge>
     )
   }
   const activas = t.cuentas.some((c) => c.estado === "ACTIVO")
   return (
-    <Badge variant="outline" className={`h-6 px-3 text-xs ${CLASE_ESTADO_CUENTA[activas ? "ACTIVO" : "INACTIVO"]}`}>
+    <Badge variant="outline" className={`min-h-6 px-3 text-xs ${CLASE_ESTADO_CUENTA[activas ? "ACTIVO" : "INACTIVO"]}`}>
       {ETIQUETA_ESTADO_CUENTA[activas ? "ACTIVO" : "INACTIVO"]}
     </Badge>
   )
@@ -251,7 +251,7 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
               Ningún tercero coincide con los filtros.
             </div>
           ) : (
-            <TablaExcel
+            <TablaExcel dosLineas
               filas={terceros}
               columnas={columnas}
               claveFila={(t) => t.id}
