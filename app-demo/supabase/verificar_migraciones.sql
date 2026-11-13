@@ -707,5 +707,15 @@ select * from (
   select '20270101002500_ajustes_revision_2026_11_12',
          exists (select 1 from pg_proc where proname = '_clave_unidad' and proconfig is not null)
          and exists (select 1 from pg_proc where proname = '_fmt_pesos' and proconfig is not null)
+  union all
+  select '20270101002600_mano_obra_proyectos_prueba',
+         exists (select 1 from pg_proc where proname = '_ambito_item')
+  union all
+  select '20270101002900_otrosi_titular_poliza_anticipo_firma',
+         exists (select 1 from information_schema.columns where table_name = 'otrosis' and column_name = 'titular_tercero_id')
+         and exists (select 1 from pg_proc where proname = 'crear_otrosi_con_titular')
+         and exists (select 1 from pg_proc where proname = 'representante_que_firma_otrosi')
+         and exists (select 1 from pg_trigger where tgname = 'trg_otrosi_titular_a_contrato')
+         and exists (select 1 from pg_proc where proname = '_fijar_requiere_poliza' and prosrc like '%tiene_anticipo%')
 ) t
 order by 1;

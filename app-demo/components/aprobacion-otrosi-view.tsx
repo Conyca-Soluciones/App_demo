@@ -15,7 +15,8 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { hoyColombia } from "@/lib/fechas"
 import { nombreTipoContrato } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, contratoVencido, type EstadoOtrosi, type OtrosiDetalle, type OtrosiFila } from "@/lib/otrosi"
-import { listarOtrosis, resolverOtrosiJuridica, resolverOtrosiGerencia } from "@/app/(app)/contratos/otrosi/actions"
+import { firmaRepresentanteOtrosi, listarOtrosis, resolverOtrosiJuridica, resolverOtrosiGerencia } from "@/app/(app)/contratos/otrosi/actions"
+import { textoFirmaRepresentante, type FirmaRepresentanteContrato } from "@/lib/representantes"
 
 // ---------------------------------------------------------------------------
 // Aprobación de otrosí (ruta /contratos/aprobacion-otrosi), como Aprobación de
@@ -163,6 +164,23 @@ export function AprobacionOtrosiView({
     setDetalleId(null)
     if (verInicial) router.replace("/contratos/aprobacion-otrosi")
   }
+
+  // Antes de aprobar (Gerencia): quién firma como representante legal o qué
+  // falta (20270101002900). Antes el error salía recién al aprobar.
+  const [firmaRL, setFirmaRL] = useState<{ id: string; firma: FirmaRepresentanteContrato } | null>(null)
+  const idAprobar = accion?.tipo === "aprobar" ? accion.detalle.id : null
+  useEffect(() => {
+    if (!idAprobar) return
+    let vigente = true
+    firmaRepresentanteOtrosi(idAprobar)
+      .then((firma: FirmaRepresentanteContrato) => vigente && setFirmaRL({ id: idAprobar, firma }))
+      // Si no se pudo revisar, se dice; aprobar lo vuelve a revisar en la base.
+      .catch(() => vigente && setFirmaRL({ id: idAprobar, firma: { estado: "sin_revisar" } }))
+    return () => {
+      vigente = false
+    }
+  }, [idAprobar])
+  const avisoFirma = idAprobar && firmaRL?.id === idAprobar ? textoFirmaRepresentante(firmaRL.firma, "otrosi") : null
 
   async function confirmar() {
     if (!accion) return
@@ -355,6 +373,13 @@ export function AprobacionOtrosiView({
                   />
                 </div>
               )}
+              {avisoFirma && (
+                <p
+                  className={`rounded-md border px-3 py-2 text-sm ${avisoFirma.bloquea ? "border-amber-300 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}
+                >
+                  {avisoFirma.texto}
+                </p>
+              )}
               {errorAccion && <p className="text-sm text-destructive">{errorAccion}</p>}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setAccion(null)} disabled={procesando}>
@@ -363,7 +388,7 @@ export function AprobacionOtrosiView({
                 <Button
                   variant={accion.tipo === "rechazar" ? "destructive" : "default"}
                   onClick={confirmar}
-                  disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim())}
+                  disabled={procesando || (TEXTO_ACCION[accion.tipo].pideMotivo && !motivo.trim()) || Boolean(avisoFirma?.bloquea)}
                 >
                   {procesando && <Loader2 className="size-4 animate-spin" />}
                   {TEXTO_ACCION[accion.tipo].boton}

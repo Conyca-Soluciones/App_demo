@@ -108,6 +108,7 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   poliza_no_aplica: { etiqueta: "El contrato no requiere póliza", tono: "neutro" },
   poliza_reemplazada: { etiqueta: "Archivo de la póliza cambiado (antes de que Jurídica la revisara)", tono: "neutro" },
   firmado_contratista: { etiqueta: "Copia firmada por el contratista subida", tono: "ok" },
+  titular_otrosi: { etiqueta: "Cuenta de depósito cambiada por un otrosí aprobado", tono: "aviso" },
 }
 
 // Eventos de un OTROSÍ (Jurídica y Gerencia).

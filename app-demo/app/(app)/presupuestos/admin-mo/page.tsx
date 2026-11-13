@@ -111,6 +111,7 @@ function AdminManoObraContent() {
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
   const [filtroCapitulo, setFiltroCapitulo] = useState("todos")
+  const [filtroProyecto, setFiltroProyecto] = useState("todos")
   const [aviso, setAviso] = useState<string | null>(null)
   // Casillas para "Juntar seleccionadas".
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
@@ -181,10 +182,27 @@ function AdminManoObraContent() {
     () => Array.from(new Set(solicitudes.flatMap((s) => capitulosDe(s.items)))).sort((a, b) => a.localeCompare(b, "es", { numeric: true })),
     [solicitudes]
   )
-  const solicitudesVisibles = useMemo(
-    () => (filtroCapitulo === "todos" ? solicitudes : solicitudes.filter((s) => capitulosDe(s.items).includes(filtroCapitulo))),
-    [solicitudes, filtroCapitulo]
+  // Proyectos de las solicitudes (filtro): para probar en CAPACITACION sin
+  // ver ni tocar lo del Malecón.
+  const proyectosPendientes = useMemo(
+    () => Array.from(new Set(solicitudes.flatMap((s) => s.items.map((i) => i.proyecto).filter((p): p is string => !!p)))).sort(),
+    [solicitudes]
   )
+  const solicitudesVisibles = useMemo(
+    () =>
+      solicitudes.filter(
+        (s) =>
+          (filtroCapitulo === "todos" || capitulosDe(s.items).includes(filtroCapitulo)) &&
+          (filtroProyecto === "todos" || s.items.some((i) => i.proyecto === filtroProyecto))
+      ),
+    [solicitudes, filtroCapitulo, filtroProyecto]
+  )
+  // "Juntar seleccionadas" solo con lo que está a la vista (no se mezclan
+  // proyectos ocultos por el filtro).
+  const seleccionVisible = useMemo(() => {
+    const visibles = new Set(solicitudesVisibles.map((s) => s.id))
+    return new Set([...seleccion].filter((id) => visibles.has(id)))
+  }, [seleccion, solicitudesVisibles])
   // Grupo: los del catálogo y los capítulos de lo pendiente (en mayúsculas, sin número).
   const listaGrupos = useMemo(() => {
     const deCatalogo = gruposCatalogo && gruposCatalogo.recurso === recurso ? gruposCatalogo.grupos : []
@@ -197,6 +215,7 @@ function AdminManoObraContent() {
     setRecurso(nuevo)
     setVista("pendiente")
     setFiltroCapitulo("todos")
+    setFiltroProyecto("todos")
   }
 
   function marcarProcesando(id: string, activo: boolean) {
@@ -341,9 +360,23 @@ function AdminManoObraContent() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-muted-foreground">
-                {solicitudes.length} actividad(es) ·{" "}
-                {solicitudes.reduce((n, s) => n + s.items.length, 0)} ítem(s)
+                {solicitudesVisibles.length} actividad(es) ·{" "}
+                {solicitudesVisibles.reduce((n, s) => n + s.items.length, 0)} ítem(s)
               </span>
+              {proyectosPendientes.length > 1 && (
+                <select
+                  value={filtroProyecto}
+                  onChange={(e) => setFiltroProyecto(e.target.value)}
+                  className="h-8 rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="todos">Todos los proyectos</option>
+                  {proyectosPendientes.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              )}
               {capitulosPendientes.length > 1 && (
                 <select
                   value={filtroCapitulo}
@@ -358,14 +391,16 @@ function AdminManoObraContent() {
                   ))}
                 </select>
               )}
-              <Button size="sm" variant="outline" disabled={seleccion.size < 2} onClick={() => setJuntando(true)}>
-                Juntar seleccionadas{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
+              <Button size="sm" variant="outline" disabled={seleccionVisible.size < 2} onClick={() => setJuntando(true)}>
+                Juntar seleccionadas{seleccionVisible.size > 0 ? ` (${seleccionVisible.size})` : ""}
               </Button>
             </div>
+            {/* El Excel baja lo que muestra la tabla (con los filtros de
+                proyecto y capítulo) y solo resuelve esas filas al subirlo. */}
             <ExcelAprobacionRecursos
               key={recurso}
               tipo={recurso}
-              solicitudes={solicitudes}
+              solicitudes={solicitudesVisibles}
               listas={{ unidades: config.unidadesConocidas, grupos: listaGrupos }}
               rechazar={config.rechazar}
               onResueltas={quitarResueltas}
@@ -384,12 +419,12 @@ function AdminManoObraContent() {
           />
           {juntando && (
             <DialogoJuntar
-              solicitudes={solicitudes.filter((s) => seleccion.has(s.id))}
+              solicitudes={solicitudesVisibles.filter((s) => seleccionVisible.has(s.id))}
               unidadesConocidas={config.unidadesConocidas}
               grupos={listaGrupos}
-              procesando={[...seleccion].some((id) => idsEnProceso.has(id))}
+              procesando={[...seleccionVisible].some((id) => idsEnProceso.has(id))}
               onCerrar={() => setJuntando(false)}
-              onAprobar={(datos) => handleAprobar([...seleccion], datos)}
+              onAprobar={(datos) => handleAprobar([...seleccionVisible], datos)}
             />
           )}
           <Dialog open={enlace !== null} onOpenChange={(a) => !a && setEnlace(null)}>
