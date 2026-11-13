@@ -1326,6 +1326,11 @@ compras, con varios proyectos separados por filas "PROYECTO: …", o el de un pr
   las nuevas les llega el aviso). Aviso `cuadro_sinco_soportes` (entidad `cuadro_sinco`) que va por
   correo SIEMPRE, aunque la persona tenga los avisos por correo apagados. Mis pendientes: `soporte_sinco`.
 - **Anular** (`anular_cuadro_sinco`, con motivo): anula sus pagos, solo si ninguno se envió a liquidar.
+- **RUT obligatorio** (`20270101003400_sinco_exige_rut.sql`, 2026-11-13): la carga crea terceros sin
+  RUT (el Excel no lo trae), pero un pago de SINCO cuyo tercero no tenga RUT no pasa a liquidar
+  (novedad "Falta el RUT…"; `enviar_pagos_a_liquidar_detalle` devuelve `sin_rut`). Financiera lo sube
+  en la ventana del pago; `trg_tercero_rut_novedad_sinco` recalcula la novedad al subirlo. Fuera de
+  SINCO, crear un tercero ya exige el RUT (`crear_tercero`, Paquete E).
 - Quien adjunta no lee pagos ni proyectos "solo pagos": `listar_cuadros_sinco` y `pagos_cuadro_sinco`
   (SECURITY DEFINER) le dan la lista y la etapa de cada pago.
 
