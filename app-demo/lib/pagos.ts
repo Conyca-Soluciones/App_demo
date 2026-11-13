@@ -115,6 +115,8 @@ export type Pago = {
   // comprobante si se adjuntó.
   pagadoOtroMedio: boolean
   comprobanteOtroMedio: string | null
+  // Soporte generado al marcarlo pagado sin dispersor (PSE u otro medio, 20270101003200).
+  soportePagoManual?: string | null
   cuentaId: string | null
   cuentaTexto: string | null
   cuentaVerificada: boolean
@@ -268,6 +270,8 @@ export type RequisicionAdminDePago = {
 export const rutaSoportePago = (pagoId: string) => `/ayf/soporte-pago/${pagoId}`
 // El soporte individual del dispersor en que salió el pago.
 export const rutaSoporteDispersor = (pagoId: string) => `/ayf/soporte-dispersor/${pagoId}`
+// El comprobante adjunto al marcar un pago como pagado (cuando también hay soporte generado).
+export const rutaComprobantePago = (pagoId: string) => `/ayf/soporte-dispersor/${pagoId}?ver=comprobante`
 
 // Un pago pasa a liquidación con cuenta bancaria, salvo PSE (20270101000300;
 // la base lo exige en enviar_pagos_a_liquidar).

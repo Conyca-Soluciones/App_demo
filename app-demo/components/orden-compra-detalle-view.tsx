@@ -1,6 +1,6 @@
 "use client"
 
-import { formatearFechaSinHora } from "@/lib/fechas"
+import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import { TituloPestana } from "@/components/titulo-pestana"
 
 import { useEffect, useState } from "react"
@@ -267,10 +267,19 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
         </div>
       )}
 
-      {orden.estado === "pendiente_aprobacion" && orden.motivoDesaprobacion && (
+      {orden.estado === "pendiente_aprobacion" && orden.devueltaCompras ? (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          <strong>Desaprobada:</strong> {orden.motivoDesaprobacion}
+          <strong>Gerencia la devolvió a Compras</strong> el {formatearFechaHora(orden.devueltaCompras.en)}: {orden.devueltaCompras.motivo}. Modifícala
+          (botón Modificar) para enviarla otra vez a aprobación, o cancélala.
         </div>
+      ) : (
+        orden.estado === "pendiente_aprobacion" &&
+        orden.motivoDesaprobacion &&
+        !orden.motivoDesaprobacion.startsWith("Devuelta a Compras:") && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <strong>Desaprobada:</strong> {orden.motivoDesaprobacion}
+          </div>
+        )
       )}
 
       {orden.estado === "rechazada" && orden.motivoRechazo && (
@@ -409,7 +418,7 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
           </div>
           {orden.empresaNombre && (
             <div className="space-y-1">
-              <p className="text-muted-foreground">Empresa que factura</p>
+              <p className="text-muted-foreground">Empresa que compra</p>
               <p>
                 {orden.empresaNombre}
                 {orden.empresaNit ? ` · NIT ${orden.empresaNit}` : ""}

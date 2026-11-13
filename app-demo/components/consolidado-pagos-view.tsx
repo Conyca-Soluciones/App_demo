@@ -638,14 +638,16 @@ export function ConsolidadoPagosView({
     titulo: "Dispersor",
     ancho: 100,
     ordenable: false,
-    texto: (p) => dispersores[p.id] ?? (p.pagadoOtroMedio ? `Pagado sin dispersor${p.comprobanteOtroMedio ? ` · ${p.comprobanteOtroMedio}` : ""}` : ""),
+    texto: (p) =>
+      dispersores[p.id] ??
+      (p.pagadoOtroMedio ? (p.soportePagoManual ?? `Pagado sin dispersor${p.comprobanteOtroMedio ? ` · ${p.comprobanteOtroMedio}` : ""}`) : ""),
     celda: (p) =>
-      dispersores[p.id] || p.comprobanteOtroMedio ? (
+      dispersores[p.id] || p.soportePagoManual || p.comprobanteOtroMedio ? (
         <a
           href={rutaSoporteDispersor(p.id)}
           target="_blank"
           rel="noreferrer"
-          title={dispersores[p.id] ?? `Comprobante: ${p.comprobanteOtroMedio}`}
+          title={dispersores[p.id] ?? p.soportePagoManual ?? `Comprobante: ${p.comprobanteOtroMedio}`}
           className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
         >
           <FileText className="h-4 w-4" /> Ver

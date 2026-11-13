@@ -69,7 +69,11 @@ export type PagoDispersor = {
   // el último intento que rebotó en el banco (vuelve a dispersión con la misma REF)
   rebote: { fecha: string; motivo: string } | null
   // pagado por PSE u otro medio, sin dispersor (20270101000300): fecha y comprobante
-  pagadoManual?: { fecha: string | null; comprobante: { nombre: string; ruta: string } | null } | null
+  pagadoManual?: {
+    fecha: string | null
+    comprobante: { nombre: string; ruta: string } | null
+    soporte?: { nombre: string } | null // generado al marcarlo (20270101003200)
+  } | null
 }
 
 export type PagoConEstado = PagoDispersor & { estado: EstadoDispersor; alertas: Alerta[] }

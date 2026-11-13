@@ -831,6 +831,8 @@ export type OrdenCompraDetalle = {
   aprobadaAt: string | null
   motivoRechazo: string | null
   motivoDesaprobacion: string | null
+  // Devuelta a Compras por Gerencia (20270101003300): hasta que Compras la modifique.
+  devueltaCompras: { en: string; motivo: string } | null
   motivoCancelacion: string | null
   canceladaAt: string | null
   // Anticipo (A&F): null si la orden no tiene.
@@ -869,7 +871,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
       `
       id, numero, codigo, estado, estado_entrega, sitio_entrega, fecha_entrega, contacto_nombre, telefono, ciudad, email,
       condiciones_pago, tipo_pago, fecha_pago_credito, pago_inmediato, observaciones, created_at, aprobada_at, motivo_rechazo,
-      motivo_desaprobacion, motivo_cancelacion, cancelada_at,
+      motivo_desaprobacion, motivo_cancelacion, cancelada_at, devuelta_compras_at, devuelta_compras_motivo,
       anticipo_porcentaje, saldo_modo, saldo_fecha,
       metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento,
       cerrada_faltante_at, motivo_cierre_faltante, valor_faltante, pagos_reducidos, saldo_favor_generado, saldo_favor_aplicado,
@@ -971,6 +973,7 @@ export async function obtenerOrdenCompraDetalle(ordenId: string): Promise<OrdenC
     aprobadaAt: d.aprobada_at,
     motivoRechazo: d.motivo_rechazo,
     motivoDesaprobacion: d.motivo_desaprobacion,
+    devueltaCompras: d.devuelta_compras_at ? { en: d.devuelta_compras_at, motivo: d.devuelta_compras_motivo ?? "" } : null,
     motivoCancelacion: d.motivo_cancelacion,
     canceladaAt: d.cancelada_at,
     anticipoPorcentaje: d.anticipo_porcentaje != null ? Number(d.anticipo_porcentaje) : null,
@@ -1507,6 +1510,8 @@ export type NotificacionTipo =
   | "requisicion_comprada"
   // Cuadro de SINCO cargado: adjuntar los soportes (20270101002800).
   | "cuadro_sinco_soportes"
+  // Gerencia devolvió la OC a Compras para modificarla (20270101003300).
+  | "orden_compra_devuelta"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"
   | "orden_compra"

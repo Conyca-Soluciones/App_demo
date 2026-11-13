@@ -115,13 +115,16 @@ export function mapControlProyecto(datos: unknown): ControlProyecto {
       gastado: n(i.gastado),
       exceso: n(i.exceso),
     })),
-    proveedores: filas(r.proveedores).map((p) => ({
-      id: t(p.id),
-      nombre: t(p.nombre) || "(sin nombre)",
-      total: n(p.total),
-      ordenes: n(p.ordenes),
-      insumos: n(p.insumos),
-    })),
+    // De mayor a menor valor (decisión del usuario, 2026-11-13).
+    proveedores: filas(r.proveedores)
+      .map((p) => ({
+        id: t(p.id),
+        nombre: t(p.nombre) || "(sin nombre)",
+        total: n(p.total),
+        ordenes: n(p.ordenes),
+        insumos: n(p.insumos),
+      }))
+      .sort((a, b) => b.total - a.total),
     precios: filas(r.precios).map((p) => ({
       proveedorId: t(p.proveedor_id),
       insumoId: t(p.insumo_id),
@@ -202,6 +205,7 @@ export function indexarPrecios(precios: PrecioProveedor[]) {
     if (b) b.push(p)
     else porInsumo.set(p.insumoId, [p])
   }
+  // Lo de cada proveedor, de mayor a menor valor.
   for (const lista of porProveedor.values()) lista.sort((x, y) => y.valor - x.valor)
   for (const lista of porInsumo.values()) lista.sort((x, y) => x.precioPromedio - y.precioPromedio)
   return { porProveedor, porInsumo }

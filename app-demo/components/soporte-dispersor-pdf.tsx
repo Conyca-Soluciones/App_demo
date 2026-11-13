@@ -112,6 +112,10 @@ export function nombreSoporteGrupal(t: Tanda, ronda: number) {
 export function nombreSoporteIndividual(t: Tanda, item: string) {
   return `${nombreBase(t)}_REF${item}_soporte.pdf`
 }
+// Pago marcado como pagado sin dispersor (PSE u otro medio, 20270101003200).
+export function nombreSoportePagoManual(t: Tanda, item: string, medio: "PSE" | "OTRO") {
+  return `${nombreBase(t)}_REF${item}_soporte_${medio}.pdf`
+}
 
 export function SoporteDispersorPDF({
   tanda: t,
@@ -119,12 +123,20 @@ export function SoporteDispersorPDF({
   cambiosManuales = [],
   logo,
   generado = new Date(),
+  titulo: tituloDoc = "Soporte de Generación de Dispersores",
+  meta,
+  notas = [],
 }: {
   tanda: Tanda
   archivos: string[]
   cambiosManuales?: string[]
   logo: string | Buffer
   generado?: Date
+  // Para el soporte de un pago sin dispersor (PSE u otro medio): otro título, la
+  // línea de datos en vez de "Clase de pago… Archivos…" y notas al final.
+  titulo?: string
+  meta?: string
+  notas?: string[]
 }) {
   const c = t.cuenta
   const fechaLegible = t.fecha && t.fecha.length === 8 ? `${t.fecha.slice(6, 8)}/${t.fecha.slice(4, 6)}/${t.fecha.slice(0, 4)}` : t.fecha || "—"
@@ -144,12 +156,12 @@ export function SoporteDispersorPDF({
   )
 
   return (
-    <Document title={`Soporte de Generación de Dispersores - Semana ${t.semana ?? ""}`.trim()} author="Consola de dispersores">
+    <Document title={`${tituloDoc} - Semana ${t.semana ?? ""}`.trim()} author="Consola de dispersores">
       <Page size="LETTER" style={s.pagina}>
         {/* encabezado y logo */}
         <View style={{ flexDirection: "row", marginLeft: centrada(mm(173)) }}>
           <View style={{ width: mm(130) }}>
-            <Text style={s.titulo}>Soporte de Generación de Dispersores</Text>
+            <Text style={s.titulo}>{tituloDoc}</Text>
             <Text style={s.semana}>{t.semana ? `Semana ${t.semana}` : ""}</Text>
           </View>
           <View style={{ width: mm(43), alignItems: "flex-end" }}>
@@ -169,7 +181,7 @@ export function SoporteDispersorPDF({
         ))}
         <View style={{ height: 8 }} />
         <Text style={s.pieMeta}>
-          {`Clase de pago: ${titulo(t.clasePago)}  ·  Registros: ${t.renglones.length}  ·  Archivos: ${archivos.join(", ")}`}
+          {meta ?? `Clase de pago: ${titulo(t.clasePago)}  ·  Registros: ${t.renglones.length}  ·  Archivos: ${archivos.join(", ")}`}
         </Text>
         <View style={{ height: 12 }} />
 
@@ -229,6 +241,17 @@ export function SoporteDispersorPDF({
             <View style={{ height: 8 }} />
             <Text style={s.rojo}>Cuentas confirmadas a mano</Text>
             {cambiosManuales.map((x, i) => (
+              <Text key={i} style={s.txt}>
+                {x}
+              </Text>
+            ))}
+          </>
+        )}
+
+        {notas.length > 0 && (
+          <>
+            <View style={{ height: 8 }} />
+            {notas.map((x, i) => (
               <Text key={i} style={s.txt}>
                 {x}
               </Text>

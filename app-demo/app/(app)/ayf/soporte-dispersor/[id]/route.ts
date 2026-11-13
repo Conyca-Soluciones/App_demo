@@ -7,24 +7,29 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // como /ayf/soporte-pago. Pide la sesión; la RLS de dispersion_pagos y del
 // bucket `dispersores` decide (quien ve el pago ve su dispersor). Redirige a
 // un enlace firmado de 5 min.
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// Pagado sin dispersor (PSE u otro medio): el soporte generado (20270101003200) o, con
+// ?ver=comprobante (o si no hay soporte), el comprobante adjunto.
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const verComprobante = req.nextUrl.searchParams.get("ver") === "comprobante"
   if (!UUID.test(id)) return NextResponse.json({ error: "Pago no válido." }, { status: 400 })
   const supabase = await createClient()
 
   const { data, error } = await supabase.from("dispersion_pagos").select("soporte_ruta").eq("pago_id", id).is("rebotado_en", null).maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  let ruta: string | null = data?.soporte_ruta ?? null
+  let ruta: string | null = verComprobante ? null : (data?.soporte_ruta ?? null)
   if (!ruta) {
-    // Pagado por PSE u otro medio (20270101000300): el comprobante adjunto.
+    // Pagado por PSE u otro medio (20270101000300): su soporte o el comprobante adjunto.
     const { data: pago, error: e } = await supabase
       .from("pagos")
-      .select("pago_comprobante_ruta")
+      .select("pago_soporte_ruta, pago_comprobante_ruta")
       .eq("id", id)
       .eq("estado", "dispersado")
       .maybeSingle()
     if (e) return NextResponse.json({ error: e.message }, { status: 500 })
-    ruta = pago?.pago_comprobante_ruta ?? null
+    ruta = verComprobante
+      ? (pago?.pago_comprobante_ruta ?? null)
+      : (pago?.pago_soporte_ruta ?? pago?.pago_comprobante_ruta ?? null)
   }
   if (!ruta) return NextResponse.json({ error: "Este pago no tiene soporte del dispersor ni comprobante, o no tienes acceso." }, { status: 404 })
 

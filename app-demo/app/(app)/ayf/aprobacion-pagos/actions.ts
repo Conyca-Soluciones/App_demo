@@ -89,6 +89,17 @@ export async function rechazarPago(pagoId: string, motivo: string): Promise<Pago
 // Pago de orden de compra rechazado: crea uno nuevo "por aprobar" con los
 // mismos datos (el rechazado queda como registro). Acción aprobar_pagos o
 // gestionar_pagos; la base lo vuelve a exigir.
+// Gerencia devuelve a Compras la orden de un pago ya aprobado (20270101003300): sus pagos
+// vivos se anulan y la orden vuelve a por aprobar hasta que Compras la modifique.
+export async function devolverOrdenACompras(pagoId: string, ordenId: string, motivo: string): Promise<Pago> {
+  await requerirAccion("aprobar_pagos")
+  if (motivo.trim().length < 3) throw new Error("Escribe por qué se devuelve la orden.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("devolver_orden_a_compras", { p_orden_id: ordenId, p_motivo: motivo.trim() })
+  if (error) throw new Error(error.message)
+  return await obtenerPago(pagoId)
+}
+
 export async function resolicitarPago(pagoId: string): Promise<Pago> {
   const permisos = await obtenerPermisosRol()
   if (!permisos?.esAdministrador && !permisos?.acciones.some((a) => a === "aprobar_pagos" || a === "gestionar_pagos")) {

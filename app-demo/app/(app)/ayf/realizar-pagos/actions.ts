@@ -15,7 +15,8 @@ import ExcelJS from "exceljs"
 import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { hoyColombia } from "@/lib/fechas"
+import { fechaIsoEnZona, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
+import { CAMPOS_PAGO, conProyectos, mapPago } from "@/lib/pagos-db"
 import { aPesos, texto } from "@/lib/dispersores/textos"
 import { ErrorGeneracion, avisosDispersor, generarArchivos, nombreBase, totalTanda, validarTanda } from "@/lib/dispersores/generador"
 import {
@@ -29,7 +30,8 @@ import {
   type PagoDispersor,
   type TerceroDispersor,
 } from "@/lib/dispersores/pagos-dispersor"
-import { SoporteDispersorPDF, nombreSoporteGrupal, nombreSoporteIndividual } from "@/components/soporte-dispersor-pdf"
+import { SoporteDispersorPDF, nombreSoporteGrupal, nombreSoporteIndividual, nombreSoportePagoManual } from "@/components/soporte-dispersor-pdf"
+import type { Tanda } from "@/lib/dispersores/generador"
 
 const PESTANA = "ayf.realizar_pagos"
 const ACCION = "generar_dispersores"
@@ -51,7 +53,7 @@ const CAMPOS_TERCERO = "razon_social, tipo_documento, numero_documento, dv, nomb
 const CAMPOS = `
   id, referencia, anio, semana, estado, fuente, valor_a_pagar, fuera_dispersor, cuenta_debitar_id, dispersion_id,
   cuenta_confirmada_en, cuenta_modificada, etiquetas, tercero_id, titular_tercero_id, proyecto_id,
-  es_pse:pago_es_pse, pagado_manual_por, pago_comprobante_nombre, pago_comprobante_ruta, dispersado_en,
+  es_pse:pago_es_pse, pagado_manual_por, pago_comprobante_nombre, pago_comprobante_ruta, pago_soporte_nombre, dispersado_en,
   consolidado:consolidados!pagos_consolidado_id_fkey(nombre),
   req:requisiciones_admin!pagos_requisicion_admin_id_fkey(metodo),
   req_item:requisicion_admin_items!pagos_requisicion_admin_item_id_fkey(titular_nombre),
@@ -145,6 +147,7 @@ function mapPagoDispersor(f: any): PagoDispersor {
         ? {
             fecha: f.dispersado_en ?? null,
             comprobante: f.pago_comprobante_ruta ? { nombre: f.pago_comprobante_nombre ?? "comprobante", ruta: f.pago_comprobante_ruta } : null,
+            soporte: f.pago_soporte_nombre ? { nombre: f.pago_soporte_nombre } : null,
           }
         : null,
   }
@@ -284,11 +287,142 @@ export async function marcarPagosPagados(
   if (!cuentaId) throw new Error("Escoge la cuenta desde la que se pagó.")
   if (comprobante && !comprobante.ruta.startsWith("pse/")) throw new Error("El comprobante no se subió bien: vuelve a adjuntarlo.")
   const supabase = await createClient()
-  return enTandas(ids, async (lote) => {
+  const n = await enTandas(ids, async (lote) => {
     const { data, error } = await supabase.rpc("marcar_pagos_pagados", { p_ids: lote, p_cuenta_id: cuentaId, p_comprobante: comprobante })
     if (error) throw new Error(error.message)
     return Number(data ?? 0)
   })
+  // El soporte de cada pago (20270101003200). Si falla, los pagos ya quedaron
+  // pagados: el soporte se genera después desde la ventana del pago.
+  if (n > 0) {
+    try {
+      await soportesPagoManual(supabase, ids)
+    } catch (e) {
+      console.error("marcarPagosPagados: no se generó el soporte:", e instanceof Error ? e.message : e)
+    }
+  }
+  return n
+}
+
+// ------------------------------------------------- soporte de pagos sin dispersor
+
+/** Genera el soporte de los pagos pagados por PSE u otro medio que aún no lo tienen. */
+export async function generarSoportesPagoManual(ids: string[]): Promise<number> {
+  await requerirPagar()
+  return soportesPagoManual(await createClient(), ids)
+}
+
+async function soportesPagoManual(supabase: any, ids: string[]): Promise<number> {
+  const unicos = [...new Set(ids)]
+  if (unicos.length === 0) return 0
+  if (unicos.length > 3000) throw new Error("Como mucho 3000 pagos a la vez.")
+  const filas: any[] = []
+  for (let i = 0; i < unicos.length; i += 100) {
+    const { data, error } = await supabase
+      .from("pagos")
+      .select(`${CAMPOS_PAGO}, dispersado_en, cuenta_debitar_id, pago_soporte_ruta, es_pse:pago_es_pse`)
+      .in("id", unicos.slice(i, i + 100))
+      .eq("estado", "dispersado")
+      .not("pagado_manual_por", "is", null)
+      .is("pago_soporte_ruta", null)
+    if (error) throw new Error(error.message)
+    filas.push(...((data ?? []) as any[]))
+  }
+  if (filas.length === 0) return 0
+  const pagos = await conProyectos(supabase, filas.map(mapPago))
+  const crudo = new Map(filas.map((f) => [f.id as string, f]))
+
+  // Las cuentas debitadas (también si ya no están activas).
+  const idsCuentas = [...new Set(filas.map((f) => f.cuenta_debitar_id).filter(Boolean))] as string[]
+  const { data: cs, error: ec } = await supabase
+    .from("cuentas_empresa")
+    .select("id, apodo, diminutivo, tipo_cuenta, numero_cuenta, nit, dv, razon_social, correo_itau, banco:bancos(nombre), empresa:empresas(razon_social)")
+    .in("id", idsCuentas)
+  if (ec) throw new Error(ec.message)
+  const cuentas = new Map(((cs ?? []) as any[]).map((c) => [c.id as string, cuentaDebitarDe({ ...c, banco: c.banco?.nombre ?? "", empresa: c.empresa?.razon_social ?? null })]))
+
+  const logo = readFileSync(path.join(process.cwd(), "public", "logo-conyca.png"))
+  const generado = new Date()
+  const sinTipo = (d: string | null) => (d ?? "").replace(/^[A-Z]+\s+/, "")
+
+  const preparados: { pagoId: string; ruta: string; nombre: string; contenido: Uint8Array }[] = []
+  for (const p of pagos) {
+    const f = crudo.get(p.id)
+    const cuenta = f?.cuenta_debitar_id ? cuentas.get(f.cuenta_debitar_id) : null
+    if (!f || !cuenta) continue
+    const pse = f.es_pse === true || p.metodoPago === "pse"
+    const fechaPago = f.dispersado_en ? fechaIsoEnZona(new Date(f.dispersado_en)) : hoyColombia()
+    const [bancoCuenta, tipoCuenta, numeroCuenta] = (p.cuentaTexto ?? "").split(" · ")
+    const titularPse = pse && p.cuentaTitular ? p.cuentaTitular : null
+    const tanda: Tanda = {
+      cuenta,
+      renglones: [
+        {
+          item: p.referencia ?? "",
+          documento: titularPse ? "" : sinTipo(p.terceroDocumento),
+          tipoDoc: "",
+          dv: "",
+          nombre: (titularPse ?? p.terceroNombre ?? "").toUpperCase(),
+          nombres: "",
+          apellidos: "",
+          bancoDestino: pse ? "PSE" : (bancoCuenta ?? "").toUpperCase(),
+          tipoCuenta: pse ? "" : (tipoCuenta ?? ""),
+          cuenta: pse ? "—" : (numeroCuenta ?? ""),
+          valor: Math.trunc(p.valorAPagar ?? p.valor),
+          referencia: p.referencia ?? "",
+          empresa: (p.empresaNombre ?? "").toUpperCase(),
+          proyecto: (p.proyectoCodigo || p.proyectoNombre || "").toUpperCase(),
+        },
+      ],
+      semana: p.semana,
+      clasePago: "PROVEEDORES",
+      secuencia: "",
+      fecha: fechaPago.replaceAll("-", ""),
+      esNomina: false,
+      truncado: "",
+    }
+    const medio = pse ? "PSE" : "OTRO"
+    const nombre = nombreSoportePagoManual(tanda, p.referencia ?? p.id.slice(0, 8), medio)
+    const notas = [
+      titularPse ? `Factura: ${p.terceroNombre ?? "—"} · ${p.terceroDocumento ?? ""}` : null,
+      p.pagoObservaciones ? `Información para el pago: ${p.pagoObservaciones}` : null,
+      `Origen: ${p.origen || "—"}`,
+    ].filter((x): x is string => Boolean(x))
+    const contenido = new Uint8Array(
+      await renderToBuffer(
+        createElement(SoporteDispersorPDF, {
+          tanda,
+          archivos: [],
+          logo,
+          generado,
+          titulo: pse ? "Soporte de Pago por PSE" : "Soporte de Pago (otro medio)",
+          meta: `Medio de pago: ${pse ? "PSE" : "otro medio, sin dispersor"}  ·  Pagado el ${formatearFechaSinHora(fechaPago)}${
+            p.comprobanteOtroMedio ? `  ·  Comprobante: ${p.comprobanteOtroMedio}` : ""
+          }`,
+          notas,
+        }) as never
+      )
+    )
+    preparados.push({ pagoId: p.id, ruta: `pse/soportes/${p.id}/${crypto.randomUUID()}/${nombre}`, nombre, contenido })
+  }
+  if (preparados.length === 0) return 0
+
+  const subidas: string[] = []
+  try {
+    await aLimites(preparados, 4, async (x) => {
+      const { error } = await supabase.storage.from(BUCKET).upload(x.ruta, x.contenido, { contentType: PDF, upsert: false })
+      if (error) throw new Error(`No se pudo subir ${x.nombre}: ${error.message}`)
+      subidas.push(x.ruta)
+    })
+    const { data, error } = await supabase.rpc("guardar_soportes_pago_manual", {
+      p_soportes: preparados.map((x) => ({ pago_id: x.pagoId, ruta: x.ruta, nombre: x.nombre })),
+    })
+    if (error) throw new Error(error.message)
+    return Number(data ?? 0)
+  } catch (e) {
+    for (let i = 0; i < subidas.length; i += 100) await supabase.storage.from(BUCKET).remove(subidas.slice(i, i + 100))
+    throw e
+  }
 }
 
 // ------------------------------------------------------------- paso 3: generar
