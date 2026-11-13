@@ -756,19 +756,18 @@ export function GenerarOCView({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">En OC</TableHead>
-                    <TableHead>Cod</TableHead>
-                    <TableHead>Insumo</TableHead>
+                    <TableHead className="sticky left-0 z-20 w-14 min-w-14">En OC</TableHead>
+                    <TableHead className="sticky left-14 z-20">Insumo</TableHead>
                     <TableHead>Ítem</TableHead>
                     <TableHead className="text-right">Solicitado</TableHead>
-                    <TableHead className="w-40">UM disponible</TableHead>
-                    <TableHead className="w-44">Conversión</TableHead>
-                    <TableHead className="w-28 text-right">Cantidad</TableHead>
+                    <TableHead className="min-w-44">UM disponible</TableHead>
+                    <TableHead className="min-w-48">Conversión</TableHead>
+                    <TableHead className="min-w-28 text-right">Cantidad</TableHead>
                     <TableHead className="text-right">Equivale a</TableHead>
-                    <TableHead className="w-28 text-right">Vr. Unitario</TableHead>
-                    <TableHead className="w-20 text-right">% Dto.</TableHead>
-                    <TableHead className="w-20 text-right">% IVA</TableHead>
-                    <TableHead className="w-28 text-right">Total línea</TableHead>
+                    <TableHead className="min-w-40 text-right">Vr. Unitario</TableHead>
+                    <TableHead className="min-w-24 text-right">% Dto.</TableHead>
+                    <TableHead className="min-w-24 text-right">% IVA</TableHead>
+                    <TableHead className="min-w-36 text-right">Total línea</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -786,19 +785,19 @@ export function GenerarOCView({
                     const totalLinea = valida ? calcularLinea(valida).total : null
                     return (
                       <TableRow key={pedido.id} className={enOrden ? undefined : "opacity-50"}>
-                        <TableCell>
+                        <TableCell className="sticky left-0 z-10 w-14 min-w-14 bg-background">
                           <Checkbox
                             checked={enOrden}
                             onCheckedChange={(v) => cambiarIncluido(pedido.id, v === true)}
                             aria-label="Incluir en la orden"
                           />
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{pedido.insumoCodigo}</TableCell>
                         {/* whitespace-normal: la celda de tabla trae nowrap por defecto y los
                             nombres largos se salían de su columna tapando las demás. Ahora
                             bajan a una segunda línea (máximo 2); el nombre completo queda
                             en el tooltip. */}
-                        <TableCell className="min-w-56 max-w-72 whitespace-normal">
+                        <TableCell className="sticky left-14 z-10 min-w-56 max-w-72 whitespace-normal bg-background shadow-[1px_0_0_var(--border)]">
+                          <span className="block text-xs text-muted-foreground">{pedido.insumoCodigo}</span>
                           <span className="line-clamp-2 break-words" title={pedido.insumoDescripcion}>
                             {pedido.insumoDescripcion}
                           </span>
@@ -807,14 +806,14 @@ export function GenerarOCView({
                         <TableCell className="whitespace-nowrap text-right">
                           {formatoCantidad(pedido.pendienteUso)} {nombreUnidad(pedido.unidadUso)}
                           {pedido.pendienteUso < pedido.cantidadUso && (
-                            <span className="block text-[11px] text-muted-foreground">
+                            <span className="block text-xs text-muted-foreground">
                               de {formatoCantidad(pedido.cantidadUso)} pedidos
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
                           <Select value={l.umCompra || UM_PROPIA} onValueChange={(v) => cambiarUm(pedido, v ?? UM_PROPIA)}>
-                            <SelectTrigger className="h-8 w-36 text-xs" aria-label="UM disponible">
+                            <SelectTrigger className="h-9 w-40 text-sm" aria-label="UM disponible">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -830,14 +829,14 @@ export function GenerarOCView({
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1 whitespace-nowrap text-xs">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap text-sm">
                             <span>1 {l.umCompra ? l.umCompra.toLowerCase() : nombreUnidad(pedido.um) || "und"} =</span>
                             <Input
                               inputMode="decimal"
                               value={l.conversion}
                               onChange={(e) => actualizarConversion(pedido, e.target.value)}
                               placeholder={l.umCompra ? "¿cuánto trae?" : undefined}
-                              className={`h-8 w-16 text-right ${
+                              className={`h-9 w-24 text-right ${
                                 numeroConversion(l.conversion) == null ||
                                 (l.umCompra && !conversionValida(numeroConversion(l.conversion) ?? 0))
                                   ? "border-destructive"
@@ -856,7 +855,7 @@ export function GenerarOCView({
                             inputMode="numeric"
                             value={l.cantidad}
                             onChange={(e) => actualizarLinea(pedido.id, "cantidad", e.target.value)}
-                            className={`text-right ${enOrden && !valida ? "border-destructive" : ""}`}
+                            className={`min-w-24 text-right ${enOrden && !valida ? "border-destructive" : ""}`}
                           />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
@@ -869,7 +868,7 @@ export function GenerarOCView({
                             return (
                               <>
                                 {formatoCantidad(equivale)} {nombreUnidad(pedido.unidadUso)}
-                                <span className={`block text-[11px] ${cubre ? "text-emerald-700" : "text-amber-700"}`}>
+                                <span className={`block text-xs ${cubre ? "text-emerald-700" : "text-amber-700"}`}>
                                   {cubre
                                     ? equivale > pedido.pendienteUso + 1e-9
                                       ? `cubre; ${formatoCantidad(equivale - pedido.pendienteUso)} de más`
@@ -887,10 +886,10 @@ export function GenerarOCView({
                             step="any"
                             value={l.precioUnitario}
                             onChange={(e) => actualizarLinea(pedido.id, "precioUnitario", e.target.value)}
-                            className={`text-right ${enOrden && !valida ? "border-destructive" : ""}`}
+                            className={`min-w-24 text-right ${enOrden && !valida ? "border-destructive" : ""}`}
                           />
                           {l.umCompra && (
-                            <p className="mt-0.5 text-right text-[10px] leading-tight text-muted-foreground">
+                            <p className="mt-0.5 text-right text-xs leading-tight text-muted-foreground">
                               por {l.umCompra.toLowerCase()}
                             </p>
                           )}
@@ -905,7 +904,7 @@ export function GenerarOCView({
                                 ? alertaPrecio(precio / porUm, pedido.precioPromedio)
                                 : null
                             return alerta ? (
-                              <p className="mt-0.5 text-right text-[10px] leading-tight text-amber-700">{alerta}</p>
+                              <p className="mt-0.5 text-right text-xs leading-tight text-amber-700">{alerta}</p>
                             ) : null
                           })()}
                         </TableCell>
@@ -919,7 +918,7 @@ export function GenerarOCView({
                             onChange={(e) =>
                               actualizarLinea(pedido.id, "porcentajeDescuento", e.target.value)
                             }
-                            className="text-right"
+                            className="min-w-20 text-right"
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -930,7 +929,7 @@ export function GenerarOCView({
                             step="any"
                             value={l.porcentajeIva}
                             onChange={(e) => actualizarLinea(pedido.id, "porcentajeIva", e.target.value)}
-                            className="text-right"
+                            className="min-w-20 text-right"
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -964,11 +963,11 @@ export function GenerarOCView({
           )}
         </div>
 
-        <div className="w-full max-w-sm shrink-0 space-y-4 overflow-auto rounded-lg border bg-card p-4">
+        <div className="w-80 shrink-0 space-y-4 overflow-auto rounded-lg border bg-card p-4 2xl:w-96">
           {!modificar && (
             <div className="space-y-1.5">
               <Label>
-                Empresa que factura <span className="text-destructive">*</span>
+                Empresa que compra <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={empresaId ?? ""}

@@ -26,7 +26,7 @@ const EVENTOS: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" 
   creada: { etiqueta: "Orden solicitada", tono: "neutro" },
   aprobada: { etiqueta: "Orden aprobada", tono: "ok" },
   rechazada: { etiqueta: "Orden rechazada", tono: "malo" },
-  desaprobada: { etiqueta: "Orden desaprobada", tono: "aviso" },
+  desaprobada: { etiqueta: "Orden desaprobada / devuelta a Compras", tono: "aviso" },
   cancelada: { etiqueta: "Orden cancelada", tono: "malo" },
   entrega_actualizada: { etiqueta: "Estado de entrega", tono: "neutro" },
   fecha_credito_cambiada: { etiqueta: "Fecha de pago del crédito cambiada", tono: "aviso" },

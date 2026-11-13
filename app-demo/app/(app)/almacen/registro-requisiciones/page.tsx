@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
-import { BadgeCompraRequisicion, BadgeEstadoRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
+import { BadgeCompraRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -83,14 +83,6 @@ export default function RegistroRequisiciones() {
         claseCelda: "tabular-nums",
       },
       { clave: "insumos", titulo: "Insumos", ancho: 90, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
-      {
-        clave: "estado",
-        titulo: "Estado",
-        ancho: 120,
-        alinear: "center",
-        texto: (r) => r.estado,
-        celda: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
-      },
       {
         clave: "compra",
         titulo: "Compra",
@@ -195,8 +187,8 @@ export default function RegistroRequisiciones() {
                 tarjeta={{
                   titulo: (r) => r.codigo,
                   subtitulo: (r) => `${r.proyectoCodigo ?? "—"} · ${r.proyectoNombre ?? ""}`,
-                  esquina: (r) => <BadgeEstadoRequisicion estado={r.estado} />,
-                  campos: ["solicitante", "creada", "requerida", "insumos", "compra"],
+                  esquina: (r) => <BadgeCompraRequisicion estadoCompra={r.estadoCompra} />,
+                  campos: ["solicitante", "creada", "requerida", "insumos"],
                 }}
               />
               <PaginacionSimple

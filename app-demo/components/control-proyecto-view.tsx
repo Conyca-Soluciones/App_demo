@@ -7,27 +7,20 @@ import { useProyectoActual } from "@/components/proyecto-provider"
 import { SinProyecto } from "@/components/sin-proyecto"
 import { Input } from "@/components/ui/input"
 import { DetalleSolicitudContrato, tituloTipoContrato } from "@/components/detalle-solicitud-contrato"
-import { OrdenCompraDetalleView } from "@/components/orden-compra-detalle-view"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { hoyColombia, formatearFechaSinHora } from "@/lib/fechas"
-import { Badge } from "@/components/ui/badge"
-import { ESTADO_VISIBLE_BADGE } from "@/lib/ordenes-compra-estado"
+import { formatearFechaSinHora } from "@/lib/fechas"
 import {
   buscarInsumosPrecios,
   comparacionPrecio,
   gastoAdministrativo,
   indexarPrecios,
-  inicioDeMes,
   partesBarraPlata,
   porcentaje,
   totalesControl,
   type ControlProyecto,
-  type OrdenControl,
   type PrecioProveedor,
 } from "@/lib/control-proyecto"
-import { listarOrdenesControl, obtenerControlProyecto } from "@/app/(app)/admin/visualizacion/actions"
-import { CampoFecha } from "@/components/ui/campo-fecha"
+import { obtenerControlProyecto } from "@/app/(app)/admin/visualizacion/actions"
 
 // ---------------------------------------------------------------------------
 // Control del proyecto: a dónde va la plata del proyecto actual (el de la
@@ -52,7 +45,7 @@ const COLOR = {
   administrativo: "bg-violet-500",
 }
 
-type Pestana = "capitulos" | "proveedores" | "contratos" | "ordenes"
+type Pestana = "capitulos" | "proveedores" | "contratos"
 
 export function ControlProyectoView() {
   const { proyecto } = useProyectoActual()
@@ -101,7 +94,6 @@ export function ControlProyectoView() {
                   ["capitulos", "Capítulos"],
                   ["proveedores", "Proveedores"],
                   ["contratos", "Contratos"],
-                  ["ordenes", "Órdenes de compra"],
                 ] as const
               ).map(([valor, etiqueta]) => (
                 <button
@@ -121,7 +113,6 @@ export function ControlProyectoView() {
             {pestana === "capitulos" && <Capitulos datos={datos} />}
             {pestana === "proveedores" && <Proveedores datos={datos} />}
             {pestana === "contratos" && <Contratos datos={datos} />}
-            {pestana === "ordenes" && <OrdenesCompra proyectoId={proyecto.id} />}
           </div>
         )}
       </main>
@@ -468,114 +459,5 @@ function Contratos({ datos }: { datos: ControlProyecto }) {
       </ul>
       <DetalleSolicitudContrato id={viendo} onCerrar={() => setViendo(null)} resumen />
     </>
-  )
-}
-
-// ---------------------------------------------------------------- órdenes de compra
-
-// Órdenes del proyecto en un rango de fechas (por defecto, el mes en curso).
-// Se consultan al pulsar Consultar (no en cada cambio de fecha).
-function OrdenesCompra({ proyectoId }: { proyectoId: string }) {
-  const hoy = hoyColombia()
-  const [desde, setDesde] = useState(inicioDeMes(hoy))
-  const [hasta, setHasta] = useState(hoy)
-  // Resultado con el rango para el que se pidió ("cargando" = aún no llega).
-  const [consulta, setConsulta] = useState<{ clave: string; ordenes: OrdenControl[] | null; error: string | null } | null>(null)
-  const [pedida, setPedida] = useState(`${inicioDeMes(hoy)}|${hoy}`)
-  const [abierta, setAbierta] = useState<string | null>(null)
-  const vigente = consulta?.clave === pedida ? consulta : null
-
-  useEffect(() => {
-    const [d, h] = pedida.split("|")
-    let activo = true
-    listarOrdenesControl(proyectoId, d, h)
-      .then((ordenes: OrdenControl[]) => activo && setConsulta({ clave: pedida, ordenes, error: null }))
-      .catch((e) => activo && setConsulta({ clave: pedida, ordenes: null, error: e instanceof Error ? e.message : "No se pudieron cargar las órdenes." }))
-    return () => {
-      activo = false
-    }
-  }, [proyectoId, pedida])
-
-  const ordenes = vigente?.ordenes ?? null
-  const aprobadas = ordenes?.filter((o) => o.estado === "aprobada") ?? []
-  const totalAprobado = aprobadas.reduce((s, o) => s + o.total, 0)
-
-  return (
-    <section className="space-y-3">
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          setPedida(`${desde}|${hasta}`)
-        }}
-      >
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Desde
-          <CampoFecha value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)} contenedorClassName="w-40" />
-        </label>
-        <label className="space-y-1 text-xs text-muted-foreground">
-          Hasta
-          <CampoFecha value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)} contenedorClassName="w-40" />
-        </label>
-        <button
-          type="submit"
-          disabled={!desde || !hasta || desde > hasta}
-          className="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
-        >
-          Consultar
-        </button>
-      </form>
-
-      {vigente?.error ? (
-        <p className="text-sm text-destructive">{vigente.error}</p>
-      ) : !ordenes ? (
-        <div className="flex items-center justify-center py-10 text-muted-foreground">
-          <Loader2 className="mr-2 size-4 animate-spin" /> Cargando órdenes...
-        </div>
-      ) : ordenes.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No hay órdenes de compra en esas fechas.</p>
-      ) : (
-        <>
-          <p className="text-xs text-muted-foreground">
-            {ordenes.length} {ordenes.length === 1 ? "orden" : "órdenes"} · {aprobadas.length} {aprobadas.length === 1 ? "aprobada" : "aprobadas"} por{" "}
-            <span className="font-medium text-foreground">{pesos.format(totalAprobado)}</span> (con IVA)
-          </p>
-          <ul className="divide-y rounded-lg border">
-            {ordenes.map((o) => {
-              const badge = ESTADO_VISIBLE_BADGE[o.estado]
-              return (
-                <li key={o.id}>
-                  <div className="px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="min-w-0 truncate font-medium">
-                        {o.codigo} · {o.proveedor}
-                      </span>
-                      <span className={`ml-auto shrink-0 tabular-nums ${o.estado === "aprobada" ? "" : "text-muted-foreground"}`}>{pesos.format(o.total)}</span>
-                      <Button size="sm" variant="outline" onClick={() => setAbierta(o.id)}>
-                        <Eye className="size-4" /> Ver
-                      </Button>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{fecha(o.fecha)}</span>
-                      <span>· {o.lineas} {o.lineas === 1 ? "línea" : "líneas"}</span>
-                      <Badge variant="outline" className={`ml-auto ${badge.clase}`}>
-                        {badge.label}
-                      </Badge>
-                    </div>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </>
-      )}
-      {/* El mismo detalle que en Órdenes de compra, en un diálogo encima. */}
-      <Dialog open={abierta !== null} onOpenChange={(abiertoDialogo) => !abiertoDialogo && setAbierta(null)}>
-        <DialogContent className="top-[5vh] left-2 flex h-[90vh] w-[calc(100vw-1rem)] max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden sm:left-[5vw] sm:w-[90vw] sm:max-w-none">
-          <DialogTitle className="sr-only">Detalle de orden de compra</DialogTitle>
-          {abierta && <OrdenCompraDetalleView ordenId={abierta} onCerrar={() => setAbierta(null)} />}
-        </DialogContent>
-      </Dialog>
-    </section>
   )
 }

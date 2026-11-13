@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { AlertTriangle, Check, History, Loader2, RotateCcw, Split, X } from "lucide-react"
+import { AlertTriangle, Check, History, Loader2, RotateCcw, Split, Undo2, X } from "lucide-react"
+import { pedirTexto } from "@/components/ui/confirmar"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import {
   rechazarPago,
   rechazarRequisicionAdminPago,
   resolicitarPago,
+  devolverOrdenACompras,
 } from "@/app/(app)/ayf/aprobacion-pagos/actions"
 import {
   ESTADOS_PENDIENTES,
@@ -318,6 +320,29 @@ export function AprobacionPagosView({
     }
   }
 
+  // Gerencia: la orden de un pago ya aprobado vuelve a Compras para modificarla
+  // (sin dispersar; la base revisa el resto).
+  async function handleDevolverACompras(p: Pago) {
+    if (!p.ordenCompraId) return
+    const motivo = await pedirTexto(
+      `Se anulan los pagos de ${p.origen || "la orden"} y la orden vuelve a Compras, por aprobar, para que la modifiquen. Al modificarla llega otra vez a Aprobación de pagos.`,
+      { titulo: "Devolver a Compras", etiqueta: "¿Qué deben cambiar?", boton: "Devolver a Compras", peligro: true, minimo: 3 }
+    )
+    if (!motivo) return
+    setProcesandoId(p.id)
+    setError(null)
+    try {
+      reflejar(await devolverOrdenACompras(p.id, p.ordenCompraId, motivo))
+      setViendo(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo devolver la orden.")
+    } finally {
+      setProcesandoId(null)
+    }
+  }
+  const puedeDevolver = (p: Pago) =>
+    puedeAprobar && p.ordenCompraId != null && (p.estado === "aprobado" || p.estado === "en_espera")
+
   // El pago rechazado se queda como registro; el nuevo entra "por aprobar".
   async function handleResolicitar(p: Pago) {
     setProcesandoId(p.id)
@@ -357,6 +382,18 @@ export function AprobacionPagosView({
     }
   }
 
+  // Cuándo se pidió o cuándo pasa a pago (debajo del estado).
+  const textoFechaFila = (p: Pago) =>
+    p.estado === "programado" && p.fechaProgramada
+      ? `Desde ${formatearFechaSinHora(p.fechaProgramada)}`
+      : p.estado === "en_espera" && p.ordenFechaPagoCredito
+        ? `Pasa a pago el ${formatearFechaSinHora(lunesDeLaSemana(p.ordenFechaPagoCredito))}`
+        : esperaFacturaActa(p)
+          ? "Pasa a pago al subir la factura"
+          : p.solicitadoEn
+            ? `Solicitado ${formatoFechaHora(p.solicitadoEn)}`
+            : ""
+
   const columnas: ColumnaExcel<Pago>[] = [
     {
       clave: "orden",
@@ -370,14 +407,14 @@ export function AprobacionPagosView({
           {p.requisicionAdminId ? (
             <button
               type="button"
-              className="block max-w-full truncate text-left text-primary underline-offset-2 hover:underline"
+              className="line-clamp-2 max-w-full break-words text-left text-primary underline-offset-2 hover:underline"
               title="Ver el pago administrativo"
               onClick={() => setRequisicionDe(p)}
             >
               {origenFila(p)}
             </button>
           ) : (
-            <span className="block truncate" title={p.origen}>
+            <span className="line-clamp-2 break-words" title={p.origen}>
               {p.origen}
             </span>
           )}
@@ -390,11 +427,12 @@ export function AprobacionPagosView({
       titulo: "Pago",
       ancho: 110,
       texto: (p) => tipoFila(p),
+      celda: (p) => <span className="line-clamp-2 break-words">{tipoFila(p)}</span>,
     },
     {
       clave: "tercero",
       titulo: "Tercero",
-      ancho: 280,
+      ancho: 180,
       flexible: true,
       texto: (p) => terceroFila(p) ?? "",
       celda: (p) => (
@@ -403,7 +441,7 @@ export function AprobacionPagosView({
             // Cuadro de pagos administrativos: cada pago con su código y valor.
             <DesglosePa pago={p} compacto />
           ) : (
-            <div className="truncate" title={terceroFila(p) ?? undefined}>
+            <div className="line-clamp-2 break-words" title={terceroFila(p) ?? undefined}>
               {terceroFila(p) ?? <span className="text-muted-foreground/60">Sin tercero</span>}
             </div>
           )}
@@ -420,15 +458,20 @@ export function AprobacionPagosView({
     },
     {
       clave: "proyecto",
-      titulo: "Proyecto",
+      titulo: "Proyecto y empresa",
       ancho: 150,
-      texto: (p) => p.proyectoCodigo ?? p.proyectoNombre ?? "",
+      texto: (p) => [p.proyectoCodigo ?? p.proyectoNombre, p.empresaNombre].filter(Boolean).join(" · "),
+      celda: (p) => (
+        <div className="min-w-0 leading-tight">
+          <div className="line-clamp-2 break-words">{p.proyectoCodigo ?? p.proyectoNombre ?? "—"}</div>
+          {p.empresaNombre && <div className="line-clamp-2 break-words text-xs text-muted-foreground">{p.empresaNombre}</div>}
+        </div>
+      ),
     },
-    { clave: "empresa", titulo: "Empresa", ancho: 220, texto: (p) => p.empresaNombre ?? "" },
     {
       clave: "valor",
       titulo: "Valor a pagar",
-      ancho: 150,
+      ancho: 120,
       alinear: "right",
       texto: (p) => formatoMoneda(valorFila(p)),
       celda: (p) => (
@@ -449,40 +492,28 @@ export function AprobacionPagosView({
       claseCelda: "tabular-nums",
     },
     {
-      clave: "fecha",
-      titulo: "Solicitado",
-      ancho: 110,
-      texto: (p) =>
-        p.estado === "programado" && p.fechaProgramada
-          ? `Desde ${formatearFechaSinHora(p.fechaProgramada)}`
-          : p.estado === "en_espera" && p.ordenFechaPagoCredito
-            ? `Pasa a pago el ${formatearFechaSinHora(lunesDeLaSemana(p.ordenFechaPagoCredito))}`
-          : esperaFacturaActa(p)
-            ? "Pasa a pago al subir la factura"
-          : p.solicitadoEn
-            ? formatoFechaHora(p.solicitadoEn)
-            : "",
-    },
-    {
       clave: "estado",
       titulo: "Estado",
       ancho: 130,
-      texto: (p) => etiquetaEstadoPago(p),
+      texto: (p) => [etiquetaEstadoPago(p), textoFechaFila(p)].filter(Boolean).join(" · "),
       celda: (p) => (
-        <div className="flex items-center gap-1.5">
-          <EtiquetaEstado pago={p} />
-          {p.novedad && (
-            <span title={p.novedad}>
-              <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Con novedad" />
-            </span>
-          )}
+        <div className="min-w-0 leading-tight">
+          <div className="flex items-center gap-1.5">
+            <EtiquetaEstado pago={p} />
+            {p.novedad && (
+              <span title={p.novedad}>
+                <AlertTriangle className="h-4 w-4 text-amber-600" aria-label="Con novedad" />
+              </span>
+            )}
+          </div>
+          {textoFechaFila(p) && <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{textoFechaFila(p)}</div>}
         </div>
       ),
     },
     {
       clave: "acciones",
       titulo: "Acciones",
-      ancho: 340,
+      ancho: 280,
       ordenable: false,
       texto: () => "",
       celda: (p) => (
@@ -515,7 +546,7 @@ export function AprobacionPagosView({
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              className="h-8 w-24"
+              className="h-8 px-2.5"
               disabled={procesandoId === p.id}
               onClick={() => setPorAprobar(p)}
               aria-label={`Aprobar el pago de ${p.origen || "—"}`}
@@ -527,7 +558,7 @@ export function AprobacionPagosView({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 w-24 border-orange-300 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+                className="h-8 px-2.5 border-orange-300 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
                 disabled={procesandoId === p.id}
                 onClick={() => {
                   setParcial({ pago: p, modo: "avance" })
@@ -543,7 +574,7 @@ export function AprobacionPagosView({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 w-24 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="h-8 px-2.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
               disabled={procesandoId === p.id}
               onClick={() => {
                 setRechazando(p)
@@ -658,7 +689,7 @@ export function AprobacionPagosView({
                 titulo: (p) => terceroFila(p) ?? "Sin tercero",
                 subtitulo: (p) => `${p.origen || "—"} · ${tipoFila(p)}`,
                 esquina: (p) => <EtiquetaEstado pago={p} />,
-                campos: ["proyecto", "empresa", "valor", "fecha", "acciones"],
+                campos: ["proyecto", "valor", "estado", "acciones"],
               }}
             />
           )}
@@ -835,7 +866,27 @@ export function AprobacionPagosView({
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <OrdenCompraDetalleView ordenId={viendo.ordenCompraId} onCerrar={() => setViendo(null)} />
               </div>
-              <BarraPago pago={viendo} acciones={accionesDeFila(columnas, viendo)} onCerrar={() => setViendo(null)} />
+              <BarraPago
+                pago={viendo}
+                acciones={
+                  <>
+                    {accionesDeFila(columnas, viendo)}
+                    {puedeDevolver(viendo) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-amber-300 text-amber-800 hover:bg-amber-50"
+                        disabled={procesandoId === viendo.id}
+                        onClick={() => handleDevolverACompras(viendo)}
+                        title="La orden vuelve a Compras para modificarla; sus pagos se anulan (solo si no se ha dispersado)"
+                      >
+                        <Undo2 className="mr-1.5 h-4 w-4" /> Devolver a Compras
+                      </Button>
+                    )}
+                  </>
+                }
+                onCerrar={() => setViendo(null)}
+              />
             </>
           )}
         </DialogContent>

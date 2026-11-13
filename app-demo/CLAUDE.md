@@ -1133,6 +1133,14 @@ proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan)
 - Las líneas usan las mismas reglas de crear (`_insertar_lineas_orden`, que
   ahora usa `_crear_orden_compra_sin_proyecto`); lo pendiente de cada
   requisición no cuenta lo que compra la misma orden.
+- **Devolver a Compras** (`20270101003300_devolver_oc_a_compras.sql`, 2026-11-13): Gerencia
+  (`aprobar_pagos`) en Aprobación de pagos, abriendo el pago de una OC aprobada (filtro Todos o
+  Aprobados), mientras ningún pago se haya dispersado (y sin entradas, facturas, faltante ni saldo a
+  favor). `devolver_orden_a_compras` ANULA sus pagos vivos (aunque estén en liquidación; conservan la
+  REF), deja la orden por aprobar SIN pago (bandera `app.devolviendo_oc` para que `_oc_estado_pagos` no
+  cree uno) y marcada `devuelta_compras_*`, y avisa a quien la creó (`orden_compra_devuelta`, también
+  por correo). Compras la modifica y el pago nuevo quita la marca (`trg_oc_quitar_devuelta`).
+- En Generar OC la empresa se llama "Empresa que compra" (antes "que factura"; misma columna `empresa_id`).
 
 ## Pruebas de Compras y Contratos (2026-11-06)
 
