@@ -473,7 +473,13 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   }
   if (tipo === "presupuesto") {
     if (e.evento === "version_creada" || e.evento === "version_descartada") return [`Versión ${formatoValor(d.numero)}: ${formatoValor(d.nombre)}`]
-    if (e.evento === "desperdicio") return [`${formatoValor(d.insumos)} insumo(s) con desperdicio`, `Valor: ${formatoValor(d.valor_antes)} → ${formatoValor(d.valor_despues)}`]
+    if (e.evento === "desperdicio")
+      return [
+        d.general != null
+          ? `${formatoValor(d.general)} % general${Number(d.excepciones ?? 0) > 0 ? ` y ${formatoValor(d.excepciones)} excepción(es)` : ""}`
+          : `${formatoValor(d.insumos)} insumo(s) con desperdicio`,
+        `Valor: ${formatoValor(d.valor_antes)} → ${formatoValor(d.valor_despues)}`,
+      ]
     return [d.proyecto, d.nombre].filter(Boolean).map(String)
   }
   if (tipo === "rol") {

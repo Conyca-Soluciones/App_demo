@@ -1,10 +1,11 @@
 "use client"
 
 // Desperdicio del presupuesto (decisión del usuario, 2026-11-13): un % general
-// y, por insumo, si lleva desperdicio y con qué %. Infla la cantidad de las
-// líneas de ese insumo en los APU de la versión vigente: sube el valor del
-// presupuesto y el cupo de las requisiciones. Los insumos cuyo APU ya dice
-// "desperdicio" (ej. concreto) llegan desmarcados la primera vez.
+// de la versión vigente que la base aplica sola a todas las cantidades de
+// insumos, también a las que entren después (insumos aprobados, revisión,
+// editor). Sube el valor del presupuesto y el cupo de las requisiciones. Las
+// líneas cuyo Excel ya dice "desperdicio" quedan sin % adicional. Excepciones
+// por insumo: desmarcarlo (sin desperdicio) u otro %.
 
 import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -14,7 +15,7 @@ import { fijarDesperdicioPresupuesto, listarInsumosDesperdicio } from "@/app/(ap
 import {
   filasIniciales,
   impactoDesperdicio,
-  itemsParaGuardar,
+  excepcionesParaGuardar,
   porcentajeDeFila,
   porcentajeValido,
   type DatosDesperdicio,
@@ -59,15 +60,8 @@ export function DesperdicioDialog({
         setCargado({ versionId, datos })
         setFilas(filasIniciales(datos.insumos))
         setTextos({})
-        // % general = el más usado de lo guardado, o 5
-        const guardados = datos.insumos.map((i) => i.porcentaje).filter((p): p is number => p != null)
-        if (guardados.length > 0) {
-          const cuenta = new Map<number, number>()
-          for (const p of guardados) cuenta.set(p, (cuenta.get(p) ?? 0) + 1)
-          const masUsado = [...cuenta.entries()].sort((a, b) => b[1] - a[1])[0][0]
-          setGeneralTexto(numero(masUsado))
-          setFilas((fs) => fs.map((f) => (f.porcentaje === masUsado ? { ...f, porcentaje: null } : f)))
-        }
+        // Sin desperdicio todavía se propone el 5 %; si ya hay, el guardado.
+        setGeneralTexto(numero(datos.general > 0 ? datos.general : PORCENTAJE_GENERAL))
         setErrorCarga(null)
       })
       .catch((e) => vigente && setErrorCarga(e instanceof Error ? e.message : "No se pudieron cargar los insumos."))
@@ -118,9 +112,11 @@ export function DesperdicioDialog({
     setGuardando(true)
     setError(null)
     try {
-      const r = await fijarDesperdicioPresupuesto(versionId, itemsParaGuardar(filas, general ?? 0))
+      const g = general ?? 0
+      const r = await fijarDesperdicioPresupuesto(versionId, g, excepcionesParaGuardar(filas, g))
       setResultado(
-        `Guardado: ${r.insumos} insumo(s) con desperdicio. El presupuesto pasó de ${pesos(r.valorAntes)} a ${pesos(r.valorDespues)}.`
+        `Guardado: ${numero(g)} % general${r.excepciones > 0 ? ` y ${r.excepciones} excepción(es)` : ""}. ` +
+          `El presupuesto pasó de ${pesos(r.valorAntes)} a ${pesos(r.valorDespues)}.`
       )
       await onGuardado()
     } catch (e) {
@@ -137,9 +133,11 @@ export function DesperdicioDialog({
           <DialogTitle>Desperdicio</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          El desperdicio sube la cantidad de cada insumo marcado en los APU de esta versión: sube el valor del
-          presupuesto y lo que se puede pedir en requisiciones. Los insumos cuyo APU ya dice &ldquo;desperdicio&rdquo;
-          llegan desmarcados.
+          El % general se aplica a <span className="font-medium">todas</span> las cantidades de insumos de esta versión,
+          también a las que entren después (insumos que apruebe Compras, líneas resueltas en Revisar pendientes). Sube
+          el valor del presupuesto y lo que se puede pedir en requisiciones. Las líneas cuyo Excel ya dice
+          &ldquo;desperdicio&rdquo; (concretos, morteros) quedan sin % adicional. En la lista puedes quitarle el
+          desperdicio a un insumo o ponerle otro %. Para quitarlo todo, pon el general en 0.
         </p>
 
         {cargando && <p className="py-6 text-sm text-muted-foreground">Cargando insumos…</p>}
@@ -208,9 +206,12 @@ export function DesperdicioDialog({
                         <td className="px-2 py-1.5">
                           <span className="text-muted-foreground">{i.codigo ?? ""} </span>
                           {i.descripcion}
-                          {i.diceDesperdicio && (
-                            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">
-                              el APU dice &ldquo;desperdicio&rdquo;
+                          {i.lineasTrae > 0 && (
+                            <span
+                              className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900"
+                              title="Esas líneas quedan sin % adicional"
+                            >
+                              {i.lineasTrae} línea(s) ya traen desperdicio
                             </span>
                           )}
                         </td>
@@ -233,7 +234,7 @@ export function DesperdicioDialog({
                             title="Vacío = el % general"
                           />
                         </td>
-                        <td className="px-2 py-1.5 text-right">{pct > 0 ? pesos((i.valorBase * pct) / 100) : "—"}</td>
+                        <td className="px-2 py-1.5 text-right">{pct > 0 && i.valorAplicable > 0 ? pesos((i.valorAplicable * pct) / 100) : "—"}</td>
                       </tr>
                     )
                   })}
@@ -251,16 +252,14 @@ export function DesperdicioDialog({
             <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
               <div>
                 <p>
-                  {impacto.marcados} insumo(s) con desperdicio: el presupuesto sube{" "}
-                  <span className="font-semibold">{pesos(impacto.aumento)}</span>
-                  {datos.valorPresupuesto > 0 &&
-                    ` (${numero((impacto.aumento / datos.valorPresupuesto) * 100)} % del valor actual sin desperdicio)`}
-                  .
+                  Con lo que ya está en los APU, el desperdicio suma{" "}
+                  <span className="font-semibold">{pesos(impacto.aumento)}</span> en {impacto.marcados} insumo(s). Lo
+                  que se apruebe después también lo toma.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Aproximado: el valor exacto lo calcula la base al guardar (redondeos por ítem).
                 </p>
-                {filasInvalidas && <p className="text-destructive">Hay % por insumo fuera de 0 a 100.</p>}
+                {filasInvalidas && <p className="text-destructive">Hay un % por insumo que no es un número entre 0 y 100.</p>}
                 {error && <p className="text-destructive">{error}</p>}
                 {resultado && <p className="text-emerald-700">{resultado}</p>}
               </div>

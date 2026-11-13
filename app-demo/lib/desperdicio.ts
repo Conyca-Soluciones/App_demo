@@ -1,6 +1,8 @@
-// Desperdicio del presupuesto (20270101003000_desperdicio_presupuesto.sql).
-// Lógica pura del diálogo "Desperdicio": qué insumos van marcados y cuánto
-// sube el presupuesto. La base infla item_apu.cantidad con el %.
+// Desperdicio del presupuesto (20270101003000 y 20270101003500). Un % general
+// de la versión que la base aplica sola a todas las líneas de insumo, también a
+// las que entren después; las líneas cuyo Excel ya dice "desperdicio" quedan en
+// 0; y excepciones por insumo (0 = sin desperdicio, u otro %).
+// Lógica pura del diálogo "Desperdicio".
 
 export type InsumoDesperdicio = {
   insumoId: string
@@ -11,19 +13,23 @@ export type InsumoDesperdicio = {
   nItems: number
   cantidadBase: number
   valorBase: number
-  // % guardado en la versión (null = sin desperdicio)
-  porcentaje: number | null
-  // el APU (texto del Excel) o el nombre dicen "desperdicio": ya lo incluye
-  diceDesperdicio: boolean
+  // valor de las líneas que toman el % (sin las que ya traen desperdicio)
+  valorAplicable: number
+  // líneas de este insumo cuyo Excel ya dice "desperdicio" (quedan en 0)
+  lineasTrae: number
+  // excepción guardada (null = sigue el % general; 0 = sin desperdicio)
+  excepcion: number | null
 }
 
-export type DatosDesperdicio = { valorPresupuesto: number; insumos: InsumoDesperdicio[] }
+export type DatosDesperdicio = { general: number; valorPresupuesto: number; insumos: InsumoDesperdicio[] }
 
+// marcado = lleva desperdicio; porcentaje null = el general
 export type FilaDesperdicio = { insumoId: string; marcado: boolean; porcentaje: number | null }
 
 export function mapearDatosDesperdicio(raw: unknown): DatosDesperdicio {
-  const r = (raw ?? {}) as { valor_presupuesto?: unknown; insumos?: unknown[] }
+  const r = (raw ?? {}) as { general?: unknown; valor_presupuesto?: unknown; insumos?: unknown[] }
   return {
+    general: Number(r.general ?? 0),
     valorPresupuesto: Number(r.valor_presupuesto ?? 0),
     insumos: (r.insumos ?? []).map((x) => {
       const i = x as Record<string, unknown>
@@ -36,31 +42,28 @@ export function mapearDatosDesperdicio(raw: unknown): DatosDesperdicio {
         nItems: Number(i.n_items ?? 0),
         cantidadBase: Number(i.cantidad_base ?? 0),
         valorBase: Number(i.valor_base ?? 0),
-        porcentaje: i.porcentaje == null ? null : Number(i.porcentaje),
-        diceDesperdicio: Boolean(i.dice_desperdicio),
+        valorAplicable: Number(i.valor_aplicable ?? 0),
+        lineasTrae: Number(i.lineas_trae ?? 0),
+        excepcion: i.excepcion == null ? null : Number(i.excepcion),
       }
     }),
   }
 }
 
-// Estado inicial: si la versión ya tiene desperdicio, lo guardado; si no, todos
-// marcados con el % general menos los que ya dicen "desperdicio".
 export function filasIniciales(insumos: InsumoDesperdicio[]): FilaDesperdicio[] {
-  const hayGuardado = insumos.some((i) => i.porcentaje != null)
-  return insumos.map((i) =>
-    hayGuardado
-      ? { insumoId: i.insumoId, marcado: i.porcentaje != null, porcentaje: i.porcentaje }
-      : { insumoId: i.insumoId, marcado: !i.diceDesperdicio, porcentaje: null }
-  )
+  return insumos.map((i) => ({
+    insumoId: i.insumoId,
+    marcado: i.excepcion !== 0,
+    porcentaje: i.excepcion != null && i.excepcion > 0 ? i.excepcion : null,
+  }))
 }
 
-// % de una fila: el propio, o el general si no tiene uno.
 export function porcentajeDeFila(f: FilaDesperdicio, general: number): number {
   if (!f.marcado) return 0
   return f.porcentaje ?? general
 }
 
-// Cuánto suma el desperdicio en pesos (valor sin desperdicio × %).
+// Cuánto suma el desperdicio en pesos sobre lo que ya está en los APU.
 export function impactoDesperdicio(
   insumos: InsumoDesperdicio[],
   filas: FilaDesperdicio[],
@@ -73,20 +76,24 @@ export function impactoDesperdicio(
     const f = porId.get(i.insumoId)
     if (!f) continue
     const pct = porcentajeDeFila(f, general)
-    if (pct > 0) {
+    if (pct > 0 && i.valorAplicable > 0) {
       marcados++
-      aumento += (i.valorBase * pct) / 100
+      aumento += (i.valorAplicable * pct) / 100
     }
   }
   return { aumento: Math.round(aumento), marcados }
 }
 
-// Lo que se manda a fijar_desperdicio_presupuesto: solo los que tienen % > 0.
-export function itemsParaGuardar(filas: FilaDesperdicio[], general: number): { insumo_id: string; porcentaje: number }[] {
+// Excepciones para fijar_desperdicio_presupuesto: los desmarcados (0) y los que
+// tienen un % distinto del general. Los demás siguen el general (también lo que
+// se apruebe después).
+export function excepcionesParaGuardar(filas: FilaDesperdicio[], general: number): { insumo_id: string; porcentaje: number }[] {
   const out: { insumo_id: string; porcentaje: number }[] = []
   for (const f of filas) {
-    const pct = porcentajeDeFila(f, general)
-    if (pct > 0) out.push({ insumo_id: f.insumoId, porcentaje: Math.round(pct * 100) / 100 })
+    if (!f.marcado) out.push({ insumo_id: f.insumoId, porcentaje: 0 })
+    else if (f.porcentaje != null && f.porcentaje !== general) {
+      out.push({ insumo_id: f.insumoId, porcentaje: Math.round(f.porcentaje * 100) / 100 })
+    }
   }
   return out
 }

@@ -3055,28 +3055,30 @@ excluir_de_precios = true where codigo = '...'` (no hay pantalla).
 
 ## Desperdicio en el presupuesto (2026-11-13)
 
-`20270101003000_desperdicio_presupuesto.sql` (decisión del usuario: el
-desperdicio INFLA la cantidad, sube el valor y el cupo de requisiciones).
-Botón "Desperdicio" junto a "Agregar ítem manual" (versión vigente,
-`components/desperdicio-dialog.tsx`, lógica en `lib/desperdicio.ts`): % general
-(5 por omisión), lista de insumos de la versión con casilla, "Seleccionar todos"
-y % propio por insumo (vacío = el general); los que el APU ya dice
-"desperdicio" (texto del Excel o del insumo) llegan desmarcados la primera vez;
-muestra cuánto sube el presupuesto antes de guardar.
-- `presupuesto_desperdicios` (versión, insumo, %). En `item_apu`:
-  `cantidad_base` (sin desperdicio; null = sin desperdicio) y `desperdicio_pct`;
-  `cantidad` = base × (1 + % / 100). Así `recalcular_valor_apus`, el cupo de
-  requisiciones y Control salen inflados sin tocarlos.
-- Disparador `trg_item_apu_desperdicio`: una línea de insumo nueva toma el % de
-  su versión; escribir `cantidad` cambia la BASE y se vuelve a inflar (nunca
-  escribir la cantidad inflada como si fuera base). `presupuesto_items`, al
-  enlazar un APU (insert o cambio de `apu_id`), aplica el % a sus líneas.
-- `fijar_desperdicio_presupuesto` (editar_presupuestos, solo versión vigente;
-  lista completa) y `insumos_para_desperdicio` (invoker). Historial del
-  presupuesto: evento `desperdicio`.
-- Copiar un APU (`copiaLineaApu`) copia la BASE; `crear_nueva_version` copia
-  los % y las dos columnas. El editor de APU muestra "base + X% desperdicio".
-- **La migración va ANTES del código** (`SELECT_APU` lee las columnas nuevas).
+`20270101003000_desperdicio_presupuesto.sql` + `20270101003500_desperdicio_general_version.sql`
+(decisiones del usuario: el desperdicio INFLA la cantidad, sube el valor y el cupo de
+requisiciones; es un % GENERAL de la versión que se aplica solo, para que Técnica lo
+maneje en cualquier presupuesto sin pasos extra).
+- Botón "Desperdicio" junto a "Agregar ítem manual" (versión vigente,
+  `components/desperdicio-dialog.tsx`, lógica en `lib/desperdicio.ts`): % general
+  (`presupuesto_versiones.desperdicio_pct`; propone 5) y la lista de insumos de los APU
+  para excepciones: desmarcar = 0, u otro %. `fijar_desperdicio_presupuesto(versión,
+  general, excepciones)` guarda, aplica y recalcula (historial `desperdicio`).
+- % de una línea de insumo (`_desperdicio_de_linea`): la excepción del insumo
+  (`presupuesto_desperdicios`) si hay; si no, 0 cuando la línea ya trae desperdicio (su
+  texto del Excel en `apu_import_revision` o el nombre del insumo dicen "desperdicio":
+  concretos y morteros "Básico, 5% desperdicio"); si no, el general.
+- `item_apu.cantidad` = `cantidad_base` × (1 + `desperdicio_pct` / 100); null en
+  `cantidad_base` = sin desperdicio. `recalcular_valor_apus`, el cupo de requisiciones y
+  Control salen inflados sin tocarlos.
+- Se aplica solo: `trg_item_apu_desperdicio` (línea nueva toma su %; escribir `cantidad`
+  cambia la BASE, nunca escribir la cantidad inflada como si fuera base),
+  `presupuesto_items` al enlazar un APU, y `trg_revision_desperdicio` al enlazar una
+  revisión cuyo texto dice "desperdicio" (la deja en 0).
+- Copiar un APU (`copiaLineaApu`) copia la BASE; `crear_nueva_version` copia el %
+  general, las excepciones y las dos columnas. El editor de APU muestra
+  "base + X% desperdicio".
+- Las migraciones van ANTES del código.
 
 **Recalcular al editar el catálogo** (`20270101003400_recalcular_al_editar_catalogo.sql`):
 mano de obra y equipo NO congelan precio en el APU (toman `valor_unitario` del
@@ -4514,6 +4516,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231998000` estado de compra "parcial" de la requisición.
 `20270101003000` desperdicio del presupuesto.
 `20270101003400` recalcular el presupuesto al editar el catálogo de mano de obra o equipo.
+`20270101003500` desperdicio como % general de la versión.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

@@ -727,5 +727,10 @@ select * from (
   select '20270101003400_recalcular_al_editar_catalogo',
          exists (select 1 from pg_trigger where tgname = 'trg_catalogo_mo_recalcular')
          and exists (select 1 from pg_trigger where tgname = 'trg_catalogo_equipo_recalcular')
+  union all
+  select '20270101003500_desperdicio_general_version',
+         exists (select 1 from information_schema.columns where table_name = 'presupuesto_versiones' and column_name = 'desperdicio_pct')
+         and exists (select 1 from pg_trigger where tgname = 'trg_revision_desperdicio')
+         and exists (select 1 from pg_proc where proname = 'fijar_desperdicio_presupuesto' and pronargs = 3)
 ) t
 order by 1;
