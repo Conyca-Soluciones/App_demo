@@ -1278,6 +1278,41 @@ panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITEN
   8:00) de 002300 se quitaron en `20270101002700_quitar_resumenes_correo.sql`. Por correo solo salen
   avisos puntuales. `perfiles.correo_resumen` queda sin uso.
 
+## Cuadros de SINCO (2026-11-13, temporal)
+
+`20270101002800_cuadros_sinco.sql` (reversa en `supabase/reversa/`). Decisiones del usuario: los
+proyectos que siguen en SINCO (6-8 meses) aprueban allá; Financiera descarga el cuadro GF-F-018 (el de
+compras, con varios proyectos separados por filas "PROYECTO: …", o el de un proyecto) y lo sube a 360.
+- **Pantallas**: `/cuadros-sinco` (lista) y `/cuadros-sinco/<id>` (el cuadro), ruta LIBRE: la pestaña
+  `ayf.cuadros_sinco` solo pone el menú (rutas `[]`), porque también entran las personas elegidas. Qué
+  cuadros ve cada quien lo decide `_cuadros_sinco_visibles(uid)` (todos con la acción
+  `cargar_cuadros_sinco`, Financiera; si no, los asignados en `sinco_cuadro_usuarios`).
+  `components/cuadros-sinco-view.tsx`, `app/(app)/cuadros-sinco/actions.ts`, lector del Excel en
+  `lib/cuadros-sinco.ts` (hoja con "CODIGO DE PROYECTO" y "TOTAL"; un pago = ITEMS numérico > 0; arregla
+  el texto mal codificado, "ANTIOQUEÃ‘A").
+- **Cargar** (`cargar_cuadro_sinco(archivo, filas, usuarios, confirmar)`; con confirmar = false solo
+  revisa y devuelve el resumen): si falta un proyecto, total ≤ 0 o el NIT de quien factura, no se carga
+  nada. El proyecto se reconoce por código o número-código, sin tildes y con "$" = "&" ("112-900-CS-CUND-C$C
+  CUND" = "900-CS-CUND-C&C CUND"); los proyectos de SINCO se crean "solo pagos" con su número de SINCO
+  (Admin › Proyectos, Excel con columna Número). Repetida = mismo proyecto, NIT, factura y total con pago
+  no anulado: se salta. Terceros por documento (si no existe se crea); la cuenta (del titular) se busca
+  o se crea PENDIENTE; banco reconocido con `_norm_banco_sinco` ("APP NEQUI", "BANCO DAVIVIENDA S.A.");
+  sin banco o cuenta, el pago queda sin cuenta.
+- **Pagos**: `pagos.fuente = 'sinco'` con `sinco_fila_id`; nacen APROBADOS (aprobado_por = quien carga)
+  en el Consolidado Bogotá con la semana de hoy (Preparación). `_pago_sincronizar_empresa` no los mueve.
+  Origen "SINCO N° x · ítem y"; solicitante = el texto SOLICITA del cuadro.
+- **Soportes**: el navegador sube a bucket `sinco/<cuadro>/<fila>/...` y `guardar_soporte_sinco` lo deja
+  en la fila (se cambia hasta que el pago se liquide; historial `soporte_sinco` /
+  `soporte_sinco_cambiado`). Sin soporte: novedad "Falta el soporte…" y `enviar_pagos_a_liquidar` no lo
+  envía (`enviar_pagos_a_liquidar_detalle` devuelve `sin_soporte`). El Consolidado lo ve como soporte del
+  pago (`lib/soportes-pagos-db.ts`, origen `sinco`; A&F lee la fila por la política de pagos).
+- **Personas**: Financiera las elige al cargar y las cambia después (`fijar_usuarios_cuadro_sinco`; a
+  las nuevas les llega el aviso). Aviso `cuadro_sinco_soportes` (entidad `cuadro_sinco`) que va por
+  correo SIEMPRE, aunque la persona tenga los avisos por correo apagados. Mis pendientes: `soporte_sinco`.
+- **Anular** (`anular_cuadro_sinco`, con motivo): anula sus pagos, solo si ninguno se envió a liquidar.
+- Quien adjunta no lee pagos ni proyectos "solo pagos": `listar_cuadros_sinco` y `pagos_cuadro_sinco`
+  (SECURITY DEFINER) le dan la lista y la etapa de cada pago.
+
 ## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
 
 `20270101001400`: ya no son "para todos" (se quitó `PESTANAS_PARA_TODOS`); son las pestañas
