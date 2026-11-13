@@ -1226,6 +1226,14 @@ Decisiones del usuario. `20270101000300_paquete_e_ayf.sql` (reversa en `supabase
   pago en Preparación (`gestionar_pagos`), sube a `terceros/rut/<tercero>/` y llama
   `guardar_rut_tercero`. Lo ven A&F (`_puede_ver_rut`: cuentas, gestionar pagos, algún consolidado,
   Terceros, Aprobación de pagos) con `enlaceRutTercero`.
+- **Soporte de los pagos sin dispersor** (`20270101003200_soporte_pagos_pse.sql`, 2026-11-13): al
+  marcar pagos como pagados (PSE en el Consolidado u otro medio en Realizar Pagos), `marcarPagosPagados`
+  genera un PDF por pago con el mismo diseño del soporte del dispersor (`SoporteDispersorPDF` con
+  `titulo`, `meta` y `notas`; nombre `nombreSoportePagoManual`), lo sube a `dispersores/pse/soportes/<pago>/`
+  y lo registra con `guardar_soportes_pago_manual` (`pagos.pago_soporte_ruta/_nombre`). Si falla, el pago
+  queda pagado y la ventana del pago ofrece "Generar soporte" (`generarSoportesPagoManual`).
+  `/ayf/soporte-dispersor/<pago>` da el soporte; `?ver=comprobante`, el comprobante adjunto.
+  "El pago no salió" borra la referencia al soporte.
 - **"No tiene cuenta bancaria"** (`20270101001100_tercero_sin_cuenta.sql`): casilla en Nuevo tercero que
   quita la cuenta y la certificación (`p_datos.sin_cuenta`); el RUT sigue obligatorio.
 - **Más de una cuenta por tercero**: ya existía (ficha del tercero › "Agregar cuenta", `editar_terceros`).

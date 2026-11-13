@@ -15,7 +15,7 @@ export const CAMPOS_PAGO = `
   orden_compra_id, acta_id, requisicion_admin_item_id, numero_factura, valor_documento, base_gravable, iva,
   descuento_anticipos, retencion_garantia, otros_descuentos,
   liquidacion_estado, liq_base, liq_iva, retefuente, reteiva, reteica, asumidas, liquidaciones,
-  liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario, pagado_manual_por, pago_comprobante_nombre,
+  liq_anticipos_descuentos, valor_a_pagar, comentario:ultimo_comentario, pagado_manual_por, pago_comprobante_nombre, pago_soporte_nombre,
   requisicion_admin_id, requisicion_admin_principal, lote:lote_requisicion_admin, saldo_acta, sinco_fila_id,
   sinco:sinco_filas(item, solicita, cuadro:sinco_cuadros(numero)),
   orden:ordenes_compra(numero, codigo, tipo_pago, fecha_pago_credito, pago_inmediato, metodo_pago, pago_observaciones, pse_titular_nombre, pse_titular_tipo_documento, pse_titular_documento),
@@ -170,6 +170,7 @@ export function mapPago(f: any): Pago {
     // Pagado por PSE u otro medio en Realizar Pagos (sin dispersor).
     pagadoOtroMedio: f.estado === "dispersado" && f.pagado_manual_por != null,
     comprobanteOtroMedio: f.pago_comprobante_nombre ?? null,
+    soportePagoManual: f.pago_soporte_nombre ?? null,
     cuentaId: f.cuenta_tercero_id,
     cuentaTexto: ocPse || actaPse
       ? "PSE"

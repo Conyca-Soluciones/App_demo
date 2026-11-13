@@ -45,7 +45,7 @@ import {
   type PagoConEstado,
 } from "@/lib/dispersores/pagos-dispersor"
 import { avisosDispersor } from "@/lib/dispersores/generador"
-import { fechasSemanaIso, formatoMoneda, rutaSoporteDispersor, rutaSoportePago, semanaIso, semanasDelAnio, type Pago } from "@/lib/pagos"
+import { fechasSemanaIso, formatoMoneda, rutaComprobantePago, rutaSoporteDispersor, rutaSoportePago, semanaIso, semanasDelAnio, type Pago } from "@/lib/pagos"
 import { fechaIsoEnZona, formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 
 const TODOS = "todos"
@@ -391,17 +391,17 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
           },
           {
             clave: "comprobante",
-            titulo: "Comprobante",
+            titulo: "Soporte",
             ancho: 120,
             ordenable: false,
-            texto: (p) => p.pagadoManual?.comprobante?.nombre ?? "",
+            texto: (p) => p.pagadoManual?.soporte?.nombre ?? p.pagadoManual?.comprobante?.nombre ?? "",
             celda: (p) =>
-              p.pagadoManual?.comprobante ? (
+              p.pagadoManual?.soporte || p.pagadoManual?.comprobante ? (
                 <a
                   href={rutaSoporteDispersor(p.id)}
                   target="_blank"
                   rel="noreferrer"
-                  title={p.pagadoManual.comprobante.nombre}
+                  title={p.pagadoManual.soporte?.nombre ?? p.pagadoManual.comprobante?.nombre}
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   <FileText className="h-4 w-4" /> Ver
@@ -866,9 +866,15 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
               <a href={rutaSoportePago(detalle.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })}>
                 <Paperclip className="mr-1.5 h-4 w-4" /> Soporte del pago
               </a>
-              {(detalle.dispersion?.soporte || detalle.pagadoManual?.comprobante) && (
+              {(detalle.dispersion?.soporte || detalle.pagadoManual?.soporte || detalle.pagadoManual?.comprobante) && (
                 <a href={rutaSoporteDispersor(detalle.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })}>
-                  <FileText className="mr-1.5 h-4 w-4" /> {detalle.pagadoManual ? "Comprobante" : "Soporte del dispersor"}
+                  <FileText className="mr-1.5 h-4 w-4" />{" "}
+                  {!detalle.pagadoManual ? "Soporte del dispersor" : detalle.pagadoManual.soporte ? "Soporte del pago" : "Comprobante"}
+                </a>
+              )}
+              {detalle.pagadoManual?.soporte && detalle.pagadoManual.comprobante && (
+                <a href={rutaComprobantePago(detalle.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })}>
+                  <Paperclip className="mr-1.5 h-4 w-4" /> Comprobante
                 </a>
               )}
               <Button

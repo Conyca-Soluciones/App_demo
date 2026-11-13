@@ -17,6 +17,7 @@ import {
   etiquetaEtapa,
   formatoMoneda,
   puedeIrALiquidacion,
+  rutaComprobantePago,
   rutaSoporteDispersor,
   rutaSoportePago,
   type ComentarioPago,
@@ -33,6 +34,7 @@ import {
   listarComentariosPago,
   obtenerPagoConsolidado,
 } from "@/app/(app)/ayf/consolidado/actions"
+import { generarSoportesPagoManual } from "@/app/(app)/ayf/realizar-pagos/actions"
 
 // ---------------------------------------------------------------------------
 // Doble clic en un pago del Consolidado: todo lo del pago en una ventana, para
@@ -364,15 +366,38 @@ function Contenido({
           <span className="self-center text-sm text-muted-foreground">Sin soporte</span>
         )}
         {/* Dispersado: el soporte individual de su dispersor (el del intento vigente). */}
-        {pago.estado === "dispersado" && (!pago.pagadoOtroMedio || pago.comprobanteOtroMedio) && (
+        {pago.estado === "dispersado" && (!pago.pagadoOtroMedio || pago.soportePagoManual || pago.comprobanteOtroMedio) && (
           <a
             href={rutaSoporteDispersor(pago.id)}
             target="_blank"
             rel="noreferrer"
             className={buttonVariants({ size: "sm", variant: "outline" })}
           >
-            <FileText className="mr-1.5 h-4 w-4" /> {pago.pagadoOtroMedio ? "Comprobante del pago" : "Soporte del dispersor"}
+            <FileText className="mr-1.5 h-4 w-4" />{" "}
+            {!pago.pagadoOtroMedio ? "Soporte del dispersor" : pago.soportePagoManual ? "Soporte del pago" : "Comprobante del pago"}
           </a>
+        )}
+        {pago.estado === "dispersado" && pago.pagadoOtroMedio && pago.soportePagoManual && pago.comprobanteOtroMedio && (
+          <a href={rutaComprobantePago(pago.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })}>
+            <Paperclip className="mr-1.5 h-4 w-4" /> Comprobante
+          </a>
+        )}
+        {pago.estado === "dispersado" && pago.pagadoOtroMedio && !pago.soportePagoManual && puedeGestionar && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={ocupado !== null}
+            onClick={() =>
+              correr("soporte", async () => {
+                const n = await generarSoportesPagoManual([pago.id])
+                await refrescar()
+                if (n === 0) throw new Error("No se pudo generar el soporte (revisa que tengas permiso para pagar este pago).")
+                return null
+              })
+            }
+          >
+            {ocupado === "soporte" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />} Generar soporte
+          </Button>
         )}
         <Button size="sm" variant="outline" onClick={onOrigen}>
           <FileText className="mr-1.5 h-4 w-4" /> Ver {pago.ordenCompraId ? "orden de compra" : pago.actaId ? "acta" : "documento"}
