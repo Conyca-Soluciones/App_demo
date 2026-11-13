@@ -79,15 +79,19 @@ export function ExcelAprobacionRecursos({
 
       // Por aprobar: mismo nombre y unidad = una sola categoría (un trabajo
       // por grupo). Por rechazar: una por fila.
-      const { grupos, errores: erroresGrupos } = agruparAprobaciones(
-        porHacer.filter((f): f is Extract<FilaAprobacionRecurso, { accion: "aprobar" }> => f.accion === "aprobar")
+      // Las filas sin valor se suman al grupo con el mismo nombre y unidad que
+      // sí trae el valor (solo las que siguen pendientes).
+      const { grupos, errores: erroresGrupos, sumadasSinValor } = agruparAprobaciones(
+        porHacer.filter((f): f is Extract<FilaAprobacionRecurso, { accion: "aprobar" }> => f.accion === "aprobar"),
+        leidas.sinValor.filter((f) => pendientes.has(f.solicitudId))
       )
       errores.push(...erroresGrupos)
+      const sinLlenar = leidas.sinLlenar - sumadasSinValor
       const trabajos: (() => Promise<void>)[] = []
       let aprobadas = 0
       let rechazadas = 0
       let hechas = 0
-      const total = porHacer.length - erroresGrupos.length
+      const total = grupos.reduce((n, g) => n + g.filas.length, 0) + porHacer.filter((f) => f.accion === "rechazar").length
       const resueltas: string[] = []
       for (const g of grupos) {
         trabajos.push(async () => {
@@ -132,7 +136,7 @@ export function ExcelAprobacionRecursos({
       }
       await Promise.all(Array.from({ length: Math.min(A_LA_VEZ, trabajos.length) }, trabajador))
       errores.sort((a, b) => a.fila - b.fila)
-      setResultado({ aprobadas, rechazadas, sinLlenar: leidas.sinLlenar, errores })
+      setResultado({ aprobadas, rechazadas, sinLlenar, errores })
       if (resueltas.length > 0) onResueltas(resueltas)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo procesar el Excel.")
