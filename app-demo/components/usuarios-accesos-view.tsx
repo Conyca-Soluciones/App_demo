@@ -31,7 +31,6 @@ import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla
 import {
   cambiarEnvioCorreos,
   cambiarPreferenciaCorreo,
-  cambiarResumenCorreo,
   estadoCorreos,
   type EstadoCorreos,
   type PreferenciaCorreo,
@@ -88,19 +87,6 @@ export function UsuariosAccesosView() {
       setCorreos((c) => (c ? { ...c, usuarios: { ...c.usuarios, [u.id]: valor } } : c))
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el correo.")
-    } finally {
-      setGuardandoCorreo(null)
-    }
-  }
-
-  async function cambiarResumen(u: UsuarioAcceso, recibe: boolean) {
-    setGuardandoCorreo("r-" + u.id)
-    setError(null)
-    try {
-      await cambiarResumenCorreo(u.id, recibe)
-      setCorreos((c) => (c ? { ...c, resumen: { ...c.resumen, [u.id]: recibe } } : c))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar el resumen.")
     } finally {
       setGuardandoCorreo(null)
     }
@@ -318,24 +304,6 @@ export function UsuariosAccesosView() {
         ) : null,
     },
     {
-      clave: "resumenCorreo",
-      titulo: "Resúmenes",
-      ancho: 100,
-      alinear: "center",
-      ordenable: false,
-      texto: (u) => (correos?.resumen[u.id] !== false ? "Sí" : "No"),
-      celda: (u) =>
-        correos ? (
-          <Checkbox
-            checked={correos.resumen[u.id] !== false}
-            disabled={guardandoCorreo === "r-" + u.id}
-            aria-label={"Resúmenes por correo de " + u.nombre}
-            title="Mediodía de lunes a viernes: pagos y cuentas pendientes. Lunes 8:00: sus pendientes de la semana."
-            onCheckedChange={(v) => cambiarResumen(u, v === true)}
-          />
-        ) : null,
-    },
-    {
       clave: "clave",
       titulo: "Contraseña",
       ancho: 110,
@@ -390,7 +358,7 @@ export function UsuariosAccesosView() {
         )}
       </div>
       <p className="-mt-2 text-xs text-muted-foreground">
-        &quot;Correos&quot;: le llegan por correo los avisos de su campanita (contratos, otrosí, pólizas, actas, requisiciones, órdenes de compra y pagos administrativos). &quot;Resúmenes&quot;: a mediodía (lunes a viernes) sus pagos y cuentas pendientes, y el lunes a las 8:00 sus pendientes de la semana, solo si tiene algo. Cada persona también los cambia en su menú.
+        &quot;Correos&quot;: le llegan por correo los avisos de su campanita (contratos, otrosí, pólizas, actas, requisiciones, órdenes de compra y pagos administrativos). Cada persona también lo cambia en su menú.
       </p>
 
       {aviso && (

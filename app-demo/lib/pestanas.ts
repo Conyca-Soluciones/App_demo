@@ -135,7 +135,7 @@ export const PESTANAS: Pestana[] = [
   // Dispersores (20261217000000): los pagos liquidados de los tres consolidados.
   { clave: "ayf.realizar_pagos", titulo: "Realizar Pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/realizar-pagos", rutas: ["/ayf/realizar-pagos", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   { clave: "ayf.terceros", titulo: "Terceros", modulo: "ayf", seccion: "Terceros", url: "/ayf/terceros", rutas: ["/ayf/terceros"] },
-  // Cuadros de pagos de SINCO (20270101002500, temporal). Sin rutas propias:
+  // Cuadros de pagos de SINCO (20270101002800, temporal). Sin rutas propias:
   // /cuadros-sinco es libre porque también lo abren las personas que Financiera
   // elige para adjuntar soportes (la base decide qué cuadros ve cada quien).
   { clave: "ayf.cuadros_sinco", titulo: "Cuadros de SINCO", modulo: "ayf", seccion: "Pagos", url: "/cuadros-sinco", rutas: [], nota: "Para el menú: la página la abre también quien debe adjuntar soportes." },

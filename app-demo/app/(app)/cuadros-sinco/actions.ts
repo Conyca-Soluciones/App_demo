@@ -6,7 +6,7 @@ import type { FilaCuadroSinco, ResumenCuadroSinco } from "@/lib/cuadros-sinco"
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// Cuadros de pagos de SINCO (20270101002500). Cargar, anular y elegir personas:
+// Cuadros de pagos de SINCO (20270101002800). Cargar, anular y elegir personas:
 // acción cargar_cuadros_sinco (Financiera). Ver un cuadro y adjuntar soportes:
 // quien tiene la acción o las personas elegidas (la base lo decide).
 

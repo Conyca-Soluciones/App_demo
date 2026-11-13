@@ -22,7 +22,7 @@
 --
 -- Acción nueva cargar_cuadros_sinco (Financiera) y pestaña ayf.cuadros_sinco.
 -- Parches por texto exacto sobre funciones vivas (fallan si no encuentran el texto;
--- no se aplican dos veces). Reversa en supabase/reversa/20270101002500_cuadros_sinco.sql.
+-- no se aplican dos veces). Reversa en supabase/reversa/20270101002800_cuadros_sinco.sql.
 
 begin;
 set local lock_timeout = '10s';
@@ -768,7 +768,7 @@ select pg_temp._parche('public._pendientes_de(uuid)'::regprocedure,
 end;$a$,
   $b$   group by pr.id, pr.proyecto_id, m.id, m.descripcion, m.u_m, m.created_at
 
-  -- ------------------------------------------------ Soportes de cuadros de SINCO (20270101002500)
+  -- ------------------------------------------------ Soportes de cuadros de SINCO (20270101002800)
   union all
   select 'soporte_sinco', 'hacer', c.id, null::uuid,
          'Cuadro de SINCO N° ' || c.numero || ' · ' || c.archivo,

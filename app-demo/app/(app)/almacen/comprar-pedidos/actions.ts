@@ -1505,7 +1505,7 @@ export type NotificacionTipo =
   | "autorizacion_tercero_rechazada"
   // Al aprobarse la OC, a quien pidió la requisición (20270101002300).
   | "requisicion_comprada"
-  // Cuadro de SINCO cargado: adjuntar los soportes (20270101002500).
+  // Cuadro de SINCO cargado: adjuntar los soportes (20270101002800).
   | "cuadro_sinco_soportes"
 export type NotificacionEntidadTipo =
   | "pedido_insumo"

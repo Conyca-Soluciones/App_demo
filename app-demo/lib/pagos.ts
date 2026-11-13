@@ -97,7 +97,7 @@ export type Pago = {
   ordenCompraId: string | null
   actaId: string | null
   requisicionAdminItemId: string | null
-  // Pago de un cuadro de SINCO (20270101002500): su fila (el soporte vive ahí).
+  // Pago de un cuadro de SINCO (20270101002800): su fila (el soporte vive ahí).
   sincoFilaId?: string | null
   origen: string
   actaBruto: number | null

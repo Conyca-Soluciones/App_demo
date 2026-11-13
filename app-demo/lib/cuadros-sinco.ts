@@ -1,4 +1,4 @@
-// Cuadros de pagos de SINCO (20270101002500): leer el Excel GF-F-018 que Financiera
+// Cuadros de pagos de SINCO (20270101002800): leer el Excel GF-F-018 que Financiera
 // saca de SINCO (el de compras, con varios proyectos, o el de un proyecto). Archivo
 // plano: lo usan la pantalla (leer el Excel) y las pruebas.
 //

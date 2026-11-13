@@ -1,4 +1,4 @@
--- Reversa de 20270101002500_cuadros_sinco.sql. Solo sirve si no se ha cargado ningún
+-- Reversa de 20270101002800_cuadros_sinco.sql. Solo sirve si no se ha cargado ningún
 -- cuadro (los pagos de SINCO no se borran aquí: si los hay, primero anular los cuadros
 -- y decidir qué hacer con esos pagos). Los parches a _pago_novedad,
 -- enviar_pagos_a_liquidar, _pago_sincronizar_empresa, _encolar_correo_notificacion,

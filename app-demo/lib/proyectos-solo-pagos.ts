@@ -1,5 +1,5 @@
 // Importar proyectos "solo pagos" (los que siguen en Google, 20270101001300, o en
-// SINCO, 20270101002500) desde un Excel: una fila por proyecto con su código,
+// SINCO, 20270101002800) desde un Excel: una fila por proyecto con su código,
 // nombre (opcional: si falta se usa el código), empresa (razón social o NIT) y,
 // opcional, el número (el de SINCO: 112, 115...; si falta, el siguiente libre).
 // Con número, un código que empiece por él ("112-900-CS-CUND") se guarda sin él. Archivo plano: lo usan
