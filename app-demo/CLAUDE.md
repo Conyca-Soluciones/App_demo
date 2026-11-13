@@ -3100,6 +3100,12 @@ obra (todo costo) no contrata un ítem con CUALQUIER línea del APU sin resolver
 `motivoItemNoListo` en `lib/contratos.ts`, el selector deja esos ítems en gris con el motivo).
 Las actividades nuevas de un otrosí todavía no lo revisan.
 
+**Borrar una categoría de mano de obra o equipo** (`20270101003800_borrar_categoria_devuelve_pendientes.sql`):
+no hay pantalla para borrarlas (se borran a mano en la base). `item_apu` tiene `on delete cascade`
+hacia las categorías y antes la revisión del import quedaba "resuelto" sin línea (pasó con 1,7 de
+CAPACITACION). Ahora `trg_mo_categoria_borrada` / `trg_equipo_categoria_borrada` devuelven esas
+revisiones a 'pendiente' (sin categoría), borran las líneas y recalculan esos APU.
+
 **Recalcular al editar el catálogo** (`20270101003400_recalcular_al_editar_catalogo.sql`):
 mano de obra y equipo NO congelan precio en el APU (toman `valor_unitario` del
 catálogo al recalcular), pero editar el catálogo no recalculaba: en el Malecón
@@ -4539,6 +4545,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101003500` desperdicio como % general de la versión.
 `20270101003600` contratos de obra y mano de obra solo con ítems listos.
 `20270101003700` desperdicio por línea del Excel (también las pendientes).
+`20270101003800` borrar una categoría devuelve sus líneas a Revisar pendientes.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
