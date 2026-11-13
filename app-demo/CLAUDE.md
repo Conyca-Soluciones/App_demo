@@ -1830,7 +1830,8 @@ que existen; el otro maneja los tres.
   (`20261211000000_roles_contabilidad.sql`): **Contabilidad Barranquilla**
   (`contabilidad_barranquilla`, el rol Contabilidad de antes renombrado: los
   tres consolidados + Terceros) y **Contabilidad Bogotá** (`contabilidad_bogota`:
-  solo Consolidado Bogotá + Terceros). Ninguno tiene acciones. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
+  solo Consolidado Bogotá + Terceros; desde `20270101004000` se llama solo "Contabilidad", sin pistas de
+  otros consolidados). Ninguno tiene acciones. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
   `PESTANA_CONSOLIDADO`, `esClaveConsolidado`).
 - **La base lo exige**: `_consolidados_visibles(uid)` (los de las pestañas que
   tiene), `_ve_algun_consolidado`, `_ve_pago(uid, pago)`. Un pago se lee con
