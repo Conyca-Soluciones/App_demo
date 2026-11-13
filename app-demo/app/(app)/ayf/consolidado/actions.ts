@@ -139,18 +139,23 @@ export async function obtenerPagoConsolidado(pagoId: string): Promise<Pago> {
 // Financiera: los elegidos, o TODOS los que están en preparación con los filtros.
 // Los que no tienen cuenta bancaria (y no son PSE) se quedan en Preparación
 // (20270101000300): sinCuenta dice cuántos.
-export type ResultadoEnvioLiquidar = { enviados: number; sinCuenta: number; sinSoporte: number }
+export type ResultadoEnvioLiquidar = { enviados: number; sinCuenta: number; sinSoporte: number; sinRut: number }
 
 async function enviarLote(supabase: Awaited<ReturnType<typeof createClient>>, ids: string[]): Promise<ResultadoEnvioLiquidar> {
   const { data, error } = await supabase.rpc("enviar_pagos_a_liquidar_detalle", { p_ids: ids })
   if (error) throw new Error(error.message)
-  const r = (data ?? {}) as { enviados?: number; sin_cuenta?: number; sin_soporte?: number }
-  return { enviados: Number(r.enviados ?? 0), sinCuenta: Number(r.sin_cuenta ?? 0), sinSoporte: Number(r.sin_soporte ?? 0) }
+  const r = (data ?? {}) as { enviados?: number; sin_cuenta?: number; sin_soporte?: number; sin_rut?: number }
+  return {
+    enviados: Number(r.enviados ?? 0),
+    sinCuenta: Number(r.sin_cuenta ?? 0),
+    sinSoporte: Number(r.sin_soporte ?? 0),
+    sinRut: Number(r.sin_rut ?? 0),
+  }
 }
 
 export async function enviarPagosALiquidar(ids: string[]): Promise<ResultadoEnvioLiquidar> {
   await requerirAccion("gestionar_pagos")
-  if (ids.length === 0) return { enviados: 0, sinCuenta: 0, sinSoporte: 0 }
+  if (ids.length === 0) return { enviados: 0, sinCuenta: 0, sinSoporte: 0, sinRut: 0 }
   const supabase = await createClient()
   return enviarLote(supabase, ids)
 }
@@ -200,12 +205,13 @@ export async function enviarFiltradosALiquidar(clave: string, filtros: FiltrosCo
   const filas = await traerTodo<{ id: string }>((desde, hasta) =>
     consultaConsolidado(supabase, consolidadoId, { ...filtros, etapa: "preparacion" }, campos).range(desde, hasta)
   )
-  const total: ResultadoEnvioLiquidar = { enviados: 0, sinCuenta: 0, sinSoporte: 0 }
+  const total: ResultadoEnvioLiquidar = { enviados: 0, sinCuenta: 0, sinSoporte: 0, sinRut: 0 }
   for (let i = 0; i < filas.length; i += 1000) {
     const r = await enviarLote(supabase, filas.slice(i, i + 1000).map((f) => f.id))
     total.enviados += r.enviados
     total.sinCuenta += r.sinCuenta
     total.sinSoporte += r.sinSoporte
+    total.sinRut += r.sinRut
   }
   return total
 }
