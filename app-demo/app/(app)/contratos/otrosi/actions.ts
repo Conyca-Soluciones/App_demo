@@ -3,7 +3,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { requerirAccion, requerirAlgunaPestana, requerirPestana } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
-import { mapRepresentante, principalActivo, type RepresentanteLegal } from "@/lib/representantes"
+import {
+  mapFirmaRepresentante,
+  mapRepresentante,
+  principalActivo,
+  type FirmaRepresentanteContrato,
+  type RepresentanteLegal,
+} from "@/lib/representantes"
+import { mapTitularCuenta, type TitularCuenta } from "@/lib/titular-cuenta"
 import {
   PESTANAS_VER_OTROSI,
   limpiarMinutaOtrosi,
@@ -58,37 +65,59 @@ export async function actividadesParaOtrosi(contratoId: string): Promise<Activid
 // nuevoValor: nuevo valor total opcional (la base revisa que no baje de lo cobrado).
 // actividades: adiciones y actividades nuevas (con ellas el valor lo pone la
 // base: vigente + lo que suman).
-export async function crearOtrosi(contratoId: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null, nuevoValor: number | null = null, actividades: ActividadOtrosiEnvio[] = []): Promise<string> {
+// titular: "Depositar a otro tercero" (20270101002900). Al aprobarse el otrosí,
+// el contrato queda con ese tercero y esa cuenta; null = no cambia.
+export async function crearOtrosi(contratoId: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null, nuevoValor: number | null = null, actividades: ActividadOtrosiEnvio[] = [], titular: { tercero_id: string; cuenta_id: string } | null = null): Promise<string> {
   await requerirAccion("solicitar_contratos")
   const problema = validarSolicitudOtrosi({ contratoId, modificaciones, justificacion })
   if (problema) throw new Error(problema)
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("crear_otrosi", {
+  const { data, error } = await supabase.rpc("crear_otrosi_con_titular", {
     p_contrato_id: contratoId,
     p_modificaciones: modificaciones,
     p_justificacion: justificacion,
     p_nueva_fecha_fin: nuevaFechaFin || null,
     p_nuevo_valor: nuevoValor,
     p_actividades: actividades,
+    p_titular: titular,
   })
   if (error) throw new Error(error.message)
   return data as string
 }
 
-export async function reenviarOtrosi(id: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null, nuevoValor: number | null = null, actividades: ActividadOtrosiEnvio[] = []): Promise<void> {
+export async function reenviarOtrosi(id: string, modificaciones: ModificacionOtrosi[], justificacion: string, nuevaFechaFin: string | null = null, nuevoValor: number | null = null, actividades: ActividadOtrosiEnvio[] = [], titular: { tercero_id: string; cuenta_id: string } | null = null): Promise<void> {
   await requerirAccion("solicitar_contratos")
   const problema = validarSolicitudOtrosi({ contratoId: id, modificaciones, justificacion })
   if (problema) throw new Error(problema)
   const supabase = await createClient()
-  const { error } = await supabase.rpc("reenviar_otrosi", {
+  const { error } = await supabase.rpc("reenviar_otrosi_con_titular", {
     p_id: id,
     p_modificaciones: modificaciones,
     p_justificacion: justificacion,
     p_nueva_fecha_fin: nuevaFechaFin || null,
     p_nuevo_valor: nuevoValor,
     p_actividades: actividades,
+    p_titular: titular,
   })
   if (error) throw new Error(error.message)
+}
+
+// El tercero a donde se depositará si se aprueba el otrosí (null = no cambia).
+export async function titularDeOtrosi(id: string): Promise<TitularCuenta | null> {
+  await requerirAlgunaPestana(PESTANAS_VER_OTROSI)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("titular_de_otrosi", { p_otrosi_id: id })
+  if (error) throw new Error(error.message)
+  return mapTitularCuenta(data)
+}
+
+// Quién firmaría como representante legal si se aprueba el otrosí ahora.
+export async function firmaRepresentanteOtrosi(id: string): Promise<FirmaRepresentanteContrato> {
+  await requerirPestana("contratos.aprobar_otrosi")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("representante_que_firma_otrosi", { p_otrosi_id: id })
+  if (error) throw new Error(error.message)
+  return mapFirmaRepresentante(data)
 }
 
 export type FiltrosOtrosi = { estados?: EstadoOtrosi[]; proyectoId?: string; soloEnviados?: boolean }

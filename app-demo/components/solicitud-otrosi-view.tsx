@@ -30,7 +30,9 @@ import {
   type OtrosiDetalle,
   type OtrosiFila,
 } from "@/lib/otrosi"
-import { actividadesParaOtrosi, contratosParaOtrosi, crearOtrosi, listarOtrosis, reenviarOtrosi } from "@/app/(app)/contratos/otrosi/actions"
+import { actividadesParaOtrosi, contratosParaOtrosi, crearOtrosi, listarOtrosis, reenviarOtrosi, titularDeOtrosi } from "@/app/(app)/contratos/otrosi/actions"
+import { CampoTitularCuenta } from "@/components/campo-titular-cuenta"
+import { titularParaGuardar, type TitularCuenta } from "@/lib/titular-cuenta"
 
 // ---------------------------------------------------------------------------
 // Solicitud de otrosí (ruta /contratos/otrosi): el ingeniero escoge el
@@ -252,6 +254,20 @@ function FormularioOtrosi({
   const [nuevoValorTexto, setNuevoValorTexto] = useState(edicion?.nuevoValor != null ? String(edicion.nuevoValor).replace(".", ",") : "")
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // "Depositar a otro tercero". Al corregir uno devuelto se carga el que tenía.
+  const [titular, setTitular] = useState<TitularCuenta | null>(null)
+  const [cargandoTitular, setCargandoTitular] = useState(Boolean(edicion))
+  useEffect(() => {
+    if (!edicion) return
+    let vigente = true
+    titularDeOtrosi(edicion.id)
+      .then((t: TitularCuenta | null) => vigente && setTitular(t))
+      .catch(() => {}) // sin él, la casilla queda sin marcar
+      .finally(() => vigente && setCargandoTitular(false))
+    return () => {
+      vigente = false
+    }
+  }, [edicion])
   // Contrato abierto en PDF (botón Ver).
   const [viendo, setViendo] = useState<{ id: string; numeroContrato: string } | null>(null)
   // Actividades (contratos por valores unitarios). Van con el contrato al que
@@ -363,15 +379,20 @@ function FormularioOtrosi({
       setError(problema)
       return
     }
+    const titularEnvio = titularParaGuardar(titular)
+    if (!titularEnvio.ok) {
+      setError(titularEnvio.error)
+      return
+    }
     setEnviando(true)
     setError(null)
     try {
       const mods = modificaciones.map((m) => ({ clausula: m.clausula.trim(), redaccion: m.redaccion.trim() }))
       if (edicion) {
-        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga, valorEnvio, envioActs)
+        await reenviarOtrosi(edicion.id, mods, justificacion.trim(), fechaProrroga, valorEnvio, envioActs, titularEnvio.titular)
         onTerminado(`Otrosí al contrato ${edicion.numeroContrato} corregido y enviado otra vez a Jurídica.`)
       } else {
-        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga, valorEnvio, envioActs)
+        await crearOtrosi(contratoId!, mods, justificacion.trim(), fechaProrroga, valorEnvio, envioActs, titularEnvio.titular)
         const c = delContratista.find((x) => x.id === contratoId)
         onTerminado(`Otrosí al contrato ${c?.numeroContrato ?? ""} enviado a Jurídica.`)
       }
@@ -752,6 +773,25 @@ function FormularioOtrosi({
             )}
           </section>
           )}
+
+          {/* Depositar a otro tercero (20270101002900): al aprobarse el
+              otrosí, el contrato queda con ese tercero y cuenta, y las actas
+              nuevas lo traen por omisión. No aplica a contratos por PSE. */}
+          <section className="space-y-2 rounded-md border p-3">
+            <CampoTitularCuenta
+              valor={titular}
+              onCambiar={(v) => {
+                setTitular(v)
+                setError(null)
+              }}
+              etiqueta="Depositar a otro tercero"
+              disabled={enviando || cargandoTitular}
+            />
+            <p className="text-xs text-muted-foreground">
+              Cuando el otrosí quede aprobado, los pagos de las actas nuevas del contrato van a esta cuenta. Sin la casilla, el contrato
+              sigue con la cuenta de siempre. No aplica si el contrato se paga por PSE.
+            </p>
+          </section>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex justify-end gap-2 border-t pt-4">

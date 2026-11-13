@@ -2954,6 +2954,17 @@ excluir_de_precios = true where codigo = '...'` (no hay pantalla).
   mientras se publicaba la nueva, juntó 7 repetidas y fijó el search_path de
   `_clave_unidad`, `_clave_actividad` y `_fmt_pesos`. `aprobarSolicitudesRecurso`
   acepta hasta 100 a la vez (los ids van en la URL del `.in()`).
+- **Proyectos de prueba aparte** (`20270101002600`, 2026-11-13): las
+  solicitudes solo se juntan dentro del mismo ámbito (`_ambito_item` en la
+  base, `ambitoDeProyecto` en la app): un proyecto con
+  `proyectos.excluir_de_precios` (CAPACITACION) es su propio ámbito; los
+  reales comparten uno. Al probar en CAPACITACION, sus líneas se habían
+  colgado de las del Malecón; la migración las separó. `aprobarSolicitudesRecurso`
+  no deja juntar prueba con real. Pantalla: filtro por proyecto (el Excel
+  baja solo lo filtrado y "Juntar seleccionadas" solo lo visible). El catálogo
+  de mano de obra es UNO para todos: al probar, nombres que empiecen por
+  "PRUEBA" y borrarlos al terminar. **No volver a correr 20270101002400 ni
+  20270101002500** (juntan sin mirar el ámbito).
 - **Revisión del 2026-11-12** (todo lo del día, de los dos): sin funciones sin
   permiso en políticas, RPC, disparadores ni columnas; los errores del día ya
   estaban corregidos. Lecciones: aplicar la migración ANTES de publicar el
@@ -4417,18 +4428,20 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
 ## Pendientes conocidos (no hechos)
-- **Paquete H: lo que necesita migración** (2026-11-12, decisión del usuario:
-  sin migraciones en esta ronda). (1) **Otrosí: "Depositar a otro tercero"**
-  como en el contrato: columnas `otrosis.titular_tercero_id` /
-  `cuenta_tercero_id`, guardarlas en `crear_otrosi` / `reenviar_otrosi` (con
-  `_titular_valido`) y, al aprobarlo, pasarlas a `contratos.titular_*` (las
-  actas nuevas ya toman el tercero del contrato). (2) **Póliza obligatoria con
-  anticipo también en la base**: hoy solo lo hace la pantalla
-  (`validarSolicitud`: `requierePoliza` = obligatoria || casilla || anticipo);
-  falta en `_fijar_requiere_poliza`. (3) **Aviso previo de la firma del
-  representante en Aprobación de otrosí**: `_representante_que_firma_otrosi`
-  no tiene EXECUTE para usuarios; con un envoltorio público se avisaría antes
-  de aprobar, como en contratos (hoy el error sale al aprobar).
+- ~~Paquete H: lo que necesitaba migración~~: hecho el 2026-11-13 en
+  `20270101002900_otrosi_titular_poliza_anticipo_firma.sql` (aplicada).
+  (1) **Otrosí "Depositar a otro tercero"**: `otrosis.titular_tercero_id` /
+  `cuenta_tercero_id`; la app llama `crear_otrosi_con_titular` /
+  `reenviar_otrosi_con_titular` (envoltorios de las de siempre +
+  `_fijar_titular_otrosi` con `_titular_valido`; PSE no aplica); al aprobarse,
+  el disparador `trg_otrosi_titular_a_contrato` pasa el tercero y la cuenta a
+  `contratos.titular_*` (evento `titular_otrosi` del contrato) y las actas
+  nuevas lo traen. Formulario: `CampoTitularCuenta` en Solicitud de otrosí;
+  detalle: `titular_de_otrosi`. Sin casilla, el contrato no cambia (no hay
+  "volver a la cuenta del contratista" desde un otrosí). (2) **Póliza
+  obligatoria con anticipo** en `_fijar_requiere_poliza`. (3) **Aviso de firma
+  del representante** antes de aprobar un otrosí:
+  `representante_que_firma_otrosi` + `textoFirmaRepresentante(f, "otrosi")`.
 - **Versiones del presupuesto** (2026-11-11, en pausa por decisión del usuario).
   `crear_nueva_version` copia ítems, APU y precios congelados, pero NO las
   líneas de `apu_import_revision` pendientes ni las que esperan solicitud: se

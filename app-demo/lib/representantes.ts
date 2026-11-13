@@ -145,20 +145,30 @@ export function mapFirmaRepresentante(v: any): FirmaRepresentanteContrato {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Texto para Gerencia antes de aprobar. bloquea = la base no dejará aprobar.
-export function textoFirmaRepresentante(f: FirmaRepresentanteContrato): { texto: string; bloquea: boolean } {
+// documento "otrosi": Aprobación de otrosí (no tiene el botón de adjuntar firma).
+export function textoFirmaRepresentante(
+  f: FirmaRepresentanteContrato,
+  documento: "contrato" | "otrosi" = "contrato"
+): { texto: string; bloquea: boolean } {
+  const otrosi = documento === "otrosi"
   switch (f.estado) {
     case "ok":
       return { texto: `Al aprobar se pone la firma de ${f.nombre} (representante legal${f.tipo === "suplente" ? " suplente" : ""} de ${f.empresa}).`, bloquea: false }
     case "sin_firma":
-      return { texto: `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: adjúntala con «Adjuntar firma de RL» (arriba) antes de aprobar.`, bloquea: true }
+      return {
+        texto: otrosi
+          ? `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: adjúntala en Aprobación de contratos › «Adjuntar firma de RL» antes de aprobar.`
+          : `${f.nombre}, representante legal de ${f.empresa}, no tiene firma: adjúntala con «Adjuntar firma de RL» (arriba) antes de aprobar.`,
+        bloquea: true,
+      }
     case "no_coincide":
       return {
-        texto: `El representante de la minuta (${[f.minutaNombre, f.minutaDocumento && `C.C. ${f.minutaDocumento}`].filter(Boolean).join(", ") || "sin datos"}) no está registrado en ${f.empresa}: regístralo en Admin › Empresas o devuelve la minuta a Jurídica.`,
+        texto: `El representante ${otrosi ? "del otrosí" : "de la minuta"} (${[f.minutaNombre, f.minutaDocumento && `C.C. ${f.minutaDocumento}`].filter(Boolean).join(", ") || "sin datos"}) no está registrado en ${f.empresa}: regístralo en Admin › Empresas o devuelve ${otrosi ? "el otrosí" : "la minuta"} a Jurídica.`,
         bloquea: true,
       }
     case "sin_revisar":
       return { texto: "No se pudo revisar la firma del representante legal. Al aprobar se revisa otra vez; si falta, saldrá el error.", bloquea: false }
     default:
-      return { texto: "La empresa no tiene representantes legales registrados: el contrato se aprueba sin su firma.", bloquea: false }
+      return { texto: `La empresa no tiene representantes legales registrados: ${otrosi ? "el otrosí" : "el contrato"} se aprueba sin su firma.`, bloquea: false }
   }
 }

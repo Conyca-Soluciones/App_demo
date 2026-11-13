@@ -11,7 +11,8 @@ import { fechaContrato } from "@/components/detalle-solicitud-contrato"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import { nombreTipoContrato, numero, pesos } from "@/lib/contratos"
 import { CLASE_ESTADO_OTROSI, ETIQUETA_ESTADO_OTROSI, type OtrosiDetalle } from "@/lib/otrosi"
-import { obtenerOtrosi } from "@/app/(app)/contratos/otrosi/actions"
+import { obtenerOtrosi, titularDeOtrosi } from "@/app/(app)/contratos/otrosi/actions"
+import type { TitularCuenta } from "@/lib/titular-cuenta"
 
 // ---------------------------------------------------------------------------
 // Detalle de un otrosí, compartido por Solicitud de otrosí (el ingeniero) y
@@ -49,6 +50,20 @@ export function DetalleOtrosi({
   }, [id])
 
   const detalle = cargado && cargado.id === id ? cargado.detalle : null
+
+  // Tercero a donde se depositará (20270101002900).
+  const [titularCargado, setTitularCargado] = useState<{ id: string; titular: TitularCuenta | null } | null>(null)
+  useEffect(() => {
+    if (!id) return
+    let vigente = true
+    titularDeOtrosi(id)
+      .then((t: TitularCuenta | null) => vigente && setTitularCargado({ id, titular: t }))
+      .catch(() => {}) // sin el dato, la fila dice "No"
+    return () => {
+      vigente = false
+    }
+  }, [id])
+  const titular = titularCargado && titularCargado.id === id ? titularCargado.titular : null
 
   function cerrar() {
     setCargado(null)
@@ -148,6 +163,12 @@ export function DetalleOtrosi({
                             "Cambia el valor",
                             detalle.nuevoValor !== null
                               ? `Sí, a ${pesos(detalle.nuevoValor)}${detalle.actividades.length > 0 ? " (vigente + actividades)" : ""}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
+                              : "No",
+                          ],
+                          [
+                            "Depositar a otro tercero",
+                            titular
+                              ? `Sí, a ${titular.nombre} (${titular.documento}) · ${titular.cuentaTexto}${titular.cuentaVerificada ? "" : " · cuenta sin verificar"}${detalle.estado === "aprobada" ? "" : " (cuando se apruebe)"}`
                               : "No",
                           ],
                           ...(detalle.numero !== null && detalle.aprobadoAt

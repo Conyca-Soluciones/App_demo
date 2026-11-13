@@ -2272,20 +2272,44 @@ export type SolicitudManoObraInput = {
   unidad?: string | null
 }
 
-// Solicitud pendiente con la misma actividad y la misma unidad (2026-11-12):
-// las líneas que piden lo mismo se cuelgan de ella en vez de crear otra. Cada
-// línea conserva su ítem y su cantidad (apu_import_revision).
+// Ámbito de un ítem (igual que public._ambito_item, 20270101002600): si su
+// proyecto es de prueba (excluir_de_precios, hoy CAPACITACION), el id del
+// proyecto; si no, "real". Las solicitudes solo se juntan dentro del mismo
+// ámbito: lo que se prueba en CAPACITACION no se cuelga de lo del Malecón.
+function ambitoDeProyecto(proyecto: { id?: string | null; excluir_de_precios?: boolean | null } | null | undefined): string {
+  return proyecto?.excluir_de_precios && proyecto.id ? String(proyecto.id) : "real"
+}
+
+async function datosItemSolicitud(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  itemId: string | null | undefined
+): Promise<{ unidad: string | null; ambito: string }> {
+  if (!itemId) return { unidad: null, ambito: "real" }
+  const { data, error } = await supabase
+    .from("presupuesto_items")
+    .select("unidad, presupuestos:presupuesto_id(proyectos:proyecto_id(id, excluir_de_precios))")
+    .eq("id", itemId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return { unidad: (data as any)?.unidad ?? null, ambito: ambitoDeProyecto((data as any)?.presupuestos?.proyectos) }
+}
+
+// Solicitud pendiente con la misma actividad y la misma unidad (2026-11-12),
+// en el mismo ámbito (2026-11-13): las líneas que piden lo mismo se cuelgan de
+// ella en vez de crear otra. Cada línea conserva su ítem y su cantidad
+// (apu_import_revision).
 async function solicitudRecursoPendienteIgual(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tabla: "solicitudes_mano_obra" | "solicitudes_equipo",
   descripcion: string,
-  unidad: string | null
+  unidad: string | null,
+  ambito: string
 ): Promise<any | null> {
   const texto = descripcion.trim().replace(/\s+/g, " ")
   if (!texto) return null
   const { data, error } = await supabase
     .from(tabla)
-    .select("*")
+    .select("*, item:presupuesto_item_id(presupuestos:presupuesto_id(proyectos:proyecto_id(id, excluir_de_precios)))")
     .eq("estado", "pendiente")
     .ilike("descripcion", `${texto.replace(/[\\%_]/g, (c: string) => `\\${c}`).replace(/ /g, "%")}`)
     .order("created_at")
@@ -2294,7 +2318,15 @@ async function solicitudRecursoPendienteIgual(
   if (error) throw new Error(error.message)
   const clave = claveActividad(texto)
   const claveU = claveUnidad(unidad)
-  return (data ?? []).find((s: any) => claveActividad(s.descripcion) === clave && claveUnidad(s.unidad) === claveU) ?? null
+  const igual = (data ?? []).find(
+    (s: any) =>
+      claveActividad(s.descripcion) === clave &&
+      claveUnidad(s.unidad) === claveU &&
+      ambitoDeProyecto(s.item?.presupuestos?.proyectos) === ambito
+  )
+  if (!igual) return null
+  const { item: _item, ...solicitud } = igual
+  return solicitud
 }
 
 export async function crearSolicitudManoObra(input: SolicitudManoObraInput) {
@@ -2302,12 +2334,9 @@ export async function crearSolicitudManoObra(input: SolicitudManoObraInput) {
 
   const userId = await obtenerUsuarioId()
 
-  let unidad = input.unidad ?? null
-  if (unidad == null && input.presupuestoItemId) {
-    const { data: item } = await supabase.from("presupuesto_items").select("unidad").eq("id", input.presupuestoItemId).maybeSingle()
-    unidad = item?.unidad ?? null
-  }
-  const igual = await solicitudRecursoPendienteIgual(supabase, "solicitudes_mano_obra", input.descripcion, unidad)
+  const datosItem = await datosItemSolicitud(supabase, input.presupuestoItemId)
+  const unidad = input.unidad ?? datosItem.unidad
+  const igual = await solicitudRecursoPendienteIgual(supabase, "solicitudes_mano_obra", input.descripcion, unidad, datosItem.ambito)
   if (igual) return igual
 
   const { data, error } = await supabase
@@ -2631,7 +2660,8 @@ export async function crearSolicitudEquipo(input: SolicitudEquipoInput) {
   const userId = await obtenerUsuarioId()
 
   const unidad = input.unidad ?? null
-  const igual = await solicitudRecursoPendienteIgual(supabase, "solicitudes_equipo", input.descripcion, unidad)
+  const { ambito } = await datosItemSolicitud(supabase, input.presupuestoItemId)
+  const igual = await solicitudRecursoPendienteIgual(supabase, "solicitudes_equipo", input.descripcion, unidad, ambito)
   if (igual) return igual
 
   const { data, error } = await supabase
@@ -2920,11 +2950,16 @@ export async function aprobarSolicitudesRecurso(
 
   const { data: solicitudes, error: errorLectura } = await supabase
     .from(TABLA_SOLICITUD[tipo])
-    .select("id, descripcion, unidad, estado")
+    .select("id, descripcion, unidad, estado, item:presupuesto_item_id(presupuestos:presupuesto_id(proyectos:proyecto_id(id, excluir_de_precios)))")
     .in("id", ids)
   if (errorLectura) throw new Error(errorLectura.message)
   if ((solicitudes ?? []).length !== ids.length || (solicitudes ?? []).some((x: any) => x.estado !== "pendiente")) {
     throw new Error("Alguna de estas solicitudes ya fue resuelta por otra persona. Actualiza la página.")
+  }
+  // Un proyecto de prueba (CAPACITACION) no se junta con los reales.
+  const ambitos = new Set((solicitudes ?? []).map((x: any) => ambitoDeProyecto(x.item?.presupuestos?.proyectos)))
+  if (ambitos.size > 1) {
+    throw new Error("Estas actividades mezclan un proyecto de prueba con uno real: apruébalas por separado.")
   }
   // Todas en la misma unidad: el valor es por esa unidad.
   const unidades = Array.from(
@@ -4419,7 +4454,7 @@ export async function resolverLineasRevisionEnLote(
         const { data, error } = await supabase
           .from("apu_import_revision")
           .select(
-            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion, unidad)"
+            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion, unidad, presupuesto_id)"
           )
           .in("id", lote)
         if (error) throw new Error(error.message)
@@ -4704,7 +4739,7 @@ export async function resolverLineasRevisionEnLote(
   for (const r of resolucionesSolicitudEquipo) {
     const fila = filaPorId.get(r.revisionId)
     if (!fila || fila.estado === "resuelto") continue
-    const clave = claveSolicitudRecurso(fila.descripcion_original, fila.unidad)
+    const clave = `${(fila as any).presupuesto_items?.presupuesto_id ?? ""}|${claveSolicitudRecurso(fila.descripcion_original, fila.unidad)}`
     const grupo = gruposEquipoPorDescripcion.get(clave) ?? []
     grupo.push(r)
     gruposEquipoPorDescripcion.set(clave, grupo)
@@ -4750,7 +4785,7 @@ export async function resolverLineasRevisionEnLote(
     }
     if (fila.estado === "resuelto") continue
     const item = (fila as any).presupuesto_items
-    const clave = claveSolicitudRecurso(item?.descripcion ?? fila.descripcion_original, item?.unidad ?? null)
+    const clave = `${item?.presupuesto_id ?? ""}|${claveSolicitudRecurso(item?.descripcion ?? fila.descripcion_original, item?.unidad ?? null)}`
     const grupo = gruposManoObra.get(clave) ?? []
     grupo.push(r)
     gruposManoObra.set(clave, grupo)
