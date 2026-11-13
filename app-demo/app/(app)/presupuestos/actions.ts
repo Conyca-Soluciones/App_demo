@@ -5516,8 +5516,8 @@ export async function cargarVersionConEstadoApu(versionId: string): Promise<Item
   ])
   return { items, estados, motivosRechazo, diferenciasLineas, itemIdsTransportePendiente }
 }
-// Desperdicio de la versión (20270101003000): los insumos de sus APU con el
-// valor sin desperdicio, para el diálogo "Desperdicio".
+// Desperdicio de la versión (20270101003700): las líneas de insumo de sus APU
+// por texto del Excel, aprobadas y pendientes, para el diálogo "Desperdicio".
 export async function listarInsumosDesperdicio(versionId: string): Promise<DatosDesperdicio> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("insumos_para_desperdicio", { p_version_id: versionId })
@@ -5525,13 +5525,13 @@ export async function listarInsumosDesperdicio(versionId: string): Promise<Datos
   return mapearDatosDesperdicio(data)
 }
 
-// Guarda el % general de la versión vigente y sus excepciones por insumo
-// (lista completa; 0 = ese insumo sin desperdicio). La base lo aplica a todas
+// Guarda el % general de la versión vigente y sus excepciones por línea del
+// Excel (lista completa; 0 = sin desperdicio). La base lo aplica a todas
 // las líneas de insumo, también a las que entren después, y recalcula.
 export async function fijarDesperdicioPresupuesto(
   versionId: string,
   general: number,
-  excepciones: { insumo_id: string; porcentaje: number }[]
+  excepciones: { clave: string; porcentaje: number }[]
 ): Promise<{ excepciones: number; lineas: number; valorAntes: number; valorDespues: number }> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("fijar_desperdicio_presupuesto", {

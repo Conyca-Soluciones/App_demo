@@ -1,61 +1,59 @@
-// Desperdicio del presupuesto (20270101003000 y 20270101003500). Un % general
-// de la versión que la base aplica sola a todas las líneas de insumo, también a
-// las que entren después; las líneas cuyo Excel ya dice "desperdicio" quedan en
-// 0; y excepciones por insumo (0 = sin desperdicio, u otro %).
+// Desperdicio del presupuesto (20270101003000, 3500 y 3700). Es de la CANTIDAD:
+// un % general de la versión que la base aplica sola a todas las líneas de
+// insumo del APU, también a las que se aprueben después. Excepciones por línea
+// del Excel (su texto): desmarcar = sin desperdicio, u otro %.
 // Lógica pura del diálogo "Desperdicio".
 
-export type InsumoDesperdicio = {
-  insumoId: string
-  codigo: number | null
+// Una línea de insumo del Excel (agrupada por su texto) en la versión.
+export type LineaDesperdicio = {
+  clave: string // texto normalizado: con esto se guarda la excepción
   descripcion: string
   unidad: string | null
-  tipo: string | null
   nItems: number
-  cantidadBase: number
-  valorBase: number
-  // valor de las líneas que toman el % (sin las que ya traen desperdicio)
-  valorAplicable: number
-  // líneas de este insumo cuyo Excel ya dice "desperdicio" (quedan en 0)
-  lineasTrae: number
-  // excepción guardada (null = sigue el % general; 0 = sin desperdicio)
-  excepcion: number | null
+  lineas: number
+  lineasPendientes: number // esperan aprobación del insumo
+  cantidadBase: number // sin desperdicio, por la cantidad de cada ítem
+  valorBase: number // solo de las líneas ya aprobadas (las pendientes no tienen precio)
+  diceDesperdicio: boolean // el texto ya dice "desperdicio"
+  excepcion: number | null // null = el % general; 0 = sin desperdicio
 }
 
-export type DatosDesperdicio = { general: number; valorPresupuesto: number; insumos: InsumoDesperdicio[] }
+export type DatosDesperdicio = { general: number; configurado: boolean; lineas: LineaDesperdicio[] }
 
 // marcado = lleva desperdicio; porcentaje null = el general
-export type FilaDesperdicio = { insumoId: string; marcado: boolean; porcentaje: number | null }
+export type FilaDesperdicio = { clave: string; marcado: boolean; porcentaje: number | null }
 
 export function mapearDatosDesperdicio(raw: unknown): DatosDesperdicio {
-  const r = (raw ?? {}) as { general?: unknown; valor_presupuesto?: unknown; insumos?: unknown[] }
+  const r = (raw ?? {}) as { general?: unknown; configurado?: unknown; insumos?: unknown[] }
   return {
     general: Number(r.general ?? 0),
-    valorPresupuesto: Number(r.valor_presupuesto ?? 0),
-    insumos: (r.insumos ?? []).map((x) => {
+    configurado: Boolean(r.configurado),
+    lineas: (r.insumos ?? []).map((x) => {
       const i = x as Record<string, unknown>
       return {
-        insumoId: String(i.insumo_id),
-        codigo: i.codigo == null ? null : Number(i.codigo),
+        clave: String(i.clave),
         descripcion: String(i.descripcion ?? ""),
         unidad: (i.unidad as string | null) ?? null,
-        tipo: (i.tipo as string | null) ?? null,
         nItems: Number(i.n_items ?? 0),
+        lineas: Number(i.lineas ?? 0),
+        lineasPendientes: Number(i.lineas_pendientes ?? 0),
         cantidadBase: Number(i.cantidad_base ?? 0),
         valorBase: Number(i.valor_base ?? 0),
-        valorAplicable: Number(i.valor_aplicable ?? 0),
-        lineasTrae: Number(i.lineas_trae ?? 0),
+        diceDesperdicio: Boolean(i.dice_desperdicio),
         excepcion: i.excepcion == null ? null : Number(i.excepcion),
       }
     }),
   }
 }
 
-export function filasIniciales(insumos: InsumoDesperdicio[]): FilaDesperdicio[] {
-  return insumos.map((i) => ({
-    insumoId: i.insumoId,
-    marcado: i.excepcion !== 0,
-    porcentaje: i.excepcion != null && i.excepcion > 0 ? i.excepcion : null,
-  }))
+// La primera vez (versión sin desperdicio) se proponen desmarcadas las líneas
+// cuyo texto ya dice "desperdicio"; después, lo guardado.
+export function filasIniciales(datos: DatosDesperdicio): FilaDesperdicio[] {
+  return datos.lineas.map((l) =>
+    datos.configurado
+      ? { clave: l.clave, marcado: l.excepcion !== 0, porcentaje: l.excepcion != null && l.excepcion > 0 ? l.excepcion : null }
+      : { clave: l.clave, marcado: !l.diceDesperdicio, porcentaje: null }
+  )
 }
 
 export function porcentajeDeFila(f: FilaDesperdicio, general: number): number {
@@ -63,36 +61,36 @@ export function porcentajeDeFila(f: FilaDesperdicio, general: number): number {
   return f.porcentaje ?? general
 }
 
-// Cuánto suma el desperdicio en pesos sobre lo que ya está en los APU.
+// Cuánto suma el desperdicio en pesos sobre las líneas ya aprobadas (las
+// pendientes lo toman cuando se aprueben).
 export function impactoDesperdicio(
-  insumos: InsumoDesperdicio[],
+  lineas: LineaDesperdicio[],
   filas: FilaDesperdicio[],
   general: number
-): { aumento: number; marcados: number } {
-  const porId = new Map(filas.map((f) => [f.insumoId, f]))
+): { aumento: number; marcadas: number } {
+  const porClave = new Map(filas.map((f) => [f.clave, f]))
   let aumento = 0
-  let marcados = 0
-  for (const i of insumos) {
-    const f = porId.get(i.insumoId)
+  let marcadas = 0
+  for (const l of lineas) {
+    const f = porClave.get(l.clave)
     if (!f) continue
     const pct = porcentajeDeFila(f, general)
-    if (pct > 0 && i.valorAplicable > 0) {
-      marcados++
-      aumento += (i.valorAplicable * pct) / 100
+    if (pct > 0) {
+      marcadas++
+      aumento += (l.valorBase * pct) / 100
     }
   }
-  return { aumento: Math.round(aumento), marcados }
+  return { aumento: Math.round(aumento), marcadas }
 }
 
-// Excepciones para fijar_desperdicio_presupuesto: los desmarcados (0) y los que
-// tienen un % distinto del general. Los demás siguen el general (también lo que
-// se apruebe después).
-export function excepcionesParaGuardar(filas: FilaDesperdicio[], general: number): { insumo_id: string; porcentaje: number }[] {
-  const out: { insumo_id: string; porcentaje: number }[] = []
+// Excepciones para fijar_desperdicio_presupuesto: las desmarcadas (0) y las de
+// un % distinto del general. Las demás siguen el general.
+export function excepcionesParaGuardar(filas: FilaDesperdicio[], general: number): { clave: string; porcentaje: number }[] {
+  const out: { clave: string; porcentaje: number }[] = []
   for (const f of filas) {
-    if (!f.marcado) out.push({ insumo_id: f.insumoId, porcentaje: 0 })
+    if (!f.marcado) out.push({ clave: f.clave, porcentaje: 0 })
     else if (f.porcentaje != null && f.porcentaje !== general) {
-      out.push({ insumo_id: f.insumoId, porcentaje: Math.round(f.porcentaje * 100) / 100 })
+      out.push({ clave: f.clave, porcentaje: Math.round(f.porcentaje * 100) / 100 })
     }
   }
   return out
