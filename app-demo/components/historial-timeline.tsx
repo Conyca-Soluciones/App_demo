@@ -210,6 +210,7 @@ const EVENTOS_PRESUPUESTO: Record<string, DefEvento> = {
   version_creada: { etiqueta: "Versión creada", tono: "neutro" },
   version_descartada: { etiqueta: "Versión descartada", tono: "malo" },
   descartado: { etiqueta: "Presupuesto descartado", tono: "malo" },
+  desperdicio: { etiqueta: "Desperdicio cambiado", tono: "aviso" },
 }
 
 const EVENTOS_ROL: Record<string, DefEvento> = {
@@ -472,6 +473,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   }
   if (tipo === "presupuesto") {
     if (e.evento === "version_creada" || e.evento === "version_descartada") return [`Versión ${formatoValor(d.numero)}: ${formatoValor(d.nombre)}`]
+    if (e.evento === "desperdicio") return [`${formatoValor(d.insumos)} insumo(s) con desperdicio`, `Valor: ${formatoValor(d.valor_antes)} → ${formatoValor(d.valor_despues)}`]
     return [d.proyecto, d.nombre].filter(Boolean).map(String)
   }
   if (tipo === "rol") {

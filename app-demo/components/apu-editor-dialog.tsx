@@ -605,6 +605,14 @@ function SeccionCategoria({
                   >
                     {it.cantidad}
                   </span>
+                  {it.desperdicioPct != null && it.cantidadBase != null && (
+                    <span
+                      className="block text-xs text-amber-700"
+                      title="Desperdicio de la versión (botón Desperdicio en Presupuestos)"
+                    >
+                      {it.cantidadBase} + {it.desperdicioPct}% desperdicio
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   {rendimientoEsEditable(it) ? (

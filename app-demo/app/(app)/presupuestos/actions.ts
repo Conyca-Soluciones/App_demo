@@ -8,6 +8,7 @@ import { buscarSimilares } from "@/lib/similitud-texto"
 import { obtenerPermisosRol, obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { requerirScope } from "@/lib/permisos"
 import { combinarBloquesConResoluciones } from "@/lib/apu-import-types"
+import { mapearDatosDesperdicio, type DatosDesperdicio } from "@/lib/desperdicio"
 import {
   compararUnidad,
   describirPresentacion,
@@ -383,7 +384,7 @@ export async function crearVersionVacia(
 // líneas de mano de obra, equipo, transporte y herramienta menor: el APU
 // copiado valía menos en cuanto se recalculaba.
 const COLUMNAS_COPIA_ITEM_APU =
-  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica"
+  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, cantidad_base, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica"
 
 function copiaLineaApu(linea: any, apuId: string) {
   return {
@@ -393,7 +394,9 @@ function copiaLineaApu(linea: any, apuId: string) {
     porcentaje_mano_obra: linea.porcentaje_mano_obra,
     equipo_categoria_id: linea.equipo_categoria_id,
     transporte_precio_id: linea.transporte_precio_id,
-    cantidad: linea.cantidad,
+    // Sin desperdicio: la copia toma el % de SU versión (disparador
+    // trg_item_apu_desperdicio, 20270101003000).
+    cantidad: linea.cantidad_base ?? linea.cantidad,
     rendimiento: linea.rendimiento ?? 1,
     tipo: linea.tipo,
     precio_unitario_congelado: linea.precio_unitario_congelado,
@@ -1488,6 +1491,10 @@ export type ItemApu = {
   // (1 unidad de compra = factorUnidad unidades de la línea).
   uMCompra?: string | null
   factorUnidad?: number
+  // Solo insumos con desperdicio (20270101003000): cantidad = cantidadBase ×
+  // (1 + desperdicioPct / 100).
+  cantidadBase?: number
+  desperdicioPct?: number
 }
 
 export type ApuDeItem = {
@@ -1620,13 +1627,16 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
         cantidad: manoObra || transportePrecio ? 1 : Number(it.cantidad),
         rendimiento: manoObra || transportePrecio ? 1 : Number(it.rendimiento ?? 1),
         tipo: insumo?.tipo ?? it.tipo ?? null,
+        ...(insumo && Number(it.desperdicio_pct ?? 0) > 0
+          ? { cantidadBase: Number(it.cantidad_base ?? it.cantidad), desperdicioPct: Number(it.desperdicio_pct) }
+          : {}),
       }
     }),
   }
 }
 
 const SELECT_APU =
-  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
+  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, cantidad_base, desperdicio_pct, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
 
 async function contarUsosDeApu(apuId: string): Promise<number> {
   const supabase = await createClient()
@@ -5505,4 +5515,30 @@ export async function cargarVersionConEstadoApu(versionId: string): Promise<Item
     obtenerItemsConTransportePendiente(idsItems),
   ])
   return { items, estados, motivosRechazo, diferenciasLineas, itemIdsTransportePendiente }
+}
+// Desperdicio de la versión (20270101003000): los insumos de sus APU con el
+// valor sin desperdicio, para el diálogo "Desperdicio".
+export async function listarInsumosDesperdicio(versionId: string): Promise<DatosDesperdicio> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("insumos_para_desperdicio", { p_version_id: versionId })
+  if (error) throw new Error(error.message)
+  return mapearDatosDesperdicio(data)
+}
+
+// Guarda los % de la versión vigente (la lista completa: lo que no viene queda
+// sin desperdicio), infla las líneas y recalcula los valores en la base.
+export async function fijarDesperdicioPresupuesto(
+  versionId: string,
+  items: { insumo_id: string; porcentaje: number }[]
+): Promise<{ insumos: number; lineas: number; valorAntes: number; valorDespues: number }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("fijar_desperdicio_presupuesto", { p_version_id: versionId, p_items: items })
+  if (error) throw new Error(error.message)
+  const r = (data ?? {}) as Record<string, unknown>
+  return {
+    insumos: Number(r.insumos ?? 0),
+    lineas: Number(r.lineas ?? 0),
+    valorAntes: Number(r.valor_antes ?? 0),
+    valorDespues: Number(r.valor_despues ?? 0),
+  }
 }
