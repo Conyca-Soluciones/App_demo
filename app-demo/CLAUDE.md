@@ -3037,6 +3037,44 @@ excluir_de_precios = true where codigo = '...'` (no hay pantalla).
   `docs/fuentes-precios/`: costos directos de ISVIMED y contrato de Pesquera,
   ninguno con IVA). El presupuesto suma IVA solo a insumos.
 
+## Desperdicio en el presupuesto (2026-11-13)
+
+`20270101003000_desperdicio_presupuesto.sql` (decisión del usuario: el
+desperdicio INFLA la cantidad, sube el valor y el cupo de requisiciones).
+Botón "Desperdicio" junto a "Agregar ítem manual" (versión vigente,
+`components/desperdicio-dialog.tsx`, lógica en `lib/desperdicio.ts`): % general
+(5 por omisión), lista de insumos de la versión con casilla, "Seleccionar todos"
+y % propio por insumo (vacío = el general); los que el APU ya dice
+"desperdicio" (texto del Excel o del insumo) llegan desmarcados la primera vez;
+muestra cuánto sube el presupuesto antes de guardar.
+- `presupuesto_desperdicios` (versión, insumo, %). En `item_apu`:
+  `cantidad_base` (sin desperdicio; null = sin desperdicio) y `desperdicio_pct`;
+  `cantidad` = base × (1 + % / 100). Así `recalcular_valor_apus`, el cupo de
+  requisiciones y Control salen inflados sin tocarlos.
+- Disparador `trg_item_apu_desperdicio`: una línea de insumo nueva toma el % de
+  su versión; escribir `cantidad` cambia la BASE y se vuelve a inflar (nunca
+  escribir la cantidad inflada como si fuera base). `presupuesto_items`, al
+  enlazar un APU (insert o cambio de `apu_id`), aplica el % a sus líneas.
+- `fijar_desperdicio_presupuesto` (editar_presupuestos, solo versión vigente;
+  lista completa) y `insumos_para_desperdicio` (invoker). Historial del
+  presupuesto: evento `desperdicio`.
+- Copiar un APU (`copiaLineaApu`) copia la BASE; `crear_nueva_version` copia
+  los % y las dos columnas. El editor de APU muestra "base + X% desperdicio".
+- **La migración va ANTES del código** (`SELECT_APU` lee las columnas nuevas).
+
+**Recalcular al editar el catálogo** (`20270101003400_recalcular_al_editar_catalogo.sql`):
+mano de obra y equipo NO congelan precio en el APU (toman `valor_unitario` del
+catálogo al recalcular), pero editar el catálogo no recalculaba: en el Malecón
+el compresor pasó de $450.000 a $56.250/h y 3.6, 3.9, 3.10, 3.12 y 3.17 seguían
+con el valor viejo ($2.683 millones de más). Disparadores por sentencia en
+`mano_obra_categorias` / `equipo_categorias` (si cambia `valor_unitario`)
+recalculan los APU que las usan (y su herramienta menor) SOLO en la versión
+vigente; la migración recalcula una vez todos los APU vigentes. Revisado contra
+los APU oficiales del Malecón (528 hojas, 2026-11-13): cantidades de insumos y
+horas de equipo iguales al Excel, herramienta menor = mismo % de la mano de obra
+y la mano de obra una vez por unidad del ítem; lo que difiere son los precios
+(los de CONYCA) y las líneas pendientes.
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
@@ -4458,6 +4496,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231996000` fecha estimada de entrega en el registro de requisiciones.
 `20261231997000` índice de pólizas por proyecto.
 `20261231998000` estado de compra "parcial" de la requisición.
+`20270101003000` desperdicio del presupuesto.
+`20270101003400` recalcular el presupuesto al editar el catálogo de mano de obra o equipo.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

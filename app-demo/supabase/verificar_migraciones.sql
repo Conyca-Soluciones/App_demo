@@ -717,5 +717,15 @@ select * from (
          and exists (select 1 from pg_proc where proname = 'representante_que_firma_otrosi')
          and exists (select 1 from pg_trigger where tgname = 'trg_otrosi_titular_a_contrato')
          and exists (select 1 from pg_proc where proname = '_fijar_requiere_poliza' and prosrc like '%tiene_anticipo%')
+  union all
+  select '20270101003000_desperdicio_presupuesto',
+         exists (select 1 from information_schema.columns where table_name = 'item_apu' and column_name = 'desperdicio_pct')
+         and exists (select 1 from pg_proc where proname = 'fijar_desperdicio_presupuesto')
+         and exists (select 1 from pg_trigger where tgname = 'trg_item_apu_desperdicio')
+         and exists (select 1 from pg_proc where proname = 'crear_nueva_version' and prosrc like '%ia.desperdicio_pct%')
+  union all
+  select '20270101003400_recalcular_al_editar_catalogo',
+         exists (select 1 from pg_trigger where tgname = 'trg_catalogo_mo_recalcular')
+         and exists (select 1 from pg_trigger where tgname = 'trg_catalogo_equipo_recalcular')
 ) t
 order by 1;

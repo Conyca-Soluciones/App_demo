@@ -6,6 +6,7 @@ import { PresupuestoTable,excedePresupuestoOriginal } from "@/components/presupu
 import { PresupuestoTree} from "@/components/presupuesto-tree"
 import { ApuEditorDialog } from "@/components/apu-editor-dialog"
 import { AgregarItemManualDialog } from "@/components/agregar-item-manual-dialog"
+import { DesperdicioDialog } from "@/components/desperdicio-dialog"
 import * as XLSX from "xlsx"
 import ExcelJS from "exceljs"
 import { useEffect, useRef, useState } from "react"
@@ -556,6 +557,7 @@ function PresupuestoDeProyecto() {
       .catch(() => setPuedeEditar(false))
   }, [])
   const editable = puedeEditar && viendoVersionActual
+  const [dialogoDesperdicioAbierto, setDialogoDesperdicioAbierto] = useState(false)
   const [versionViendoIdEstado, setVersionViendoId] = useState<string | null>(null)
   const versiones = presupuestoDbId ? versionesCargadas : []
   const versionViendoId = presupuestoDbId ? versionViendoIdEstado : null
@@ -1953,6 +1955,11 @@ function PresupuestoDeProyecto() {
             <Button variant="outline" onClick={() => setDialogoAgregarAbierto(true)}>
               + Agregar ítem manual
             </Button>
+            {presupuestoDbId && versionViendoId && (
+              <Button variant="outline" className="ml-2" onClick={() => setDialogoDesperdicioAbierto(true)}>
+                Desperdicio
+              </Button>
+            )}
           </div>
         )}
 
@@ -2189,6 +2196,14 @@ function PresupuestoDeProyecto() {
         />
       )}
 
+      {versionViendoId && editable && (
+        <DesperdicioDialog
+          open={dialogoDesperdicioAbierto}
+          onOpenChange={setDialogoDesperdicioAbierto}
+          versionId={versionViendoId}
+          onGuardado={() => handleVerVersion(versionViendoId)}
+        />
+      )}
       <AgregarItemManualDialog
         open={dialogoAgregarAbierto}
         onOpenChange={setDialogoAgregarAbierto}
