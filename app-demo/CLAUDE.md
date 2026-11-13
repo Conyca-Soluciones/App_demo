@@ -3064,28 +3064,40 @@ excluir_de_precios = true where codigo = '...'` (no hay pantalla).
 
 ## Desperdicio en el presupuesto (2026-11-13)
 
-`20270101003000_desperdicio_presupuesto.sql` (decisión del usuario: el
-desperdicio INFLA la cantidad, sube el valor y el cupo de requisiciones).
-Botón "Desperdicio" junto a "Agregar ítem manual" (versión vigente,
-`components/desperdicio-dialog.tsx`, lógica en `lib/desperdicio.ts`): % general
-(5 por omisión), lista de insumos de la versión con casilla, "Seleccionar todos"
-y % propio por insumo (vacío = el general); los que el APU ya dice
-"desperdicio" (texto del Excel o del insumo) llegan desmarcados la primera vez;
-muestra cuánto sube el presupuesto antes de guardar.
-- `presupuesto_desperdicios` (versión, insumo, %). En `item_apu`:
-  `cantidad_base` (sin desperdicio; null = sin desperdicio) y `desperdicio_pct`;
-  `cantidad` = base × (1 + % / 100). Así `recalcular_valor_apus`, el cupo de
-  requisiciones y Control salen inflados sin tocarlos.
-- Disparador `trg_item_apu_desperdicio`: una línea de insumo nueva toma el % de
-  su versión; escribir `cantidad` cambia la BASE y se vuelve a inflar (nunca
-  escribir la cantidad inflada como si fuera base). `presupuesto_items`, al
-  enlazar un APU (insert o cambio de `apu_id`), aplica el % a sus líneas.
-- `fijar_desperdicio_presupuesto` (editar_presupuestos, solo versión vigente;
-  lista completa) y `insumos_para_desperdicio` (invoker). Historial del
-  presupuesto: evento `desperdicio`.
-- Copiar un APU (`copiaLineaApu`) copia la BASE; `crear_nueva_version` copia
-  los % y las dos columnas. El editor de APU muestra "base + X% desperdicio".
-- **La migración va ANTES del código** (`SELECT_APU` lee las columnas nuevas).
+`20270101003000`, `20270101003500` y `20270101003700_desperdicio_por_linea_del_excel.sql`
+(decisiones del usuario: el desperdicio es de la CANTIDAD, no del insumo del maestro;
+infla la cantidad, sube el valor y el cupo de requisiciones; un % GENERAL de la versión
+que se aplica solo, para que Técnica lo maneje en cualquier presupuesto sin Claude).
+- Botón "Desperdicio" junto a "Agregar ítem manual" (versión vigente,
+  `components/desperdicio-dialog.tsx`, lógica en `lib/desperdicio.ts`): % general
+  (`presupuesto_versiones.desperdicio_pct`; propone 5) y TODAS las líneas de insumo del
+  Excel agrupadas por su texto, aprobadas o esperando aprobación (`insumos_para_desperdicio`).
+  Desmarcar = esa línea sin desperdicio; otro % = su %. La primera vez llegan desmarcadas
+  las que dicen "desperdicio" (concretos, morteros); no hay exclusión automática en la base.
+  `fijar_desperdicio_presupuesto(versión, general, excepciones[{clave, porcentaje}])`
+  guarda, aplica y recalcula (historial `desperdicio`).
+- Cada línea del APU tiene `item_apu.desperdicio_clave` (texto normalizado con
+  `_clave_actividad`): el del Excel si vino del import (`trg_revision_desperdicio` lo pone
+  al enlazar la revisión), si no el nombre del insumo. % de la línea = excepción de su
+  clave (`presupuesto_desperdicios(version_id, clave)`) o el general.
+- `item_apu.cantidad` = `cantidad_base` × (1 + `desperdicio_pct` / 100); null en
+  `cantidad_base` = sin desperdicio. `recalcular_valor_apus`, el cupo de requisiciones y
+  Control salen inflados sin tocarlos.
+- Se aplica solo: `trg_item_apu_desperdicio` (línea nueva toma su %; escribir `cantidad`
+  cambia la BASE, nunca escribir la cantidad inflada como si fuera base), `presupuesto_items`
+  al enlazar un APU, y la revisión del import al enlazarse (línea pendiente que se aprueba).
+- Copiar un APU (`copiaLineaApu`) copia la BASE; `crear_nueva_version` copia el % general,
+  las excepciones, la clave y las dos columnas. El editor de APU muestra "base + X% desperdicio".
+- Las migraciones van ANTES del código.
+
+**Contratos solo con ítems listos** (`20270101003600_contratos_solo_items_listos.sql`,
+decisión del usuario): mano de obra no contrata un ítem con la MANO DE OBRA del APU pendiente;
+obra (todo costo) no contrata un ítem con CUALQUIER línea del APU sin resolver ('pendiente',
+'solicitud_pendiente', 'rechazado'). Antes el tope salía del valor incompleto del ítem (Malecón:
+229 ítems con pendientes se podían contratar). `_motivo_item_no_listo` (lo exige
+`_guardar_solicitud_contrato`, parche), `pendientes_items_contrato` (formulario:
+`motivoItemNoListo` en `lib/contratos.ts`, el selector deja esos ítems en gris con el motivo).
+Las actividades nuevas de un otrosí todavía no lo revisan.
 
 **Recalcular al editar el catálogo** (`20270101003400_recalcular_al_editar_catalogo.sql`):
 mano de obra y equipo NO congelan precio en el APU (toman `valor_unitario` del
@@ -4523,6 +4535,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20261231998000` estado de compra "parcial" de la requisición.
 `20270101003000` desperdicio del presupuesto.
 `20270101003400` recalcular el presupuesto al editar el catálogo de mano de obra o equipo.
+`20270101003500` desperdicio como % general de la versión.
+`20270101003600` contratos de obra y mano de obra solo con ítems listos.
+`20270101003700` desperdicio por línea del Excel (también las pendientes).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

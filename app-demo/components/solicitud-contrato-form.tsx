@@ -27,6 +27,7 @@ import {
   pesos,
   numero,
   sinManoObraEnApu,
+  motivoItemNoListo,
   topeValorUnitario,
   totalAnexo,
   validarSolicitud,
@@ -232,8 +233,11 @@ export function SelectorItemPresupuesto({
   excluir,
   disabled,
   onElegir,
+  tipo,
 }: {
   etiqueta: string
+  // tipo de contrato: obra y mano de obra no eligen ítems que no están listos
+  tipo?: string
   catalogo: ItemPresupuestoContrato[]
   excluir: Set<string>
   disabled: boolean
@@ -283,11 +287,13 @@ export function SelectorItemPresupuesto({
             ) : (
               coincidencias.map((c) => {
                 const agotado = c.disponible <= 0
+                const noListo = tipo ? motivoItemNoListo(c, tipo) : null
                 return (
-                  <li key={c.id} role="option" aria-selected={false} aria-disabled={agotado} className="border-b last:border-b-0">
+                  <li key={c.id} role="option" aria-selected={false} aria-disabled={agotado || Boolean(noListo)} className="border-b last:border-b-0">
                     <button
                       type="button"
-                      disabled={agotado}
+                      disabled={agotado || Boolean(noListo)}
+                      title={noListo ?? undefined}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         onElegir(c)
@@ -297,7 +303,10 @@ export function SelectorItemPresupuesto({
                       className="grid w-full grid-cols-[4.5rem_minmax(0,1fr)_7.5rem_7.5rem] items-start gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span className="font-medium tabular-nums">{c.codigo}</span>
-                      <span className="break-words">{c.descripcion}</span>
+                      <span className="break-words">
+                        {c.descripcion}
+                        {noListo && <span className="block text-xs text-amber-700">No se puede contratar todavía: {noListo.toLowerCase()}.</span>}
+                      </span>
                       <span className="text-right text-xs tabular-nums">
                         {agotado ? "Contratado" : `${numero(c.disponible)} ${c.unidad ?? ""}`}
                       </span>
@@ -804,6 +813,11 @@ export function SolicitudContratoForm({
                                     ? `mano de obra ${pesos(tope)} c/u (ítem completo ${pesos(ref.valorUnitario)})`
                                     : `${pesos(ref.valorUnitario)} c/u`}
                                 </p>
+                                {motivoItemNoListo(ref, f.tipo) && (
+                                  <p className="text-xs text-destructive">
+                                    No se puede contratar todavía: {motivoItemNoListo(ref, f.tipo)?.toLowerCase()}.
+                                  </p>
+                                )}
                                 {sinManoObraEnApu(ref, f.tipo) && (
                                   <p className="text-xs text-amber-700 dark:text-amber-400">
                                     El APU de este ítem no tiene mano de obra: el tope es el ítem completo y Jurídica lo verá marcado.
@@ -828,6 +842,7 @@ export function SolicitudContratoForm({
                             )}
                             <SelectorItemPresupuesto
                               etiqueta={`Ítem del presupuesto ${i + 1}`}
+                              tipo={f.tipo}
                               catalogo={catalogoParaSelector}
                               excluir={itemsUsados}
                               disabled={enviando}

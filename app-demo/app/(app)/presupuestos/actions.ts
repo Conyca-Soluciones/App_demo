@@ -5516,8 +5516,8 @@ export async function cargarVersionConEstadoApu(versionId: string): Promise<Item
   ])
   return { items, estados, motivosRechazo, diferenciasLineas, itemIdsTransportePendiente }
 }
-// Desperdicio de la versión (20270101003000): los insumos de sus APU con el
-// valor sin desperdicio, para el diálogo "Desperdicio".
+// Desperdicio de la versión (20270101003700): las líneas de insumo de sus APU
+// por texto del Excel, aprobadas y pendientes, para el diálogo "Desperdicio".
 export async function listarInsumosDesperdicio(versionId: string): Promise<DatosDesperdicio> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("insumos_para_desperdicio", { p_version_id: versionId })
@@ -5525,18 +5525,24 @@ export async function listarInsumosDesperdicio(versionId: string): Promise<Datos
   return mapearDatosDesperdicio(data)
 }
 
-// Guarda los % de la versión vigente (la lista completa: lo que no viene queda
-// sin desperdicio), infla las líneas y recalcula los valores en la base.
+// Guarda el % general de la versión vigente y sus excepciones por línea del
+// Excel (lista completa; 0 = sin desperdicio). La base lo aplica a todas
+// las líneas de insumo, también a las que entren después, y recalcula.
 export async function fijarDesperdicioPresupuesto(
   versionId: string,
-  items: { insumo_id: string; porcentaje: number }[]
-): Promise<{ insumos: number; lineas: number; valorAntes: number; valorDespues: number }> {
+  general: number,
+  excepciones: { clave: string; porcentaje: number }[]
+): Promise<{ excepciones: number; lineas: number; valorAntes: number; valorDespues: number }> {
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc("fijar_desperdicio_presupuesto", { p_version_id: versionId, p_items: items })
+  const { data, error } = await supabase.rpc("fijar_desperdicio_presupuesto", {
+    p_version_id: versionId,
+    p_general: general,
+    p_excepciones: excepciones,
+  })
   if (error) throw new Error(error.message)
   const r = (data ?? {}) as Record<string, unknown>
   return {
-    insumos: Number(r.insumos ?? 0),
+    excepciones: Number(r.excepciones ?? 0),
     lineas: Number(r.lineas ?? 0),
     valorAntes: Number(r.valor_antes ?? 0),
     valorDespues: Number(r.valor_despues ?? 0),

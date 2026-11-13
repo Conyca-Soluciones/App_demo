@@ -452,6 +452,19 @@ export type ItemPresupuestoContrato = {
   valorManoObra: number // mano de obra + herramienta menor del APU (0 = sin mano de obra)
   contratado: number // ya en otros contratos
   disponible: number // tope de la cantidad
+  // Líneas del APU sin resolver (20270101003600): obra y mano de obra solo
+  // contratan ítems listos.
+  pendientes?: number
+  manoObraPendiente?: boolean
+}
+
+// Por qué un ítem no se puede contratar todavía (null = listo). Igual que
+// _motivo_item_no_listo: mano de obra = falta su mano de obra; obra = cualquier
+// línea del APU sin resolver. Los demás tipos no lo piden.
+export function motivoItemNoListo(item: { pendientes?: number; manoObraPendiente?: boolean }, tipo: string): string | null {
+  if (tipo === "mano_obra" && item.manoObraPendiente) return "Falta aprobar la mano de obra de su APU"
+  if (tipo === "obra" && (item.pendientes ?? 0) > 0) return `Su APU tiene ${item.pendientes} línea(s) sin resolver`
+  return null
 }
 
 // Valor unitario máximo de una actividad según el tipo de contrato (igual que
@@ -625,6 +638,11 @@ export function validarSolicitud(
       }
       const ref = catalogo?.get(it.presupuestoItemId)
       if (ref) {
+        const noListo = motivoItemNoListo(ref, f.tipo)
+        if (noListo) {
+          errores.items = `Ítem ${ref.codigo}: no se puede contratar todavía. ${noListo}.`
+          break
+        }
         if (cantidad > ref.disponible) {
           errores.items = `Ítem ${ref.codigo}: la cantidad (${numero(cantidad)}) supera lo disponible en el presupuesto (${numero(ref.disponible)}).`
           break

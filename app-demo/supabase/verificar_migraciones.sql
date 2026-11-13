@@ -727,5 +727,19 @@ select * from (
   select '20270101003400_recalcular_al_editar_catalogo',
          exists (select 1 from pg_trigger where tgname = 'trg_catalogo_mo_recalcular')
          and exists (select 1 from pg_trigger where tgname = 'trg_catalogo_equipo_recalcular')
+  union all
+  select '20270101003500_desperdicio_general_version',
+         exists (select 1 from information_schema.columns where table_name = 'presupuesto_versiones' and column_name = 'desperdicio_pct')
+         and exists (select 1 from pg_trigger where tgname = 'trg_revision_desperdicio')
+         and exists (select 1 from pg_proc where proname = 'fijar_desperdicio_presupuesto' and pronargs = 3)
+  union all
+  select '20270101003600_contratos_solo_items_listos',
+         exists (select 1 from pg_proc where proname = 'pendientes_items_contrato')
+         and exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%_motivo_item_no_listo%')
+  union all
+  select '20270101003700_desperdicio_por_linea_del_excel',
+         exists (select 1 from information_schema.columns where table_name = 'item_apu' and column_name = 'desperdicio_clave')
+         and exists (select 1 from information_schema.columns where table_name = 'presupuesto_desperdicios' and column_name = 'clave')
+         and exists (select 1 from pg_proc where proname = 'crear_nueva_version' and prosrc like '%ia.desperdicio_clave%')
 ) t
 order by 1;

@@ -167,8 +167,16 @@ export async function reenviarSolicitudContrato(
 export async function listarItemsPresupuestoContrato(proyectoId: string): Promise<ItemPresupuestoContrato[]> {
   await requerirAccion("solicitar_contratos")
   const supabase = await createClient()
-  const filas = await traerTodo<any>((desde, hasta) =>
-    supabase.rpc("items_presupuesto_para_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
+  const [filas, pendientes] = await Promise.all([
+    traerTodo<any>((desde, hasta) =>
+      supabase.rpc("items_presupuesto_para_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
+    ),
+    traerTodo<any>((desde, hasta) =>
+      supabase.rpc("pendientes_items_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
+    ),
+  ])
+  const pendientesPorItem = new Map<string, { pendientes: number; manoObra: boolean }>(
+    pendientes.map((p) => [p.presupuesto_item_id, { pendientes: Number(p.pendientes), manoObra: Boolean(p.mano_obra_pendiente) }])
   )
   return filas.map((f) => ({
     id: f.presupuesto_item_id,
@@ -180,6 +188,8 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
     valorManoObra: Number(f.valor_mano_obra ?? 0),
     contratado: Number(f.contratado),
     disponible: Number(f.disponible),
+    pendientes: pendientesPorItem.get(f.presupuesto_item_id)?.pendientes ?? 0,
+    manoObraPendiente: pendientesPorItem.get(f.presupuesto_item_id)?.manoObra ?? false,
   }))
 }
 
