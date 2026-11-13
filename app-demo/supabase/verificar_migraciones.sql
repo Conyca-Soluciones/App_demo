@@ -741,5 +741,9 @@ select * from (
          exists (select 1 from information_schema.columns where table_name = 'item_apu' and column_name = 'desperdicio_clave')
          and exists (select 1 from information_schema.columns where table_name = 'presupuesto_desperdicios' and column_name = 'clave')
          and exists (select 1 from pg_proc where proname = 'crear_nueva_version' and prosrc like '%ia.desperdicio_clave%')
+  union all
+  select '20270101003800_borrar_categoria_devuelve_pendientes',
+         exists (select 1 from pg_trigger where tgname = 'trg_mo_categoria_borrada')
+         and exists (select 1 from pg_trigger where tgname = 'trg_equipo_categoria_borrada')
 ) t
 order by 1;
