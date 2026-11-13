@@ -389,8 +389,14 @@ function Contenido({
           <Button
             size="sm"
             className="ml-auto"
-            disabled={ocupado !== null || !puedeIrALiquidacion(pago)}
-            title={puedeIrALiquidacion(pago) ? undefined : "Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta."}
+            disabled={ocupado !== null || !puedeIrALiquidacion(pago) || (Boolean(pago.sincoFilaId) && !soporte)}
+            title={
+              !puedeIrALiquidacion(pago)
+                ? "Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta."
+                : pago.sincoFilaId && !soporte
+                  ? "Falta el soporte del cuadro de SINCO: lo adjuntan en Cuadros de SINCO."
+                  : undefined
+            }
             onClick={() =>
               correr(
                 "enviar",
@@ -398,6 +404,7 @@ function Contenido({
                   const r = await enviarPagosALiquidar([pago.id])
                   await refrescar()
                   if (r.sinCuenta > 0) throw new Error("Sin cuenta bancaria no pasa a liquidación: asígnala con Tercero y cuenta.")
+                  if (r.sinSoporte > 0) throw new Error("Falta el soporte del cuadro de SINCO: no pasa a liquidación.")
                   return null
                 },
                 true

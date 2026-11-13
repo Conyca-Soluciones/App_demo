@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: pago, error } = await supabase
     .from("pagos")
-    .select("id, orden_compra_id, acta_id, requisicion_admin_item_id")
+    .select("id, orden_compra_id, acta_id, requisicion_admin_item_id, sinco_fila_id")
     .eq("id", id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -27,6 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       ordenCompraId: pago.orden_compra_id,
       actaId: pago.acta_id,
       requisicionAdminItemId: pago.requisicion_admin_item_id,
+      sincoFilaId: pago.sinco_fila_id,
     },
   ])
   const s = soportes[pago.id]

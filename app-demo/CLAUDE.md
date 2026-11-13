@@ -1274,12 +1274,9 @@ panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITEN
 - Avisos nuevos: `requisicion_comprada` (al aprobarse la OC, a quien pidió cada requisición,
   `trg_avisar_requisiciones_compradas`; ya está en `notificaciones_tipo_check`) y OC aprobada/rechazada
   también a Líder Compras (`trg_avisar_oc_lider_compras`).
-- **Resúmenes** (`perfiles.correo_resumen`, por omisión sí; solo si hay algo que contar): pg_cron
-  `resumen-diario-pagos` (12:00 lunes a viernes, `0 17 * * 1-5` UTC: pagos por aprobar, por liquidar,
-  por preparar, por dispersar, PSE por pagar y cuentas por verificar, según acciones) y
-  `resumen-semanal-pendientes` (lunes 8:00, `0 13 * * 1`: todos sus pendientes de `_pendientes_de`).
-  `_lineas_resumen`, `_encolar_resumenes`; `vista_previa_resumenes('diario'|'semanal')` muestra a quién
-  y qué sin enviar. Columna "Resúmenes" en Usuarios y accesos y "Recibir resúmenes por correo" en el menú.
+- **Sin resúmenes** (decisión del usuario, 2026-11-13): los correos de resumen (diario 12:00 y lunes
+  8:00) de 002300 se quitaron en `20270101002700_quitar_resumenes_correo.sql`. Por correo solo salen
+  avisos puntuales. `perfiles.correo_resumen` queda sin uso.
 
 ## Pagos y requisiciones administrativas en la matriz de Roles (2026-11-12)
 

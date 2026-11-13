@@ -109,6 +109,7 @@ export function ConsolidadoGerenciaView() {
               ordenCompraId: p.ordenCompraId,
               actaId: p.actaId,
               requisicionAdminItemId: p.requisicionAdminItemId,
+              sincoFilaId: p.sincoFilaId ?? null,
             }))
           )
           setSoportes(s)

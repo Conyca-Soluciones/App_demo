@@ -138,6 +138,8 @@ const EVENTOS_PAGO: Record<string, { etiqueta: string; tono: "ok" | "malo" | "av
   rechazado: { etiqueta: "Pago rechazado", tono: "malo" },
   anulado: { etiqueta: "Pago anulado", tono: "malo" },
   enviado_liquidar: { etiqueta: "Enviado a liquidar", tono: "neutro" },
+  soporte_sinco: { etiqueta: "Soporte adjuntado (cuadro de SINCO)", tono: "ok" },
+  soporte_sinco_cambiado: { etiqueta: "Soporte cambiado (cuadro de SINCO)", tono: "neutro" },
   devuelto_preparacion: { etiqueta: "Devuelto a preparación (conserva su REF)", tono: "aviso" },
   devuelto_por_liquidar: { etiqueta: "Liquidación devuelta a Por liquidar para corregirla", tono: "aviso" },
   semana_cambiada: { etiqueta: "Semana de pago cambiada", tono: "aviso" },
@@ -416,6 +418,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     if (e.evento === "creado" && d.valor != null) return [`Valor: ${pesosTexto(d.valor)}`]
     if (e.evento === "valor_cambiado") return [`${pesosTexto(d.de)} → ${pesosTexto(d.a)}`]
     if (e.evento === "enviado_liquidar" && d.referencia) return [`REF ${d.referencia}`]
+    if ((e.evento === "soporte_sinco" || e.evento === "soporte_sinco_cambiado") && d.archivo) return [String(d.archivo)]
     if (e.evento === "pagado_otro_medio")
       return [`Desde ${d.cuenta ?? "—"}${d.fecha ? ` el ${formatearFechaSinHora(String(d.fecha))}` : ""}`, ...(d.comprobante ? [`Comprobante: ${d.comprobante}`] : [])]
     if (e.evento === "semana_cambiada") return [`Semana ${d.de} de ${d.de_anio} → semana ${d.a} de ${d.a_anio}`]

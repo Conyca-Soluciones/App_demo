@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { cambiarMiPreferenciaCorreo, cambiarMiResumenCorreo, misCorreos, type PreferenciaCorreo } from "@/app/(app)/correos-actions"
+import { cambiarMiPreferenciaCorreo, miPreferenciaCorreo, type PreferenciaCorreo } from "@/app/(app)/correos-actions"
 import { MiFirmaDialog } from "@/components/mi-firma-dialog"
 import { VerificarDocumentoDialog } from "@/components/verificar-documento-dialog"
 import { EVENTO_ABRIR_MI_FIRMA } from "@/lib/firmas"
@@ -46,27 +46,12 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
   const [dialogo, setDialogo] = useState<"firma" | "verificar" | null>(null)
   // "Recibir avisos por correo": se lee al abrir el menú la primera vez.
   const [correo, setCorreo] = useState<PreferenciaCorreo | null>(null)
-  const [resumen, setResumen] = useState<boolean | null>(null)
   const [guardandoCorreo, setGuardandoCorreo] = useState(false)
   function leerCorreo(abierto: boolean) {
     if (!abierto || correo !== null) return
-    misCorreos()
-      .then((v: { avisos: PreferenciaCorreo; resumen: boolean }) => {
-        setCorreo(v.avisos)
-        setResumen(v.resumen)
-      })
+    miPreferenciaCorreo()
+      .then((v: PreferenciaCorreo) => setCorreo(v))
       .catch(() => {})
-  }
-  async function alternarResumen(recibe: boolean) {
-    setGuardandoCorreo(true)
-    try {
-      await cambiarMiResumenCorreo(recibe)
-      setResumen(recibe)
-    } catch {
-      // se deja como estaba
-    } finally {
-      setGuardandoCorreo(false)
-    }
   }
   async function alternarCorreo(recibe: boolean) {
     const valor: PreferenciaCorreo = recibe ? "inmediato" : "nunca"
@@ -132,13 +117,6 @@ export function BarraSuperior({ permisos, nombreUsuario }: { permisos: PermisosR
                 onCheckedChange={(v) => alternarCorreo(v === true)}
               >
                 <Mail /> Recibir avisos por correo
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={resumen === true}
-                disabled={resumen === null || guardandoCorreo}
-                onCheckedChange={(v) => alternarResumen(v === true)}
-              >
-                <Mail /> Recibir resúmenes por correo
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>

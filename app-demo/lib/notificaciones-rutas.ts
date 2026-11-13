@@ -8,6 +8,8 @@ export type AvisoParaRuta = { tipo: string; entidadTipo: string; entidadId: stri
 // compra a su detalle, y las requisiciones al registro de requisiciones.
 export function rutaNotificacion(n: AvisoParaRuta): string {
   if (n.entidadTipo === "orden_compra") return `/almacen/ordenes-compra/${n.entidadId}`
+  // Cuadro de SINCO: a quien debe adjuntar los soportes (20270101002800).
+  if (n.entidadTipo === "cuadro_sinco") return `/cuadros-sinco/${n.entidadId}`
   // Insumo nuevo aprobado sin ítem (lo pidió una requisición administrativa).
   if (n.tipo === "insumo_aprobado" && n.entidadTipo !== "presupuesto") return "/ayf/requisiciones-administrativas"
   if (n.entidadTipo === "requisicion") {
