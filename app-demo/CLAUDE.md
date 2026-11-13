@@ -1314,6 +1314,10 @@ compras, con varios proyectos separados por filas "PROYECTO: …", o el de un pr
   no anulado: se salta. Terceros por documento (si no existe se crea); la cuenta (del titular) se busca
   o se crea PENDIENTE; banco reconocido con `_norm_banco_sinco` ("APP NEQUI", "BANCO DAVIVIENDA S.A.");
   sin banco o cuenta, el pago queda sin cuenta.
+- **Empresa de cada fila** (`20270101003500`, 2026-11-13): el pago lleva la empresa del GRUPO
+  EMPRESARIAL de su fila (en el cuadro de compras un proyecto trae filas de varias empresas); si el grupo
+  no existe en Empresas, el cuadro no se carga; sin grupo, la del proyecto. Proyectos y empresas se
+  comparan con `_clave_sinco` (solo letras y números, sin tildes; los cuadros traen letras perdidas).
 - **Pagos**: `pagos.fuente = 'sinco'` con `sinco_fila_id`; nacen APROBADOS (aprobado_por = quien carga)
   en el Consolidado Bogotá con la semana de hoy (Preparación). `_pago_sincronizar_empresa` no los mueve.
   Origen "SINCO N° x · ítem y"; solicitante = el texto SOLICITA del cuadro.

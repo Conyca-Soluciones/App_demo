@@ -177,7 +177,7 @@ function TabProyectos({
           <Input
             value={codigoNuevo}
             onChange={(e) => setCodigoNuevo(e.target.value)}
-            className="h-9 w-28"
+            className="h-9 w-64"
           />
         </div>
         <div className="space-y-1">
@@ -285,7 +285,7 @@ function TabProyectos({
                 <Input
                   value={codigoEditando}
                   onChange={(e) => setCodigoEditando(e.target.value)}
-                  className="h-8 w-24"
+                  className="h-8 w-64"
                   placeholder="Código"
                   autoFocus
                 />
@@ -331,10 +331,10 @@ function TabProyectos({
             ) : (
               <>
                 <span className="w-12 shrink-0 font-mono text-sm font-medium">{String(p.numero).padStart(3, "0")}</span>
-                <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">
+                <span className="w-64 shrink-0 break-words font-mono text-xs text-muted-foreground">
                   {p.codigo ?? "—"}
                 </span>
-                <span className="flex-1 text-sm">
+                <span className="min-w-0 flex-1 break-words text-sm">
                   {p.nombre}
                   {p.soloPagos && (
                     <span className="ml-2 rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 text-xs text-violet-800" title="Proyecto de Google: solo para pagos, no sale en AdPro">
@@ -342,7 +342,7 @@ function TabProyectos({
                     </span>
                   )}
                 </span>
-                <span className="w-56 shrink-0 text-xs text-muted-foreground">
+                <span className="w-72 shrink-0 text-xs text-muted-foreground">
                   {p.empresaNombre ?? "—"}
                 </span>
                 <span className="w-32 shrink-0 text-xs text-muted-foreground">
@@ -802,7 +802,7 @@ export default function AdminPage() {
   return (
     <>
     <EncabezadoPagina titulo="Control administrativo" />
-    <main className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
+    <main className="w-full space-y-6 p-4 sm:p-6">
 
       <div className="flex gap-1 border-b">
         <button
