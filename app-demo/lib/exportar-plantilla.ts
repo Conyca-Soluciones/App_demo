@@ -62,7 +62,7 @@ function agregarListas(
         formulae: [rango],
         showErrorMessage: true,
         errorStyle: "warning",
-        errorTitle: "Unidad fuera de la lista",
+        errorTitle: `${columna} fuera de la lista`,
         error: "Elige un valor de la lista. Si es otra, se acepta y se revisa al subir el archivo.",
       }
     }

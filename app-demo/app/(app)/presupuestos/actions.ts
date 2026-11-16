@@ -10,6 +10,15 @@ import { requerirScope } from "@/lib/permisos"
 import { combinarBloquesConResoluciones } from "@/lib/apu-import-types"
 import { mapearDatosDesperdicio, type DatosDesperdicio } from "@/lib/desperdicio"
 import {
+  esConceptoFijo,
+  NOMBRE_CONCEPTO_FIJO,
+  type ConceptoFijo,
+  type FilaModalidad,
+  type Modalidad,
+  type ResultadoModalidades,
+} from "@/lib/modalidades"
+import type { ItemInfoModalidad } from "@/lib/excel-modalidades"
+import {
   compararUnidad,
   describirPresentacion,
   lineaNecesitaConversion,
@@ -216,6 +225,8 @@ export type ItemPresupuestoInput = {
 export type ItemPresupuesto = ItemPresupuestoInput & {
   guardado: boolean
   pendienteAprobacion?: boolean
+  // Modalidad de ejecución (20270101003900); null = sin modalidad.
+  modalidad?: Modalidad | null
 }
 
 async function obtenerOCrearVersionActual(
@@ -331,6 +342,75 @@ export async function descartarImportAbandonado(presupuestoId: string): Promise<
   return { estado: r.estado === "con_movimientos" ? "con_movimientos" : "ninguno" }
 }
 
+// % de subcontrato a todo costo del proyecto (20270101003900); null = no se ha
+// fijado (Admin › Proyectos).
+export async function obtenerTopeTodoCosto(proyectoId: string): Promise<number | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from("proyectos").select("tope_todo_costo_pct").eq("id", proyectoId).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data?.tope_todo_costo_pct == null ? null : Number(data.tope_todo_costo_pct)
+}
+
+// Aplica las modalidades a la versión vigente del presupuesto
+// (fijar_modalidades_presupuesto). Con confirmar = false solo devuelve el
+// resumen; si alguna fila tiene error no aplica nada y devuelve los errores.
+export async function fijarModalidadesPresupuesto(
+  presupuestoId: string,
+  filas: FilaModalidad[],
+  confirmar: boolean
+): Promise<ResultadoModalidades> {
+  const supabase = await createClient()
+  const { data: presupuesto, error: errorPresupuesto } = await supabase
+    .from("presupuestos")
+    .select("version_actual_id")
+    .eq("id", presupuestoId)
+    .single()
+  if (errorPresupuesto) throw new Error(errorPresupuesto.message)
+  if (!presupuesto.version_actual_id) throw new Error("El presupuesto todavía no tiene versión.")
+
+  const { data, error } = await supabase.rpc("fijar_modalidades_presupuesto", {
+    p_version_id: presupuesto.version_actual_id,
+    p_filas: filas,
+    p_confirmar: confirmar,
+  })
+  if (error) throw new Error(error.message)
+  const r = data as any
+  return {
+    aplicado: Boolean(r.aplicado),
+    errores: (r.errores ?? []).map((e: any) => ({ fila: Number(e.fila), codigo: e.codigo ?? null, error: String(e.error) })),
+    cambian: Number(r.cambian ?? 0),
+    porModalidad: r.por_modalidad ?? {},
+    lineasGuardadas: Number(r.lineas_guardadas ?? 0),
+    lineasNoRequeridas: Number(r.lineas_no_requeridas ?? 0),
+    solicitudesCerradas: Number(r.solicitudes_cerradas ?? 0),
+    valorAntes: Number(r.valor_antes ?? 0),
+    valorDespues: Number(r.valor_despues ?? r.valor_antes ?? 0),
+  }
+}
+
+// Ítems hoja de la versión con lo que hace falta para el Excel de modalidades
+// (info_modalidades_version, 20270101004100).
+export async function infoModalidadesVersion(versionId: string): Promise<ItemInfoModalidad[]> {
+  const supabase = await createClient()
+  const filas = await traerTodo<any>((desde, hasta) =>
+    supabase.rpc("info_modalidades_version", { p_version_id: versionId }).range(desde, hasta)
+  )
+  const numeroONull = (v: unknown) => (v == null ? null : Number(v))
+  return filas.map((f) => ({
+    codigo: f.codigo,
+    descripcion: f.descripcion,
+    unidad: f.unidad ?? null,
+    precioOficial: numeroONull(f.precio_original),
+    modalidad: f.modalidad ?? null,
+    manoObraOficial: numeroONull(f.mano_obra_oficial),
+    herramientaMenorPct: numeroONull(f.herramienta_menor_pct),
+    herramientaMenorApu: numeroONull(f.herramienta_menor_apu),
+    tieneManoObra: Boolean(f.tiene_mano_obra),
+    conInsumos: Boolean(f.con_insumos),
+    conMovimientos: Boolean(f.con_movimientos),
+  }))
+}
+
 export async function crearVersionVacia(
   presupuestoId: string,
   nombre: string
@@ -384,7 +464,7 @@ export async function crearVersionVacia(
 // líneas de mano de obra, equipo, transporte y herramienta menor: el APU
 // copiado valía menos en cuanto se recalculaba.
 const COLUMNAS_COPIA_ITEM_APU =
-  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, cantidad_base, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica"
+  "insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, cantidad_base, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica, concepto_fijo"
 
 function copiaLineaApu(linea: any, apuId: string) {
   return {
@@ -521,7 +601,7 @@ export async function cargarVersion(versionId: string): Promise<ItemPresupuesto[
     supabase
       .from("presupuesto_items")
       .select(
-        "id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original"
+        "id, padre_id, nivel, codigo, descripcion, unidad, cantidad, valor_unitario, valor_total, apu_id, precio_original, modalidad"
       )
       .eq("version_id", versionId)
       .order("id")
@@ -540,6 +620,7 @@ export async function cargarVersion(versionId: string): Promise<ItemPresupuesto[
     valorTotal: r.valor_total,
     apuId: r.apu_id,
     precioOriginal: r.precio_original,
+    modalidad: r.modalidad ?? null,
     guardado: true,
   }))
 
@@ -1465,6 +1546,9 @@ const PRECIOS_PLACEHOLDER = [0, 1]
 
 export type ItemApu = {
   id: string
+  // Línea de valor fijo por la modalidad del ítem (20270101003900): todo
+  // costo o mano de obra por subcontrato / administración. No se edita a mano.
+  fijo?: ConceptoFijo
   insumoId: string | null
   manoObraCategoriaId: string | null
   equipoCategoriaId: string | null
@@ -1567,6 +1651,25 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
         }
       }
 
+      if (esConceptoFijo(it.concepto_fijo)) {
+        return {
+          id: it.id,
+          fijo: it.concepto_fijo,
+          insumoId: null,
+          manoObraCategoriaId: null,
+          equipoCategoriaId: null,
+          transportePrecioId: null,
+          esHerramientaMenor: false,
+          codigo: null,
+          descripcion: NOMBRE_CONCEPTO_FIJO[it.concepto_fijo as ConceptoFijo],
+          uM: null,
+          vrUnitario: Number(it.valor_fijo ?? 0),
+          cantidad: 1,
+          rendimiento: 1,
+          tipo: it.tipo ?? null,
+        }
+      }
+
       if (it.no_aplica != null) {
         return {
           id: it.id,
@@ -1636,7 +1739,7 @@ function mapearApu(fila: any, usos: number): ApuDeItem {
 }
 
 const SELECT_APU =
-  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, cantidad_base, desperdicio_pct, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
+  "id, codigo, descripcion, item_apu(id, insumo_id, mano_obra_categoria_id, porcentaje_mano_obra, equipo_categoria_id, transporte_precio_id, cantidad, cantidad_base, desperdicio_pct, rendimiento, tipo, precio_unitario_congelado, unidad, factor_unidad, no_aplica, concepto_fijo, valor_fijo, maestro_insumos(codigo, descripcion, u_m, tipo, vr_unitario, vr_neto, unidad_uso, contenido), mano_obra_categorias(categoria, grupo, unidad, valor_unitario), equipo_categorias(categoria, grupo, unidad, valor_unitario), transporte_precios(descripcion_original, unidad, valor_unitario))"
 
 async function contarUsosDeApu(apuId: string): Promise<number> {
   const supabase = await createClient()
@@ -1717,6 +1820,8 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
         unidad,
         factor_unidad,
         no_aplica,
+        concepto_fijo,
+        valor_fijo,
         maestro_insumos(codigo, descripcion, u_m, vr_unitario, vr_neto, tipo),
         mano_obra_categorias(categoria, grupo, unidad, valor_unitario),
         equipo_categorias(categoria, grupo, unidad, valor_unitario),
@@ -1764,12 +1869,27 @@ export async function obtenerApusParaExportar(apuIds: string[]): Promise<ApuExpo
         }
       }
 
+      if (esConceptoFijo(item.concepto_fijo)) {
+        const valor = Number(item.valor_fijo ?? 0)
+        return {
+          itemApuId: item.id,
+          tipo: item.tipo ?? null,
+          codigoInsumo: 0,
+          descripcionInsumo: NOMBRE_CONCEPTO_FIJO[item.concepto_fijo as ConceptoFijo],
+          unidad: null,
+          cantidad: 1,
+          rendimiento: 1,
+          valorUnitario: valor,
+          parcial: valor,
+        }
+      }
+
       if (item.no_aplica != null) {
         return {
           itemApuId: item.id,
           tipo: item.tipo ?? null,
           codigoInsumo: 0,
-          descripcionInsumo: `${item.no_aplica} (No aplica)`,
+          descripcionInsumo: `${item.no_aplica} (${item.tipo === "EQUIPO" ? "herramienta menor" : "No aplica"})`,
           unidad: item.unidad ?? null,
           cantidad: Number(item.cantidad ?? 0),
           rendimiento: Number(item.rendimiento ?? 1),
@@ -1915,7 +2035,9 @@ export async function copiarApuParaItem(
 
   // precio_unitario_congelado se copia tal cual -- mismo criterio que
   // crearNuevaVersion (ver esa función para el porqué).
-  const lineasOrigen = origen.item_apu ?? []
+  // La línea fija de una modalidad es del ítem de origen (su precio oficial):
+  // no se copia a otro ítem.
+  const lineasOrigen = (origen.item_apu ?? []).filter((it: any) => it.concepto_fijo == null)
   if (lineasOrigen.length > 0) {
     const copias = lineasOrigen.map((it: any) => copiaLineaApu(it, nuevoApu.id))
 
@@ -1988,7 +2110,9 @@ export async function copiarApuStandalone(
 
   // precio_unitario_congelado se copia tal cual -- mismo criterio que
   // crearNuevaVersion (ver esa función para el porqué).
-  const lineasOrigen = origen.item_apu ?? []
+  // La línea fija de una modalidad es del ítem de origen (su precio oficial):
+  // no se copia a otro ítem.
+  const lineasOrigen = (origen.item_apu ?? []).filter((it: any) => it.concepto_fijo == null)
   if (lineasOrigen.length > 0) {
     const copias = lineasOrigen.map((it: any) => copiaLineaApu(it, nuevoApu.id))
 
@@ -4165,6 +4289,8 @@ export async function listarRevisionLote(loteImportId: string): Promise<LoteRevi
       .from("apu_import_revision")
       .select(SELECT_REVISION_CON_MOTIVO)
       .eq("lote_import_id", loteImportId)
+      // Las que la modalidad del ítem ya no usa (20270101003900) no se revisan.
+      .neq("estado", "no_requerido")
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
       .range(desde, hasta)
@@ -4206,6 +4332,8 @@ export async function listarRevisionPorItems(
           .select(SELECT_REVISION_CON_MOTIVO)
           .in("presupuesto_item_id", lote)
         if (estados && estados.length > 0) consulta = consulta.in("estado", estados)
+        // Las que la modalidad del ítem ya no usa (20270101003900) no se revisan.
+        else consulta = consulta.neq("estado", "no_requerido")
         return consulta
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
@@ -5448,7 +5576,7 @@ async function diferenciasLineasApu(itemIds: string[]): Promise<Record<string, D
   const items = await seleccionarEnLotesPorIds(itemIds, 200, async (lote) => {
     const { data, error } = await supabase
       .from("presupuesto_items")
-      .select("id, apu_id, lineas_apu_oficial")
+      .select("id, apu_id, apu_guardado_id, lineas_apu_oficial")
       .in("id", lote)
       .not("lineas_apu_oficial", "is", null)
       .not("apu_id", "is", null)
@@ -5457,7 +5585,10 @@ async function diferenciasLineasApu(itemIds: string[]): Promise<Record<string, D
   })
   if (items.length === 0) return {}
 
-  const apuIds = Array.from(new Set(items.map((i: any) => i.apu_id as string)))
+  // Un ítem cuya modalidad guardó líneas aparte (20270101003900) ya no se
+  // compara contra el APU oficial: le faltan líneas a propósito.
+  const comparables = (items as any[]).filter((i) => !i.apu_guardado_id)
+  const apuIds = Array.from(new Set(comparables.map((i: any) => i.apu_id as string)))
   const lineasPorApu = new Map<string, number>()
   await seleccionarEnLotesPorIds(apuIds, 200, async (lote) => {
     const filas = await traerTodo<any>((desde, hasta) =>
@@ -5468,7 +5599,7 @@ async function diferenciasLineasApu(itemIds: string[]): Promise<Record<string, D
   })
 
   const diferencias: Record<string, DiferenciaLineasApu> = {}
-  for (const i of items as any[]) {
+  for (const i of comparables) {
     const actual = lineasPorApu.get(i.apu_id) ?? 0
     if (actual !== i.lineas_apu_oficial) diferencias[i.id] = { oficial: i.lineas_apu_oficial, actual }
   }

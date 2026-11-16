@@ -456,12 +456,23 @@ export type ItemPresupuestoContrato = {
   // contratan ítems listos.
   pendientes?: number
   manoObraPendiente?: boolean
+  // Modalidad del ítem (20270101003900): decide en qué contrato va.
+  modalidad?: "administracion" | "todo_costo" | "mano_obra" | null
 }
 
 // Por qué un ítem no se puede contratar todavía (null = listo). Igual que
-// _motivo_item_no_listo: mano de obra = falta su mano de obra; obra = cualquier
+// _motivo_item_no_listo: la modalidad decide el tipo de contrato (todo costo
+// = obra, subcontrato de mano de obra = mano de obra, administración =
+// ninguno de los dos); mano de obra = falta su mano de obra; obra = cualquier
 // línea del APU sin resolver. Los demás tipos no lo piden.
-export function motivoItemNoListo(item: { pendientes?: number; manoObraPendiente?: boolean }, tipo: string): string | null {
+export function motivoItemNoListo(
+  item: { pendientes?: number; manoObraPendiente?: boolean; modalidad?: ItemPresupuestoContrato["modalidad"] },
+  tipo: string
+): string | null {
+  if (item.modalidad === "todo_costo" && tipo === "mano_obra") return "Es subcontrato a todo costo: va en un contrato de obra"
+  if (item.modalidad === "mano_obra" && tipo === "obra") return "Es subcontrato de mano de obra: va en un contrato de mano de obra"
+  if (item.modalidad === "administracion" && (tipo === "obra" || tipo === "mano_obra"))
+    return "Se ejecuta por administración: no lleva contrato de obra ni de mano de obra"
   if (tipo === "mano_obra" && item.manoObraPendiente) return "Falta aprobar la mano de obra de su APU"
   if (tipo === "obra" && (item.pendientes ?? 0) > 0) return `Su APU tiene ${item.pendientes} línea(s) sin resolver`
   return null
