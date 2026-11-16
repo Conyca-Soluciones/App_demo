@@ -7,6 +7,7 @@ import { PresupuestoTree} from "@/components/presupuesto-tree"
 import { ApuEditorDialog } from "@/components/apu-editor-dialog"
 import { AgregarItemManualDialog } from "@/components/agregar-item-manual-dialog"
 import { DesperdicioDialog } from "@/components/desperdicio-dialog"
+import { ModalidadesDialog } from "@/components/modalidades-dialog"
 import * as XLSX from "xlsx"
 import ExcelJS from "exceljs"
 import { useEffect, useRef, useState } from "react"
@@ -49,6 +50,8 @@ import {
   type MotivoRechazoPorItem,
   type DiferenciaLineasApu,
   puedeEditarPresupuestos,
+  obtenerTopeTodoCosto,
+  fijarModalidadesPresupuesto,
 } from "./actions"
 import {
   Select,
@@ -59,6 +62,16 @@ import {
 } from "@/components/ui/select"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import { aplicarItemsGlobales, idsConHijos, itemSinApu } from "@/lib/items-globales"
+import {
+  leerModalidad,
+  NOMBRE_MODALIDAD,
+  MODALIDADES,
+  resumenApuParaModalidad,
+  validarModalidadesImport,
+  type FilaModalidad,
+  type ItemModalidadImport,
+  type Modalidad,
+} from "@/lib/modalidades"
 
 // ---------------------------------------------------------------------------
 // El tipo del ítem (ItemPresupuesto) vive en ./actions -- se comparte con
@@ -88,7 +101,14 @@ function formatoCOP(valor: number) {
 //Accepta puntos 1/ 1.1/1.2 y 1 /101 / 10101
 
 //Versiones acceptadas por el programa
-const ALIAS_COLUMNAS: Record<"codigo" | "descripcion" | "unidad" | "cantidad" | "valorUnitarioOficial", string[]> = {
+const ALIAS_COLUMNAS: Record<
+  "codigo" | "descripcion" | "unidad" | "cantidad" | "valorUnitarioOficial" | "modalidad" | "manoObraOficial",
+  string[]
+> = {
+  // Modalidad de ejecución del ítem y su mano de obra oficial (SIN
+  // herramienta menor), opcionales: ver lib/modalidades.ts.
+  modalidad: ["modalidad", "modalidad de ejecucion", "forma de ejecucion"],
+  manoObraOficial: ["mano de obra", "mano de obra oficial", "valor mano de obra", "vr mano de obra", "vr. mano de obra"],
   codigo: ["codigo", "código", "item", "ítem", "cod"],
   descripcion: ["descripcion", "descripción", "actividad", "concepto", "detalle"],
   unidad: ["unidad", "um", "un", "u","unidad de medida"],
@@ -220,8 +240,16 @@ class ErrorFilasInvalidas extends Error {
   }
 }
 
-function procesarOrdenPresupuesto(data: Record<string, unknown>[]): ItemPresupuesto[] {
+type OrdenPresupuesto = {
+  items: ItemPresupuesto[]
+  // null = el Excel no trae la columna Modalidad (todo como antes).
+  modalidades: ItemModalidadImport[] | null
+}
+
+function procesarOrdenPresupuesto(data: Record<string, unknown>[]): OrdenPresupuesto {
   const colMap = detectarColumnas(data)
+  const modalidades: ItemModalidadImport[] = []
+  const modalidadesInvalidas: { codigo: string; texto: string }[] = []
   const pilaPadres: { id: string; nivel: number }[] = [] // ítems abiertos, para el padreId (UUID real)
   const stackCodigos = nuevoStackNiveles() // stack de códigos de texto, para resolver el patrón B (dígitos seguidos) por contexto -- ver lib/calcular-nivel.ts
   const items: ItemPresupuesto[] = []
@@ -277,6 +305,23 @@ function procesarOrdenPresupuesto(data: Record<string, unknown>[]): ItemPresupue
     // const precioOriginal = parsearValorTotalOriginal(valorTotalRaw)
     const precioOriginal = parsearValorUnitarioOficial(valorUnitarioOficialRaw)
 
+    if (colMap.modalidad) {
+      const texto = String(fila[colMap.modalidad] ?? "").trim()
+      const modalidad = leerModalidad(texto)
+      const numeroFila = index + 2
+      if (!modalidad) {
+        modalidadesInvalidas.push({ codigo: codigoRaw, texto: `  Fila ${numeroFila} (ítem ${codigoRaw}): "${texto}"` })
+      } else {
+        modalidades.push({
+          codigo: codigoRaw,
+          fila: numeroFila,
+          modalidad,
+          manoObraOficial: colMap.manoObraOficial ? parsearValorUnitarioOficial(fila[colMap.manoObraOficial]) : null,
+          precioOficial: precioOriginal,
+        })
+      }
+    }
+
     items.push({
       id,
       padreId,
@@ -297,7 +342,20 @@ function procesarOrdenPresupuesto(data: Record<string, unknown>[]): ItemPresupue
     throw new ErrorFilasInvalidas(filasInvalidas)
   }
 
-  return items
+  // Una modalidad que no se reconoce corta la importación (en los capítulos
+  // la columna se ignora).
+  const conHijos = idsConHijos(items)
+  const codigosCapitulo = new Set(items.filter((i) => conHijos.has(i.id)).map((i) => i.codigo))
+  const invalidas = modalidadesInvalidas.filter((m) => !codigosCapitulo.has(m.codigo))
+  if (invalidas.length > 0) {
+    throw new Error(
+      `El archivo tiene ${invalidas.length} ítem(s) con una Modalidad que no se reconoce. ` +
+        `Usa la lista: ${MODALIDADES.map((m) => NOMBRE_MODALIDAD[m]).join(", ")} (vacía = Administración).\n` +
+        invalidas.map((m) => m.texto).join("\n")
+    )
+  }
+
+  return { items, modalidades: colMap.modalidad ? modalidades : null }
 }
 
 // Busca en qué fila del Excel están los encabezados reales de columna
@@ -347,7 +405,12 @@ function encontrarHojaApu(workbook: XLSX.WorkBook): string | null {
 // salía vacía sin ninguna pista de qué pasó.
 async function procesarPresupuesto(
   documentoPresupuesto: File
-): Promise<{ items: ItemPresupuesto[]; bloquesApu: BloqueApu[]; avisoApu: string | null }> {
+): Promise<{
+  items: ItemPresupuesto[]
+  bloquesApu: BloqueApu[]
+  avisoApu: string | null
+  modalidades: ItemModalidadImport[] | null
+}> {
   let buffer: ArrayBuffer
   try {
     buffer = await documentoPresupuesto.arrayBuffer()
@@ -373,13 +436,14 @@ async function procesarPresupuesto(
   const sheet = workbook.Sheets[sheetName]
   const filaEncabezado = encontrarFilaEncabezado(sheet)
   const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { range: filaEncabezado })
-  const items = procesarOrdenPresupuesto(data)
+  const { items, modalidades } = procesarOrdenPresupuesto(data)
 
   const nombreHojaApu = encontrarHojaApu(workbook)
   if (!nombreHojaApu) {
     return {
       items: aplicarItemsGlobales(items, new Set(), false).items,
       bloquesApu: [],
+      modalidades,
       avisoApu:
         `No se encontró página de APUs -- ninguna hoja de este archivo se llama "APU" ` +
         `(hojas encontradas: ${workbook.SheetNames.join(", ")}). Si el Excel debía traer ` +
@@ -414,7 +478,7 @@ async function procesarPresupuesto(
     )
   }
 
-  return { items: globales.items, bloquesApu: bloques, avisoApu }
+  return { items: globales.items, bloquesApu: bloques, avisoApu, modalidades }
 }
 
 // ---------------------------------------------------------------------------
@@ -538,6 +602,9 @@ function PresupuestoDeProyecto() {
   // terminó). Si la pestaña se cierra o recarga, se avisa a la base para que
   // al volver se descarte enseguida (ver el efecto de pagehide).
   const importAMediasRef = useRef<string | null>(null)
+  // Modalidades leídas del Excel que se aplican cuando el import termina de
+  // guardarse (lib/modalidades.ts, 20270101003900).
+  const modalidadesPendientesRef = useRef<FilaModalidad[] | null>(null)
   // Segundos que faltan para descartar un import a medias de otra pestaña
   // (o de una que se cerró sin poder avisar). Null = no hay ninguno.
   const [segundosImportAjeno, setSegundosImportAjeno] = useState<number | null>(null)
@@ -558,6 +625,7 @@ function PresupuestoDeProyecto() {
   }, [])
   const editable = puedeEditar && viendoVersionActual
   const [dialogoDesperdicioAbierto, setDialogoDesperdicioAbierto] = useState(false)
+  const [dialogoModalidadesAbierto, setDialogoModalidadesAbierto] = useState(false)
   const [versionViendoIdEstado, setVersionViendoId] = useState<string | null>(null)
   const versiones = presupuestoDbId ? versionesCargadas : []
   const versionViendoId = presupuestoDbId ? versionViendoIdEstado : null
@@ -710,6 +778,23 @@ function PresupuestoDeProyecto() {
 
   const conHijosPresupuesto = idsConHijos(presupuesto)
   const cantidadSinApu = presupuesto.filter((item) => itemSinApu(item, conHijosPresupuesto)).length
+  // Cuántos ítems y cuánto vale cada modalidad (solo ítems hoja); null si
+  // ningún ítem tiene modalidad.
+  const resumenModalidades = (() => {
+    if (!presupuesto.some((i) => i.modalidad)) return null
+    const porModalidad = new Map<Modalidad | "sin", { n: number; valor: number }>()
+    for (const i of presupuesto) {
+      if (conHijosPresupuesto.has(i.id)) continue
+      const clave = i.modalidad ?? "sin"
+      const acc = porModalidad.get(clave) ?? { n: 0, valor: 0 }
+      acc.n++
+      acc.valor += Number(i.valorTotal ?? 0)
+      porModalidad.set(clave, acc)
+    }
+    return [...MODALIDADES, "sin" as const]
+      .filter((m) => porModalidad.has(m))
+      .map((m) => ({ nombre: m === "sin" ? "Sin modalidad" : NOMBRE_MODALIDAD[m], ...porModalidad.get(m)! }))
+  })()
   const idsConSobrecosto = presupuesto
     .filter((item) => excedePresupuestoOriginal(item.valorUnitario, item.precioOriginal))
     .map((item) => item.id)
@@ -1156,6 +1241,10 @@ function PresupuestoDeProyecto() {
       await latidoImportPresupuesto(idPresupuesto, false)
       importAMediasRef.current = null
 
+      // Con todas las líneas del APU ya guardadas (la modalidad decide cuáles
+      // dejan de contar).
+      await aplicarModalidadesPendientes(idPresupuesto)
+
       const itemsFrescos = await cargarItemsDePresupuesto(idPresupuesto)
       setPresupuesto(itemsFrescos)
 
@@ -1193,7 +1282,7 @@ function PresupuestoDeProyecto() {
     setError(null)
     setAvisoImportApu(null)
 
-    let resultado: { items: ItemPresupuesto[]; bloquesApu: BloqueApu[]; avisoApu: string | null }
+    let resultado: Awaited<ReturnType<typeof procesarPresupuesto>>
     try {
       resultado = await procesarPresupuesto(file)
     } catch (e) {
@@ -1206,6 +1295,34 @@ function PresupuestoDeProyecto() {
     }
 
     if (resultado.avisoApu) setAvisoImportApu(resultado.avisoApu)
+
+    // Modalidades: se validan ANTES de guardar nada (con la hoja APU y el %
+    // de todo costo del proyecto) y se aplican al terminar el import.
+    modalidadesPendientesRef.current = null
+    if (resultado.modalidades) {
+      let tope: number | null = null
+      if (resultado.modalidades.some((m) => m.modalidad === "todo_costo") && proyectoId) {
+        try {
+          tope = await obtenerTopeTodoCosto(proyectoId)
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "No se pudo leer el % de todo costo del proyecto.")
+          return
+        }
+      }
+      const conHijos = idsConHijos(resultado.items)
+      const codigosConHijos = new Set(resultado.items.filter((i) => conHijos.has(i.id)).map((i) => i.codigo))
+      const apuPorCodigo = new Map(resultado.bloquesApu.map((b) => [b.codigoItem, resumenApuParaModalidad(b.lineas)]))
+      const { filas, errores } = validarModalidadesImport(resultado.modalidades, codigosConHijos, apuPorCodigo, tope)
+      if (errores.length > 0) {
+        setError(
+          `El archivo tiene ${errores.length} ítem(s) a los que les falta algo para su Modalidad. ` +
+            `Corrige el Excel y vuelve a subirlo:\n` +
+            errores.join("\n")
+        )
+        return
+      }
+      modalidadesPendientesRef.current = filas
+    }
 
     // Si el proyecto YA tiene presupuesto, este Excel SIEMPRE es una
     // versión nueva de ESE presupuesto (no puede ser "aparte" -- ya no
@@ -1286,6 +1403,30 @@ function PresupuestoDeProyecto() {
   // -- pasar los ítems directo evita depender del timing de React. El
   // botón normal "Guardar en base de datos" sigue sin pasar nada, y usa
   // el estado tal cual (comportamiento de siempre).
+  // Aplica las modalidades del Excel recién importado. Si algo falla el
+  // presupuesto ya quedó guardado: se avisa y no se reintenta solo.
+  async function aplicarModalidadesPendientes(idPresupuesto: string): Promise<boolean> {
+    const filas = modalidadesPendientesRef.current
+    modalidadesPendientesRef.current = null
+    if (!filas || filas.length === 0) return false
+    try {
+      const r = await fijarModalidadesPresupuesto(idPresupuesto, filas, true)
+      if (r.errores.length > 0) {
+        setError(
+          `El presupuesto se guardó, pero no se aplicaron las modalidades (${r.errores.length} error(es)):\n` +
+            r.errores.map((e) => `  Ítem ${e.codigo ?? "?"}: ${e.error}`).join("\n")
+        )
+        return false
+      }
+      return true
+    } catch (e) {
+      setError(
+        `El presupuesto se guardó, pero no se pudieron aplicar las modalidades: ${e instanceof Error ? e.message : "error desconocido"}`
+      )
+      return false
+    }
+  }
+
   async function handleGuardar(
     itemsOverride?: ItemPresupuesto[],
     versionNuevaExplicita?: VersionNuevaImport
@@ -1356,6 +1497,12 @@ function PresupuestoDeProyecto() {
         } catch (e) {
           console.error("No se pudieron recalcular los valores de los ítems con APU:", e)
         }
+      }
+
+      // Import SIN hoja APU: las modalidades se aplican al guardar. Con hoja
+      // APU las aplica guardarPresupuestoConApu al terminar (itemsOverride).
+      if (!itemsOverride && (await aplicarModalidadesPendientes(idPresupuesto))) {
+        setPresupuesto(await cargarItemsDePresupuesto(idPresupuesto))
       }
 
       return idPresupuesto
@@ -1734,14 +1881,17 @@ function PresupuestoDeProyecto() {
             )}
 
             <ExportTemplateButton
-              columnas={["Código", "Descripción", "Unidad", "Cantidad","Valor Unitario"]}
+              columnas={["Código", "Descripción", "Unidad", "Cantidad", "Valor Unitario", "Modalidad", "Mano de obra"]}
               nombreArchivo="plantilla-presupuesto.xlsx"
-              listas={{ Unidad: UNIDADES_PLANTILLA }}
+              listas={{ Unidad: UNIDADES_PLANTILLA, Modalidad: MODALIDADES.map((m) => NOMBRE_MODALIDAD[m]) }}
               nombreHoja="Presupuesto"
               titulo="Plantilla de Presupuesto"
+              // Modalidad: vacía = Administración. Mano de obra: valor unitario
+              // oficial de la mano de obra del ítem, SIN herramienta menor
+              // (la app la suma con el % de su línea en la hoja APU).
               filasEjemplo={[
-                ["1", "Preliminares", "", ""],
-                ["1.1", "Cerramiento o cerca", "m", "11720"],
+                ["1", "Preliminares", "", "", "", "", ""],
+                ["1.1", "Cerramiento o cerca", "m", "11720", "22372", "Subcontrato mano de obra", "14163"],
               ]}
               hojasAdicionales={[
                 {
@@ -1756,6 +1906,7 @@ function PresupuestoDeProyecto() {
                   filasEjemplo: [
                     ["1.1", "Cerramiento o cerca en tela verde h=2.10 m", "", "m", ""],
                     ["", "Cuadrilla AA (Albañilería)", "MO", "hr", "0.45"],
+                    ["", "Herramienta menor 10% M.O. AA", "EQUIPO", "hr", "0.45"],
                     ["", "Alambre galvanizado No. 12", "INSUMO", "kg", "0.05"],
                     ["", "Volqueta (6 m3)", "EQUIPO", "hr", "0.0152"],
                     ["", "Transporte de materiales - m³", "TRANSPORTE", "m3", "1"],
@@ -1841,6 +1992,7 @@ function PresupuestoDeProyecto() {
                 onClick={() => {
                   setItemsPendientesDeVersion(null)
                   setBloquesApuPendientesDeVersion([])
+                  modalidadesPendientesRef.current = null
                 }}
               >
                 Cancelar
@@ -1904,6 +2056,17 @@ function PresupuestoDeProyecto() {
           </div>
         )}
  
+        {resumenModalidades && !dialogoRevisionAbierto && !importAjenoEnCurso && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1 rounded-lg border bg-muted/20 px-4 py-3 text-sm">
+            <span className="font-medium">Modalidades:</span>
+            {resumenModalidades.map((m) => (
+              <span key={m.nombre}>
+                {m.nombre}: {m.n} ítem(s) · {formatoCOP(m.valor)}
+              </span>
+            ))}
+          </div>
+        )}
+
         {cantidadSinApu > 0 && !dialogoRevisionAbierto && !importAjenoEnCurso && (
           <div className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900">
             {cantidadSinApu} ítem(s) no tienen APU (marcados en naranja, &ldquo;SIN APU&rdquo;). Ármalos con
@@ -1956,9 +2119,14 @@ function PresupuestoDeProyecto() {
               + Agregar ítem manual
             </Button>
             {presupuestoDbId && versionViendoId && (
-              <Button variant="outline" className="ml-2" onClick={() => setDialogoDesperdicioAbierto(true)}>
-                Desperdicio
-              </Button>
+              <>
+                <Button variant="outline" className="ml-2" onClick={() => setDialogoDesperdicioAbierto(true)}>
+                  Desperdicio
+                </Button>
+                <Button variant="outline" className="ml-2" onClick={() => setDialogoModalidadesAbierto(true)}>
+                  Modalidades
+                </Button>
+              </>
             )}
           </div>
         )}
@@ -2202,6 +2370,16 @@ function PresupuestoDeProyecto() {
           onOpenChange={setDialogoDesperdicioAbierto}
           versionId={versionViendoId}
           onGuardado={() => handleVerVersion(versionViendoId)}
+        />
+      )}
+      {versionViendoId && editable && presupuestoDbId && (
+        <ModalidadesDialog
+          open={dialogoModalidadesAbierto}
+          onOpenChange={setDialogoModalidadesAbierto}
+          presupuestoId={presupuestoDbId}
+          versionId={versionViendoId}
+          nombreProyecto={proyectoActual?.codigo || proyectoActual?.nombre || "proyecto"}
+          onAplicado={() => handleVerVersion(versionViendoId)}
         />
       )}
       <AgregarItemManualDialog

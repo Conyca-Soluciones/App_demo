@@ -60,6 +60,7 @@ function TabProyectos({
   const [empresaIdEditando, setEmpresaIdEditando] = useState<string | null>(null)
   const [soloPagosNuevo, setSoloPagosNuevo] = useState(false)
   const [soloPagosEditando, setSoloPagosEditando] = useState(false)
+  const [topeEditando, setTopeEditando] = useState("")
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Importar proyectos "solo pagos" (de Google) desde Excel.
@@ -122,12 +123,19 @@ function TabProyectos({
     setCiudadEditando(p.ciudad ?? "")
     setEmpresaIdEditando(p.empresaId)
     setSoloPagosEditando(p.soloPagos)
+    setTopeEditando(p.topeTodoCostoPct == null ? "" : String(p.topeTodoCostoPct).replace(".", ","))
   }
 
   async function handleGuardarEdicion(proyectoId: string) {
     if (!nombreEditando.trim() || numeroEditando.trim() === "") return
+    const tope = topeEditando.trim() === "" ? null : Number(topeEditando.trim().replace(",", "."))
+    if (tope != null && !(tope > 0 && tope <= 100)) {
+      setError("El % de todo costo debe ser un número entre 0 y 100.")
+      return
+    }
     try {
       await editarProyecto(proyectoId, {
+        topeTodoCostoPct: tope,
         numero: Number(numeroEditando),
         codigo: codigoEditando || null,
         nombre: nombreEditando.trim(),
@@ -149,6 +157,7 @@ function TabProyectos({
                 empresaNombre: empresa?.razonSocial ?? null,
                 empresaNit: empresa?.nit ?? null,
                 soloPagos: soloPagosEditando,
+                topeTodoCostoPct: tope,
               }
             : p
         )
@@ -321,6 +330,14 @@ function TabProyectos({
                   <input type="checkbox" checked={soloPagosEditando} onChange={(e) => setSoloPagosEditando(e.target.checked)} />
                   Solo pagos
                 </label>
+                <Input
+                  value={topeEditando}
+                  onChange={(e) => setTopeEditando(e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
+                  className="h-8 w-20"
+                  inputMode="decimal"
+                  placeholder="% TC"
+                  title="% del precio oficial que vale un ítem a subcontrato todo costo (y tope de su contrato de obra). Cambiarlo recalcula los ítems a todo costo que todavía no tienen requisiciones ni contratos."
+                />
                 <Button size="sm" onClick={() => handleGuardarEdicion(p.id)}>
                   Guardar
                 </Button>
@@ -347,6 +364,12 @@ function TabProyectos({
                 </span>
                 <span className="w-32 shrink-0 text-xs text-muted-foreground">
                   {p.ciudad ?? "—"}
+                </span>
+                <span
+                  className="w-20 shrink-0 text-xs text-muted-foreground"
+                  title="% de subcontrato a todo costo (del precio oficial del ítem)"
+                >
+                  {p.topeTodoCostoPct == null ? "—" : `TC ${p.topeTodoCostoPct.toLocaleString("es-CO")} %`}
                 </span>
                 <Button size="sm" variant="ghost" onClick={() => empezarAEditar(p)}>
                   Editar

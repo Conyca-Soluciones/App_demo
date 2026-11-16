@@ -198,6 +198,9 @@ export type Proyecto = {
   empresaNit: string | null
   // Proyecto que solo existe para pagos (de Google, 20270101001300): no sale en AdPro.
   soloPagos: boolean
+  // % del precio oficial que vale un ítem a subcontrato todo costo y es el
+  // tope de su contrato de obra (20270101003900). null = no se ha fijado.
+  topeTodoCostoPct: number | null
 }
 
 export async function listarProyectosAdmin(): Promise<Proyecto[]> {
@@ -206,7 +209,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
 
   const { data, error } = await supabase
     .from("proyectos")
-    .select("id, numero, codigo, nombre, ciudad, empresa_id, solo_pagos, empresa:empresas(nit, razon_social)")
+    .select("id, numero, codigo, nombre, ciudad, empresa_id, solo_pagos, tope_todo_costo_pct, empresa:empresas(nit, razon_social)")
     .order("numero", { ascending: true })
 
   if (error) {
@@ -223,6 +226,7 @@ export async function listarProyectosAdmin(): Promise<Proyecto[]> {
     empresaNombre: p.empresa?.razon_social ?? null,
     empresaNit: p.empresa?.nit ?? null,
     soloPagos: Boolean(p.solo_pagos),
+    topeTodoCostoPct: p.tope_todo_costo_pct == null ? null : Number(p.tope_todo_costo_pct),
   }))
 }
 
@@ -249,7 +253,7 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
       empresa_id: input.empresaId || null,
       solo_pagos: Boolean(input.soloPagos),
     })
-    .select("id, numero, codigo, nombre, ciudad, empresa_id, solo_pagos, empresa:empresas(nit, razon_social)")
+    .select("id, numero, codigo, nombre, ciudad, empresa_id, solo_pagos, tope_todo_costo_pct, empresa:empresas(nit, razon_social)")
     .single()
 
   if (error) {
@@ -267,6 +271,7 @@ export async function crearProyecto(input: CrearProyectoInput): Promise<Proyecto
     empresaNombre: p.empresa?.razon_social ?? null,
     empresaNit: p.empresa?.nit ?? null,
     soloPagos: Boolean(p.solo_pagos),
+    topeTodoCostoPct: p.tope_todo_costo_pct == null ? null : Number(p.tope_todo_costo_pct),
   }
 }
 
@@ -277,6 +282,9 @@ export type EditarProyectoInput = {
   ciudad?: string | null
   empresaId?: string | null
   soloPagos?: boolean
+  // Cambiarlo recalcula los ítems a todo costo sin requisiciones ni
+  // contratos (disparador trg_proyecto_tope_todo_costo, 20270101004000).
+  topeTodoCostoPct?: number | null
 }
 
 export async function editarProyecto(proyectoId: string, cambios: EditarProyectoInput) {
@@ -290,6 +298,11 @@ export async function editarProyecto(proyectoId: string, cambios: EditarProyecto
   if (cambios.nombre !== undefined) patch.nombre = cambios.nombre
   if (cambios.ciudad !== undefined) patch.ciudad = cambios.ciudad?.trim() || null
   if (cambios.empresaId !== undefined) patch.empresa_id = cambios.empresaId || null
+  if (cambios.topeTodoCostoPct !== undefined) {
+    const v = cambios.topeTodoCostoPct
+    if (v != null && !(v > 0 && v <= 100)) throw new Error("El % de todo costo debe estar entre 0 y 100.")
+    patch.tope_todo_costo_pct = v
+  }
 
   const { error } = await supabase.from("proyectos").update(patch).eq("id", proyectoId)
 

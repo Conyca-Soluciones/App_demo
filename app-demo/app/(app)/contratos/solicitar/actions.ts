@@ -190,6 +190,7 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
     disponible: Number(f.disponible),
     pendientes: pendientesPorItem.get(f.presupuesto_item_id)?.pendientes ?? 0,
     manoObraPendiente: pendientesPorItem.get(f.presupuesto_item_id)?.manoObra ?? false,
+    modalidad: f.modalidad ?? null,
   }))
 }
 

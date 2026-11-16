@@ -2138,6 +2138,7 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                             guardandoIds={guardandoIds}
                             onElegirEquipo={(equipoId) => elegirEquipoGrupo(filasGrupo, equipoId)}
                             onMarcarSolicitud={() => marcarSolicitudEquipoGrupo(filasGrupo)}
+                            onMarcarHerramientaMenor={() => marcarNoAplicaGrupo(filasGrupo)}
                             onGuardarGrupo={() => guardarGrupo(filasGrupo)}
                           />
                         ))}
@@ -2752,6 +2753,7 @@ function GrupoEquipoPendiente({
   guardandoIds,
   onElegirEquipo,
   onMarcarSolicitud,
+  onMarcarHerramientaMenor,
   onGuardarGrupo,
 }: {
   clave: string
@@ -2761,6 +2763,10 @@ function GrupoEquipoPendiente({
   guardandoIds: Set<string>
   onElegirEquipo: (equipoId: string) => void
   onMarcarSolicitud: () => void
+  // Equipo que en realidad es herramienta menor (motosierra...): queda en el
+  // APU en $ 0, porque ya se paga con la herramienta menor del ítem. Usa la
+  // misma resolución que "No aplica".
+  onMarcarHerramientaMenor: () => void
   onGuardarGrupo: () => void
 }) {
   const primera = filasGrupo[0]
@@ -2802,6 +2808,14 @@ function GrupoEquipoPendiente({
           className={`text-sm px-2 py-1 rounded border ${eleccion?.tipo === "solicitud_equipo" ? "border-primary bg-primary/10" : "border-muted"}`}
         >
           No existe — crear solicitud de aprobación
+        </button>
+        <button
+          type="button"
+          onClick={onMarcarHerramientaMenor}
+          title="Es una herramienta que ya se paga con la herramienta menor del ítem (ej. motosierra): queda en el APU en $ 0, sin buscarla en el catálogo."
+          className={`text-sm px-2 py-1 rounded border ${eleccion?.tipo === "no_aplica" ? "border-primary bg-primary/10" : "border-muted"}`}
+        >
+          Es herramienta menor
         </button>
         {eleccion && (
           <Button size="sm" onClick={onGuardarGrupo} disabled={guardandoAlgo}>
