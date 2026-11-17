@@ -2139,6 +2139,16 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   "Comentario para Financiera", "Último comentario" y el ID oculto (sin columna
   de diferencia: decisión del usuario; el "no cuadra" sale solo en el reporte de
   la subida). Al subir solo se leen el ID y esas columnas.
+- **Retegarantías y fórmulas** (2026-11-17, pedido de Contabilidad): la columna `liquidaciones` se
+  llama "Retegarantías" en pantalla y en el Excel (al subir se acepta también el encabezado viejo
+  "Liquidaciones"; la columna de la base no cambia). En el Excel "Valor a pagar" sale formulado
+  (`=IF(COUNT(M:Q)=0,"",+K+L-M-N-O+P-Q-R)`: base + IVA − retenciones + asumidas − retegarantías −
+  anticipos; en blanco sin retenciones para que una fila sin tocar siga por liquidar; se puede escribir
+  encima). Las letras salen de `ORDEN`. En la ventana del pago los campos aceptan fórmulas
+  ("=1.000.000*4%", `lib/formula-numero.ts`, sin eval) que se resuelven al salir del campo.
+- **Celular** (2026-11-17): el menú lateral muestra un nivel a la vez con "Volver" y se cierra al elegir
+  una pestaña; en Consolidado y Realizar Pagos los filtros van arriba (`PanelFiltros apilarEnCelular`
+  + `flex-col md:flex-row` en la página; las demás pantallas con filtros siguen igual).
 - **Soporte con enlace fijo**: `/ayf/soporte-pago/<id>` (route handler; pide la
   sesión, la RLS decide, redirige a un enlace firmado de 5 min). Lo usan la
   tabla, la ventana, el Excel y el Consolidado Gerencia. La ruta está en las

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { leerNumero } from "@/lib/contratos"
+import { esFormula, leerNumeroOFormula } from "@/lib/formula-numero"
 import { RutTercero } from "@/components/rut-tercero"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
@@ -50,7 +50,7 @@ const CAMPOS = [
   { clave: "reteiva", titulo: "Retención de IVA" },
   { clave: "reteica", titulo: "Retención de ICA" },
   { clave: "asumidas", titulo: "Asumidas" },
-  { clave: "liquidaciones", titulo: "Liquidaciones" },
+  { clave: "liquidaciones", titulo: "Retegarantías" },
   { clave: "anticiposDescuentos", titulo: "Anticipos y/o descuentos" },
   { clave: "valorAPagar", titulo: "Valor a pagar" },
 ] as const
@@ -195,7 +195,7 @@ function Contenido({
   const liquidado = pago.liquidacionEstado === "liquidado"
   const editable = puedeLiquidar && enLiquidacion && !liquidado
   const documento = pago.valorDocumento ?? pago.valor
-  const numeros = Object.fromEntries(CAMPOS.map((c) => [c.clave, form[c.clave].trim() === "" ? null : leerNumero(form[c.clave])])) as Record<
+  const numeros = Object.fromEntries(CAMPOS.map((c) => [c.clave, form[c.clave].trim() === "" ? null : leerNumeroOFormula(form[c.clave])])) as Record<
     ClaveCampo,
     number | null
   >
@@ -464,11 +464,19 @@ function Contenido({
               <label key={c.clave} className="min-w-0 space-y-1">
                 <span className="text-xs text-muted-foreground">{c.titulo}</span>
                 <Input
-                  inputMode="decimal"
+                  inputMode="text"
+                  title="Puedes escribir una fórmula, como en Excel: =1.000.000*4% o 250000+19000"
                   className={`tabular-nums ${c.clave === "valorAPagar" ? "font-medium" : ""}`}
                   value={form[c.clave]}
                   disabled={!editable || ocupado !== null}
                   onChange={(e) => setForm((f) => ({ ...f, [c.clave]: e.target.value }))}
+                  onBlur={() => {
+                    // La fórmula se resuelve al salir del campo; si no se entiende, se deja para que la corrijan.
+                    const v = form[c.clave]
+                    if (!esFormula(v)) return
+                    const n = leerNumeroOFormula(v)
+                    if (n != null) setForm((f) => ({ ...f, [c.clave]: aTexto(n) }))
+                  }}
                   onKeyDown={(e) => e.key === "Enter" && editable && liquidar(false, true)}
                 />
               </label>

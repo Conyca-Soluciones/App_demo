@@ -36,7 +36,7 @@ export const COLUMNAS_LIQUIDACION = {
   reteiva: "Retención de IVA",
   reteica: "Retención de ICA",
   asumidas: "Asumidas",
-  liquidaciones: "Liquidaciones",
+  liquidaciones: "Retegarantías",
   anticipos: "Anticipos y/o descuentos",
   valorAPagar: "Valor a pagar",
   sinRetenciones: "Liquidar sin retenciones",
@@ -73,6 +73,16 @@ const ORDEN: { clave: ClaveColumna; ancho: number; editable?: boolean; pesos?: b
   { clave: "ultimoComentario", ancho: 40 },
   { clave: "id", ancho: 38 },
 ]
+
+// Nombres de antes que se siguen aceptando al subir (Excel bajado antes del cambio).
+const ENCABEZADOS_ANTERIORES: Partial<Record<ClaveColumna, string>> = { liquidaciones: "Liquidaciones" }
+
+// Letra de Excel de la columna n (1 = A).
+function letra(n: number): string {
+  let s = ""
+  for (let k = n; k > 0; k = Math.floor((k - 1) / 26)) s = String.fromCharCode(65 + ((k - 1) % 26)) + s
+  return s
+}
 
 // La protección de la hoja (no es seguridad: solo evita tocar otras columnas
 // por error; la app ignora lo demás al subir).
@@ -121,8 +131,12 @@ export function leerFilasLiquidacion(filas: unknown[][]): {
     throw new Error('No se encontró la columna "ID interno". Usa el Excel descargado desde el Consolidado, sin cambiar los encabezados.')
   }
   const encabezado = (filas[iEncabezado] ?? []).map(normal)
-  const indice = (clave: ClaveColumna) =>
-    clave === "id" ? encabezado.findIndex((h) => h.startsWith("id interno")) : encabezado.indexOf(normal(COLUMNAS_LIQUIDACION[clave]))
+  const indice = (clave: ClaveColumna) => {
+    if (clave === "id") return encabezado.findIndex((h) => h.startsWith("id interno"))
+    const i = encabezado.indexOf(normal(COLUMNAS_LIQUIDACION[clave]))
+    const anterior = ENCABEZADOS_ANTERIORES[clave]
+    return i >= 0 || !anterior ? i : encabezado.indexOf(normal(anterior))
+  }
   const indices = Object.fromEntries(ORDEN.map((c) => [c.clave, indice(c.clave)])) as Record<ClaveColumna, number>
   const obligatorias: ClaveColumna[] = ["id", "valorAPagar", "comentario", "sinRetenciones"]
   const faltan = obligatorias.filter((k) => indices[k] < 0).map((k) => `"${COLUMNAS_LIQUIDACION[k]}"`)
@@ -199,6 +213,7 @@ export function leerFilasLiquidacion(filas: unknown[][]): {
 export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titulo: string; origenUrl: string; bufferLogo: ArrayBuffer | null }) {
   const ExcelJS = (await import("exceljs")).default
   const libro = new ExcelJS.Workbook()
+  libro.calcProperties = { fullCalcOnLoad: true }
   const hoja = libro.addWorksheet("Liquidación")
   const n = ORDEN.length
 
@@ -210,6 +225,15 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
   })
 
   ORDEN.forEach((c, i) => (hoja.getColumn(i + 1).width = c.ancho))
+  // "Valor a pagar" sale formulado (pedido de Contabilidad, 2026-11-17):
+  // base + IVA − retefuente − reteIVA − reteICA + asumidas − retegarantías − anticipos.
+  // Queda en blanco mientras no se escriba ninguna retención (Retefuente a
+  // Retegarantías), para que una fila sin tocar siga "por liquidar" al subirla.
+  // Se puede escribir encima.
+  const L = Object.fromEntries(ORDEN.map((c, i) => [c.clave, letra(i + 1)])) as Record<ClaveColumna, string>
+  const formulaValor = (r: number) =>
+    `IF(COUNT(${L.retefuente}${r}:${L.liquidaciones}${r})=0,"",` +
+    `+${L.base}${r}+${L.iva}${r}-${L.retefuente}${r}-${L.reteiva}${r}-${L.reteica}${r}+${L.asumidas}${r}-${L.liquidaciones}${r}-${L.anticipos}${r})`
   const encabezado = hoja.getRow(primera)
   ORDEN.forEach((c, i) => {
     const celda = encabezado.getCell(i + 1)
@@ -255,6 +279,8 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
       if (c.clave === "soporte") {
         celda.value = { text: "Ver", hyperlink: `${opciones.origenUrl}${rutaSoportePago(p.id)}` }
         celda.font = { color: { argb: "FF1F5FBF" }, underline: true }
+      } else if (c.clave === "valorAPagar") {
+        celda.value = p.valorAPagar != null ? { formula: formulaValor(r), result: p.valorAPagar } : { formula: formulaValor(r) }
       } else {
         const v = valores[c.clave]
         celda.value = v === undefined ? null : (v as never)
