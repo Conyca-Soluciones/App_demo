@@ -3131,6 +3131,106 @@ horas de equipo iguales al Excel, herramienta menor = mismo % de la mano de obra
 y la mano de obra una vez por unidad del ítem; lo que difiere son los precios
 (los de CONYCA) y las líneas pendientes.
 
+## Modalidades de ejecución del presupuesto (2026-11-16, pasos 1 a 4 de 6)
+
+`20270101003900_modalidades_presupuesto.sql` (reversa en `supabase/reversa/`; probada en un
+Postgres local con las funciones vivas). Decisiones del usuario: cada ítem hoja tiene una
+modalidad (`presupuesto_items.modalidad`; null = como antes):
+- **todo_costo**: valor = `proyectos.tope_todo_costo_pct` (lo fija el Administrador; Malecón
+  42 %) × precio oficial. Del APU no se resuelve nada. Tope del contrato de OBRA = ese valor.
+- **mano_obra** (subcontrato): sin insumos en el APU (el equipo NO cuenta como material),
+  mano de obra = 50 % × (`mano_obra_oficial` + herramienta menor del ítem, 5 o 10 %); con
+  insumos, todo como hoy (catálogo). Equipo y transporte como hoy. Tope del contrato de MANO
+  DE OBRA = la mano de obra del ítem; los insumos van por Compras.
+- **administracion**: insumos de la maestra; mano de obra = 100 % × (`mano_obra_oficial` +
+  herramienta menor); sin contrato de obra ni de mano de obra (nómina).
+- Herramienta menor: `presupuesto_items.herramienta_menor_pct` o, si es null, la línea
+  `porcentaje_mano_obra` del APU. `mano_obra_oficial` va SIN herramienta menor.
+
+Cómo se guarda:
+- El valor que no sale del catálogo es una **línea de valor fijo** del APU
+  (`item_apu.concepto_fijo` = todo_costo | mano_obra_subcontrato | mano_obra_administracion,
+  `valor_fijo` por unidad del ítem). `recalcular_valor_apus`, `_valor_mano_obra_item`,
+  `items_presupuesto_para_contrato` y `control_proyecto` (presupuesto de mano de obra) la
+  suman; así el valor, los topes y el cupo salen sin preguntar por la modalidad. No se copia
+  a otro ítem (`copiarApuParaItem`/`copiarApuStandalone`); sí a la versión nueva.
+- Lo que la modalidad no usa **no se borra**: se mueve a un APU guardado del ítem
+  (`presupuesto_items.apu_guardado_id`, no cuenta en nada; `crear_nueva_version` lo copia y
+  borrar el ítem lo borra). Sus líneas de revisión pendientes quedan `no_requerido` (fuera de
+  Revisar pendientes y de los avisos de contratos). Cambiar otra vez la modalidad devuelve
+  todo. Las solicitudes pendientes que SOLO servían a líneas `no_requerido` se borran; aprobar
+  o rechazar una solicitud ya no toca las líneas `no_requerido` (parche a los tres
+  `sincronizar_apu_import_revision*`).
+- Un ítem con requisiciones o contratos (por código, cualquier versión) no cambia de modalidad.
+- Un ítem global (GL sin APU) a todo costo recibe un APU con la línea fija; si vuelve a no
+  tener modalidad, recupera su valor oficial sin APU.
+- `_motivo_item_no_listo` exige el contrato que corresponde: todo costo solo obra,
+  subcontrato de mano de obra solo mano de obra, administración ninguno de los dos.
+- **`fijar_modalidades_presupuesto(versión, filas, confirmar)`** (editar_presupuestos + ver el
+  proyecto, solo versión vigente): filas `[{codigo, modalidad, mano_obra_oficial?,
+  herramienta_menor_pct?}]`. Valida todo primero (código, capítulo, movimientos, falta % del
+  proyecto, precio oficial o mano de obra oficial); con un error no aplica nada y devuelve los
+  errores. Con `confirmar = false` aplica dentro de un bloque que se deshace y devuelve el
+  resumen (cuántos cambian, por modalidad, líneas guardadas, líneas no requeridas,
+  solicitudes cerradas, valor antes/después). Filas sin cambios se saltan. Historial
+  `modalidades` del presupuesto.
+- En TS: `lib/modalidades.ts` (mismo cálculo, `leerModalidad` para el Excel: vacía =
+  Administración; `porcentajeHerramientaMenor` lee "Herramienta menor 10% M.O."), pruebas en
+  `tests/modalidades.test.ts`. El editor de APU muestra la línea fija con la etiqueta
+  "Modalidad" y sin botón de quitar; el Excel exportado la incluye.
+- **Excel (paso 2)**: la plantilla de Presupuestos trae en la hoja Presupuesto las columnas
+  **Modalidad** (lista desplegable; vacía = Administración) y **Mano de obra** (valor unitario
+  oficial, SIN herramienta menor). Las dos son opcionales: un Excel sin la columna Modalidad
+  se importa como siempre (sin modalidad). Al subir (`handleFileSelected`): una modalidad que
+  no se reconoce corta la importación (en capítulos se ignora); después
+  `validarModalidadesImport` revisa cada ítem hoja contra su bloque de la hoja APU
+  (`resumenApuParaModalidad`: con o sin insumos, el equipo no cuenta, % de herramienta menor
+  del nombre de la línea) y el % de todo costo del proyecto (`obtenerTopeTodoCosto`), y un
+  error también corta antes de guardar nada. Las filas válidas se aplican con
+  `fijarModalidadesPresupuesto` (action sobre la RPC) al TERMINAR el import con hoja APU
+  (`guardarPresupuestoConApu`, después de las tandas) o, sin hoja APU, al pulsar Guardar
+  (`handleGuardar` sin `itemsOverride`). Si la base devuelve errores el presupuesto queda
+  guardado sin modalidades y se avisa.
+- **Pantallas (paso 3, `20270101004000`, reversa en `supabase/reversa/`)**:
+  - Admin › Proyectos: el % de todo costo se escribe al editar el proyecto ("% TC") y se ve en
+    la lista. Cambiarlo recalcula los ítems a todo costo de la versión vigente SIN
+    requisiciones ni contratos (disparador `trg_proyecto_tope_todo_costo`); los que ya tienen
+    se quedan con el valor de antes. Quitarlo con ítems a todo costo da error.
+  - Tabla del presupuesto: etiqueta de la modalidad en cada ítem (`cargarVersion` lee
+    `modalidad`) y, si algún ítem la tiene, una línea "Modalidades:" con ítems y valor de cada
+    una (solo ítems hoja).
+  - Editor de APU: avisa la modalidad; a todo costo no deja agregar líneas y con la mano de
+    obra fija no deja agregar mano de obra del catálogo ("Por la modalidad").
+  - Contratos: `items_presupuesto_para_contrato` devuelve `modalidad` (se borró y se creó otra
+    vez: cambió el tipo de retorno) y `motivoItemNoListo` (lib/contratos.ts) pone en gris los
+    ítems que no van en ese tipo de contrato, igual que `_motivo_item_no_listo`.
+  - Revisar pendientes › Equipo: botón **"Es herramienta menor"** por grupo (todos los ítems
+    con ese equipo, p. ej. motosierra). Usa la misma resolución que "No aplica": la línea queda
+    en el APU sin recurso y en $ 0, con tipo EQUIPO; el editor la muestra en Equipo con la
+    etiqueta "Herramienta menor" y el Excel exportado dice "(herramienta menor)". Igual que
+    "No aplica", no tiene botón para deshacerla.
+- **Excel de modalidades sobre el presupuesto actual (paso 4, `20270101004100`)**: botón
+  "Modalidades" junto a "Desperdicio" (versión vigente, quien edita presupuestos;
+  `components/modalidades-dialog.tsx`). 1) Descargar: `info_modalidades_version` trae los ítems
+  hoja con modalidad, mano de obra oficial, si tienen insumos o mano de obra, % de herramienta
+  menor del APU y si ya tienen requisiciones o contratos; `lib/excel-modalidades.ts` arma el
+  Excel con en amarillo Modalidad (lista) y Mano de obra. Instrucción (decisión del usuario):
+  con Administración o Subcontrato mano de obra se escribe siempre la mano de obra oficial
+  (vacía solo si el ítem no tiene mano de obra); ya no hay columna "¿Pide mano de obra?". Los
+  ítems con requisiciones o contratos traen una nota en Modalidad y, al subir, se saltan si se
+  dejaron como estaban (Modalidad vacía o la misma; `filasParaAplicar`); solo da error si se
+  les pone otra. El error "falta la mano de obra oficial" con la Modalidad vacía aclara que
+  vacía cuenta como Administración (`mensajeErrorModalidad`). 2) Subir: `leerFilasModalidades` (vacía = Administración; la mano de
+  obra solo se manda si la celda tiene algo, si no se deja la del ítem) y
+  `fijarModalidadesPresupuesto(..., false)` muestra el resumen o los errores con su fila del
+  Excel, sin cambiar nada. 3) Aplicar (`true`); si algo cambió entre medio, sale el error. Se
+  puede subir las veces que haga falta: solo cambian los ítems distintos. Pruebas en
+  `tests/excel-modalidades.test.ts` (incluye ida y vuelta del Excel). La misma migración hace
+  que una línea "Es herramienta menor" (No aplica de EQUIPO) ya no cuente como insumo en
+  `_info_modalidad_item`.
+- **Pendiente (pasos 5 y 6)**: Malecón (42 %, mano de obra oficial, Excel de modalidades,
+  pendientes, totales); prueba completa en un proyecto de prueba.
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
@@ -4558,6 +4658,9 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101003600` contratos de obra y mano de obra solo con ítems listos.
 `20270101003700` desperdicio por línea del Excel (también las pendientes).
 `20270101003800` borrar una categoría devuelve sus líneas a Revisar pendientes.
+`20270101003900` modalidades de ejecución del presupuesto (todo costo, subcontrato de mano de obra, administración).
+`20270101004000` modalidades: la modalidad en los ítems para contratos y recalcular al cambiar el % de todo costo.
+`20270101004100` modalidades: datos del Excel de modalidades y la herramienta menor no cuenta como insumo.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

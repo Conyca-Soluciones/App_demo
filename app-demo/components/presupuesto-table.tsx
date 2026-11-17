@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { idsConHijos, itemSinApu } from "@/lib/items-globales"
+import { NOMBRE_CORTO_MODALIDAD, NOMBRE_MODALIDAD } from "@/lib/modalidades"
 import type { ItemPresupuesto, EstadoApuItem, MotivoRechazoPorItem } from "@/app/(app)/presupuestos/actions"
 
 const inputClasses =
@@ -568,6 +569,14 @@ export function PresupuestoTable({
                   >
                     {item.apuId ? "Editar APU" : "Agregar APU"}
                   </button>
+                  {item.modalidad && (
+                    <span
+                      title={`Modalidad: ${NOMBRE_MODALIDAD[item.modalidad]}`}
+                      className="rounded-full border border-primary/30 bg-accent inline-flex h-6 items-center px-3 align-middle text-xs font-medium text-accent-foreground"
+                    >
+                      {NOMBRE_CORTO_MODALIDAD[item.modalidad]}
+                    </span>
+                  )}
                   {sinApu && (
                     <span
                       title="Este ítem no tiene APU: su valor no sale de ningún análisis. Ármalo con Agregar APU."

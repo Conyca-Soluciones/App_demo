@@ -166,7 +166,7 @@ export type FilaRevisionImport = {
   // por matching. `tipo` es el discriminador -- revísalo antes de usar
   // `candidatos` para saber cuál de las formas trae.
   candidatos: CandidatoInsumo[] | CategoriaManoObra[] | CategoriaEquipo[]
-  estado: "auto_match" | "pendiente" | "solicitud_pendiente" | "resuelto" | "rechazado"
+  estado: "auto_match" | "pendiente" | "solicitud_pendiente" | "resuelto" | "rechazado" | "no_requerido"
   insumoIdAsignado: string | null
   manoObraCategoriaIdAsignado: string | null
   equipoCategoriaIdAsignado: string | null

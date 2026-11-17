@@ -113,8 +113,12 @@ function BadgesDiferencia({
 // desincronizarse. Solo para insumos de catálogo (maestro_insumos) el
 // `tipo` real SÍ es el valor correcto a consultar contra CATEGORIAS_APU.
 function categoriaDeItem(it: ItemApu): string {
+  // Línea fija de la modalidad del ítem (20270101003900)
+  if (it.fijo) return it.fijo === "todo_costo" ? "Otros" : "Mano de Obra"
   // "No aplica" solo se ofrece en líneas de insumo (revisión del import)
-  if (it.noAplica) return "Materiales"
+  // Una línea de equipo marcada "Es herramienta menor" (motosierra...) va en
+  // Equipo; las demás "No aplica" son de materiales.
+  if (it.noAplica) return it.tipo === "EQUIPO" ? "Equipo y Herramienta menor" : "Materiales"
   if (it.manoObraCategoriaId) return "Mano de Obra"
   if (it.equipoCategoriaId) return "Equipo y Herramienta menor"
   if (it.transportePrecioId) return "Transporte"
@@ -132,7 +136,7 @@ function categoriaDeItem(it: ItemApu): string {
 // el cambio se guardaría en la base pero nunca se reflejaría en el
 // total, ni siquiera en la misma pantalla después de recargar.
 function rendimientoEsEditable(it: ItemApu): boolean {
-  return !it.manoObraCategoriaId && !it.transportePrecioId && !it.esHerramientaMenor && !it.noAplica
+  return !it.manoObraCategoriaId && !it.transportePrecioId && !it.esHerramientaMenor && !it.noAplica && !it.fijo
 }
 
 // Celda de cantidad editable con doble click -- en toda la tabla del
@@ -396,6 +400,9 @@ export function ApuEditorDialog({
   }
 
   const total = apu?.items.reduce((acc, it) => acc + (it.vrUnitario ?? 0) * it.cantidad * it.rendimiento, 0) ?? 0
+  // Línea fija de la modalidad del ítem (20270101003900), si la tiene.
+  const lineaTodoCosto = apu?.items.find((it) => it.fijo === "todo_costo") ?? null
+  const lineaManoObraFija = apu?.items.find((it) => it.fijo && it.fijo !== "todo_costo") ?? null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -450,10 +457,28 @@ export function ApuEditorDialog({
                 </div>
               )}
 
+              {lineaTodoCosto && (
+                <div className="rounded-lg border border-primary/30 bg-accent px-4 py-3 text-sm text-accent-foreground">
+                  Este ítem es <strong>subcontrato a todo costo</strong>: vale el % de todo costo del proyecto sobre el
+                  precio oficial. Las líneas de su APU oficial quedan guardadas aparte y no cuentan; no se agregan
+                  líneas aquí.
+                </div>
+              )}
+              {lineaManoObraFija && (
+                <div className="rounded-lg border border-primary/30 bg-accent px-4 py-3 text-sm text-accent-foreground">
+                  La mano de obra de este ítem sale de su <strong>modalidad</strong> (
+                  {lineaManoObraFija.fijo === "mano_obra_subcontrato" ? "50 %" : "100 %"} de la mano de obra oficial +
+                  herramienta menor), no del catálogo.
+                </div>
+              )}
+
               {CATEGORIAS_APU.map((cat) => {
                 const itemsCategoria = apu.items.filter(
                   (it) => categoriaDeItem(it) === cat.nombre
                 )
+                // La modalidad decide: a todo costo no se agrega nada; con la
+                // mano de obra fija, no se agrega mano de obra del catálogo.
+                const bloqueada = lineaTodoCosto != null || (lineaManoObraFija != null && cat.nombre === "Mano de Obra")
 
                 return (
                   <SeccionCategoria
@@ -476,6 +501,7 @@ export function ApuEditorDialog({
                     }}
                     apuId={apu.id}
                     presupuestoItemId={presupuestoItemId}
+                    bloqueada={bloqueada}
                   />
                 )
               })}
@@ -510,12 +536,15 @@ function SeccionCategoria({
   onAgregado,
   apuId,
   presupuestoItemId,
+  bloqueada = false,
 }: {
   nombre: string
   tipos: string[]
   items: ItemApu[]
   abierta: boolean
   onAbrir: () => void
+  // La modalidad del ítem no deja agregar líneas en esta categoría.
+  bloqueada?: boolean
   onEliminarLinea: (id: string) => void
   onEditarConversion: (id: string, unidad: string, conversion: number) => void
   onEditarCantidad: (id: string, nuevaCantidad: number) => void
@@ -535,7 +564,11 @@ function SeccionCategoria({
           {items.length > 0 && (
             <span className="text-xs text-muted-foreground">{formatoCOP(subtotal)}</span>
           )}
-          {recurso === "transporte" ? (
+          {bloqueada ? (
+            <span className="text-xs text-muted-foreground" title="La modalidad del ítem no deja agregar líneas aquí.">
+              Por la modalidad
+            </span>
+          ) : recurso === "transporte" ? (
             <span className="text-xs text-muted-foreground" title="El transporte no se agrega manualmente acá -- se sube por Excel desde el banner de transporte de la página del presupuesto.">
               Se administra por Excel
             </span>
@@ -567,12 +600,24 @@ function SeccionCategoria({
                 <td className="px-4 py-2.5 text-muted-foreground tabular-nums">{it.codigo ?? ""}</td>
                 <td className="px-4 py-2.5">
                   {it.descripcion}
+                  {it.fijo && (
+                    <span
+                      className="ml-2 rounded bg-accent px-1.5 py-0.5 text-[11px] text-accent-foreground"
+                      title="Sale de la modalidad del ítem (precio oficial del presupuesto), no del catálogo. Cambia si cambia la modalidad."
+                    >
+                      Modalidad
+                    </span>
+                  )}
                   {it.noAplica && (
                     <span
                       className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                      title="Marcada No aplica en la revisión: no se compra nada (ej. material local). Queda por trazabilidad, en $ 0."
+                      title={
+                        it.tipo === "EQUIPO"
+                          ? "Marcada Es herramienta menor en la revisión: ya está pagada con la herramienta menor. Queda por trazabilidad, en $ 0."
+                          : "Marcada No aplica en la revisión: no se compra nada (ej. material local). Queda por trazabilidad, en $ 0."
+                      }
                     >
-                      No aplica
+                      {it.tipo === "EQUIPO" ? "Herramienta menor" : "No aplica"}
                     </span>
                   )}
                 </td>
@@ -636,13 +681,15 @@ function SeccionCategoria({
                   {formatoCOP((it.vrUnitario ?? 0) * it.cantidad * it.rendimiento)}
                 </td>
                 <td className="px-3 py-2.5 text-center">
-                  <button
-                    type="button"
-                    onClick={() => onEliminarLinea(it.id)}
-                    className="text-xs text-muted-foreground hover:text-destructive"
-                  >
-                    ✕
-                  </button>
+                  {!it.fijo && (
+                    <button
+                      type="button"
+                      onClick={() => onEliminarLinea(it.id)}
+                      className="text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

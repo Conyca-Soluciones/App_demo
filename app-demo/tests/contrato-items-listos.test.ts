@@ -12,3 +12,22 @@ describe("contratos de obra y mano de obra solo con ítems listos", () => {
     expect(motivoItemNoListo({ pendientes: 5, manoObraPendiente: true }, "suministro_instalacion")).toBeNull()
   })
 })
+
+describe("motivoItemNoListo por modalidad (20270101003900)", () => {
+  it("todo costo solo va en contrato de obra", () => {
+    expect(motivoItemNoListo({ modalidad: "todo_costo" }, "mano_obra")).toMatch(/todo costo/)
+    expect(motivoItemNoListo({ modalidad: "todo_costo" }, "obra")).toBeNull()
+  })
+  it("subcontrato de mano de obra solo va en contrato de mano de obra", () => {
+    expect(motivoItemNoListo({ modalidad: "mano_obra" }, "obra")).toMatch(/contrato de mano de obra/)
+    expect(motivoItemNoListo({ modalidad: "mano_obra" }, "mano_obra")).toBeNull()
+  })
+  it("administración no va en contrato de obra ni de mano de obra", () => {
+    expect(motivoItemNoListo({ modalidad: "administracion" }, "obra")).toMatch(/administración/)
+    expect(motivoItemNoListo({ modalidad: "administracion" }, "mano_obra")).toMatch(/administración/)
+    expect(motivoItemNoListo({ modalidad: "administracion" }, "suministro_instalacion")).toBeNull()
+  })
+  it("sin modalidad: como antes", () => {
+    expect(motivoItemNoListo({ modalidad: null }, "obra")).toBeNull()
+  })
+})
