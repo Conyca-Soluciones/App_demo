@@ -55,6 +55,7 @@ const base: SolicitudContratoForm = {
   bienNombre: "",
   actas: "",
   exigeGarantia: "si",
+  sobreTopeJustificacion: "",
 }
 
 const errores = (f: Partial<SolicitudContratoForm>, catalogo?: Map<string, ItemPresupuestoContrato>) => {
@@ -211,8 +212,22 @@ describe("validarSolicitud", () => {
       expect(errores(unitarios("61", "28.000"), catalogo).items).toMatch(/disponible/)
     })
 
-    it("el valor unitario no pasa el del presupuesto", () => {
-      expect(errores(unitarios("10", "28.001"), catalogo).items).toMatch(/supera/)
+    it("el valor unitario no pasa el del presupuesto (tipos que no son obra ni mano de obra)", () => {
+      expect(errores({ ...unitarios("10", "28.001"), tipo: "suministro_instalacion" }, catalogo).items).toMatch(/supera/)
+    })
+
+    it("obra y mano de obra: sobre el tope pide justificación para Gerencia (20270101004200)", () => {
+      const e = errores(unitarios("10", "28.001"), catalogo)
+      expect(e.items).toBeUndefined()
+      expect(e.sobreTope).toMatch(/Gerencia/)
+      const r = validarSolicitud({ ...base, ...unitarios("10", "30.000"), sobreTopeJustificacion: "  Precio de  mercado " }, catalogo)
+      expect(r.ok && r.datos.sobreTopeJustificacion).toBe("Precio de mercado")
+      expect(r.ok && r.datos.valor).toBe(300_000)
+      expect(errores({ ...unitarios("10", "30.000"), tipo: "obra" }, catalogo).sobreTope).toMatch(/Gerencia/)
+    })
+
+    it("dentro del tope no pide justificación", () => {
+      expect(errores(unitarios("10", "28.000"), catalogo).sobreTope).toBeUndefined()
     })
 
     it("mano de obra: el tope es la mano de obra del APU; sin mano de obra, el ítem completo", () => {
@@ -223,7 +238,9 @@ describe("validarSolicitud", () => {
         items: [{ presupuestoItemId, cantidad: "1", valorUnitario }],
       })
       expect(errores(mo("p3", "12.000"), catalogo).items).toBeUndefined()
-      expect(errores(mo("p3", "12.001"), catalogo).items).toMatch(/mano de obra/)
+      expect(errores(mo("p3", "12.000"), catalogo).sobreTope).toBeUndefined()
+      // Sobre la mano de obra del APU: lo autoriza Gerencia.
+      expect(errores(mo("p3", "12.001"), catalogo).sobreTope).toMatch(/Gerencia/)
       expect(errores(mo("p2", "15.000"), catalogo).items).toBeUndefined()
       expect(errores({ ...mo("p3", "28.000"), tipo: "obra" }, catalogo).items).toBeUndefined()
     })

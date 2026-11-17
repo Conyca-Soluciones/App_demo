@@ -83,6 +83,9 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   aprobada: { etiqueta: "Pre-aprobada por Jurídica", tono: "ok" },
   devuelta: { etiqueta: "Devuelta para corregir", tono: "aviso" },
   rechazada: { etiqueta: "Rechazada", tono: "malo" },
+  tope_autorizado: { etiqueta: "Gerencia autorizó los valores sobre el tope", tono: "ok" },
+  tope_devuelto: { etiqueta: "Gerencia la devolvió (valores sobre el tope)", tono: "aviso" },
+  tope_rechazado: { etiqueta: "Gerencia la rechazó (valores sobre el tope)", tono: "malo" },
   minuta_enviada: { etiqueta: "Minuta enviada a Gerencia", tono: "neutro" },
   minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
   minuta_aprobada: { etiqueta: "Minuta aprobada por Gerencia", tono: "ok" },
@@ -455,6 +458,9 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     return []
   }
   if (tipo === "contrato" && e.evento === "minuta_guardada") return lineasCambios(d.cambios)
+  // Con actividades sobre el tope va primero a Gerencia (20270101004200).
+  if (tipo === "contrato" && (e.evento === "creada" || e.evento === "reenviada") && d.sobre_tope === true)
+    return ["Con actividades por encima del tope: va primero a Gerencia para autorizar"]
   if (tipo === "entrada") {
     if (e.evento === "registrada" && d.numero != null) return [`Entrada ${d.numero}${d.orden != null ? ` · ${typeof d.orden === "string" ? d.orden : `OC ${d.orden}`}` : ""}${d.remision ? ` · remisión ${d.remision}` : ""}`]
     if (e.evento === "linea_editada") return [`${formatoValor(d.insumo)}: ${formatoValor(d.de)} → ${formatoValor(d.a)}`]

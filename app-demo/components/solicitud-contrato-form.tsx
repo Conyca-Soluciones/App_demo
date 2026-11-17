@@ -28,6 +28,7 @@ import {
   numero,
   sinManoObraEnApu,
   motivoItemNoListo,
+  permiteSobreTope,
   topeValorUnitario,
   totalAnexo,
   validarSolicitud,
@@ -96,6 +97,7 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   bienNombre: "",
   actas: "",
   exigeGarantia: "",
+  sobreTopeJustificacion: "",
 }
 
 const siNo = (v: boolean | undefined): "" | "si" | "no" => (v === undefined ? "" : v ? "si" : "no")
@@ -103,6 +105,7 @@ const siNo = (v: boolean | undefined): "" | "si" | "no" => (v === undefined ? ""
 // Formulario lleno con una solicitud devuelta, para corregirla.
 function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
   return {
+    sobreTopeJustificacion: d.sobreTopeJustificacion ?? "",
     tipo: d.tipo,
     contratistaId: d.contratistaId,
     objeto: d.objeto,
@@ -387,6 +390,15 @@ export function SolicitudContratoForm({
   // Ítems ya elegidos: el selector solo sale en filas sin ítem válido, así que
   // un solo Set sirve para todas (antes uno por fila: filas × filas).
   const itemsUsados = useMemo(() => new Set(f.items.map((x) => x.presupuestoItemId).filter(Boolean)), [f.items])
+  // Actividades por encima del tope (obra y mano de obra): las autoriza Gerencia (20270101004200).
+  const haySobreTope =
+    f.anexoTipo === "valores_unitarios" &&
+    permiteSobreTope(f.tipo) &&
+    f.items.some((it) => {
+      const ref = it.presupuestoItemId ? catalogoPorId.get(it.presupuestoItemId) : undefined
+      const v = leerNumero(it.valorUnitario)
+      return Boolean(ref && v !== null && v > topeValorUnitario(ref, f.tipo))
+    })
 
   useEffect(() => {
     listarContratistas()
@@ -770,6 +782,7 @@ export function SolicitudContratoForm({
             <p className="text-xs text-muted-foreground">
               Cada actividad es un ítem del presupuesto vigente. La cantidad no puede pasar lo disponible (presupuestado menos lo
               que ya tienen otros contratos) y el valor unitario no puede pasar el del presupuesto.
+              {permiteSobreTope(f.tipo) && " Si hace falta pasarlo, el contrato va primero a Gerencia para que lo autorice."}
             </p>
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full min-w-[820px] text-sm">
@@ -792,6 +805,8 @@ export function SolicitudContratoForm({
                     const excedeCantidad = Boolean(ref && c !== null && c > ref.disponible)
                     const tope = ref ? topeValorUnitario(ref, f.tipo) : 0
                     const excedeValor = Boolean(ref && v !== null && v > tope)
+                    // En obra y mano de obra se puede pasar, con autorización de Gerencia.
+                    const sobreTope = excedeValor && permiteSobreTope(f.tipo)
                     const cambiarItem = (cambios: Partial<typeof it>) =>
                       cambiar(
                         "items",
@@ -876,9 +891,15 @@ export function SolicitudContratoForm({
                             value={it.valorUnitario}
                             onChange={(e) => cambiarItem({ valorUnitario: e.target.value })}
                             disabled={enviando || !ref}
-                            className={`${claseCampo(excedeValor)} text-right`}
+                            className={`${claseCampo(excedeValor && !sobreTope)} text-right ${sobreTope ? "border-violet-400" : ""}`}
                           />
-                          {excedeValor && <p className="px-1 text-xs text-destructive">Máx. {pesos(tope)}</p>}
+                          {sobreTope ? (
+                            <p className="px-1 text-xs text-violet-700 dark:text-violet-300">
+                              Tope {pesos(tope)}: lo autoriza Gerencia
+                            </p>
+                          ) : (
+                            excedeValor && <p className="px-1 text-xs text-destructive">Máx. {pesos(tope)}</p>
+                          )}
                         </td>
                         <td className="px-2 py-2.5 text-right tabular-nums">{subtotal !== null ? pesos(subtotal) : "—"}</td>
                         <td className="p-1 text-center">
@@ -911,6 +932,27 @@ export function SolicitudContratoForm({
               <Plus className="size-4" /> Agregar actividad
             </Button>
             <MensajeError texto={errores.items} />
+            {haySobreTope && (
+              <div className="space-y-1 rounded-md border border-violet-300 bg-violet-50 p-3 dark:bg-violet-950/30" data-error={Boolean(errores.sobreTope)}>
+                <label htmlFor="contrato-sobre-tope" className="text-sm font-medium text-violet-900 dark:text-violet-200">
+                  Justificación para Gerencia *
+                </label>
+                <p className="text-xs text-violet-800 dark:text-violet-300">
+                  Hay actividades con valor unitario por encima del tope. El contrato va primero a Gerencia para que lo
+                  autorice; después sigue a pre-aprobación de Jurídica.
+                </p>
+                <textarea
+                  id="contrato-sobre-tope"
+                  rows={3}
+                  value={f.sobreTopeJustificacion}
+                  onChange={(e) => cambiar("sobreTopeJustificacion", e.target.value, "sobreTope")}
+                  placeholder="Por qué se necesita pagar por encima del tope (precio de mercado, cotizaciones, condiciones de la obra...)"
+                  disabled={enviando}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                />
+                <MensajeError texto={errores.sobreTope} />
+              </div>
+            )}
           </div>
         )}
 
@@ -1506,9 +1548,11 @@ export function SolicitudContratoForm({
             ? "Subiendo documentos..."
             : paso === "guardando"
               ? "Enviando..."
-              : edicion
-                ? "Reenviar a pre-aprobación"
-                : "Mandar a pre-aprobación"}
+              : haySobreTope
+                ? "Mandar a Gerencia para autorizar"
+                : edicion
+                  ? "Reenviar a pre-aprobación"
+                  : "Mandar a pre-aprobación"}
         </Button>
       </div>
     </form>

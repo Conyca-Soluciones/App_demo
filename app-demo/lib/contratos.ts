@@ -332,13 +332,22 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
     // Contrato de mano de obra con un ítem cuyo APU no tiene mano de obra:
     // su tope fue el ítem completo (para que Jurídica lo revise).
     sinManoObra?: boolean
+    // Tope del valor unitario cuando se pidió (20270101004200); null = de antes.
+    topeValorUnitario?: number | null
   }[]
+  // Actividades por encima del tope (obra y mano de obra, 20270101004200): por
+  // qué, y quién de Gerencia lo autorizó (null = todavía no o no hizo falta).
+  sobreTopeJustificacion?: string | null
+  sobreTopeAutorizadoAt?: string | null
+  sobreTopeAutorizadoPorNombre?: string | null
   documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string; ruta: string; tamano: number }[]
 }
 
 
-export type EstadoContrato = "pre_aprobacion" | "devuelta" | "rechazada" | "aprobada"
+// por_autorizar: actividades por encima del tope, esperando a Gerencia (20270101004200).
+export type EstadoContrato = "por_autorizar" | "pre_aprobacion" | "devuelta" | "rechazada" | "aprobada"
 export const ETIQUETA_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
+  por_autorizar: "Por autorizar (sobre el tope)",
   pre_aprobacion: "En pre-aprobación",
   devuelta: "Devuelta",
   rechazada: "Rechazada",
@@ -346,6 +355,7 @@ export const ETIQUETA_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
 }
 // Ámbar = esperando a alguien; rojo = devuelta/rechazada; verde = aprobada.
 export const CLASE_ESTADO_CONTRATO: Record<EstadoContrato, string> = {
+  por_autorizar: "border-transparent bg-violet-100 text-violet-800",
   pre_aprobacion: "border-transparent bg-amber-100 text-amber-800",
   devuelta: "border-transparent bg-orange-100 text-orange-800",
   rechazada: "border-transparent bg-red-100 text-red-800",
@@ -369,6 +379,7 @@ export const CLASE_ESTADO_MINUTA: Record<EstadoMinuta | "elaboracion", string> =
 // Etapa de un contrato sumando la solicitud y la minuta: lo que se muestra en
 // la columna Estado de Pre aprobación y en el detalle.
 export type EtapaContrato =
+  | "por_autorizar"
   | "por_revisar"
   | "devuelta_director"
   | "sin_enviar"
@@ -377,6 +388,7 @@ export type EtapaContrato =
   | "aprobado"
   | "rechazada"
 export function etapaContrato(c: { estado: EstadoContrato; minutaEstado: EstadoMinuta | null }): EtapaContrato {
+  if (c.estado === "por_autorizar") return "por_autorizar"
   if (c.estado === "pre_aprobacion") return "por_revisar"
   if (c.estado === "devuelta") return "devuelta_director"
   if (c.estado === "rechazada") return "rechazada"
@@ -386,6 +398,7 @@ export function etapaContrato(c: { estado: EstadoContrato; minutaEstado: EstadoM
   return "sin_enviar"
 }
 export const ETIQUETA_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
+  por_autorizar: "Por autorizar en Gerencia (sobre el tope)",
   por_revisar: "Por revisar",
   devuelta_director: "Devuelta al director",
   sin_enviar: "Pre-aprobada sin enviar",
@@ -395,6 +408,7 @@ export const ETIQUETA_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
   rechazada: "Rechazada",
 }
 export const CLASE_ETAPA_CONTRATO: Record<EtapaContrato, string> = {
+  por_autorizar: "border-transparent bg-violet-100 text-violet-800",
   por_revisar: "border-transparent bg-amber-100 text-amber-800",
   devuelta_director: "border-transparent bg-orange-100 text-orange-800",
   sin_enviar: "border-transparent bg-slate-100 text-slate-700",
@@ -485,6 +499,9 @@ export function motivoItemNoListo(
 export const topeValorUnitario = (item: { valorUnitario: number; valorManoObra: number }, tipo: string) =>
   tipo === "mano_obra" && item.valorManoObra > 0 ? Math.min(item.valorManoObra, item.valorUnitario) : item.valorUnitario
 export const sinManoObraEnApu = (item: { valorManoObra: number }, tipo: string) => tipo === "mano_obra" && item.valorManoObra <= 0
+// Obra y mano de obra pueden pasar el tope con autorización de Gerencia
+// (20270101004200); los demás tipos no.
+export const permiteSobreTope = (tipo: string) => tipo === "obra" || tipo === "mano_obra"
 
 export type SolicitudContratoForm = {
   tipo: TipoContrato | ""
@@ -526,6 +543,9 @@ export type SolicitudContratoForm = {
   bienNombre: string
   actas: "" | ActasPeriodicidad
   exigeGarantia: "" | "si" | "no"
+  // Por qué hay actividades por encima del tope (obra y mano de obra, las
+  // autoriza Gerencia, 20270101004200).
+  sobreTopeJustificacion: string
 }
 
 export type CampoSolicitud =
@@ -555,6 +575,7 @@ export type CampoSolicitud =
   | "bienNombre"
   | "actas"
   | "exigeGarantia"
+  | "sobreTope"
 
 // Lo que se manda a crear_solicitud_contrato, ya limpio.
 export type SolicitudContratoValida = {
@@ -584,6 +605,7 @@ export type SolicitudContratoValida = {
   observaciones: string | null
   departamentoDomicilio: string
   datosTipo: DatosTipoContrato
+  sobreTopeJustificacion: string | null
 }
 
 // El objeto empieza por un verbo en infinitivo ("Desarrollar", "Ejecutar"...).
@@ -622,6 +644,9 @@ export function validarSolicitud(
 
   // Valor: en valores unitarios es la suma del anexo.
   const items: SolicitudContratoValida["items"] = []
+  // Alguna actividad pasa el tope (solo se sabe con el catálogo; la base lo
+  // vuelve a revisar).
+  let sobreTope = false
   let valor: number | null
   if (soloValoresUnitarios(f.tipo) && f.anexoTipo !== "valores_unitarios") {
     errores.items = "Los contratos de obra y de mano de obra van por valores unitarios (ítems del presupuesto)."
@@ -659,7 +684,9 @@ export function validarSolicitud(
           break
         }
         const tope = topeValorUnitario(ref, f.tipo)
-        if (valorUnitario > tope) {
+        if (valorUnitario > tope && permiteSobreTope(f.tipo)) {
+          sobreTope = true
+        } else if (valorUnitario > tope) {
           errores.items =
             tope < ref.valorUnitario
               ? `Ítem ${ref.codigo}: el valor unitario (${pesos(valorUnitario)}) supera el de mano de obra del presupuesto (${pesos(tope)}).`
@@ -773,10 +800,15 @@ export function validarSolicitud(
     })
   }
 
+  const sobreTopeJustificacion = f.sobreTopeJustificacion.trim().replace(/\s+/g, " ") || null
+  if (sobreTope && !sobreTopeJustificacion)
+    errores.sobreTope = "Hay actividades por encima del tope: explica por qué para pedir la autorización de Gerencia."
+
   if (Object.keys(errores).length > 0) return { ok: false, errores }
   return {
     ok: true,
     datos: {
+      sobreTopeJustificacion,
       tipo: f.tipo as TipoContrato,
       contratistaId: f.contratistaId,
       objeto,

@@ -119,6 +119,9 @@ async function guardarSolicitud(
       observaciones: d.observaciones ?? "",
       domicilio_departamento: d.departamentoDomicilio,
       datos_tipo: datosTipoABase(d.tipo, d.datosTipo),
+      // Actividades sobre el tope (obra y mano de obra): la base decide si hace
+      // falta y entonces la exige (20270101004200).
+      sobre_tope_justificacion: d.sobreTopeJustificacion ?? "",
     },
     p_obligaciones: d.obligaciones,
     p_entregables: d.entregables,

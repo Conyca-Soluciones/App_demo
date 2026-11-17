@@ -8,10 +8,19 @@ import { AprobacionMinutasView } from "@/components/aprobacion-minutas-view"
 export default async function AprobacionMinutasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ver?: string }>
+  searchParams: Promise<{ ver?: string; vista?: string }>
 }) {
-  const [permisos, { ver }] = await Promise.all([obtenerPermisosRol(), searchParams])
+  const [permisos, { ver, vista }] = await Promise.all([obtenerPermisosRol(), searchParams])
   const puedeResolver = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("aprobar_minutas"))
+  // Contratos por encima del tope (20270101004200): acción aparte.
+  const puedeAutorizarTope = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("autorizar_contratos_sobre_tope"))
 
-  return <AprobacionMinutasView puedeResolver={puedeResolver} verInicial={ver ?? null} />
+  return (
+    <AprobacionMinutasView
+      puedeResolver={puedeResolver}
+      puedeAutorizarTope={puedeAutorizarTope}
+      verInicial={ver ?? null}
+      vistaInicial={vista === "tope" ? "sobre_tope" : null}
+    />
+  )
 }

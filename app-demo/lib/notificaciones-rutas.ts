@@ -29,6 +29,8 @@ export function rutaNotificacion(n: AvisoParaRuta): string {
   // quien solicitó, a su lista. ?ver= abre el detalle de esa solicitud.
   if (n.entidadTipo === "contrato") {
     if (n.tipo === "minuta_por_revisar") return `/contratos/aprobacion-minutas?ver=${n.entidadId}`
+    // Sobre el tope: a Gerencia, a Aprobación de contratos › Sobre el tope (20270101004200).
+    if (n.tipo === "contrato_sobre_tope") return `/contratos/aprobacion-minutas?vista=tope&ver=${n.entidadId}`
     // Pólizas: a Jurídica, a Aprobación de pólizas; al ingeniero y al director, a Pólizas.
     if (n.tipo === "poliza_por_revisar") return `/contratos/aprobacion-polizas?ver=${n.entidadId}`
     if (n.tipo === "poliza_pendiente" || n.tipo === "poliza_aprobada" || n.tipo === "poliza_devuelta")

@@ -3218,6 +3218,32 @@ Cómo se guarda:
 - **Pendiente (pasos 5 y 6)**: Malecón (42 %, mano de obra oficial, Excel de modalidades,
   pendientes, totales); prueba completa en un proyecto de prueba.
 
+## Contratos por encima del tope con autorización de Gerencia (2026-11-17)
+
+`20270101004200_contratos_sobre_tope.sql` (reversa en `supabase/reversa/`; decisiones del usuario).
+En un contrato de **obra** o de **mano de obra**, una actividad con valor unitario por encima del
+tope (obra: valor del ítem, a todo costo el % del proyecto; mano de obra: la mano de obra del ítem,
+`_tope_valor_unitario_item`) ya no se rechaza: el formulario la marca en violeta ("Tope $X: lo
+autoriza Gerencia"), pide una **Justificación para Gerencia** (`sobreTopeJustificacion`;
+`permiteSobreTope` y `validarSolicitud` en `lib/contratos.ts`) y el botón dice "Mandar a Gerencia
+para autorizar". Los demás tipos y el otrosí siguen con el tope de siempre (decisión: el otrosí
+después).
+- **Base**: `contratos.estado = 'por_autorizar'` (antes de `pre_aprobacion`; reserva el cupo
+  igual), `sobre_tope_justificacion`, `sobre_tope_autorizado_at/_por`, y
+  `contrato_anexo_items.tope_valor_unitario` (el tope al pedirlo; el detalle muestra cuánto se
+  pasa). `_guardar_solicitud_contrato` se parchó por texto: con alguna actividad sobre el tope exige
+  la justificación, deja la solicitud por autorizar y avisa a Gerencia en vez de a Jurídica.
+- **Gerencia** (acción nueva `autorizar_contratos_sobre_tope`, dada a los roles con
+  `aprobar_minutas`): Aprobación de contratos › filtro **Sobre el tope**
+  (`listarContratosSobreTope`; `?vista=tope` lo abre). En el detalle: **Autorizar** (sigue a
+  Pre-aprobación de Jurídica, que recibe el aviso de siempre), **Devolver** (vuelve al director como
+  devuelta, con motivo) o **Rechazar** (`resolver_autorizacion_tope`). Historial `tope_autorizado`,
+  `tope_devuelto`, `tope_rechazado`. Si el director corrige y sigue sobre el tope, vuelve a Gerencia.
+- Avisos: `contrato_sobre_tope` (a Gerencia, también por correo) y `contrato_tope_autorizado` (a
+  quien lo pidió); devolver/rechazar usan `contrato_devuelto` / `contrato_rechazado`. Mis
+  pendientes: `contrato_sobre_tope`. En Pre-aprobación, el filtro "En Gerencia" las incluye.
+- La migración va ANTES del código (el detalle lee las columnas nuevas).
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
@@ -4648,6 +4674,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101003900` modalidades de ejecución del presupuesto (todo costo, subcontrato de mano de obra, administración).
 `20270101004000` modalidades: la modalidad en los ítems para contratos y recalcular al cambiar el % de todo costo.
 `20270101004100` modalidades: datos del Excel de modalidades y la herramienta menor no cuenta como insumo.
+`20270101004200` contratos de obra y mano de obra por encima del tope con autorización de Gerencia.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
