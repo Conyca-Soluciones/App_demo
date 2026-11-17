@@ -31,11 +31,15 @@ import {
   TIPOS_CUENTA_TERCERO,
   ETIQUETA_TIPO_CUENTA,
   TIPOS_DOCUMENTO_TERCERO,
+  CONTACTO_VACIO,
   documentoFormateado,
+  partirNombre,
+  razonSocialPersona,
   soloDigitos,
   validarCuenta,
   validarTercero,
   type Banco,
+  type ContactoTercero,
   type CuentaTercero,
   type DatosCuenta,
   type Tercero,
@@ -63,6 +67,118 @@ function Banner({ error }: { error: string | null }) {
   if (!error) return null
   return (
     <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Nombre de una persona en 4 casillas (20270101004300): primer nombre y primer
+// apellido obligatorios. La razón social (apellidos + nombres) y el nombre para el
+// banco los arma la base.
+// ---------------------------------------------------------------------------
+export type CasillasNombre = { primerNombre: string; segundoNombre: string; primerApellido: string; segundoApellido: string }
+
+export function CamposNombrePersona({
+  valores,
+  onCambiar,
+  errores,
+  deshabilitado,
+}: {
+  valores: CasillasNombre
+  onCambiar: (cambio: Partial<CasillasNombre>) => void
+  errores?: Record<string, string | undefined>
+  deshabilitado?: boolean
+}) {
+  const id = useId()
+  const campo = (clave: keyof CasillasNombre, etiqueta: string) => (
+    <div className="min-w-0 space-y-1.5">
+      <Label htmlFor={`${id}-${clave}`}>{etiqueta}</Label>
+      <Input
+        id={`${id}-${clave}`}
+        aria-invalid={!!errores?.[clave]}
+        disabled={deshabilitado}
+        value={valores[clave]}
+        onChange={(e) => onCambiar({ [clave]: e.target.value })}
+      />
+      <ErrorCampo texto={errores?.[clave]} />
+    </div>
+  )
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {campo("primerNombre", "Primer nombre")}
+      {campo("segundoNombre", "Segundo nombre (opcional)")}
+      {campo("primerApellido", "Primer apellido")}
+      {campo("segundoApellido", "Segundo apellido (opcional)")}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Contacto del tercero (20270101004300): correo, teléfono, dirección (calle y
+// número) y ciudad. Lo usan Terceros, Contratistas y Proveedores (un solo lugar).
+// ---------------------------------------------------------------------------
+export function CamposContacto({
+  valores,
+  onCambiar,
+  errores,
+  deshabilitado,
+}: {
+  valores: ContactoTercero
+  onCambiar: (cambio: Partial<ContactoTercero>) => void
+  errores?: Record<string, string | undefined>
+  deshabilitado?: boolean
+}) {
+  const id = useId()
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="min-w-0 space-y-1.5 lg:col-span-3">
+        <Label htmlFor={`${id}-correo`}>Correo electrónico</Label>
+        <Input
+          id={`${id}-correo`}
+          type="email"
+          inputMode="email"
+          aria-invalid={!!errores?.correo}
+          disabled={deshabilitado}
+          value={valores.correo}
+          onChange={(e) => onCambiar({ correo: e.target.value })}
+        />
+        <ErrorCampo texto={errores?.correo} />
+      </div>
+      <div className="min-w-0 space-y-1.5 lg:col-span-3">
+        <Label htmlFor={`${id}-telefono`}>Teléfono</Label>
+        <Input
+          id={`${id}-telefono`}
+          inputMode="tel"
+          aria-invalid={!!errores?.telefono}
+          disabled={deshabilitado}
+          value={valores.telefono}
+          onChange={(e) => onCambiar({ telefono: e.target.value })}
+        />
+        <ErrorCampo texto={errores?.telefono} />
+      </div>
+      <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-4">
+        <Label htmlFor={`${id}-direccion`}>Dirección (calle y número)</Label>
+        <Input
+          id={`${id}-direccion`}
+          placeholder="Ej. Calle 26 # 69-76, oficina 301"
+          aria-invalid={!!errores?.direccion}
+          disabled={deshabilitado}
+          value={valores.direccion}
+          onChange={(e) => onCambiar({ direccion: e.target.value })}
+        />
+        <ErrorCampo texto={errores?.direccion} />
+      </div>
+      <div className="min-w-0 space-y-1.5 sm:col-span-2 lg:col-span-2">
+        <Label htmlFor={`${id}-ciudad`}>Ciudad</Label>
+        <Input
+          id={`${id}-ciudad`}
+          aria-invalid={!!errores?.ciudad}
+          disabled={deshabilitado}
+          value={valores.ciudad}
+          onChange={(e) => onCambiar({ ciudad: e.target.value })}
+        />
+        <ErrorCampo texto={errores?.ciudad} />
+      </div>
+    </div>
   )
 }
 
@@ -164,7 +280,7 @@ export function TerceroDialogo({
 }) {
   return (
     <Dialog open={tercero !== null} onOpenChange={(abierto) => !abierto && onCerrar()}>
-      <DialogContent className="max-h-[90vh] w-[min(95vw,52rem)] max-w-none overflow-y-auto sm:max-w-none">
+      <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-none overflow-y-auto sm:w-[min(94vw,72rem)] sm:max-w-none">
         {tercero && (
           <ContenidoTercero
             key={tercero.id}
@@ -199,19 +315,32 @@ function ContenidoTercero({
   const [verHistorial, setVerHistorial] = useState(false)
   const [versionHistorial, setVersionHistorial] = useState(0)
 
-  const [datos, setDatos] = useState({
-    razonSocial: tercero.razonSocial,
-    nombreBanco: tercero.nombreBanco ?? "",
-    nombres: tercero.nombres ?? "",
-    apellidos: tercero.apellidos ?? "",
-    observaciones: tercero.observaciones ?? "",
+  // Las casillas del nombre: las guardadas o, en un tercero viejo, partidas de
+  // sus nombres y apellidos (primera palabra y resto).
+  const [inicial] = useState(() => {
+    const [pn, sn] = tercero.primerNombre ? [tercero.primerNombre, tercero.segundoNombre ?? ""] : partirNombre(tercero.nombres)
+    const [pa, sa] = tercero.primerApellido ? [tercero.primerApellido, tercero.segundoApellido ?? ""] : partirNombre(tercero.apellidos)
+    return {
+      razonSocial: tercero.razonSocial,
+      primerNombre: pn,
+      segundoNombre: sn,
+      primerApellido: pa,
+      segundoApellido: sa,
+      ...tercero.contacto,
+      observaciones: tercero.observaciones ?? "",
+    }
   })
-  const datosCambiaron =
-    datos.razonSocial !== tercero.razonSocial ||
-    datos.nombreBanco !== (tercero.nombreBanco ?? "") ||
-    datos.nombres !== (tercero.nombres ?? "") ||
-    datos.apellidos !== (tercero.apellidos ?? "") ||
-    datos.observaciones !== (tercero.observaciones ?? "")
+  const [datos, setDatos] = useState(inicial)
+  const [erroresDatos, setErroresDatos] = useState<Record<string, string>>({})
+  const datosCambiaron = (Object.keys(inicial) as (keyof typeof inicial)[]).some((k) => datos[k] !== inicial[k])
+  function ponerDatos(cambio: Partial<typeof datos>) {
+    setDatos((d) => ({ ...d, ...cambio }))
+    setErroresDatos((e) => {
+      const n = { ...e }
+      for (const k of Object.keys(cambio)) delete n[k]
+      return n
+    })
+  }
 
   // null = sin formulario; "nueva" = agregando; un id = editando esa cuenta.
   const [formCuenta, setFormCuenta] = useState<string | null>(null)
@@ -302,56 +431,36 @@ function ContenidoTercero({
       {/* ------------------------------------------------------------ datos */}
       <section className="space-y-3">
         <h3 className="text-sm font-medium">Datos</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>{esNit ? "Razón social" : "Nombre completo"}</Label>
-            <Input
-              value={datos.razonSocial}
-              disabled={!puedeEditar}
-              onChange={(e) => setDatos({ ...datos, razonSocial: e.target.value })}
-            />
-          </div>
+        {esNit ? (
           <div className="space-y-1.5">
-            <Label>Nombre para el banco</Label>
-            <Input
-              value={datos.nombreBanco}
-              disabled={!puedeEditar}
-              placeholder="Si se deja vacío se usa el nombre"
-              onChange={(e) => setDatos({ ...datos, nombreBanco: e.target.value })}
-            />
+            <Label>Razón social</Label>
+            <Input value={datos.razonSocial} disabled={!puedeEditar} onChange={(e) => ponerDatos({ razonSocial: e.target.value })} />
+            <ErrorCampo texto={erroresDatos.razonSocial} />
           </div>
-          {!esNit && (
-            <>
-              <div className="space-y-1.5">
-                <Label>Nombres</Label>
-                <Input
-                  value={datos.nombres}
-                  disabled={!puedeEditar}
-                  onChange={(e) => setDatos({ ...datos, nombres: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Apellidos</Label>
-                <Input
-                  value={datos.apellidos}
-                  disabled={!puedeEditar}
-                  onChange={(e) => setDatos({ ...datos, apellidos: e.target.value })}
-                />
-              </div>
-            </>
-          )}
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Observaciones</Label>
-            <Input
-              value={datos.observaciones}
-              disabled={!puedeEditar}
-              onChange={(e) => setDatos({ ...datos, observaciones: e.target.value })}
-            />
-          </div>
+        ) : (
+          <>
+            <CamposNombrePersona valores={datos} onCambiar={ponerDatos} errores={erroresDatos} deshabilitado={!puedeEditar} />
+            <p className="text-xs text-muted-foreground">
+              Nombre en los pagos: {razonSocialPersona(datos) || tercero.razonSocial}. El nombre para el banco se arma solo (nombres y apellidos).
+            </p>
+          </>
+        )}
+        <h3 className="pt-1 text-sm font-medium">Contacto</h3>
+        <CamposContacto valores={datos} onCambiar={ponerDatos} errores={erroresDatos} deshabilitado={!puedeEditar} />
+        <div className="space-y-1.5">
+          <Label>Observaciones</Label>
+          <Input value={datos.observaciones} disabled={!puedeEditar} onChange={(e) => ponerDatos({ observaciones: e.target.value })} />
         </div>
         {puedeEditar && datosCambiaron && (
           <div className="flex justify-end">
-            <Button size="sm" disabled={ocupado} onClick={() => ejecutar(() => actualizarTercero(tercero.id, datos), "Datos guardados.")}>
+            <Button
+              size="sm"
+              disabled={ocupado}
+              onClick={() => {
+                setErroresDatos({})
+                void ejecutar(() => actualizarTercero(tercero.id, tercero.tipoDocumento, datos), "Datos guardados.")
+              }}
+            >
               {ocupado ? "Guardando..." : "Guardar datos"}
             </Button>
           </div>
@@ -572,9 +681,11 @@ const TERCERO_VACIO = {
   numeroDocumento: "",
   dv: "",
   razonSocial: "",
-  nombreBanco: "",
-  nombres: "",
-  apellidos: "",
+  primerNombre: "",
+  segundoNombre: "",
+  primerApellido: "",
+  segundoApellido: "",
+  ...CONTACTO_VACIO,
   observaciones: "",
 }
 
@@ -745,14 +856,15 @@ export function NuevoTerceroDialogo({
 
   return (
     <Dialog open={abierto} onOpenChange={(o) => !o && cerrar()}>
-      <DialogContent className="max-h-[90vh] w-[min(95vw,44rem)] max-w-none overflow-y-auto sm:max-w-none">
+      <DialogContent className="max-h-[94svh] w-[calc(100vw-1rem)] max-w-none overflow-y-auto sm:w-[min(94vw,72rem)] sm:max-w-none">
         <DialogHeader>
           <DialogTitle>Nuevo tercero</DialogTitle>
         </DialogHeader>
 
         <Banner error={error} />
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <h3 className="text-sm font-medium">Documento y nombre</h3>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <div className="space-y-1.5">
             <Label htmlFor={`${uid}-tipo`}>Tipo de documento</Label>
             <Select
@@ -802,7 +914,7 @@ export function NuevoTerceroDialogo({
             </div>
           )}
           {existente && (
-            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-3">
+            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:col-span-3 lg:col-span-4">
               <p>
                 Ya existe un tercero con este documento: <span className="font-medium">{existente.razonSocial}</span> (
                 {existente.tipoDocumento} {existente.numeroDocumento}
@@ -823,42 +935,25 @@ export function NuevoTerceroDialogo({
               )}
             </div>
           )}
-          <div className="space-y-1.5 sm:col-span-3">
-            <Label htmlFor={`${uid}-razon`}>{esNit ? "Razón social" : "Nombre completo"}</Label>
-            <Input
-              id={`${uid}-razon`}
-              aria-invalid={!!errores.razonSocial}
-              value={datos.razonSocial}
-              onChange={(e) => ponerDatos({ razonSocial: e.target.value })}
-            />
-            <ErrorCampo texto={errores.razonSocial} />
-          </div>
-          {datos.tipoDocumento && !esNit && (
-            <>
-              <div className="space-y-1.5 sm:col-span-3 sm:grid sm:grid-cols-2 sm:gap-3 sm:space-y-0">
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${uid}-nombres`}>Nombres (opcional)</Label>
-                  <Input id={`${uid}-nombres`} value={datos.nombres} onChange={(e) => ponerDatos({ nombres: e.target.value })} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor={`${uid}-apellidos`}>Apellidos (opcional)</Label>
-                  <Input id={`${uid}-apellidos`} value={datos.apellidos} onChange={(e) => ponerDatos({ apellidos: e.target.value })} />
-                </div>
-              </div>
-            </>
+          {esNit && (
+            <div className="space-y-1.5 sm:col-span-3 lg:col-span-4">
+              <Label htmlFor={`${uid}-razon`}>Razón social</Label>
+              <Input
+                id={`${uid}-razon`}
+                aria-invalid={!!errores.razonSocial}
+                value={datos.razonSocial}
+                onChange={(e) => ponerDatos({ razonSocial: e.target.value })}
+              />
+              <ErrorCampo texto={errores.razonSocial} />
+            </div>
           )}
-          <div className="space-y-1.5 sm:col-span-3">
-            <Label htmlFor={`${uid}-nombre-banco`}>Nombre para el banco (opcional)</Label>
-            <Input
-              id={`${uid}-nombre-banco`}
-              aria-invalid={!!errores.nombreBanco}
-              placeholder="Si se deja vacío se usa el nombre"
-              value={datos.nombreBanco}
-              onChange={(e) => ponerDatos({ nombreBanco: e.target.value })}
-            />
-            <ErrorCampo texto={errores.nombreBanco} />
-          </div>
         </div>
+        {datos.tipoDocumento && !esNit && <CamposNombrePersona valores={datos} onCambiar={ponerDatos} errores={errores} />}
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Contacto</h3>
+          <CamposContacto valores={datos} onCambiar={ponerDatos} errores={errores} />
+        </section>
 
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">

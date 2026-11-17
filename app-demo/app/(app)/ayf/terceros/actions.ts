@@ -1,13 +1,15 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { requerirAccion, requerirPestana } from "@/lib/permisos"
+import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR, puedeBuscar } from "@/lib/busqueda"
 import {
   soloDigitos,
+  validarContacto,
   validarCuenta,
   validarTercero,
+  type ContactoTercero,
   type Banco,
   type CuentaPorVerificar,
   type CuentaTercero,
@@ -27,8 +29,9 @@ const CAMPOS_CUENTA = `
   verificada_por, observaciones, banco:bancos(nombre)
 `
 const CAMPOS_TERCERO = `
-  id, tipo_documento, numero_documento, dv, razon_social, nombre_banco, nombres,
-  apellidos, observaciones, rut_nombre
+  id, tipo_documento, numero_documento, dv, razon_social, nombres, apellidos,
+  primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
+  correo, telefono, direccion, ciudad, observaciones, rut_nombre
 `
 
 function mapCuenta(c: any): CuentaTercero {
@@ -46,6 +49,10 @@ function mapCuenta(c: any): CuentaTercero {
   }
 }
 
+function contactoDe(t: any): ContactoTercero {
+  return { correo: t.correo ?? "", telefono: t.telefono ?? "", direccion: t.direccion ?? "", ciudad: t.ciudad ?? "" }
+}
+
 function mapTercero(t: any): Tercero {
   const cuentas = ((t.cuentas ?? []) as any[]).map(mapCuenta)
   // Orden estable y barato (pocas cuentas por tercero): pendientes primero.
@@ -57,9 +64,13 @@ function mapTercero(t: any): Tercero {
     numeroDocumento: t.numero_documento,
     dv: t.dv,
     razonSocial: t.razon_social,
-    nombreBanco: t.nombre_banco,
+    primerNombre: t.primer_nombre ?? null,
+    segundoNombre: t.segundo_nombre ?? null,
+    primerApellido: t.primer_apellido ?? null,
+    segundoApellido: t.segundo_apellido ?? null,
     nombres: t.nombres,
     apellidos: t.apellidos,
+    contacto: contactoDe(t),
     observaciones: t.observaciones,
     rutNombre: t.rut_nombre ?? null,
     cuentas,
@@ -141,6 +152,7 @@ const mapBasico = (t: any): TerceroBasico => ({
   tipoDocumento: String(t.tipo_documento),
   numeroDocumento: String(t.numero_documento),
   dv: t.dv ?? null,
+  contacto: contactoDe(t),
 })
 
 // Tercero con ese documento exacto (cédula o NIT; "901.097.443-4" vale), o null.
@@ -188,9 +200,14 @@ export async function crearTercero(
       numero_documento: d.numeroDocumento,
       dv: d.dv ?? "",
       razon_social: d.razonSocial,
-      nombre_banco: d.nombreBanco ?? "",
-      nombres: d.nombres ?? "",
-      apellidos: d.apellidos ?? "",
+      primer_nombre: d.primerNombre ?? "",
+      segundo_nombre: d.segundoNombre ?? "",
+      primer_apellido: d.primerApellido ?? "",
+      segundo_apellido: d.segundoApellido ?? "",
+      correo: d.contacto.correo,
+      telefono: d.contacto.telefono,
+      direccion: d.contacto.direccion,
+      ciudad: d.contacto.ciudad,
       observaciones: d.observaciones ?? "",
       rut,
       sin_cuenta: cuenta === null,
@@ -215,30 +232,80 @@ export async function crearTercero(
 // tercero correcto.
 export async function actualizarTercero(
   id: string,
-  crudo: Pick<DatosTercero, "razonSocial" | "nombreBanco" | "nombres" | "apellidos" | "observaciones">
+  tipoDocumento: string,
+  crudo: Omit<DatosTercero, "tipoDocumento" | "numeroDocumento" | "dv">
 ): Promise<Tercero> {
   await requerirAccion("editar_terceros")
 
-  // Se valida con un documento de relleno válido: solo importan los campos de texto.
-  const r = validarTercero({ ...crudo, tipoDocumento: "CC", numeroDocumento: "1", dv: "" })
-  if (!r.ok) throw new Error(Object.values(r.errores)[0] ?? "Revisa los datos del tercero.")
-  const d = r.datos
+  // Se valida con un documento de relleno válido: solo importan nombre y contacto.
+  // El contacto es obligatorio salvo en un tercero viejo que aún no lo tiene (todo vacío).
+  const sinContacto = !crudo.correo.trim() && !crudo.telefono.trim() && !crudo.direccion.trim() && !crudo.ciudad.trim()
+  const persona = tipoDocumento !== "NIT"
+  // Persona vieja sin casillas: se puede guardar sin llenarlas (conserva su nombre).
+  const sinCasillas = persona && !crudo.primerNombre.trim() && !crudo.primerApellido.trim()
+  const r = validarTercero(
+    {
+      ...crudo,
+      tipoDocumento: persona ? "CC" : "NIT",
+      numeroDocumento: "1",
+      dv: persona ? "" : "1",
+      razonSocial: crudo.razonSocial || "X",
+      ...(sinCasillas ? { primerNombre: "X", primerApellido: "X" } : {}),
+    },
+    { contacto: !sinContacto }
+  )
+  if (!r.ok) {
+    const errores = { ...r.errores }
+    delete errores.dv
+    const primero = Object.values(errores)[0]
+    if (primero) throw new Error(primero)
+  }
+  const d = r.ok ? r.datos : null
+
+  const cambio: Record<string, unknown> = { observaciones: crudo.observaciones.trim() || null }
+  if (persona && !sinCasillas && d) {
+    // La base arma la razón social, los nombres y el nombre para el banco.
+    cambio.primer_nombre = d.primerNombre
+    cambio.segundo_nombre = d.segundoNombre
+    cambio.primer_apellido = d.primerApellido
+    cambio.segundo_apellido = d.segundoApellido
+  } else if (!persona && d) {
+    cambio.razon_social = d.razonSocial
+  }
+  if (!sinContacto && d) {
+    cambio.correo = d.contacto.correo
+    cambio.telefono = d.contacto.telefono
+    cambio.direccion = d.contacto.direccion
+    cambio.ciudad = d.contacto.ciudad
+  }
 
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("terceros")
-    .update({
-      razon_social: d.razonSocial,
-      nombre_banco: d.nombreBanco,
-      nombres: d.nombres,
-      apellidos: d.apellidos,
-      observaciones: d.observaciones,
-    })
-    .eq("id", id)
-    .select("id")
+  const { data, error } = await supabase.from("terceros").update(cambio).eq("id", id).select("id")
   if (error) throw new Error(mensajeError(error))
   if (!data || data.length === 0) throw new Error("No se pudo actualizar el tercero (¿tienes permiso?).")
   return await obtenerTercero(id)
+}
+
+// Correo, teléfono, dirección y ciudad del tercero desde Contratistas o Proveedores
+// (20270101004300): se guardan en el tercero y la base los copia a su contratista y
+// su proveedor. A&F, Compras (editar_proveedores) o quien gestiona contratistas.
+export async function actualizarContactoTercero(terceroId: string, contacto: Partial<ContactoTercero>): Promise<ContactoTercero> {
+  const permisos = await obtenerPermisosRol()
+  const puede =
+    permisos?.esAdministrador ||
+    ["editar_terceros", "editar_proveedores", "gestionar_contratistas"].some((a) => permisos?.acciones.includes(a))
+  if (!puede) throw new Error("No tienes permiso para cambiar el contacto del tercero.")
+  // Solo los datos que llegan (uno o varios); los demás se rellenan para validar.
+  const claves = (Object.keys(contacto) as (keyof ContactoTercero)[]).filter((k) => contacto[k] !== undefined)
+  if (claves.length === 0) throw new Error("No hay datos de contacto para guardar.")
+  const v = validarContacto({ correo: "a@b.co", telefono: "1234567", direccion: "x", ciudad: "x", ...contacto })
+  if (!v.ok) throw new Error(Object.values(v.errores)[0] ?? "Revisa el contacto.")
+  const envio = Object.fromEntries(claves.map((k) => [k, v.datos[k]]))
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("actualizar_contacto_tercero", { p_tercero_id: terceroId, p_contacto: envio })
+  if (error) throw new Error(error.message)
+  const c = (data ?? {}) as Partial<ContactoTercero>
+  return { correo: c.correo ?? "", telefono: c.telefono ?? "", direccion: c.direccion ?? "", ciudad: c.ciudad ?? "" }
 }
 
 export async function agregarCuenta(terceroId: string, cruda: DatosCuenta): Promise<Tercero> {

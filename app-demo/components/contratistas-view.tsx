@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/client"
 import { CuentasTercero } from "@/components/cuentas-tercero"
 import { SelectorTercero } from "@/components/selector-tercero"
 import type { TerceroBasico } from "@/lib/terceros"
+import { actualizarContactoTercero } from "@/app/(app)/ayf/terceros/actions"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import {
   DOCUMENTOS_POR_PERSONA,
@@ -570,7 +571,21 @@ function ContratistaFormDialog({
   function elegirTercero(t: TerceroBasico) {
     setTercero(t)
     const tipo = tipoPersonaDeTercero(t.tipoDocumento)
-    setValores((v) => ({ ...v, terceroId: t.id, tipoPersona: tipo }))
+    // El contacto es el del tercero (20270101004300): no se vuelve a pedir.
+    const c = t.contacto
+    setValores((v) => ({
+      ...v,
+      terceroId: t.id,
+      tipoPersona: tipo,
+      ...(c
+        ? {
+            correo: c.correo || v.correo,
+            telefono: c.telefono || v.telefono,
+            direccion: c.direccion || v.direccion,
+            ciudad: c.ciudad || v.ciudad,
+          }
+        : {}),
+    }))
     if (errores.terceroId) setErrores((e) => ({ ...e, terceroId: undefined }))
     // Los documentos de un tipo de persona no sirven para el otro (salvo los comunes).
     const validos = new Set(DOCUMENTOS_POR_PERSONA[tipo].map((d) => d.tipo))
@@ -654,6 +669,13 @@ function ContratistaFormDialog({
       )
 
       setPaso("guardando")
+      // El contacto se guarda en el tercero; la base lo copia al contratista.
+      await actualizarContactoTercero(valores.terceroId, {
+        correo: valores.correo,
+        telefono: valores.telefono,
+        direccion: valores.direccion,
+        ciudad: valores.ciudad,
+      })
       if (editando) {
         const r = await editarContratista(id, valores, subidos)
         // Los archivos reemplazados ya no son documento de nadie: se borran
@@ -767,11 +789,16 @@ function ContratistaFormDialog({
           )}
 
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Contacto</h3>
+            <div>
+              <h3 className="text-sm font-semibold">Contacto</h3>
+              <p className="text-xs text-muted-foreground">
+                Es el contacto del tercero: viene lleno si ya lo tiene, y si lo cambias aquí se cambia también en Terceros y en su proveedor.
+              </p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-6">
               {campoTexto("correo", "Correo de notificación *", { ancho: "sm:col-span-3", inputMode: "email" })}
               {campoTexto("telefono", "Teléfono *", { ancho: "sm:col-span-3", inputMode: "tel" })}
-              {campoTexto("direccion", "Dirección *", { ancho: "sm:col-span-4" })}
+              {campoTexto("direccion", "Dirección (calle y número) *", { ancho: "sm:col-span-4" })}
               {campoTexto("ciudad", "Ciudad *", { ancho: "sm:col-span-2" })}
             </div>
           </section>

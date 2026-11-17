@@ -2011,6 +2011,18 @@ contacto, documentos; proveedores: id_prov, tipo, estado; empleados: datos
 laborales). Una persona con varios roles es un tercero con una fila en cada
 tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
 contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 4) empleados.
+- **Nombre en casillas y contacto en el tercero** (`20270101004300_terceros_nombres_y_contacto.sql`,
+  2026-11-17, decisión del usuario). Persona (no NIT): primer nombre y primer apellido obligatorios,
+  segundos opcionales (`terceros.primer_nombre`…); `trg_tercero_nombre` arma `razon_social` = apellidos +
+  nombres (como ya estaba), `nombres`, `apellidos` y `nombre_banco` = nombres + apellidos (40); un NIT
+  usa la razón social. Ya no se escribe el nombre para el banco a mano (el dispersor sigue leyendo
+  `nombre_banco`); los viejos no cambian hasta que se edite su nombre. Correo, teléfono, dirección (calle
+  y número) y ciudad viven en `terceros` (obligatorios en `crear_tercero`, `_validar_contacto_tercero`);
+  contratistas y proveedores guardan una COPIA que ponen `_contratista_desde_tercero` /
+  `_proveedor_desde_tercero` y que `_tercero_a_*` actualiza al cambiar el tercero. Se cambian con
+  `actualizar_contacto_tercero` (uno o varios datos; A&F, `editar_proveedores` o `gestionar_contratistas`):
+  los formularios de Contratistas y Proveedores llegan con el contacto del tercero (`TerceroBasico.contacto`)
+  y lo guardan allá. Componentes `CamposNombrePersona` y `CamposContacto` en `tercero-dialogo.tsx`.
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una

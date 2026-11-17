@@ -62,7 +62,13 @@ export type TerceroBasico = {
   tipoDocumento: string
   numeroDocumento: string
   dv: string | null
+  // Contacto del tercero (20270101004300): contratistas y proveedores lo toman de aquí.
+  contacto?: ContactoTercero
 }
+
+// Correo, teléfono, dirección (calle y número) y ciudad: viven en el tercero.
+export type ContactoTercero = { correo: string; telefono: string; direccion: string; ciudad: string }
+export const CONTACTO_VACIO: ContactoTercero = { correo: "", telefono: "", direccion: "", ciudad: "" }
 
 export type Tercero = {
   id: string
@@ -70,9 +76,14 @@ export type Tercero = {
   numeroDocumento: string
   dv: string | null
   razonSocial: string
-  nombreBanco: string | null
+  // Casillas del nombre de una persona (20270101004300); null en terceros viejos.
+  primerNombre: string | null
+  segundoNombre: string | null
+  primerApellido: string | null
+  segundoApellido: string | null
   nombres: string | null
   apellidos: string | null
+  contacto: ContactoTercero
   observaciones: string | null
   // Nombre del archivo del RUT (20270101000300); null = no lo tiene.
   rutNombre: string | null
@@ -125,14 +136,22 @@ export const soloDigitos = (v: string) => v.replace(/\D/g, "")
 
 // ------------------------------------------------------------- validación
 
+// Persona (no NIT): primer nombre y primer apellido obligatorios; la razón social
+// la arma la base (apellidos + nombres) y el nombre para el banco (nombres +
+// apellidos). NIT: razón social. El contacto es obligatorio al crear.
 export type DatosTercero = {
   tipoDocumento: string
   numeroDocumento: string
   dv: string
   razonSocial: string
-  nombreBanco: string
-  nombres: string
-  apellidos: string
+  primerNombre: string
+  segundoNombre: string
+  primerApellido: string
+  segundoApellido: string
+  correo: string
+  telefono: string
+  direccion: string
+  ciudad: string
   observaciones: string
 }
 
@@ -141,17 +160,50 @@ export type DatosTerceroValidados = {
   numeroDocumento: string
   dv: string | null
   razonSocial: string
-  nombreBanco: string | null
-  nombres: string | null
-  apellidos: string | null
+  primerNombre: string | null
+  segundoNombre: string | null
+  primerApellido: string | null
+  segundoApellido: string | null
+  contacto: ContactoTercero
   observaciones: string | null
 }
 
 export type Errores<T> = Partial<Record<keyof T, string>>
 
+// Correo, teléfono (7 a 15 números), dirección y ciudad (la base valida igual).
+export function validarContacto(c: ContactoTercero): { ok: true; datos: ContactoTercero } | { ok: false; errores: Errores<ContactoTercero> } {
+  const errores: Errores<ContactoTercero> = {}
+  const correo = c.correo.trim().toLowerCase()
+  const telefono = c.telefono.replace(/[\s\-().]/g, "")
+  const direccion = c.direccion.replace(/\s+/g, " ").trim()
+  const ciudad = normalizarTexto(c.ciudad)
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) errores.correo = "Escribe un correo válido."
+  if (!/^\+?[0-9]{7,15}$/.test(telefono)) errores.telefono = "Escribe un teléfono de 7 a 15 números."
+  if (!direccion) errores.direccion = "Escribe la dirección (calle y número)."
+  else if (direccion.length > 200) errores.direccion = "La dirección es demasiado larga (máximo 200)."
+  if (!ciudad) errores.ciudad = "Escribe la ciudad."
+  else if (ciudad.length > 100) errores.ciudad = "La ciudad es demasiado larga (máximo 100)."
+  if (Object.keys(errores).length > 0) return { ok: false, errores }
+  return { ok: true, datos: { correo, telefono, direccion, ciudad } }
+}
+
+// Razón social de una persona como la arma la base: apellidos + nombres.
+export function razonSocialPersona(d: Pick<DatosTercero, "primerNombre" | "segundoNombre" | "primerApellido" | "segundoApellido">): string {
+  return normalizarTexto([d.primerApellido, d.segundoApellido, d.primerNombre, d.segundoNombre].join(" "))
+}
+
+// Casillas a partir de "nombres" y "apellidos" de un tercero viejo (para editarlo):
+// la primera palabra y el resto.
+export function partirNombre(texto: string | null): [string, string] {
+  const p = (texto ?? "").trim().split(/\s+/).filter(Boolean)
+  return [p[0] ?? "", p.slice(1).join(" ")]
+}
+
 export function validarTercero(
-  crudo: DatosTercero
+  crudo: DatosTercero,
+  opciones: { contacto?: boolean } = {}
 ): { ok: true; datos: DatosTerceroValidados } | { ok: false; errores: Errores<DatosTercero> } {
+  const exigirContacto = opciones.contacto ?? true
   const errores: Errores<DatosTercero> = {}
 
   const tipo = crudo.tipoDocumento.trim().toUpperCase() as TipoDocumentoTercero
@@ -170,12 +222,30 @@ export function validarTercero(
     }
   }
 
-  const razonSocial = normalizarTexto(crudo.razonSocial)
-  if (!razonSocial) errores.razonSocial = "Escribe el nombre o razón social."
-  else if (razonSocial.length > 150) errores.razonSocial = "El nombre es demasiado largo (máximo 150)."
+  const persona = tipo !== "NIT"
+  const primerNombre = normalizarTexto(crudo.primerNombre)
+  const primerApellido = normalizarTexto(crudo.primerApellido)
+  let razonSocial = normalizarTexto(crudo.razonSocial)
+  if (persona) {
+    if (!primerNombre) errores.primerNombre = "Escribe el primer nombre."
+    if (!primerApellido) errores.primerApellido = "Escribe el primer apellido."
+    razonSocial = razonSocialPersona(crudo)
+  } else if (!razonSocial) {
+    errores.razonSocial = "Escribe la razón social."
+  }
+  if (razonSocial.length > 150) errores[persona ? "primerNombre" : "razonSocial"] = "El nombre es demasiado largo (máximo 150)."
 
-  const nombreBanco = normalizarTexto(crudo.nombreBanco)
-  if (nombreBanco.length > 40) errores.nombreBanco = "El nombre para el banco admite máximo 40 caracteres."
+  let contacto: ContactoTercero = {
+    correo: crudo.correo.trim().toLowerCase(),
+    telefono: crudo.telefono.trim(),
+    direccion: crudo.direccion.trim(),
+    ciudad: normalizarTexto(crudo.ciudad),
+  }
+  if (exigirContacto) {
+    const vc = validarContacto(crudo)
+    if (!vc.ok) Object.assign(errores, vc.errores)
+    else contacto = vc.datos
+  }
 
   if (Object.keys(errores).length > 0) return { ok: false, errores }
   return {
@@ -185,9 +255,11 @@ export function validarTercero(
       numeroDocumento: numero,
       dv,
       razonSocial,
-      nombreBanco: nombreBanco || null,
-      nombres: normalizarTexto(crudo.nombres) || null,
-      apellidos: normalizarTexto(crudo.apellidos) || null,
+      primerNombre: persona ? primerNombre || null : null,
+      segundoNombre: persona ? normalizarTexto(crudo.segundoNombre) || null : null,
+      primerApellido: persona ? primerApellido || null : null,
+      segundoApellido: persona ? normalizarTexto(crudo.segundoApellido) || null : null,
+      contacto,
       observaciones: crudo.observaciones.trim() || null,
     },
   }
