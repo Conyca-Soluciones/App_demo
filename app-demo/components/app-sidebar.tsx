@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { useAnchoSidebar } from "@/components/app-shell"
 import { construirModulos, type ModuloClave, type PermisosRol } from "@/lib/pestanas"
@@ -25,6 +26,9 @@ import { EVENTO_FIRMA_GUARDADA } from "@/lib/firmas"
 //   3. PESTAÑAS de la sección elegida
 // El ancho total crece con cada nivel abierto (ver AnchoSidebar en app-shell).
 // Logo, proyecto, campanita y usuario están en la barra de arriba (BarraSuperior).
+// En el celular (el menú es una hoja de ancho fijo) se ve UN nivel a la vez, a
+// todo el ancho, con "Volver" arriba: antes las tres columnas no cabían y había
+// que correr el menú de lado para llegar a las pestañas.
 const ANCHO_MODULOS = 8 // rem
 const ANCHO_SECCIONES = 12
 const ANCHO_PESTANAS = 16
@@ -41,6 +45,7 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   const router = useRouter()
   const pathname = usePathname()
   const setAncho = useAnchoSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
 
   // Dónde está la página actual (módulo y sección), para resaltarla.
   const ubicacionActual = (() => {
@@ -110,7 +115,27 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
     }
   }
   // Sin una página del menú abierta (p. ej. el inicio) no hay ruta que seguir.
-  const puedeAlternar = abierto || ubicacionActual !== null
+  const puedeAlternar = !isMobile && (abierto || ubicacionActual !== null)
+
+  // En el celular, qué columna se ve (una sola) y el ancho de cada una.
+  const verModulos = !isMobile || !modulo
+  const verSecciones = !!modulo && (!isMobile || !seccion)
+  const anchoColumna = (rem: number) => (isMobile ? { width: "100%" } : { width: `${rem}rem` })
+  const ir = (url: string) => {
+    router.push(url)
+    if (isMobile) setOpenMobile(false)
+  }
+  const volver = (alNivel: () => void) =>
+    isMobile ? (
+      <button
+        type="button"
+        onClick={alNivel}
+        className="mb-1 flex items-center gap-1 text-xs font-medium text-primary"
+      >
+        <ChevronLeft className="size-3.5" />
+        Volver
+      </button>
+    ) : null
 
   function elegirSeccion(titulo: string) {
     setSeccionAbierta((actual) => (actual === titulo ? null : titulo))
@@ -132,9 +157,10 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
       )}
       <div className="flex h-full min-h-0 w-full overflow-x-auto">
         {/* ------------------------------------------------ 1. Módulos */}
+        {verModulos && (
         <div
           className="flex h-full min-h-0 shrink-0 flex-col border-r"
-          style={{ width: `${ANCHO_MODULOS}rem` }}
+          style={anchoColumna(ANCHO_MODULOS)}
         >
           <SidebarContent>
             <SidebarMenu className="p-2">
@@ -144,7 +170,7 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
                   onClick={() => {
                     setModuloAbierto(null)
                     setSeccionAbierta(null)
-                    router.push("/pendientes")
+                    ir("/pendientes")
                   }}
                   title="Lo que te toca hacer"
                 >
@@ -183,14 +209,16 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
           </SidebarContent>
 
         </div>
+        )}
 
         {/* ------------------------------------------------ 2. Secciones */}
-        {modulo && (
+        {modulo && verSecciones && (
           <div
             className="flex h-full min-h-0 shrink-0 flex-col border-r bg-sidebar"
-            style={{ width: `${ANCHO_SECCIONES}rem` }}
+            style={anchoColumna(ANCHO_SECCIONES)}
           >
             <div className="border-b px-3 py-4">
+              {volver(() => setModuloAbierto(null))}
               <p className="text-sm font-semibold">{modulo.titulo}</p>
               <p className="text-[11px] text-muted-foreground">{modulo.descripcion}</p>
             </div>
@@ -226,9 +254,10 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
         {seccion && (
           <div
             className="flex h-full min-h-0 shrink-0 flex-col bg-sidebar"
-            style={{ width: `${ANCHO_PESTANAS}rem` }}
+            style={anchoColumna(ANCHO_PESTANAS)}
           >
             <div className="border-b px-3 py-4">
+              {volver(() => setSeccionAbierta(null))}
               <p className="text-sm font-semibold">{seccion.titulo}</p>
               <p className="text-[11px] text-muted-foreground">{modulo?.titulo}</p>
             </div>
@@ -247,7 +276,7 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
                       isActive={pathname === item.url}
                       className={item.subseccion ? "pl-4" : undefined}
                       onClick={() => {
-                        router.push(item.url)
+                        ir(item.url)
                         // Al elegir una pestaña el menú se minimiza a solo los módulos.
                         setModuloAbierto(null)
                         setSeccionAbierta(null)

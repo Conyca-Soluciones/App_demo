@@ -670,7 +670,7 @@ export function ConsolidadoPagosView({
     columnaPesos("reteiva", "Retención de IVA", (p) => p.reteiva),
     columnaPesos("reteica", "Retención de ICA", (p) => p.reteica),
     columnaPesos("asumidas", "Asumidas", (p) => p.asumidas),
-    columnaPesos("liquidaciones", "Liquidaciones", (p) => p.liquidaciones),
+    columnaPesos("liquidaciones", "Retegarantías", (p) => p.liquidaciones),
     columnaPesos("anticipos", "Anticipos y/o descuentos", (p) => p.liqAnticiposDescuentos ?? anticiposOrigen(p)),
   ]
 
@@ -693,8 +693,9 @@ export function ConsolidadoPagosView({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex min-h-0 flex-1 gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
         <PanelFiltros
+          apilarEnCelular
           cargando={cargando}
           onConsultar={handleConsultar}
           onLimpiar={limpiar}

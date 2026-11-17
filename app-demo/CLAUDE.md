@@ -1830,7 +1830,8 @@ que existen; el otro maneja los tres.
   (`20261211000000_roles_contabilidad.sql`): **Contabilidad Barranquilla**
   (`contabilidad_barranquilla`, el rol Contabilidad de antes renombrado: los
   tres consolidados + Terceros) y **Contabilidad Bogotá** (`contabilidad_bogota`:
-  solo Consolidado Bogotá + Terceros). Ninguno tiene acciones. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
+  solo Consolidado Bogotá + Terceros; desde `20270101004000` se llama solo "Contabilidad", sin pistas de
+  otros consolidados). Ninguno tiene acciones. Constantes en `lib/pagos.ts` (`CONSOLIDADOS`,
   `PESTANA_CONSOLIDADO`, `esClaveConsolidado`).
 - **La base lo exige**: `_consolidados_visibles(uid)` (los de las pestañas que
   tiene), `_ve_algun_consolidado`, `_ve_pago(uid, pago)`. Un pago se lee con
@@ -2010,6 +2011,18 @@ contacto, documentos; proveedores: id_prov, tipo, estado; empleados: datos
 laborales). Una persona con varios roles es un tercero con una fila en cada
 tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
 contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 4) empleados.
+- **Nombre en casillas y contacto en el tercero** (`20270101004300_terceros_nombres_y_contacto.sql`,
+  2026-11-17, decisión del usuario). Persona (no NIT): primer nombre y primer apellido obligatorios,
+  segundos opcionales (`terceros.primer_nombre`…); `trg_tercero_nombre` arma `razon_social` = apellidos +
+  nombres (como ya estaba), `nombres`, `apellidos` y `nombre_banco` = nombres + apellidos (40); un NIT
+  usa la razón social. Ya no se escribe el nombre para el banco a mano (el dispersor sigue leyendo
+  `nombre_banco`); los viejos no cambian hasta que se edite su nombre. Correo, teléfono, dirección (calle
+  y número) y ciudad viven en `terceros` (obligatorios en `crear_tercero`, `_validar_contacto_tercero`);
+  contratistas y proveedores guardan una COPIA que ponen `_contratista_desde_tercero` /
+  `_proveedor_desde_tercero` y que `_tercero_a_*` actualiza al cambiar el tercero. Se cambian con
+  `actualizar_contacto_tercero` (uno o varios datos; A&F, `editar_proveedores` o `gestionar_contratistas`):
+  los formularios de Contratistas y Proveedores llegan con el contacto del tercero (`TerceroBasico.contacto`)
+  y lo guardan allá. Componentes `CamposNombrePersona` y `CamposContacto` en `tercero-dialogo.tsx`.
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una
@@ -2126,6 +2139,16 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   "Comentario para Financiera", "Último comentario" y el ID oculto (sin columna
   de diferencia: decisión del usuario; el "no cuadra" sale solo en el reporte de
   la subida). Al subir solo se leen el ID y esas columnas.
+- **Retegarantías y fórmulas** (2026-11-17, pedido de Contabilidad): la columna `liquidaciones` se
+  llama "Retegarantías" en pantalla y en el Excel (al subir se acepta también el encabezado viejo
+  "Liquidaciones"; la columna de la base no cambia). En el Excel "Valor a pagar" sale formulado
+  (`=IF(COUNT(M:Q)=0,"",+K+L-M-N-O+P-Q-R)`: base + IVA − retenciones + asumidas − retegarantías −
+  anticipos; en blanco sin retenciones para que una fila sin tocar siga por liquidar; se puede escribir
+  encima). Las letras salen de `ORDEN`. En la ventana del pago los campos aceptan fórmulas
+  ("=1.000.000*4%", `lib/formula-numero.ts`, sin eval) que se resuelven al salir del campo.
+- **Celular** (2026-11-17): el menú lateral muestra un nivel a la vez con "Volver" y se cierra al elegir
+  una pestaña; en Consolidado y Realizar Pagos los filtros van arriba (`PanelFiltros apilarEnCelular`
+  + `flex-col md:flex-row` en la página; las demás pantallas con filtros siguen igual).
 - **Soporte con enlace fijo**: `/ayf/soporte-pago/<id>` (route handler; pide la
   sesión, la RLS decide, redirige a un enlace firmado de 5 min). Lo usan la
   tabla, la ventana, el Excel y el Consolidado Gerencia. La ruta está en las

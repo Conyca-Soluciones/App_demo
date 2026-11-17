@@ -1,5 +1,6 @@
 "use server"
 
+import { actualizarContactoTercero } from "@/app/(app)/ayf/terceros/actions"
 import { createClient } from "@/lib/supabase/server"
 import { obtenerUsuarioId, requerirAccion } from "@/lib/permisos"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -7,6 +8,7 @@ import {
   COLUMNA_DE_CAMPO,
   ETIQUETA_CAMPO,
   esCampoDeTercero,
+  esContactoTercero,
   validarCampo,
   type CampoEditable,
   type Proveedor,
@@ -84,6 +86,15 @@ export async function actualizarProveedor(
   if (!validado.ok) throw new Error(validado.error)
 
   const supabase = await createClient()
+  // El contacto se guarda en el tercero (la base lo copia al proveedor).
+  if (esContactoTercero(campo)) {
+    const terceroId = await terceroDelProveedor(supabase, uniqueId)
+    if (terceroId) {
+      if (validado.valor == null) throw new Error("El contacto del tercero no se puede dejar vacío.")
+      await actualizarContactoTercero(terceroId, { [campo]: String(validado.valor) })
+      return await proveedorPorId(supabase, uniqueId)
+    }
+  }
   const { data, error } = await supabase
     .from("proveedores")
     .update({ [COLUMNA_DE_CAMPO[campo]]: validado.valor })
@@ -96,6 +107,19 @@ export async function actualizarProveedor(
     throw new Error("No se guardó el cambio: el proveedor no existe o no tienes permiso para editarlo.")
   }
   return mapearProveedor(data[0])
+}
+
+async function terceroDelProveedor(supabase: Awaited<ReturnType<typeof createClient>>, uniqueId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("proveedores").select("tercero_id").eq("unique_id", uniqueId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error("El proveedor no existe o no tienes permiso para verlo.")
+  return (data.tercero_id as string | null) ?? null
+}
+
+async function proveedorPorId(supabase: Awaited<ReturnType<typeof createClient>>, uniqueId: string): Promise<Proveedor> {
+  const { data, error } = await supabase.from("proveedores").select(SELECT_PROVEEDOR).eq("unique_id", uniqueId).single()
+  if (error) throw new Error(error.message)
+  return mapearProveedor(data as FilaProveedor)
 }
 
 // Siguiente ID tipo "PV0395": el mayor número actual + 1. Los IDs viejos no
@@ -123,13 +147,16 @@ export async function crearProveedor(terceroId: string, input: NuevoProveedorInp
   if (!terceroId) throw new Error("Busca el tercero por su documento (o créalo) antes de crear el proveedor.")
 
   const fila: Record<string, string | number | null> = { tercero_id: terceroId }
+  const contacto: Record<string, string> = {}
   for (const campo of Object.keys(COLUMNA_DE_CAMPO) as CampoEditable[]) {
     if (esCampoDeTercero(campo)) continue
     const crudo = input[campo] ?? ""
     if (crudo.trim() === "") continue
     const validado = validarCampo(campo, crudo)
     if (!validado.ok) throw new Error(`${ETIQUETA_CAMPO[campo]}: ${validado.error}`)
-    fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
+    // El contacto se guarda en el tercero (la base lo copia al proveedor).
+    if (esContactoTercero(campo)) contacto[campo] = String(validado.valor)
+    else fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
   }
   if (!fila.estado) fila.estado = "ACTIVO"
 
@@ -145,6 +172,7 @@ export async function crearProveedor(terceroId: string, input: NuevoProveedorInp
   if (repetido && repetido.length > 0) {
     throw new Error(`Ese tercero ya es proveedor: ${repetido[0].nombre} (${repetido[0].id_prov}).`)
   }
+  if (Object.keys(contacto).length > 0) await actualizarContactoTercero(terceroId, contacto)
 
   // Todos los IDs, por páginas: si faltara alguno (límite de filas de la
   // API) el "siguiente" podría repetirse.
@@ -178,16 +206,26 @@ export async function actualizarDatosProveedor(
 ): Promise<Proveedor> {
   await requerirAccion("editar_proveedores")
 
+  const supabase = await createClient()
+  const terceroId = await terceroDelProveedor(supabase, uniqueId)
   const fila: Record<string, string | number | null> = {}
+  const contacto: Record<string, string> = {}
   for (const [campo, crudo] of Object.entries(cambios) as [CampoEditable, string][]) {
     if (!(campo in COLUMNA_DE_CAMPO) || esCampoDeTercero(campo)) throw new Error("Campo no editable.")
     const validado = validarCampo(campo, crudo ?? "")
     if (!validado.ok) throw new Error(`${ETIQUETA_CAMPO[campo]}: ${validado.error}`)
-    fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
+    if (terceroId && esContactoTercero(campo)) {
+      if (validado.valor == null) throw new Error(`${ETIQUETA_CAMPO[campo]}: el contacto del tercero no se puede dejar vacío.`)
+      contacto[campo] = String(validado.valor)
+    } else {
+      fila[COLUMNA_DE_CAMPO[campo]] = validado.valor
+    }
   }
-  if (Object.keys(fila).length === 0) throw new Error("No hay cambios para guardar.")
+  if (Object.keys(fila).length === 0 && Object.keys(contacto).length === 0) throw new Error("No hay cambios para guardar.")
 
-  const supabase = await createClient()
+  // El contacto se guarda en el tercero (la base lo copia al proveedor).
+  if (terceroId && Object.keys(contacto).length > 0) await actualizarContactoTercero(terceroId, contacto)
+  if (Object.keys(fila).length === 0) return await proveedorPorId(supabase, uniqueId)
   const { data, error } = await supabase
     .from("proveedores")
     .update(fila)

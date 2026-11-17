@@ -59,6 +59,12 @@ describe("leer el Excel de liquidación", () => {
     expect(r.avisos.map((a) => a.fila)).toEqual([9])
   })
 
+  it("acepta el encabezado de antes (Liquidaciones)", () => {
+    const viejo = ENCABEZADO.map((h) => (h === C.liquidaciones ? "Liquidaciones" : h))
+    const r = leerFilasLiquidacion([viejo, fila(1, 100, null, null, 0, null, null, null, 30, 0, 70, null, null, "p1")])
+    expect(r.filas[0]).toMatchObject({ liquidaciones: 30, valorAPagar: 70 })
+  })
+
   it("exige el ID y las columnas de Contabilidad", () => {
     expect(() => leerFilasLiquidacion([["ITEM"], [1]])).toThrow(/ID interno/)
     expect(() => leerFilasLiquidacion([[C.id], ["p1"]])).toThrow(/Faltan las columnas/)
@@ -118,5 +124,10 @@ describe("el libro de liquidación", () => {
     expect(datos.getCell(columna(C.anticipos)).value).toBe(100000)
     expect(datos.getCell(columna(C.soporte)).value).toMatchObject({ hyperlink: `https://app/ayf/soporte-pago/${pago.id}` })
     expect((hoja as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true)
+    // Valor a pagar formulado: base + IVA − retenciones + asumidas − retegarantías − anticipos (fila 7).
+    expect(datos.getCell(columna(C.valorAPagar)).value).toEqual({
+      formula: 'IF(COUNT(M7:Q7)=0,"",+K7+L7-M7-N7-O7+P7-Q7-R7)',
+    })
+    expect(C.liquidaciones).toBe("Retegarantías")
   })
 })

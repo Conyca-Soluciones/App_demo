@@ -364,7 +364,20 @@ function NuevoProveedorDialog({
                 setTercero(t)
                 setErrorTercero(undefined)
                 // La OC lo muestra como el tercero; una persona natural puede facturar como NIT.
-                setValores((v) => ({ ...v, tipoDocumento: t.tipoDocumento === "NIT" ? "NIT" : (v.tipoDocumento ?? t.tipoDocumento) }))
+                // El contacto es el del tercero (20270101004300): viene lleno, no se pide otra vez.
+                const c = t.contacto
+                setValores((v) => ({
+                  ...v,
+                  tipoDocumento: t.tipoDocumento === "NIT" ? "NIT" : (v.tipoDocumento ?? t.tipoDocumento),
+                  ...(c
+                    ? {
+                        telefono: c.telefono || v.telefono,
+                        correo: c.correo || v.correo,
+                        ciudad: c.ciudad || v.ciudad,
+                        direccion: c.direccion || v.direccion,
+                      }
+                    : {}),
+                }))
               }}
               onQuitar={() => setTercero(null)}
               deshabilitado={guardando}
@@ -374,6 +387,9 @@ function NuevoProveedorDialog({
                 errorTercero ? "border-destructive" : ""
               }`}
             />
+            <p className="text-xs text-muted-foreground">
+              Teléfono, correo, ciudad y dirección son los del tercero: si los cambias aquí se cambian también en Terceros.
+            </p>
           </div>
           {CAMPOS_FORMULARIO.map((campo) => {
             const opciones = OPCIONES[campo]

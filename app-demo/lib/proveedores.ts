@@ -51,6 +51,13 @@ export const CAMPOS_DESDE_TERCERO: ReadonlySet<CampoEditable> = new Set<CampoEdi
 ])
 export const esCampoDeTercero = (campo: CampoEditable) => CAMPOS_DESDE_TERCERO.has(campo)
 
+// El contacto vive en el tercero (20270101004300): se guarda allá y la base lo
+// copia al proveedor (y a su contratista). No se puede dejar vacío.
+export const CAMPOS_CONTACTO_TERCERO = ["telefono", "correo", "ciudad", "direccion"] as const
+export type CampoContactoTercero = (typeof CAMPOS_CONTACTO_TERCERO)[number]
+export const esContactoTercero = (campo: CampoEditable): campo is CampoContactoTercero =>
+  (CAMPOS_CONTACTO_TERCERO as readonly string[]).includes(campo)
+
 export const ETIQUETA_CAMPO: Record<CampoEditable, string> = {
   nombre: "Proveedor",
   estado: "Estado",
