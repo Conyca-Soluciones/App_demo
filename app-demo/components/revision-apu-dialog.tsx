@@ -25,6 +25,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { DividirManoObraDialog } from "@/components/dividir-mano-obra-dialog"
+import { CambiarModalidadItem } from "@/components/cambiar-modalidad-item"
+import type { Modalidad } from "@/lib/modalidades"
 import { rechazarAutoMatch } from "@/app/(app)/presupuestos/revision-automaticos-actions"
 import { Input } from "@/components/ui/input"
 import ExcelJS from "exceljs"
@@ -624,6 +627,9 @@ interface Props {
   // Presupuesto de la versión vigente: habilita "Enviar a aprobación insumos
   // sin sugerencia" (null en versiones viejas)
   presupuestoId?: string | null
+  // Se cambió la modalidad de un ítem desde aquí (para que la tabla del
+  // presupuesto muestre la etiqueta y el valor nuevos).
+  onModalidadCambiada?: (codigo: string, modalidad: Modalidad) => void | Promise<void>
 }
 
 const TEXTO_NO_APLICA =
@@ -662,8 +668,20 @@ function textoItem(prefijo: string, item: { codigo: string; descripcion: string 
   return item ? `${prefijo} ${item.codigo} — ${item.descripcion}` : prefijo
 }
 
-export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCerrar, onCambio, presupuestoId }: Props) {
+export function RevisionApuDialog({
+  open,
+  itemIds,
+  tabInicial = "insumos",
+  onCerrar,
+  onCambio,
+  presupuestoId,
+  onModalidadCambiada,
+}: Props) {
   const [datos, setDatos] = useState<LoteRevisionInfo | null>(null)
+  // Ítem cuya mano de obra se va a dividir en trabajos (20270101004400).
+  const [dividirItem, setDividirItem] = useState<{ id: string; codigo: string; descripcion: string } | null>(null)
+  // Panel para cambiar la modalidad de un ítem (2026-11-19).
+  const [cambiandoModalidad, setCambiandoModalidad] = useState(false)
   const [cargando, setCargando] = useState(false)
   // segunda tanda de la carga (automáticos y resueltos), en segundo plano
   const [cargandoResto, setCargandoResto] = useState(false)
@@ -1658,6 +1676,29 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
 
             {!cargando && datos && (
               <div className="space-y-6">
+                {presupuestoId && (
+                  <div className="rounded-lg border bg-muted/20 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        ¿Un ítem va en otra modalidad (administración, todo costo o subcontrato de mano de obra)?
+                      </p>
+                      <Button variant="outline" size="sm" onClick={() => setCambiandoModalidad((v) => !v)}>
+                        {cambiandoModalidad ? "Cerrar" : "Cambiar la modalidad de un ítem"}
+                      </Button>
+                    </div>
+                    {cambiandoModalidad && (
+                      <div className="mt-3">
+                        <CambiarModalidadItem
+                          presupuestoId={presupuestoId}
+                          onAplicado={async (codigo, modalidad) => {
+                            await onModalidadCambiada?.(codigo, modalidad)
+                            await cargar()
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-1 border-b">
                   <button
                     type="button"
@@ -1870,7 +1911,9 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                   )}
                                 </p>
                                 <p className="text-xs italic text-muted-foreground/70">
-                                  Está en el presupuesto como: {fila.descripcionOriginal}
+                                  {fila.divididaDe
+                                    ? `Trabajo "${fila.descripcionOriginal}" (mano de obra dividida; en el Excel: ${fila.divididaDe})`
+                                    : `Está en el presupuesto como: ${fila.descripcionOriginal}`}
                                 </p>
                               </div>
                               <TablaCategoriasManoObra
@@ -1886,6 +1929,18 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
                                 >
                                   Ninguna calza — solicitar categoría nueva
                                 </button>
+                                {item && !fila.divididaDe && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setDividirItem({ id: fila.presupuestoItemId, codigo: item.codigo, descripcion: item.descripcion })
+                                    }
+                                    className="text-sm px-2 py-1 rounded border border-muted"
+                                    title="Para contratar por separado, por ejemplo, la fabricación y la instalación"
+                                  >
+                                    Dividir en varios trabajos
+                                  </button>
+                                )}
                                 {eleccion && (
                                   <Button size="sm" onClick={() => guardarLinea(fila.id)} disabled={guardando}>
                                     {guardando ? "Guardando…" : "Guardar"}
@@ -2413,6 +2468,19 @@ export function RevisionApuDialog({ open, itemIds, tabInicial = "insumos", onCer
               )}
             </DialogFooter>
           </>
+        )}
+        {dividirItem && (
+          <DividirManoObraDialog
+            open
+            onOpenChange={(abierto) => !abierto && setDividirItem(null)}
+            presupuestoItemId={dividirItem.id}
+            codigo={dividirItem.codigo}
+            descripcion={dividirItem.descripcion}
+            onCambio={async () => {
+              onCambio?.([dividirItem.id])
+              await cargar()
+            }}
+          />
         )}
       </DialogContent>
     </Dialog>

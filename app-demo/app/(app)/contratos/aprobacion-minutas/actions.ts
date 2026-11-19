@@ -34,6 +34,33 @@ export async function listarMinutasGerencia(filtros: FiltrosMinutas): Promise<So
   return filas.map(mapFilaContrato)
 }
 
+// Contratos de obra o mano de obra con actividades por encima del tope,
+// esperando la autorización de Gerencia (20270101004200).
+export async function listarContratosSobreTope(proyectoId?: string): Promise<SolicitudContratoFila[]> {
+  await requerirPestana("contratos.aprobar_minutas")
+  const supabase = await createClient()
+  const filas = await traerTodo<any>((desde, hasta) => {
+    let q = supabase.from("contratos").select(SELECT_FILA_CONTRATO).eq("estado", "por_autorizar")
+    if (proyectoId) q = q.eq("proyecto_id", proyectoId)
+    return q.order("enviado_at", { ascending: true }).order("id", { ascending: true }).range(desde, hasta)
+  })
+  return filas.map(mapFilaContrato)
+}
+
+export type AccionTope = "autorizar" | "devolver" | "rechazar"
+
+export async function resolverAutorizacionTope(id: string, accion: AccionTope, motivo?: string): Promise<void> {
+  await requerirAccion("autorizar_contratos_sobre_tope")
+  if (accion !== "autorizar" && !motivo?.trim()) throw new Error("Escribe el motivo.")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("resolver_autorizacion_tope", {
+    p_id: id,
+    p_accion: accion,
+    p_motivo: motivo?.trim() || null,
+  })
+  if (error) throw new Error(error.message)
+}
+
 export type AccionMinuta = "aprobar" | "devolver"
 
 export async function resolverMinutaContrato(id: string, accion: AccionMinuta, motivo?: string): Promise<void> {

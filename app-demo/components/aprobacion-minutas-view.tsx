@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Loader2, PenLine, Undo2 } from "lucide-react"
+import { CheckCircle2, Loader2, PenLine, Undo2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
@@ -22,7 +22,14 @@ import {
   type SolicitudContratoDetalle,
   type SolicitudContratoFila,
 } from "@/lib/contratos"
-import { listarMinutasGerencia, resolverMinutaContrato, type AccionMinuta } from "@/app/(app)/contratos/aprobacion-minutas/actions"
+import {
+  listarContratosSobreTope,
+  listarMinutasGerencia,
+  resolverAutorizacionTope,
+  resolverMinutaContrato,
+  type AccionMinuta,
+  type AccionTope,
+} from "@/app/(app)/contratos/aprobacion-minutas/actions"
 import { firmaRepresentanteContrato } from "@/app/(app)/contratos/representantes/actions"
 import { RepresentantesLegalesView } from "@/components/representantes-legales-view"
 import { textoFirmaRepresentante, type FirmaRepresentanteContrato } from "@/lib/representantes"
@@ -35,14 +42,39 @@ import { textoFirmaRepresentante, type FirmaRepresentanteContrato } from "@/lib/
 // pueden hacer actas. La minuta se ve solo en PDF (sin el editor de Jurídica).
 // ---------------------------------------------------------------------------
 
-const FILTROS: { valor: EstadoMinuta | "todas"; etiqueta: string }[] = [
+// "sobre_tope": solicitudes con actividades por encima del tope que esperan
+// la autorización de Gerencia (20270101004200).
+type Filtro = EstadoMinuta | "todas" | "sobre_tope"
+
+const FILTROS: { valor: Filtro; etiqueta: string }[] = [
   { valor: "en_revision", etiqueta: "Por aprobar" },
+  { valor: "sobre_tope", etiqueta: "Sobre el tope" },
   { valor: "devuelta", etiqueta: "Devueltas" },
   { valor: "aprobada", etiqueta: "Aprobadas" },
   { valor: "todas", etiqueta: "Todas" },
 ]
 
-const TEXTO_ACCION: Record<AccionMinuta, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
+type Accion = AccionMinuta | `tope_${AccionTope}`
+
+const TEXTO_ACCION: Record<Accion, { titulo: string; explicacion: string; boton: string; pideMotivo: boolean }> = {
+  tope_autorizar: {
+    titulo: "Autorizar sobre el tope",
+    explicacion: "La solicitud sigue a pre-aprobación de Jurídica con estos valores. Quien la pidió recibe una notificación.",
+    boton: "Autorizar",
+    pideMotivo: false,
+  },
+  tope_devolver: {
+    titulo: "Devolver solicitud",
+    explicacion: "Vuelve a quien la pidió con este motivo; la corrige (por ejemplo, ajusta los valores) y la envía otra vez.",
+    boton: "Devolver",
+    pideMotivo: true,
+  },
+  tope_rechazar: {
+    titulo: "Rechazar solicitud",
+    explicacion: "Es definitivo: la solicitud queda rechazada y libera lo que reservaba del presupuesto.",
+    boton: "Rechazar",
+    pideMotivo: true,
+  },
   aprobar: {
     titulo: "Aprobar minuta",
     explicacion: "Es definitivo: el contrato recibe su número y ya se le pueden hacer actas. Jurídica y quien pidió el contrato reciben una notificación.",
@@ -57,30 +89,45 @@ const TEXTO_ACCION: Record<AccionMinuta, { titulo: string; explicacion: string; 
   },
 }
 
-const etiquetaMinuta = (s: SolicitudContratoFila) => ETIQUETA_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]
+const etiquetaMinuta = (s: SolicitudContratoFila) =>
+  s.estado === "por_autorizar" ? "Por autorizar (sobre el tope)" : ETIQUETA_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]
 
-export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeResolver: boolean; verInicial: string | null }) {
+export function AprobacionMinutasView({
+  puedeResolver,
+  puedeAutorizarTope = false,
+  verInicial,
+  vistaInicial = null,
+}: {
+  puedeResolver: boolean
+  puedeAutorizarTope?: boolean
+  verInicial: string | null
+  vistaInicial?: "sobre_tope" | null
+}) {
   const router = useRouter()
   const { proyectos } = useProyectoActual()
-  const [filtro, setFiltro] = useState<EstadoMinuta | "todas">("en_revision")
+  const [filtro, setFiltro] = useState<Filtro>(vistaInicial ?? "en_revision")
   const [proyectoId, setProyectoId] = useState("")
   const [minutas, setMinutas] = useState<SolicitudContratoFila[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [detalleId, setDetalleId] = useState<string | null>(verInicial)
-  const [accion, setAccion] = useState<{ tipo: AccionMinuta; detalle: SolicitudContratoDetalle } | null>(null)
+  const [accion, setAccion] = useState<{ tipo: Accion; detalle: SolicitudContratoDetalle } | null>(null)
   const [motivo, setMotivo] = useState("")
   const [procesando, setProcesando] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
 
   function cargar() {
-    listarMinutasGerencia({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
+    const consulta =
+      filtro === "sobre_tope"
+        ? listarContratosSobreTope(proyectoId || undefined)
+        : listarMinutasGerencia({ estado: filtro === "todas" ? undefined : filtro, proyectoId: proyectoId || undefined })
+    consulta
       .then((lista: SolicitudContratoFila[]) => setMinutas(lista))
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las minutas."))
   }
   useEffect(cargar, [filtro, proyectoId])
 
-  function cambiarFiltro(valor: EstadoMinuta | "todas") {
+  function cambiarFiltro(valor: Filtro) {
     setMinutas(null)
     setError(null)
     setFiltro(valor)
@@ -123,7 +170,10 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
         alinear: "center",
         texto: etiquetaMinuta,
         celda: (s) => (
-          <Badge variant="outline" className={CLASE_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]}>
+          <Badge
+            variant="outline"
+            className={s.estado === "por_autorizar" ? "border-transparent bg-violet-100 text-violet-800" : CLASE_ESTADO_MINUTA[s.minutaEstado ?? "elaboracion"]}
+          >
             {etiquetaMinuta(s)}
           </Badge>
         ),
@@ -149,8 +199,23 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
         texto: (s) => (s.polizaEstado ? ETIQUETA_POLIZA_CONTRATO[s.polizaEstado] : ""),
         celda: (s) => <BadgePolizaContrato estado={s.polizaEstado} />,
       },
-      { clave: "enviadaPor", titulo: "Enviada por", ancho: 150, texto: (s) => s.minutaEnviadaPorNombre ?? "" },
-      { clave: "enviada", titulo: "Enviada", ancho: 110, texto: (s) => (s.minutaEnviadaAt ? fechaContrato(s.minutaEnviadaAt) : ""), claseCelda: "tabular-nums" },
+      // Sobre el tope: la envía el director (todavía no hay minuta).
+      {
+        clave: "enviadaPor",
+        titulo: "Enviada por",
+        ancho: 150,
+        texto: (s) => (s.estado === "por_autorizar" ? s.solicitadoPorNombre : s.minutaEnviadaPorNombre) ?? "",
+      },
+      {
+        clave: "enviada",
+        titulo: "Enviada",
+        ancho: 110,
+        texto: (s) => {
+          const fecha = s.estado === "por_autorizar" ? s.enviadoAt : s.minutaEnviadaAt
+          return fecha ? fechaContrato(fecha) : ""
+        },
+        claseCelda: "tabular-nums",
+      },
     ],
     []
   )
@@ -195,9 +260,21 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
     setProcesando(true)
     setErrorAccion(null)
     try {
-      await resolverMinutaContrato(accion.detalle.id, accion.tipo, motivo)
       const n = accion.detalle.codigo
-      setAviso(accion.tipo === "aprobar" ? `Minuta del contrato ${n} aprobada.` : `Minuta del contrato ${n} devuelta a Jurídica.`)
+      if (accion.tipo === "aprobar" || accion.tipo === "devolver") {
+        await resolverMinutaContrato(accion.detalle.id, accion.tipo, motivo)
+        setAviso(accion.tipo === "aprobar" ? `Minuta del contrato ${n} aprobada.` : `Minuta del contrato ${n} devuelta a Jurídica.`)
+      } else {
+        const accionTope = accion.tipo.replace("tope_", "") as AccionTope
+        await resolverAutorizacionTope(accion.detalle.id, accionTope, motivo)
+        setAviso(
+          accionTope === "autorizar"
+            ? `Solicitud ${n} autorizada: sigue a pre-aprobación de Jurídica.`
+            : accionTope === "devolver"
+              ? `Solicitud ${n} devuelta a quien la pidió.`
+              : `Solicitud ${n} rechazada.`
+        )
+      }
       setAccion(null)
       setMotivo("")
       cerrarDetalle()
@@ -259,7 +336,11 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
           </div>
         ) : minutas && minutas.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-            {filtro === "en_revision" ? "No hay minutas por aprobar." : "No hay minutas con este filtro."}
+            {filtro === "en_revision"
+              ? "No hay minutas por aprobar."
+              : filtro === "sobre_tope"
+                ? "No hay solicitudes por encima del tope esperando autorización."
+                : "No hay minutas con este filtro."}
           </div>
         ) : (
           minutas && (
@@ -287,9 +368,22 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
       <DetalleSolicitudContrato
         id={detalleId}
         onCerrar={cerrarDetalle}
-        minuta={(d) => <MinutaSoloPdf id={d.id} />}
+        // Sobre el tope todavía no hay minuta (va antes de Jurídica).
+        minuta={(d) => (d.estado === "por_autorizar" ? null : <MinutaSoloPdf id={d.id} />)}
         acciones={(d) =>
-          d.estado === "aprobada" && d.minutaEstado === "en_revision" && puedeResolver ? (
+          d.estado === "por_autorizar" && puedeAutorizarTope ? (
+            <>
+              <Button variant="outline" className="border-red-300 text-red-800 hover:bg-red-50" onClick={() => setAccion({ tipo: "tope_rechazar", detalle: d })}>
+                <XCircle className="size-4" /> Rechazar
+              </Button>
+              <Button variant="outline" className="border-orange-300 text-orange-800 hover:bg-orange-50" onClick={() => setAccion({ tipo: "tope_devolver", detalle: d })}>
+                <Undo2 className="size-4" /> Devolver
+              </Button>
+              <Button onClick={() => setAccion({ tipo: "tope_autorizar", detalle: d })}>
+                <CheckCircle2 className="size-4" /> Autorizar
+              </Button>
+            </>
+          ) : d.estado === "aprobada" && d.minutaEstado === "en_revision" && puedeResolver ? (
             <>
               <Button variant="outline" className="border-orange-300 text-orange-800 hover:bg-orange-50" onClick={() => setAccion({ tipo: "devolver", detalle: d })}>
                 <Undo2 className="size-4" /> Devolver
@@ -344,7 +438,7 @@ export function AprobacionMinutasView({ puedeResolver, verInicial }: { puedeReso
                     onChange={(e) => setMotivo(e.target.value)}
                     autoFocus
                     disabled={procesando}
-                    placeholder="Qué debe corregir Jurídica en la minuta"
+                    placeholder={accion.tipo.startsWith("tope_") ? "Por qué no se autoriza" : "Qué debe corregir Jurídica en la minuta"}
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   />
                 </div>

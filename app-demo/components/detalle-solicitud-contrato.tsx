@@ -188,6 +188,19 @@ export function DetalleSolicitudContrato({
                 </div>
               )}
 
+              {detalle.sobreTopeJustificacion && (
+                <div className="rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200">
+                  <p className="font-medium">
+                    {detalle.estado === "por_autorizar"
+                      ? "Actividades por encima del tope: espera la autorización de Gerencia"
+                      : detalle.sobreTopeAutorizadoAt
+                        ? `Gerencia autorizó los valores por encima del tope${detalle.sobreTopeAutorizadoPorNombre ? ` (${detalle.sobreTopeAutorizadoPorNombre})` : ""} el ${fechaContrato(detalle.sobreTopeAutorizadoAt)}`
+                        : "Actividades por encima del tope"}
+                  </p>
+                  <p className="whitespace-pre-line">Justificación: {detalle.sobreTopeJustificacion}</p>
+                </div>
+              )}
+
               <AvisoMinutaDevuelta detalle={detalle} />
 
               <AvisoContratoVencido detalle={detalle} />
@@ -288,6 +301,13 @@ export function DetalleSolicitudContrato({
                               {it.sinManoObra && (
                                 <span className="block text-xs text-amber-700 dark:text-amber-400">
                                   Sin mano de obra en el APU: el tope fue el ítem completo (revisar el valor).
+                                </span>
+                              )}
+                              {it.topeValorUnitario != null && it.valorUnitario > it.topeValorUnitario && (
+                                <span className="block text-xs text-violet-700 dark:text-violet-300 tabular-nums">
+                                  Sobre el tope: tope {pesos(it.topeValorUnitario)} · {pesos(it.valorUnitario - it.topeValorUnitario)} más por unidad (
+                                  {numero(((it.valorUnitario - it.topeValorUnitario) / it.topeValorUnitario) * 100)} %) ·{" "}
+                                  {pesos((it.valorUnitario - it.topeValorUnitario) * it.cantidad)} más en total
                                 </span>
                               )}
                             </td>

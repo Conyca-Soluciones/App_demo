@@ -83,6 +83,9 @@ const EVENTOS_CONTRATO: Record<string, { etiqueta: string; tono: "ok" | "malo" |
   aprobada: { etiqueta: "Pre-aprobada por Jurídica", tono: "ok" },
   devuelta: { etiqueta: "Devuelta para corregir", tono: "aviso" },
   rechazada: { etiqueta: "Rechazada", tono: "malo" },
+  tope_autorizado: { etiqueta: "Gerencia autorizó los valores sobre el tope", tono: "ok" },
+  tope_devuelto: { etiqueta: "Gerencia la devolvió (valores sobre el tope)", tono: "aviso" },
+  tope_rechazado: { etiqueta: "Gerencia la rechazó (valores sobre el tope)", tono: "malo" },
   minuta_enviada: { etiqueta: "Minuta enviada a Gerencia", tono: "neutro" },
   minuta_reenviada: { etiqueta: "Minuta corregida y enviada otra vez", tono: "neutro" },
   minuta_aprobada: { etiqueta: "Minuta aprobada por Gerencia", tono: "ok" },
@@ -212,6 +215,8 @@ const EVENTOS_PRESUPUESTO: Record<string, DefEvento> = {
   descartado: { etiqueta: "Presupuesto descartado", tono: "malo" },
   desperdicio: { etiqueta: "Desperdicio cambiado", tono: "aviso" },
   modalidades: { etiqueta: "Modalidades cambiadas", tono: "aviso" },
+  mano_obra_dividida: { etiqueta: "Mano de obra dividida en trabajos", tono: "aviso" },
+  mano_obra_juntada: { etiqueta: "Mano de obra juntada otra vez", tono: "aviso" },
 }
 
 const EVENTOS_ROL: Record<string, DefEvento> = {
@@ -455,6 +460,9 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     return []
   }
   if (tipo === "contrato" && e.evento === "minuta_guardada") return lineasCambios(d.cambios)
+  // Con actividades sobre el tope va primero a Gerencia (20270101004200).
+  if (tipo === "contrato" && (e.evento === "creada" || e.evento === "reenviada") && d.sobre_tope === true)
+    return ["Con actividades por encima del tope: va primero a Gerencia para autorizar"]
   if (tipo === "entrada") {
     if (e.evento === "registrada" && d.numero != null) return [`Entrada ${d.numero}${d.orden != null ? ` · ${typeof d.orden === "string" ? d.orden : `OC ${d.orden}`}` : ""}${d.remision ? ` · remisión ${d.remision}` : ""}`]
     if (e.evento === "linea_editada") return [`${formatoValor(d.insumo)}: ${formatoValor(d.de)} → ${formatoValor(d.a)}`]
@@ -481,6 +489,12 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
           : `${formatoValor(d.insumos)} insumo(s) con desperdicio`,
         `Valor: ${formatoValor(d.valor_antes)} → ${formatoValor(d.valor_despues)}`,
       ]
+    if (e.evento === "mano_obra_dividida")
+      return [
+        `Ítem ${formatoValor(d.codigo)} · del Excel: ${formatoValor(d.excel)}`,
+        `Trabajos: ${Array.isArray(d.trabajos) ? d.trabajos.join(", ") : formatoValor(d.trabajos)}`,
+      ]
+    if (e.evento === "mano_obra_juntada") return [`Ítem ${formatoValor(d.codigo)}`]
     if (e.evento === "modalidades")
       return [
         `${formatoValor(d.items)} ítem(s) cambiaron de modalidad`,

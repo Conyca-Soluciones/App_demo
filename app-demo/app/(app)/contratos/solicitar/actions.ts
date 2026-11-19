@@ -9,6 +9,7 @@ import {
   datosTipoABase,
   validarSolicitud,
   type ItemPresupuestoContrato,
+  type TrabajoItemContrato,
   type SolicitudContratoForm,
   type TipoDocumentoContrato,
 } from "@/lib/contratos"
@@ -119,6 +120,9 @@ async function guardarSolicitud(
       observaciones: d.observaciones ?? "",
       domicilio_departamento: d.departamentoDomicilio,
       datos_tipo: datosTipoABase(d.tipo, d.datosTipo),
+      // Actividades sobre el tope (obra y mano de obra): la base decide si hace
+      // falta y entonces la exige (20270101004200).
+      sobre_tope_justificacion: d.sobreTopeJustificacion ?? "",
     },
     p_obligaciones: d.obligaciones,
     p_entregables: d.entregables,
@@ -126,6 +130,7 @@ async function guardarSolicitud(
       presupuesto_item_id: i.presupuestoItemId,
       cantidad: i.cantidad,
       valor_unitario: i.valorUnitario,
+      mano_obra_categoria_id: i.manoObraCategoriaId ?? null,
     })),
     p_documentos: documentos.map((x) => ({
       tipo: x.tipo,
@@ -167,14 +172,30 @@ export async function reenviarSolicitudContrato(
 export async function listarItemsPresupuestoContrato(proyectoId: string): Promise<ItemPresupuestoContrato[]> {
   await requerirAccion("solicitar_contratos")
   const supabase = await createClient()
-  const [filas, pendientes] = await Promise.all([
+  const [filas, pendientes, trabajos] = await Promise.all([
     traerTodo<any>((desde, hasta) =>
       supabase.rpc("items_presupuesto_para_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
     ),
     traerTodo<any>((desde, hasta) =>
       supabase.rpc("pendientes_items_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
     ),
+    // Trabajos de la mano de obra de los ítems divididos (20270101004400).
+    traerTodo<any>((desde, hasta) =>
+      supabase.rpc("trabajos_items_contrato", { p_proyecto_id: proyectoId }).range(desde, hasta)
+    ),
   ])
+  const trabajosPorItem = new Map<string, TrabajoItemContrato[]>()
+  for (const t of trabajos) {
+    const lista = trabajosPorItem.get(t.presupuesto_item_id) ?? []
+    lista.push({
+      categoriaId: t.mano_obra_categoria_id,
+      nombre: t.nombre,
+      valorTope: Number(t.valor_tope),
+      contratado: Number(t.contratado),
+      disponible: Number(t.disponible),
+    })
+    trabajosPorItem.set(t.presupuesto_item_id, lista)
+  }
   const pendientesPorItem = new Map<string, { pendientes: number; manoObra: boolean }>(
     pendientes.map((p) => [p.presupuesto_item_id, { pendientes: Number(p.pendientes), manoObra: Boolean(p.mano_obra_pendiente) }])
   )
@@ -191,6 +212,7 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
     pendientes: pendientesPorItem.get(f.presupuesto_item_id)?.pendientes ?? 0,
     manoObraPendiente: pendientesPorItem.get(f.presupuesto_item_id)?.manoObra ?? false,
     modalidad: f.modalidad ?? null,
+    trabajos: trabajosPorItem.get(f.presupuesto_item_id),
   }))
 }
 

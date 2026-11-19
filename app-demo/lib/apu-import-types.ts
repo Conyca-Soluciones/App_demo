@@ -166,7 +166,7 @@ export type FilaRevisionImport = {
   // por matching. `tipo` es el discriminador -- revísalo antes de usar
   // `candidatos` para saber cuál de las formas trae.
   candidatos: CandidatoInsumo[] | CategoriaManoObra[] | CategoriaEquipo[]
-  estado: "auto_match" | "pendiente" | "solicitud_pendiente" | "resuelto" | "rechazado" | "no_requerido"
+  estado: "auto_match" | "pendiente" | "solicitud_pendiente" | "resuelto" | "rechazado" | "no_requerido" | "dividido"
   insumoIdAsignado: string | null
   manoObraCategoriaIdAsignado: string | null
   equipoCategoriaIdAsignado: string | null
@@ -181,6 +181,9 @@ export type FilaRevisionImport = {
   // volvió a "pendiente" para que el ingeniero confirme la conversión
   // (apu_import_revision.convertir_insumo_id, 20261231999900).
   convertirInsumoId?: string | null
+  // Trabajo de una mano de obra dividida (20270101004400): el texto del Excel
+  // que se dividió. null = línea normal del import.
+  divididaDe?: string | null
   // motivo que escribió el admin al rechazar (apu_import_revision.motivo_rechazo,
   // copiado de la solicitud antes de borrarla) -- null si esta
   // línea no está rechazada, o si el admin no escribió nada.

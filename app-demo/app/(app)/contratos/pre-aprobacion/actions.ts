@@ -73,8 +73,8 @@ export async function listarSolicitudesPreaprobacion(filtros: FiltrosPreaprobaci
       case "devueltas": // al director, o la minuta por Gerencia
         q = q.or("estado.eq.devuelta,and(estado.eq.aprobada,minuta_estado.eq.devuelta)")
         break
-      case "en_subgerencia":
-        q = q.eq("estado", "aprobada").eq("minuta_estado", "en_revision")
+      case "en_subgerencia": // la minuta, o una solicitud sobre el tope por autorizar (20270101004200)
+        q = q.or("estado.eq.por_autorizar,and(estado.eq.aprobada,minuta_estado.eq.en_revision)")
         break
       case "aprobados":
         q = q.eq("estado", "aprobada").eq("minuta_estado", "aprobada")

@@ -55,6 +55,7 @@ const base: SolicitudContratoForm = {
   bienNombre: "",
   actas: "",
   exigeGarantia: "si",
+  sobreTopeJustificacion: "",
 }
 
 const errores = (f: Partial<SolicitudContratoForm>, catalogo?: Map<string, ItemPresupuestoContrato>) => {
@@ -211,8 +212,22 @@ describe("validarSolicitud", () => {
       expect(errores(unitarios("61", "28.000"), catalogo).items).toMatch(/disponible/)
     })
 
-    it("el valor unitario no pasa el del presupuesto", () => {
-      expect(errores(unitarios("10", "28.001"), catalogo).items).toMatch(/supera/)
+    it("el valor unitario no pasa el del presupuesto (tipos que no son obra ni mano de obra)", () => {
+      expect(errores({ ...unitarios("10", "28.001"), tipo: "suministro_instalacion" }, catalogo).items).toMatch(/supera/)
+    })
+
+    it("obra y mano de obra: sobre el tope pide justificación para Gerencia (20270101004200)", () => {
+      const e = errores(unitarios("10", "28.001"), catalogo)
+      expect(e.items).toBeUndefined()
+      expect(e.sobreTope).toMatch(/Gerencia/)
+      const r = validarSolicitud({ ...base, ...unitarios("10", "30.000"), sobreTopeJustificacion: "  Precio de  mercado " }, catalogo)
+      expect(r.ok && r.datos.sobreTopeJustificacion).toBe("Precio de mercado")
+      expect(r.ok && r.datos.valor).toBe(300_000)
+      expect(errores({ ...unitarios("10", "30.000"), tipo: "obra" }, catalogo).sobreTope).toMatch(/Gerencia/)
+    })
+
+    it("dentro del tope no pide justificación", () => {
+      expect(errores(unitarios("10", "28.000"), catalogo).sobreTope).toBeUndefined()
     })
 
     it("mano de obra: el tope es la mano de obra del APU; sin mano de obra, el ítem completo", () => {
@@ -223,7 +238,9 @@ describe("validarSolicitud", () => {
         items: [{ presupuestoItemId, cantidad: "1", valorUnitario }],
       })
       expect(errores(mo("p3", "12.000"), catalogo).items).toBeUndefined()
-      expect(errores(mo("p3", "12.001"), catalogo).items).toMatch(/mano de obra/)
+      expect(errores(mo("p3", "12.000"), catalogo).sobreTope).toBeUndefined()
+      // Sobre la mano de obra del APU: lo autoriza Gerencia.
+      expect(errores(mo("p3", "12.001"), catalogo).sobreTope).toMatch(/Gerencia/)
       expect(errores(mo("p2", "15.000"), catalogo).items).toBeUndefined()
       expect(errores({ ...mo("p3", "28.000"), tipo: "obra" }, catalogo).items).toBeUndefined()
     })
@@ -234,6 +251,52 @@ describe("validarSolicitud", () => {
         { presupuestoItemId: "p1", cantidad: "1", valorUnitario: "1" },
       ]
       expect(errores({ anexoTipo: "valores_unitarios", items }, catalogo).items).toMatch(/repite/)
+    })
+  })
+
+  describe("mano de obra dividida en trabajos (20270101004400)", () => {
+    // Loseta: 15 und; fabricación ya contratada en 10; instalación libre.
+    const loseta: ItemPresupuestoContrato = {
+      id: "l1", codigo: "4.2", descripcion: "Loseta", unidad: "und", cantidad: 15, valorUnitario: 300_000,
+      valorManoObra: 220_000, contratado: 10, disponible: 5,
+      trabajos: [
+        { categoriaId: "fab", nombre: "Fabricación de loseta", valorTope: 132_000, contratado: 10, disponible: 5 },
+        { categoriaId: "ins", nombre: "Instalación de loseta", valorTope: 88_000, contratado: 0, disponible: 15 },
+      ],
+    }
+    const catalogo = new Map([["l1", loseta]])
+    const linea = (manoObraCategoriaId: string, cantidad: string, valorUnitario: string) => ({
+      presupuestoItemId: "l1", cantidad, valorUnitario, manoObraCategoriaId,
+    })
+    const anexo = (...items: ReturnType<typeof linea>[]): Partial<SolicitudContratoForm> => ({
+      tipo: "mano_obra", anexoTipo: "valores_unitarios", valor: "", items,
+    })
+
+    it("cada trabajo usa su propio cupo y su tope", () => {
+      const r = validarSolicitud({ ...base, ...anexo(linea("ins", "15", "88.000")) }, catalogo)
+      expect(r.ok && r.datos.items[0].manoObraCategoriaId).toBe("ins")
+      expect(errores(anexo(linea("fab", "6", "100.000")), catalogo).items).toMatch(/Fabricación de loseta.*disponible/)
+      expect(errores(anexo(linea("ins", "15", "88.001")), catalogo).sobreTope).toMatch(/Gerencia/)
+    })
+
+    it("la mano de obra completa usa lo que queda del ítem", () => {
+      expect(errores(anexo(linea("", "6", "200.000")), catalogo).items).toMatch(/disponible/)
+      expect(errores(anexo(linea("", "5", "220.000")), catalogo).items).toBeUndefined()
+    })
+
+    it("dos trabajos del mismo ítem en un contrato sí; repetir uno o mezclar con completa no", () => {
+      expect(errores(anexo(linea("fab", "1", "1"), linea("ins", "1", "1")), catalogo).items).toBeUndefined()
+      expect(errores(anexo(linea("ins", "1", "1"), linea("ins", "1", "1")), catalogo).items).toMatch(/repite un trabajo/)
+      expect(errores(anexo(linea("", "1", "1"), linea("ins", "1", "1")), catalogo).items).toMatch(/completo y por trabajos/)
+    })
+
+    it("un trabajo que ya no está en el ítem pide elegir otro", () => {
+      expect(errores(anexo(linea("otro", "1", "1")), catalogo).items).toMatch(/ya no está/)
+    })
+
+    it("en otro tipo de contrato el trabajo no cuenta", () => {
+      const r = validarSolicitud({ ...base, ...anexo(linea("ins", "5", "100")), tipo: "obra" }, catalogo)
+      expect(r.ok && r.datos.items[0].manoObraCategoriaId).toBeNull()
     })
   })
 })
