@@ -30,6 +30,8 @@ import {
   motivoItemNoListo,
   permiteSobreTope,
   topeValorUnitario,
+  cupoActividad,
+  tieneTrabajos,
   totalAnexo,
   validarSolicitud,
   type CampoSolicitud,
@@ -57,7 +59,7 @@ import { CuentasTercero } from "@/components/cuentas-tercero"
 // llena las condiciones y lo manda a pre-aprobación.
 // ---------------------------------------------------------------------------
 
-const ITEM_VACIO = { presupuestoItemId: "", cantidad: "", valorUnitario: "" }
+const ITEM_VACIO = { presupuestoItemId: "", cantidad: "", valorUnitario: "", manoObraCategoriaId: "" }
 
 const FORMULARIO_VACIO: SolicitudContratoForm = {
   tipo: "",
@@ -116,7 +118,12 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
     valorMensual: d.valorMensual !== null ? numero(d.valorMensual) : "",
     items:
       d.items.length > 0
-        ? d.items.map((i) => ({ presupuestoItemId: i.presupuestoItemId, cantidad: numero(i.cantidad), valorUnitario: numero(i.valorUnitario) }))
+        ? d.items.map((i) => ({
+            presupuestoItemId: i.presupuestoItemId,
+            cantidad: numero(i.cantidad),
+            valorUnitario: numero(i.valorUnitario),
+            manoObraCategoriaId: i.manoObraCategoriaId ?? "",
+          }))
         : [{ ...ITEM_VACIO }],
     tieneAnticipo: d.tieneAnticipo,
     requierePoliza: d.requierePoliza !== false,
@@ -377,27 +384,60 @@ export function SolicitudContratoForm({
   // Al corregir una devuelta, su propia cantidad todavía figura como
   // contratada en el presupuesto: se suma de vuelta (la base hace lo mismo al
   // reenviar: borra sus líneas antes de revisar los topes).
+  // Con trabajos (20270101004400): lo propio completo vuelve al ítem y a cada
+  // trabajo; lo propio de un trabajo, a ese trabajo (la base lo revisa igual).
   const catalogoPorId = useMemo(() => {
-    const propias = new Map((edicion?.items ?? []).map((i) => [i.presupuestoItemId, i.cantidad]))
+    const propias = new Map<string, number>()
+    const propiasTrabajo = new Map<string, number>()
+    for (const i of edicion?.items ?? []) {
+      if (i.manoObraCategoriaId) {
+        const clave = `${i.presupuestoItemId}|${i.manoObraCategoriaId}`
+        propiasTrabajo.set(clave, (propiasTrabajo.get(clave) ?? 0) + i.cantidad)
+      } else {
+        propias.set(i.presupuestoItemId, (propias.get(i.presupuestoItemId) ?? 0) + i.cantidad)
+      }
+    }
     return new Map(
       (catalogo ?? []).map((i) => {
         const propia = propias.get(i.id) ?? 0
-        return [i.id, propia ? { ...i, contratado: i.contratado - propia, disponible: i.disponible + propia } : i]
+        const trabajos = i.trabajos?.map((t) => {
+          const extra = propia + (propiasTrabajo.get(`${i.id}|${t.categoriaId}`) ?? 0)
+          return extra ? { ...t, contratado: t.contratado - extra, disponible: t.disponible + extra } : t
+        })
+        return [
+          i.id,
+          propia ? { ...i, contratado: i.contratado - propia, disponible: i.disponible + propia, trabajos } : { ...i, trabajos },
+        ]
       })
     )
   }, [catalogo, edicion])
   const catalogoAjustado = useMemo(() => [...catalogoPorId.values()], [catalogoPorId])
   // Ítems ya elegidos: el selector solo sale en filas sin ítem válido, así que
   // un solo Set sirve para todas (antes uno por fila: filas × filas).
-  const itemsUsados = useMemo(() => new Set(f.items.map((x) => x.presupuestoItemId).filter(Boolean)), [f.items])
+  // Un ítem con trabajos (mano de obra dividida) se puede elegir otra vez para
+  // otro trabajo mientras ninguna fila lo tenga completo.
+  const itemsUsados = useMemo(
+    () =>
+      new Set(
+        f.items
+          .filter((x) => {
+            if (!x.presupuestoItemId) return false
+            const ref = catalogoPorId.get(x.presupuestoItemId)
+            return !(ref && tieneTrabajos(ref, f.tipo) && x.manoObraCategoriaId)
+          })
+          .map((x) => x.presupuestoItemId)
+      ),
+    [f.items, f.tipo, catalogoPorId]
+  )
   // Actividades por encima del tope (obra y mano de obra): las autoriza Gerencia (20270101004200).
   const haySobreTope =
     f.anexoTipo === "valores_unitarios" &&
     permiteSobreTope(f.tipo) &&
     f.items.some((it) => {
       const ref = it.presupuestoItemId ? catalogoPorId.get(it.presupuestoItemId) : undefined
+      const cupo = ref ? cupoActividad(ref, f.tipo, it.manoObraCategoriaId) : null
       const v = leerNumero(it.valorUnitario)
-      return Boolean(ref && v !== null && v > topeValorUnitario(ref, f.tipo))
+      return Boolean(cupo && v !== null && v > cupo.tope)
     })
 
   useEffect(() => {
@@ -422,7 +462,15 @@ export function SolicitudContratoForm({
   const total = f.anexoTipo === "valores_unitarios" ? totalAnexo(f.items) : leerNumero(f.valor)
   // El buscador muestra el tope según el tipo (mano de obra: la del APU).
   const catalogoParaSelector = useMemo(
-    () => catalogoAjustado.map((i) => ({ ...i, valorUnitario: topeValorUnitario(i, f.tipo) })),
+    () =>
+      catalogoAjustado.map((i) => ({
+        ...i,
+        valorUnitario: topeValorUnitario(i, f.tipo),
+        // Con trabajos, el ítem sigue disponible mientras algún trabajo tenga cupo.
+        disponible: tieneTrabajos(i, f.tipo)
+          ? Math.max(i.disponible, ...i.trabajos!.map((t) => t.disponible))
+          : i.disponible,
+      })),
     [catalogoAjustado, f.tipo]
   )
 
@@ -802,9 +850,13 @@ export function SolicitudContratoForm({
                     const c = leerNumero(it.cantidad)
                     const v = leerNumero(it.valorUnitario)
                     const subtotal = c !== null && v !== null ? c * v : null
-                    const excedeCantidad = Boolean(ref && c !== null && c > ref.disponible)
-                    const tope = ref ? topeValorUnitario(ref, f.tipo) : 0
-                    const excedeValor = Boolean(ref && v !== null && v > tope)
+                    // Cupo de la actividad: la mano de obra completa o un trabajo (20270101004400).
+                    const conTrabajos = Boolean(ref && tieneTrabajos(ref, f.tipo))
+                    const cupo = ref ? cupoActividad(ref, f.tipo, it.manoObraCategoriaId) : null
+                    const disponible = cupo?.disponible ?? 0
+                    const excedeCantidad = Boolean(cupo && c !== null && c > disponible)
+                    const tope = cupo?.tope ?? 0
+                    const excedeValor = Boolean(cupo && v !== null && v > tope)
                     // En obra y mano de obra se puede pasar, con autorización de Gerencia.
                     const sobreTope = excedeValor && permiteSobreTope(f.tipo)
                     const cambiarItem = (cambios: Partial<typeof it>) =>
@@ -822,12 +874,40 @@ export function SolicitudContratoForm({
                                 <p className="break-words">
                                   <span className="font-medium tabular-nums">{ref.codigo}</span> {ref.descripcion}
                                 </p>
-                                <p className="text-xs text-muted-foreground tabular-nums">
-                                  Disponible {numero(ref.disponible)} de {numero(ref.cantidad)} ·{" "}
-                                  {f.tipo === "mano_obra" && !sinManoObraEnApu(ref, f.tipo)
-                                    ? `mano de obra ${pesos(tope)} c/u (ítem completo ${pesos(ref.valorUnitario)})`
-                                    : `${pesos(ref.valorUnitario)} c/u`}
-                                </p>
+                                {conTrabajos && (
+                                  <select
+                                    aria-label={`Trabajo ${i + 1}`}
+                                    value={it.manoObraCategoriaId ?? ""}
+                                    onChange={(e) => {
+                                      const nuevo = cupoActividad(ref, f.tipo, e.target.value)
+                                      cambiarItem({
+                                        manoObraCategoriaId: e.target.value,
+                                        valorUnitario: nuevo ? numero(nuevo.tope) : it.valorUnitario,
+                                      })
+                                    }}
+                                    disabled={enviando}
+                                    className={`${claseCampo(!cupo)} my-1`}
+                                  >
+                                    <option value="">Mano de obra completa (todos los trabajos)</option>
+                                    {ref.trabajos!.map((t) => (
+                                      <option key={t.categoriaId} value={t.categoriaId}>
+                                        {t.nombre} · disponible {numero(t.disponible)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                                {!cupo ? (
+                                  <p className="text-xs text-destructive">El trabajo elegido ya no está en la mano de obra del ítem. Elige otro.</p>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground tabular-nums">
+                                    Disponible {numero(disponible)} de {numero(ref.cantidad)} ·{" "}
+                                    {cupo.trabajo
+                                      ? `${cupo.trabajo.nombre} ${pesos(tope)} c/u`
+                                      : f.tipo === "mano_obra" && !sinManoObraEnApu(ref, f.tipo)
+                                        ? `mano de obra ${pesos(tope)} c/u (ítem completo ${pesos(ref.valorUnitario)})`
+                                        : `${pesos(ref.valorUnitario)} c/u`}
+                                  </p>
+                                )}
                                 {motivoItemNoListo(ref, f.tipo) && (
                                   <p className="text-xs text-destructive">
                                     No se puede contratar todavía: {motivoItemNoListo(ref, f.tipo)?.toLowerCase()}.
@@ -841,7 +921,7 @@ export function SolicitudContratoForm({
                               </div>
                               <button
                                 type="button"
-                                onClick={() => cambiarItem({ presupuestoItemId: "", cantidad: "", valorUnitario: "" })}
+                                onClick={() => cambiarItem({ presupuestoItemId: "", cantidad: "", valorUnitario: "", manoObraCategoriaId: "" })}
                                 className="shrink-0 text-xs text-primary hover:underline"
                                 disabled={enviando}
                               >
@@ -861,13 +941,25 @@ export function SolicitudContratoForm({
                               catalogo={catalogoParaSelector}
                               excluir={itemsUsados}
                               disabled={enviando}
-                              onElegir={(item) =>
+                              onElegir={(item) => {
+                                // Ítem con la mano de obra dividida: se propone el primer
+                                // trabajo libre (no usado en otra fila y con disponible).
+                                const real = catalogoPorId.get(item.id)
+                                let trabajo = ""
+                                if (real && tieneTrabajos(real, f.tipo)) {
+                                  const usados = new Set(
+                                    f.items.filter((x) => x.presupuestoItemId === item.id).map((x) => x.manoObraCategoriaId)
+                                  )
+                                  trabajo = real.trabajos!.find((t) => !usados.has(t.categoriaId) && t.disponible > 0)?.categoriaId ?? ""
+                                }
+                                const cupoNuevo = real ? cupoActividad(real, f.tipo, trabajo) : null
                                 cambiarItem({
                                   presupuestoItemId: item.id,
+                                  manoObraCategoriaId: trabajo,
                                   // Se propone el tope (mano de obra en mano de obra); solo se puede bajar.
-                                  valorUnitario: numero(item.valorUnitario),
+                                  valorUnitario: numero(cupoNuevo?.tope ?? item.valorUnitario),
                                 })
-                              }
+                              }}
                             />
                             </>
                           )}
@@ -882,7 +974,7 @@ export function SolicitudContratoForm({
                             disabled={enviando || !ref}
                             className={`${claseCampo(excedeCantidad)} text-right`}
                           />
-                          {excedeCantidad && <p className="px-1 text-xs text-destructive">Máx. {numero(ref!.disponible)}</p>}
+                          {excedeCantidad && <p className="px-1 text-xs text-destructive">Máx. {numero(disponible)}</p>}
                         </td>
                         <td className="p-1">
                           <input

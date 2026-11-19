@@ -3238,6 +3238,15 @@ Cómo se guarda:
   `tests/excel-modalidades.test.ts` (incluye ida y vuelta del Excel). La misma migración hace
   que una línea "Es herramienta menor" (No aplica de EQUIPO) ya no cuente como insumo en
   `_info_modalidad_item`.
+- **Cambiar la modalidad de UN ítem** (2026-11-19, sin migración): en el editor de APU ("Cambiar modalidad",
+  el ítem fijo, `infoModalidadesDeItem`) y en Revisar pendientes ("Cambiar la modalidad de un ítem" arriba de
+  las pestañas, buscando el ítem con `infoModalidadesPresupuesto`); solo versión vigente
+  (`components/cambiar-modalidad-item.tsx`; la tabla se actualiza con `alCambiarModalidad` en page.tsx).
+  Del ítem se elige la modalidad (subcontrato de mano de obra
+  desactivado si el ítem no tiene mano de obra; la mano de obra oficial se pide para administración con mano
+  de obra o subcontrato sin insumos, `pideManoObraOficial`), "Revisar cambio" muestra el total del presupuesto
+  antes y después (`fijar_modalidades_presupuesto` sin confirmar) y "Aplicar" lo aplica. Ítems con
+  requisiciones o contratos no cambian.
 - **Pendiente (pasos 5 y 6)**: Malecón (42 %, mano de obra oficial, Excel de modalidades,
   pendientes, totales); prueba completa en un proyecto de prueba.
 
@@ -3266,6 +3275,49 @@ después).
   quien lo pidió); devolver/rechazar usan `contrato_devuelto` / `contrato_rechazado`. Mis
   pendientes: `contrato_sobre_tope`. En Pre-aprobación, el filtro "En Gerencia" las incluye.
 - La migración va ANTES del código (el detalle lee las columnas nuevas).
+
+## Mano de obra dividida en trabajos (2026-11-19)
+
+`20270101004400_trabajos_mano_obra.sql` (reversa en `supabase/reversa/`; decisiones del usuario). Caso:
+la Loseta (15 und) necesita un contrato de FABRICACIÓN y otro de INSTALACIÓN, pero el Excel solo trae
+"Cuadrilla AA" (o el nombre del ítem).
+- **Dividir** (`components/dividir-mano-obra-dialog.tsx`, botón en el editor de APU y en Revisar
+  pendientes › Mano de obra; `dividir_mano_obra_item(item, nombres[])`, quien edita presupuestos,
+  versión vigente): la mano de obra del ítem se reemplaza por 2 a 15 trabajos de nombre libre. Cada
+  trabajo es una línea nueva de `apu_import_revision` (tipo MO, `dividida_de` = texto del Excel). Mientras
+  se escribe salen sugerencias del catálogo (cualquier unidad, primero la del ítem); la categoría elegida se
+  enlaza directo, y sin elegir, si el nombre es igual a uno del catálogo en la unidad del ítem también.
+  Antes de enviar, la ventana muestra las categorías más parecidas de lo que no se eligió (para elegir
+  una) y solo con "Ninguno: enviarlo a aprobación" va a Aprobación de mano de obra (reutiliza la
+  solicitud pendiente igual del mismo ámbito) (`20270101004500`, `dividir_mano_obra_item(item, jsonb
+  [{nombre, categoria_id}])`; dos trabajos no pueden quedar con la misma categoría). Si una solicitud
+  se rechaza, en Revisar pendientes "Ninguna calza" pide la nueva con el nombre del trabajo. Las
+  líneas del Excel quedan en estado `dividido` (no se revisan) y las líneas de mano de obra del APU se
+  borran (también las agregadas a mano en el editor). Cada trabajo cuenta 1 por unidad del ítem; la
+  herramienta menor sobre la suma. Solo ítems con insumos cuya mano de obra sale del catálogo
+  (subcontrato de mano de obra con insumos o sin modalidad todavía); no administración, todo costo ni
+  subcontrato sin insumos (50 % fijo); no con contratos sobre el ítem (`info_division_mano_obra` da
+  el motivo). **"Juntar otra vez"** (`juntar_mano_obra_item`, sin contratos): borra los trabajos y
+  sus solicitudes pendientes, y las líneas del Excel vuelven como estaban (con su categoría si ya la
+  tenían, si no pendientes). Historial `mano_obra_dividida` / `mano_obra_juntada` del presupuesto.
+  "N de M líneas" no compara ítems divididos.
+- **Contratos**: un ítem con 2 o más categorías de mano de obra en su APU tiene TRABAJOS
+  (`_trabajos_item`). En un contrato de mano de obra cada actividad es un trabajo
+  (`contrato_anexo_items.mano_obra_categoria_id`) o la mano de obra completa (null, como antes). La
+  actividad se guarda "<ítem> — <trabajo>" (minuta, PDF y actas sin cambios). Cupo por cantidad
+  (`_contratado_linea`): trabajo X = cantidad − (completa + X); completa = cantidad − (completa + el
+  trabajo más contratado); `_contratado_item` es la vista desde la completa. Tope por und de un
+  trabajo (`_tope_linea_contrato`): su valor del catálogo + su parte de la herramienta menor, sin
+  pasar del valor del ítem; por encima, la autorización de Gerencia de siempre. En un contrato pueden
+  ir varios trabajos del mismo ítem, pero no completa y trabajos a la vez. Formulario: selector de
+  trabajo en la actividad (`trabajos_items_contrato`, `cupoActividad` / `tieneTrabajos` en
+  `lib/contratos.ts`); al elegir el ítem propone el primer trabajo libre.
+- **Otrosí**: la adición a una actividad de un trabajo usa el cupo de ese trabajo y la nueva fila
+  conserva el trabajo; las actividades nuevas son siempre la mano de obra completa.
+- Versión nueva del presupuesto: copia las líneas de mano de obra (los trabajos ya aprobados siguen);
+  las pendientes no se copian (como todas las de revisión).
+- Pendiente (decisión del usuario): regla "un ítem sin modalidad no se contrata", para encender
+  después de que el Malecón suba su Excel de modalidades.
 
 ## Paquete H (2026-11-12, sin migraciones)
 
@@ -4698,6 +4750,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004000` modalidades: la modalidad en los ítems para contratos y recalcular al cambiar el % de todo costo.
 `20270101004100` modalidades: datos del Excel de modalidades y la herramienta menor no cuenta como insumo.
 `20270101004200` contratos de obra y mano de obra por encima del tope con autorización de Gerencia.
+`20270101004400` mano de obra dividida en trabajos y contratos por trabajo.
+`20270101004500` dividir: elegir la categoría del catálogo antes de enviar a aprobación.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

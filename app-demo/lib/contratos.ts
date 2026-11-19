@@ -334,6 +334,8 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
     sinManoObra?: boolean
     // Tope del valor unitario cuando se pidió (20270101004200); null = de antes.
     topeValorUnitario?: number | null
+    // Trabajo de la mano de obra del ítem (20270101004400); null = completa.
+    manoObraCategoriaId?: string | null
   }[]
   // Actividades por encima del tope (obra y mano de obra, 20270101004200): por
   // qué, y quién de Gerencia lo autorizó (null = todavía no o no hizo falta).
@@ -453,7 +455,19 @@ export const aCentavos = (n: number) => Math.round(n * 100) / 100
 // ---------------------------------------------------------------- formulario
 // Anexo de valores unitarios: cada línea es un ítem del presupuesto vigente
 // del proyecto (la descripción y la unidad salen de ahí).
-export type ItemAnexoForm = { presupuestoItemId: string; cantidad: string; valorUnitario: string }
+// manoObraCategoriaId: en mano de obra, el trabajo del ítem que cubre la
+// actividad ("" o ausente = la mano de obra completa, 20270101004400).
+export type ItemAnexoForm = { presupuestoItemId: string; cantidad: string; valorUnitario: string; manoObraCategoriaId?: string }
+
+// Un trabajo de la mano de obra de un ítem (trabajos_items_contrato): el ítem
+// tiene 2 o más categorías de mano de obra en su APU (se dividió).
+export type TrabajoItemContrato = {
+  categoriaId: string
+  nombre: string
+  valorTope: number // su valor del catálogo + su parte de la herramienta menor
+  contratado: number // completa + lo de este trabajo
+  disponible: number
+}
 
 // Ítem del presupuesto vigente que se puede contratar (items_presupuesto_para_contrato).
 export type ItemPresupuestoContrato = {
@@ -472,6 +486,28 @@ export type ItemPresupuestoContrato = {
   manoObraPendiente?: boolean
   // Modalidad del ítem (20270101003900): decide en qué contrato va.
   modalidad?: "administracion" | "todo_costo" | "mano_obra" | null
+  // Trabajos de su mano de obra (20270101004400), si se dividió.
+  trabajos?: TrabajoItemContrato[]
+}
+
+// El ítem se contrata por trabajos (solo en contratos de mano de obra).
+export const tieneTrabajos = (item: { trabajos?: TrabajoItemContrato[] }, tipo: string) =>
+  tipo === "mano_obra" && (item.trabajos?.length ?? 0) >= 2
+
+// Cupo de una actividad del anexo: la mano de obra completa (trabajo vacío) o
+// un trabajo. Igual que _contratado_linea / _tope_linea_contrato. null = el
+// trabajo ya no está en el ítem.
+export function cupoActividad(
+  item: ItemPresupuestoContrato,
+  tipo: string,
+  trabajoId?: string | null
+): { disponible: number; tope: number; trabajo: TrabajoItemContrato | null } | null {
+  if (trabajoId && tipo === "mano_obra") {
+    const t = item.trabajos?.find((x) => x.categoriaId === trabajoId)
+    if (!t) return null
+    return { disponible: t.disponible, tope: Math.min(t.valorTope, item.valorUnitario), trabajo: t }
+  }
+  return { disponible: item.disponible, tope: topeValorUnitario(item, tipo), trabajo: null }
 }
 
 // Por qué un ítem no se puede contratar todavía (null = listo). Igual que
@@ -585,7 +621,7 @@ export type SolicitudContratoValida = {
   anexoTipo: "valor_global" | "valores_unitarios"
   valor: number
   valorMensual: number | null
-  items: { presupuestoItemId: string; cantidad: number; valorUnitario: number }[]
+  items: { presupuestoItemId: string; cantidad: number; valorUnitario: number; manoObraCategoriaId: string | null }[]
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
   requierePoliza: boolean
@@ -655,19 +691,32 @@ export function validarSolicitud(
     const llenos = f.items.filter((it) => it.presupuestoItemId || it.cantidad.trim() || it.valorUnitario.trim())
     if (llenos.length === 0) errores.items = "Agrega al menos una actividad del presupuesto."
     const vistos = new Set<string>()
+    // Ítems con alguna actividad completa / por trabajos (no se mezclan).
+    const completos = new Set<string>()
+    const porTrabajo = new Set<string>()
     for (let i = 0; i < llenos.length; i++) {
       const it = llenos[i]
       const cantidad = leerNumero(it.cantidad)
       const valorUnitario = leerNumero(it.valorUnitario)
+      // El trabajo solo cuenta en contratos de mano de obra.
+      const trabajo = f.tipo === "mano_obra" && it.manoObraCategoriaId ? it.manoObraCategoriaId : null
       if (!it.presupuestoItemId) {
         errores.items = `Elige el ítem del presupuesto de la actividad ${i + 1}.`
         break
       }
-      if (vistos.has(it.presupuestoItemId)) {
-        errores.items = `La actividad ${i + 1} repite un ítem del presupuesto.`
+      const clave = `${it.presupuestoItemId}|${trabajo ?? ""}`
+      if (vistos.has(clave)) {
+        errores.items = trabajo
+          ? `La actividad ${i + 1} repite un trabajo del mismo ítem.`
+          : `La actividad ${i + 1} repite un ítem del presupuesto.`
         break
       }
-      vistos.add(it.presupuestoItemId)
+      vistos.add(clave)
+      ;(trabajo ? porTrabajo : completos).add(it.presupuestoItemId)
+      if (completos.has(it.presupuestoItemId) && porTrabajo.has(it.presupuestoItemId)) {
+        errores.items = `La actividad ${i + 1}: un ítem no puede ir completo y por trabajos en el mismo contrato.`
+        break
+      }
       if (!cantidad || !valorUnitario) {
         errores.items = `Completa la actividad ${i + 1}: cantidad y valor unitario mayores que cero.`
         break
@@ -679,11 +728,17 @@ export function validarSolicitud(
           errores.items = `Ítem ${ref.codigo}: no se puede contratar todavía. ${noListo}.`
           break
         }
-        if (cantidad > ref.disponible) {
-          errores.items = `Ítem ${ref.codigo}: la cantidad (${numero(cantidad)}) supera lo disponible en el presupuesto (${numero(ref.disponible)}).`
+        const cupo = cupoActividad(ref, f.tipo, trabajo)
+        if (!cupo) {
+          errores.items = `Ítem ${ref.codigo}: el trabajo elegido ya no está en su mano de obra. Vuelve a elegirlo.`
           break
         }
-        const tope = topeValorUnitario(ref, f.tipo)
+        const nombre = cupo.trabajo ? `Ítem ${ref.codigo} (${cupo.trabajo.nombre})` : `Ítem ${ref.codigo}`
+        if (cantidad > cupo.disponible) {
+          errores.items = `${nombre}: la cantidad (${numero(cantidad)}) supera lo disponible en el presupuesto (${numero(cupo.disponible)}).`
+          break
+        }
+        const tope = cupo.tope
         if (valorUnitario > tope && permiteSobreTope(f.tipo)) {
           sobreTope = true
         } else if (valorUnitario > tope) {
@@ -694,7 +749,7 @@ export function validarSolicitud(
           break
         }
       }
-      items.push({ presupuestoItemId: it.presupuestoItemId, cantidad, valorUnitario: aCentavos(valorUnitario) })
+      items.push({ presupuestoItemId: it.presupuestoItemId, cantidad, valorUnitario: aCentavos(valorUnitario), manoObraCategoriaId: trabajo })
     }
     valor = aCentavos(items.reduce((acc, it) => acc + aCentavos(it.cantidad * it.valorUnitario), 0))
   } else {

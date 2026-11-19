@@ -411,6 +411,33 @@ export async function infoModalidadesVersion(versionId: string): Promise<ItemInf
   }))
 }
 
+// Lo mismo, desde el presupuesto (su versión vigente): para cambiar la
+// modalidad de un ítem en Revisar pendientes.
+export async function infoModalidadesPresupuesto(presupuestoId: string): Promise<ItemInfoModalidad[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from("presupuestos").select("version_actual_id").eq("id", presupuestoId).single()
+  if (error) throw new Error(error.message)
+  if (!data.version_actual_id) return []
+  return infoModalidadesVersion(data.version_actual_id)
+}
+
+// Para cambiar la modalidad desde el editor de APU: el presupuesto y los ítems
+// de la versión vigente del ítem (null si el ítem es de una versión vieja).
+export async function infoModalidadesDeItem(
+  presupuestoItemId: string
+): Promise<{ presupuestoId: string; codigo: string; items: ItemInfoModalidad[] } | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("presupuesto_items")
+    .select("codigo, version_id, presupuesto_id, presupuestos:presupuesto_id(version_actual_id)")
+    .eq("id", presupuestoItemId)
+    .single()
+  if (error) throw new Error(error.message)
+  const vigente = (data as any).presupuestos?.version_actual_id
+  if (!vigente || vigente !== data.version_id) return null
+  return { presupuestoId: data.presupuesto_id, codigo: data.codigo, items: await infoModalidadesVersion(vigente) }
+}
+
 export async function crearVersionVacia(
   presupuestoId: string,
   nombre: string
@@ -869,6 +896,83 @@ export type SolicitudInsumoInput = {
 // libre -- de ahí la lentitud reportada). El catálogo es chico (~150
 // filas hoy) así que traerlo completo una vez es más barato que 150
 // búsquedas de red durante la vida de un solo diálogo abierto.
+// ---------------------------------------------------------------------------
+// Dividir la mano de obra de un ítem en varios trabajos (20270101004400): cada
+// trabajo se contrata por separado (ej. fabricación e instalación).
+
+export type InfoDivisionManoObra = {
+  puedeDividir: boolean
+  puedeJuntar: boolean
+  // Por qué no se puede (null = sí se puede).
+  motivo: string | null
+  dividida: boolean
+  unidad: string | null
+  // Texto de la mano de obra en el Excel ("Cuadrilla AA"...).
+  excel: string | null
+  lineas: { nombre: string; valor: number | null; estado: string }[]
+}
+
+export async function infoDivisionManoObra(presupuestoItemId: string): Promise<InfoDivisionManoObra> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("info_division_mano_obra", { p_item: presupuestoItemId })
+  if (error) throw new Error(error.message)
+  const r = data as any
+  return {
+    puedeDividir: Boolean(r.puede_dividir),
+    puedeJuntar: Boolean(r.puede_juntar),
+    motivo: r.motivo ?? null,
+    dividida: Boolean(r.dividida),
+    unidad: r.unidad ?? null,
+    excel: r.excel ?? null,
+    lineas: ((r.lineas ?? []) as any[]).map((l) => ({
+      nombre: String(l.nombre ?? ""),
+      valor: l.valor == null ? null : Number(l.valor),
+      estado: String(l.estado ?? ""),
+    })),
+  }
+}
+
+// Cada trabajo con la categoría elegida del catálogo (o null). Sin categoría,
+// si el nombre es igual a uno del catálogo se enlaza; si no, va a Aprobación
+// de mano de obra (20270101004500).
+export async function dividirManoObraItem(
+  presupuestoItemId: string,
+  trabajos: { nombre: string; categoriaId: string | null }[]
+): Promise<{ trabajos: number; enCatalogo: number; porAprobar: number }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("dividir_mano_obra_item", {
+    p_item: presupuestoItemId,
+    p_trabajos: trabajos.map((t) => ({ nombre: t.nombre, categoria_id: t.categoriaId })),
+  })
+  if (error) throw new Error(error.message)
+  const r = data as any
+  // Candidatos del catálogo para los trabajos que no quedaron enlazados: si su
+  // solicitud se rechaza o se cierra (cambio de modalidad), en Revisar
+  // pendientes salen opciones para elegir (el mismo ranking del import).
+  const { data: filas, error: errorFilas } = await supabase
+    .from("apu_import_revision")
+    .select("id, descripcion_original")
+    .eq("presupuesto_item_id", presupuestoItemId)
+    .neq("estado", "resuelto")
+    .not("dividida_de", "is", null)
+  if (errorFilas) throw new Error(errorFilas.message)
+  await Promise.all(
+    (filas ?? []).map(async (f) => {
+      const candidatos = await buscarManoObraSimilares(f.descripcion_original)
+      if (candidatos.length === 0) return
+      const { error: e } = await supabase.from("apu_import_revision").update({ candidatos }).eq("id", f.id)
+      if (e) throw new Error(e.message)
+    })
+  )
+  return { trabajos: Number(r.trabajos ?? 0), enCatalogo: Number(r.en_catalogo ?? 0), porAprobar: Number(r.por_aprobar ?? 0) }
+}
+
+export async function juntarManoObraItem(presupuestoItemId: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("juntar_mano_obra_item", { p_item: presupuestoItemId })
+  if (error) throw new Error(error.message)
+}
+
 export async function listarManoObraCategoriasCompleto(): Promise<CategoriaManoObra[]> {
   const supabase = await createClient()
 
@@ -4260,6 +4364,7 @@ function mapearFilaRevision(fila: any): FilaRevisionImport {
     valorTransporte: transportePrecio?.valor_unitario ?? null,
     itemApuId: fila.item_apu_id,
     convertirInsumoId: fila.convertir_insumo_id ?? null,
+    divididaDe: fila.dividida_de ?? null,
     // Lo copia borrar_solicitud_resuelta antes de borrar la solicitud.
     motivoRechazo: fila.motivo_rechazo ?? null,
   }
@@ -4278,7 +4383,7 @@ export type LoteRevisionInfo = {
 }
  
 const SELECT_REVISION_CON_MOTIVO =
-  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, convertir_insumo_id, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
+  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, convertir_insumo_id, dividida_de, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
  
 export async function listarRevisionLote(loteImportId: string): Promise<LoteRevisionInfo> {
   const supabase = await createClient()
@@ -4289,8 +4394,9 @@ export async function listarRevisionLote(loteImportId: string): Promise<LoteRevi
       .from("apu_import_revision")
       .select(SELECT_REVISION_CON_MOTIVO)
       .eq("lote_import_id", loteImportId)
-      // Las que la modalidad del ítem ya no usa (20270101003900) no se revisan.
-      .neq("estado", "no_requerido")
+      // Las que la modalidad del ítem ya no usa (20270101003900) y las que se
+      // dividieron en trabajos (20270101004400) no se revisan.
+      .not("estado", "in", "(no_requerido,dividido)")
       .order("created_at", { ascending: true })
       .order("id", { ascending: true })
       .range(desde, hasta)
@@ -4332,8 +4438,9 @@ export async function listarRevisionPorItems(
           .select(SELECT_REVISION_CON_MOTIVO)
           .in("presupuesto_item_id", lote)
         if (estados && estados.length > 0) consulta = consulta.in("estado", estados)
-        // Las que la modalidad del ítem ya no usa (20270101003900) no se revisan.
-        else consulta = consulta.neq("estado", "no_requerido")
+        // Las que la modalidad del ítem ya no usa (20270101003900) y las que se
+        // dividieron en trabajos (20270101004400) no se revisan.
+        else consulta = consulta.not("estado", "in", "(no_requerido,dividido)")
         return consulta
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
@@ -4473,7 +4580,7 @@ export async function resolverLineaRevision(input: {
   const { data: fila, error: errorLectura } = await supabase
     .from("apu_import_revision")
     .select(
-      "apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion, unidad)"
+      "apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, dividida_de, presupuesto_items(descripcion, unidad)"
     )
     .eq("id", input.revisionId)
     .single()
@@ -4486,7 +4593,11 @@ export async function resolverLineaRevision(input: {
     // verdad define la categoría de actividad), no descripcion_original
     // (que para mano de obra es el texto de la línea del Excel, ej.
     // "Cuadrilla AA-4" -- no dice nada sobre qué actividad es).
-    const nombreItem = (fila as any).presupuesto_items?.descripcion ?? fila.descripcion_original
+    // Un trabajo de una mano de obra dividida (20270101004400) pide su propio
+    // nombre ("Fabricación de loseta"), no el del ítem.
+    const nombreItem = (fila as any).dividida_de
+      ? fila.descripcion_original
+      : (fila as any).presupuesto_items?.descripcion ?? fila.descripcion_original
 
     const solicitud = await crearSolicitudManoObra({
       descripcion: nombreItem,
@@ -4592,7 +4703,7 @@ export async function resolverLineasRevisionEnLote(
         const { data, error } = await supabase
           .from("apu_import_revision")
           .select(
-            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, presupuesto_items(descripcion, unidad, presupuesto_id)"
+            "id, apu_id, presupuesto_item_id, descripcion_original, tipo, unidad, cantidad, rendimiento, estado, dividida_de, presupuesto_items(descripcion, unidad, presupuesto_id)"
           )
           .in("id", lote)
         if (error) throw new Error(error.message)
@@ -4923,7 +5034,9 @@ export async function resolverLineasRevisionEnLote(
     }
     if (fila.estado === "resuelto") continue
     const item = (fila as any).presupuesto_items
-    const clave = `${item?.presupuesto_id ?? ""}|${claveSolicitudRecurso(item?.descripcion ?? fila.descripcion_original, item?.unidad ?? null)}`
+    // Trabajo de una mano de obra dividida: la actividad es su nombre.
+    const actividad = (fila as any).dividida_de ? fila.descripcion_original : item?.descripcion ?? fila.descripcion_original
+    const clave = `${item?.presupuesto_id ?? ""}|${claveSolicitudRecurso(actividad, item?.unidad ?? null)}`
     const grupo = gruposManoObra.get(clave) ?? []
     grupo.push(r)
     gruposManoObra.set(clave, grupo)
@@ -4934,7 +5047,7 @@ export async function resolverLineasRevisionEnLote(
     const item = (fila as any).presupuesto_items
     try {
       const solicitud = await crearSolicitudManoObra({
-        descripcion: item?.descripcion ?? fila.descripcion_original,
+        descripcion: (fila as any).dividida_de ? fila.descripcion_original : item?.descripcion ?? fila.descripcion_original,
         presupuestoItemId: fila.presupuesto_item_id,
         unidad: item?.unidad ?? null,
       })
@@ -5586,8 +5699,24 @@ async function diferenciasLineasApu(itemIds: string[]): Promise<Record<string, D
   if (items.length === 0) return {}
 
   // Un ítem cuya modalidad guardó líneas aparte (20270101003900) ya no se
-  // compara contra el APU oficial: le faltan líneas a propósito.
-  const comparables = (items as any[]).filter((i) => !i.apu_guardado_id)
+  // compara contra el APU oficial: le faltan líneas a propósito. Tampoco uno
+  // con la mano de obra dividida en trabajos (20270101004400): tiene más.
+  const divididos = new Set<string>()
+  await seleccionarEnLotesPorIds(
+    (items as any[]).map((i) => i.id as string),
+    200,
+    async (lote) => {
+      const { data, error } = await supabase
+        .from("apu_import_revision")
+        .select("presupuesto_item_id")
+        .in("presupuesto_item_id", lote)
+        .eq("estado", "dividido")
+      if (error) throw new Error(error.message)
+      for (const f of data ?? []) divididos.add(f.presupuesto_item_id)
+      return []
+    }
+  )
+  const comparables = (items as any[]).filter((i) => !i.apu_guardado_id && !divididos.has(i.id))
   const apuIds = Array.from(new Set(comparables.map((i: any) => i.apu_id as string)))
   const lineasPorApu = new Map<string, number>()
   await seleccionarEnLotesPorIds(apuIds, 200, async (lote) => {

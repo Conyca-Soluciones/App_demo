@@ -215,6 +215,8 @@ const EVENTOS_PRESUPUESTO: Record<string, DefEvento> = {
   descartado: { etiqueta: "Presupuesto descartado", tono: "malo" },
   desperdicio: { etiqueta: "Desperdicio cambiado", tono: "aviso" },
   modalidades: { etiqueta: "Modalidades cambiadas", tono: "aviso" },
+  mano_obra_dividida: { etiqueta: "Mano de obra dividida en trabajos", tono: "aviso" },
+  mano_obra_juntada: { etiqueta: "Mano de obra juntada otra vez", tono: "aviso" },
 }
 
 const EVENTOS_ROL: Record<string, DefEvento> = {
@@ -487,6 +489,12 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
           : `${formatoValor(d.insumos)} insumo(s) con desperdicio`,
         `Valor: ${formatoValor(d.valor_antes)} → ${formatoValor(d.valor_despues)}`,
       ]
+    if (e.evento === "mano_obra_dividida")
+      return [
+        `Ítem ${formatoValor(d.codigo)} · del Excel: ${formatoValor(d.excel)}`,
+        `Trabajos: ${Array.isArray(d.trabajos) ? d.trabajos.join(", ") : formatoValor(d.trabajos)}`,
+      ]
+    if (e.evento === "mano_obra_juntada") return [`Ítem ${formatoValor(d.codigo)}`]
     if (e.evento === "modalidades")
       return [
         `${formatoValor(d.items)} ítem(s) cambiaron de modalidad`,

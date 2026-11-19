@@ -99,7 +99,7 @@ export async function cargarDetalleContrato(
       ),
       obligaciones:contrato_obligaciones(orden, texto),
       entregables:contrato_entregables(orden, texto),
-      items:contrato_anexo_items(orden, presupuesto_item_id, actividad, unidad, cantidad, valor_unitario, sin_mano_obra, tope_valor_unitario, otrosi_id, presupuesto_item:presupuesto_items(codigo)),
+      items:contrato_anexo_items(orden, presupuesto_item_id, actividad, unidad, cantidad, valor_unitario, sin_mano_obra, tope_valor_unitario, otrosi_id, mano_obra_categoria_id, presupuesto_item:presupuesto_items(codigo)),
       documentos:contrato_documentos(id, tipo, nombre_archivo, mime, ruta, tamano)
     `)
     .eq("id", id)
@@ -154,6 +154,7 @@ export async function cargarDetalleContrato(
       valorUnitario: Number(i.valor_unitario),
       sinManoObra: Boolean(i.sin_mano_obra),
       topeValorUnitario: i.tope_valor_unitario == null ? null : Number(i.tope_valor_unitario),
+      manoObraCategoriaId: i.mano_obra_categoria_id ?? null,
     })),
     sobreTopeJustificacion: x.sobre_tope_justificacion ?? null,
     sobreTopeAutorizadoAt: x.sobre_tope_autorizado_at ?? null,

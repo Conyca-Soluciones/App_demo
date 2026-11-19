@@ -39,6 +39,9 @@ import {
 import type { CategoriaManoObra, CategoriaEquipo } from "@/lib/apu-import-types"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
 import { DropdownFlotante } from "@/components/dropdown-flotante"
+import { DividirManoObraDialog } from "@/components/dividir-mano-obra-dialog"
+import { CambiarModalidadItem } from "@/components/cambiar-modalidad-item"
+import type { Modalidad } from "@/lib/modalidades"
 import { describirPresentacion, nombreUnidad, normalizarUnidad, sugerirPresentacion, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
 
 // Qué "recurso" real corresponde a cada sección visual de CATEGORIAS_APU
@@ -222,6 +225,7 @@ export function ApuEditorDialog({
   apuIdPendiente,
   onValorActualizado,
   onApuIdPendienteCreado,
+  onModalidadCambiada,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -244,6 +248,8 @@ export function ApuEditorDialog({
   // lo recuerde en el estado local (item.apuIdPendiente) y lo mande a
   // enlazar cuando se guarde todo.
   onApuIdPendienteCreado?: (apuId: string) => void
+  // Se cambió la modalidad del ítem desde aquí (etiqueta y valor en la tabla).
+  onModalidadCambiada?: (codigo: string, modalidad: Modalidad) => void | Promise<void>
 }) {
   const [apu, setApu] = useState<ApuDeItem | null>(null)
   // Para qué ítem/APU terminó la última carga: mientras no sea el actual, se
@@ -273,6 +279,10 @@ export function ApuEditorDialog({
   // cubría "copiando un APU sugerido", ya no aplica (ver decisión de
   // negocio abajo).
   const [creandoApu, setCreandoApu] = useState(false)
+  // Dividir la mano de obra en varios trabajos (20270101004400).
+  const [dividiendo, setDividiendo] = useState(false)
+  // Cambiar la modalidad del ítem (2026-11-19).
+  const [cambiandoModalidad, setCambiandoModalidad] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -403,6 +413,8 @@ export function ApuEditorDialog({
   // Línea fija de la modalidad del ítem (20270101003900), si la tiene.
   const lineaTodoCosto = apu?.items.find((it) => it.fijo === "todo_costo") ?? null
   const lineaManoObraFija = apu?.items.find((it) => it.fijo && it.fijo !== "todo_costo") ?? null
+  // Trabajos de la mano de obra (categorías distintas del catálogo en el APU).
+  const trabajosManoObra = new Set(apu?.items.map((it) => it.manoObraCategoriaId).filter(Boolean)).size
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -448,6 +460,32 @@ export function ApuEditorDialog({
             </div>
           )}
 
+          {guardado && !cargando && (
+            <div className="rounded-lg border bg-muted/20 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Modalidad del ítem: administración, subcontrato todo costo o subcontrato de mano de obra.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => setCambiandoModalidad((v) => !v)}>
+                  {cambiandoModalidad ? "Cerrar" : "Cambiar modalidad"}
+                </Button>
+              </div>
+              {cambiandoModalidad && (
+                <div className="mt-3">
+                  <CambiarModalidadItem
+                    presupuestoItemId={presupuestoItemId}
+                    onAplicado={async (cod, modalidad) => {
+                      // El APU cambió en la base (líneas guardadas aparte o de vuelta).
+                      setApu(await obtenerApuDeItem(presupuestoItemId))
+                      await onModalidadCambiada?.(cod, modalidad)
+                      avisarGuardado()
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {apu && (
             <div className="space-y-5">
               {apu.usos > 1 && (
@@ -469,6 +507,19 @@ export function ApuEditorDialog({
                   La mano de obra de este ítem sale de su <strong>modalidad</strong> (
                   {lineaManoObraFija.fijo === "mano_obra_subcontrato" ? "50 %" : "100 %"} de la mano de obra oficial +
                   herramienta menor), no del catálogo.
+                </div>
+              )}
+
+              {guardado && !lineaTodoCosto && !lineaManoObraFija && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-4 py-3 text-sm">
+                  <p className="text-muted-foreground">
+                    {trabajosManoObra >= 2
+                      ? `La mano de obra está dividida en ${trabajosManoObra} trabajos: cada uno se contrata por separado.`
+                      : "¿La mano de obra la hacen contratistas distintos (por ejemplo, fabricación e instalación)?"}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => setDividiendo(true)}>
+                    {trabajosManoObra >= 2 ? "Ver trabajos" : "Dividir en varios trabajos"}
+                  </Button>
                 </div>
               )}
 
@@ -513,6 +564,19 @@ export function ApuEditorDialog({
             </div>
           )}
         </div>
+        {guardado && (
+          <DividirManoObraDialog
+            open={dividiendo}
+            onOpenChange={setDividiendo}
+            presupuestoItemId={presupuestoItemId}
+            codigo={codigo}
+            descripcion={descripcion}
+            onCambio={async () => {
+              if (apu) await recargarApu(apu.id)
+              avisarGuardado()
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )

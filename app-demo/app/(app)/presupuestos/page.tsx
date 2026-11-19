@@ -761,6 +761,14 @@ function PresupuestoDeProyecto() {
     await Promise.all([refrescarEstadosApu(idsAConsultar), refrescarValores(idsAConsultar)])
   }
 
+  // Se cambió la modalidad de un ítem (Revisar pendientes o editor de APU):
+  // la etiqueta de la tabla y su valor (el APU cambió en la base).
+  async function alCambiarModalidad(codigo: string, modalidad: Modalidad) {
+    const ids = presupuesto.filter((i) => i.codigo === codigo).map((i) => i.id)
+    setPresupuesto((prev) => prev.map((i) => (i.codigo === codigo ? { ...i, modalidad } : i)))
+    if (ids.length > 0) await refrescarEstadosYValores(ids)
+  }
+
   // Ítems con algo sin terminar en TODO el presupuesto actual (no solo
   // el último import) -- alimenta el banner de "N pendientes -- Revisar"
   // y el botón de reabrir el diálogo sobre todo lo que falte.
@@ -2344,6 +2352,7 @@ function PresupuestoDeProyecto() {
             itemApuAbierto.guardado
           }
           apuIdPendiente={presupuesto.find((i) => i.id === itemApuAbierto.id)?.apuId}
+          onModalidadCambiada={alCambiarModalidad}
           onApuIdPendienteCreado={(apuId) => {
             setPresupuesto((prev) =>
               prev.map((i) => (i.id === itemApuAbierto.id ? { ...i, apuId } : i))
@@ -2399,6 +2408,7 @@ function PresupuestoDeProyecto() {
         onCerrar={handleCerrarDialogoRevision}
         onCambio={(itemIds) => refrescarEstadosYValores(itemIds)}
         presupuestoId={viendoVersionActual ? presupuestoDbId : null}
+        onModalidadCambiada={alCambiarModalidad}
       />
     </>
   )
