@@ -185,8 +185,18 @@ export function RequisicionDetalleView({
           )}
           {puedeCancelar && (
             <>
+              {/* Una administrativa se modifica en Requisiciones administrativas (sin cupo del presupuesto). */}
+              {puedeEditar && req.administrativa && (
+                <Button
+                  variant="outline"
+                  disabled={procesando}
+                  onClick={() => router.push(`/ayf/requisiciones-administrativas?ver=${req.id}`)}
+                >
+                  Modificar
+                </Button>
+              )}
               {/* Una extraordinaria no se modifica: se cancela y se pide otra. */}
-              {puedeEditar && !req.extraordinaria && (
+              {puedeEditar && !req.extraordinaria && !req.administrativa && (
                 <Button variant="outline" disabled={procesando} onClick={abrirEdicion}>
                   Modificar
                 </Button>

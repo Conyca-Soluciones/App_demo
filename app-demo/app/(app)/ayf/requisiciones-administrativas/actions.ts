@@ -149,3 +149,39 @@ export async function cancelarRequisicionEspera(id: string, motivo: string): Pro
   const { error } = await supabase.rpc("cancelar_requisicion_espera", { p_id: id, p_motivo: motivo.trim() })
   if (error) throw new Error(error.message)
 }
+
+// Quien la hizo, mientras Subgerencia no la haya resuelto (20270101005100):
+// insumos del maestro, cantidades, proyecto, fecha requerida, urgente,
+// observaciones y dirección. Si cambia el proyecto, recibe el número RQ del
+// proyecto nuevo.
+export async function modificarRequisicionAdministrativa(
+  id: string,
+  datos: {
+    proyectoId: string
+    lineas: LineaFormReqAdministrativa[]
+    fechaRequerida: string
+    fechaOriginal: string | null
+    urgente: boolean
+    observaciones: string
+    direccionEntrega: string
+  }
+): Promise<void> {
+  // Si no cambió la fecha, puede quedar en el pasado (la base hace lo mismo).
+  const hoy = hoyColombia()
+  const minimo = datos.fechaRequerida === datos.fechaOriginal ? "0000-01-01" : hoy
+  const error =
+    validarReqAdministrativa(datos.lineas, datos.fechaRequerida, minimo, datos.proyectoId) ??
+    validarDireccion(datos.direccionEntrega)
+  if (error) throw new Error(error)
+  const supabase = await clienteConSesion()
+  const { error: e } = await supabase.rpc("modificar_requisicion_administrativa", {
+    p_id: id,
+    p_proyecto_id: datos.proyectoId,
+    p_lineas: lineasParaGuardar(datos.lineas),
+    p_fecha_requerida: datos.fechaRequerida,
+    p_urgente: datos.urgente,
+    p_observaciones: datos.observaciones.trim() || null,
+    p_direccion_entrega: normalizarDireccion(datos.direccionEntrega),
+  })
+  if (e) throw new Error(e.message)
+}
