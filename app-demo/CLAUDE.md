@@ -2987,6 +2987,11 @@ general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
 - Lo COMPRADO sí cuenta en Control del proyecto: `control_proyecto` y
   `precios_control_proyecto` suman toda línea de OC aprobada del proyecto, sin
   mirar el tipo de requisición ni el APU. No filtrar por `extraordinaria` ahí.
+- **Insumo que no está en el maestro** (`20270101005200`, 2026-11-20): en "Pedir insumo que no está en el
+  presupuesto", "No está en el maestro: solicitar insumo nuevo" lo pide a Aprobación de insumos con origen
+  `requisicion_extraordinaria` y el proyecto, SIN ítem (con ítem, al aprobarlo entraría al APU). Al aprobarlo o
+  rechazarlo el aviso lleva a Elaboración de requisiciones (entidad `solicitud_insumo`); el rechazo de los de
+  requisiciones administrativas ahora lleva a esa pantalla (entidad `pedido_insumo`).
 - La aprueba Gerencia en **Aprobación de requisiciones extraordinarias**
   (`/almacen/requisiciones-extraordinarias`, pestaña `tecnico.aprobar_extraordinarias`,
   acción `aprobar_requisiciones_extraordinarias`), con `listar_requisiciones_extraordinarias`
@@ -4825,6 +4830,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004900` solicitudes de insumo con origen y proyecto (filtros de Aprobación de insumos).
 `20270101005000` requisición administrativa en espera de insumos nuevos.
 `20270101005100` modificar una requisición administrativa (también el proyecto).
+`20270101005200` solicitar insumo nuevo desde la requisición extraordinaria.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

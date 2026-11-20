@@ -12,8 +12,8 @@
 // extraordinarias (20261226000000_requisiciones_extraordinarias.sql).
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Loader2, TriangleAlert } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Loader2, PackagePlus, Plus, TriangleAlert, X } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -35,6 +35,9 @@ import {
   type ItemParaExtraordinaria,
 } from "@/app/(app)/almacen/actions"
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado } from "@/app/(app)/almacen/types"
+import { crearSolicitudInsumo } from "@/app/(app)/presupuestos/actions"
+import { useProyectoActual } from "@/components/proyecto-provider"
+import { UNIDADES_MAESTRO } from "@/lib/unidades"
 
 export const TITULO_EXTRAORDINARIA = "Solicitar requisición extraordinaria a Gerencia"
 
@@ -166,6 +169,10 @@ export function SolicitudExtraordinariaDialog({
   const [direccion, setDireccion] = useState("")
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Insumo que no está en el maestro: se pide a Aprobación de insumos.
+  const [solicitandoInsumo, setSolicitandoInsumo] = useState(false)
+  const [avisoSolicitud, setAvisoSolicitud] = useState<string | null>(null)
+  const { proyecto } = useProyectoActual()
   // Estables: el buscador vuelve a buscar cuando cambia la función.
   const buscarItems = useCallback((t: string) => buscarItemsPresupuesto(versionId, t), [versionId])
   const buscarInsumosApu = useCallback((t: string) => buscarInsumos(versionId, t), [versionId])
@@ -192,6 +199,7 @@ export function SolicitudExtraordinariaDialog({
       setJustificacion("")
       setDireccion("")
       setError(null)
+      setAvisoSolicitud(null)
     }
   }
 
@@ -423,7 +431,15 @@ export function SolicitudExtraordinariaDialog({
                         vacio="Ningún insumo del maestro coincide."
                       />
                     )}
+                    {!insumo && (
+                      <Button variant="outline" size="sm" onClick={() => setSolicitandoInsumo(true)}>
+                        <PackagePlus className="size-4" /> No está en el maestro: solicitar insumos nuevos
+                      </Button>
+                    )}
                   </div>
+                )}
+                {avisoSolicitud && (
+                  <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">{avisoSolicitud}</p>
                 )}
                 {item && insumo && !infoFuera && (
                   <span className="flex items-center text-xs text-muted-foreground">
@@ -572,6 +588,148 @@ export function SolicitudExtraordinariaDialog({
             </Button>
           </div>
         </div>
+        {solicitandoInsumo && (
+          <SolicitarInsumoNuevoDialog
+            proyectoId={proyecto?.id ?? null}
+            onCerrar={() => setSolicitandoInsumo(false)}
+            onEnviada={(descripciones) => {
+              setSolicitandoInsumo(false)
+              setAvisoSolicitud(
+                descripciones.length === 1
+                  ? `Se pidió "${descripciones[0]}" a Aprobación de insumos. Cuando lo aprueben te llega un aviso en la campanita: búscalo en el maestro y pídelo en una requisición extraordinaria.`
+                  : `Se pidieron ${descripciones.length} insumos a Aprobación de insumos (${descripciones.join(", ")}). Cuando los aprueben te llega un aviso por cada uno: búscalos en el maestro y pídelos en una requisición extraordinaria.`
+              )
+            }}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Insumo que no está en el maestro, pedido desde la requisición extraordinaria
+// (20270101005200). La solicitud no se cuelga del ítem: si lo hiciera, al
+// aprobarla se agregaría al APU y cambiaría el presupuesto. Lleva el origen y el
+// proyecto; al aprobarla llega el aviso para pedirlo en una extraordinaria.
+function SolicitarInsumoNuevoDialog({
+  proyectoId,
+  onCerrar,
+  onEnviada,
+}: {
+  proyectoId: string | null
+  onCerrar: () => void
+  onEnviada: (descripciones: string[]) => void
+}) {
+  // Varios insumos de una vez: una fila por insumo (nombre y unidad).
+  const filaVacia = () => ({ clave: crypto.randomUUID(), descripcion: "", unidad: "" })
+  const [filas, setFilas] = useState(() => [filaVacia()])
+  const [error, setError] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+
+  function cambiar(clave: string, cambio: Partial<{ descripcion: string; unidad: string }>) {
+    setFilas((fs) => fs.map((f) => (f.clave === clave ? { ...f, ...cambio } : f)))
+  }
+
+  async function enviar() {
+    // Las filas en blanco se ignoran; las que tienen algo deben estar completas.
+    const llenas = filas.filter((f) => f.descripcion.trim() || f.unidad)
+    if (llenas.length === 0) return setError("Escribe al menos un insumo.")
+    const incompleta = llenas.find((f) => !f.descripcion.trim() || !f.unidad)
+    if (incompleta)
+      return setError(incompleta.descripcion.trim() ? `Elige la unidad de "${incompleta.descripcion.trim()}".` : "Escribe el nombre de cada insumo.")
+    const nombres = llenas.map((f) => f.descripcion.trim().replace(/\s+/g, " ").toUpperCase())
+    if (new Set(nombres).size !== nombres.length) return setError("Hay un insumo repetido.")
+    setEnviando(true)
+    setError(null)
+    const enviados: string[] = []
+    try {
+      for (const f of llenas) {
+        await crearSolicitudInsumo({
+          descripcion: f.descripcion.trim(),
+          uM: f.unidad,
+          presupuestoItemId: null,
+          origen: "requisicion_extraordinaria",
+          proyectoId,
+        })
+        enviados.push(f.descripcion.trim())
+        // Si una falla, las que ya se enviaron salen de la lista.
+        setFilas((fs) => fs.filter((x) => x.clave !== f.clave))
+      }
+      onEnviada(enviados)
+    } catch (e) {
+      setError(
+        `${enviados.length > 0 ? `Se enviaron ${enviados.length}; ` : ""}${e instanceof Error ? e.message : "No se pudo enviar la solicitud."}`
+      )
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(a) => !a && !enviando && onCerrar()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Solicitar insumos nuevos</DialogTitle>
+          <DialogDescription>
+            Van a Aprobación de insumos. Cuando los aprueben quedan en el maestro, te llega un aviso y los puedes pedir en
+            la requisición extraordinaria.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <div className="grid grid-cols-[1fr_12rem_2rem] gap-2 text-xs font-medium text-muted-foreground">
+            <span>Nombre del insumo</span>
+            <span>Unidad</span>
+            <span />
+          </div>
+          {filas.map((f, i) => (
+            <div key={f.clave} className="grid grid-cols-[1fr_12rem_2rem] items-center gap-2">
+              <Input
+                value={f.descripcion}
+                onChange={(e) => cambiar(f.clave, { descripcion: e.target.value })}
+                placeholder={i === 0 ? "Ej. Pegante PVC 1/4 galón" : ""}
+                aria-label={`Nombre del insumo ${i + 1}`}
+                disabled={enviando}
+              />
+              <select
+                value={f.unidad}
+                onChange={(e) => cambiar(f.clave, { unidad: e.target.value })}
+                aria-label={`Unidad del insumo ${i + 1}`}
+                disabled={enviando}
+                className="h-10 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Elegir...</option>
+                {UNIDADES_MAESTRO.map((u) => (
+                  <option key={u.texto} value={u.texto}>
+                    {u.texto}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-destructive"
+                title="Quitar"
+                aria-label="Quitar insumo"
+                disabled={enviando || filas.length === 1}
+                onClick={() => setFilas((fs) => fs.filter((x) => x.clave !== f.clave))}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          ))}
+          <Button variant="outline" size="sm" onClick={() => setFilas((fs) => [...fs, filaVacia()])} disabled={enviando || filas.length >= 20}>
+            <Plus className="size-4" /> Otro insumo
+          </Button>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCerrar} disabled={enviando}>
+            Cancelar
+          </Button>
+          <Button onClick={enviar} disabled={enviando}>
+            {enviando && <Loader2 className="size-4 animate-spin" />} Enviar solicitud
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
