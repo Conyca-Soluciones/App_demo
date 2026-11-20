@@ -41,7 +41,7 @@ const ORDEN: { clave: Clave; ancho: number; llenar?: boolean }[] = [
   { clave: "codigo", ancho: 11 },
   { clave: "descripcion", ancho: 60 },
   { clave: "unidad", ancho: 9 },
-  { clave: "precio", ancho: 15 },
+  { clave: "precio", ancho: 15, llenar: true },
   { clave: "insumos", ancho: 11 },
   { clave: "manoObra", ancho: 12 },
   { clave: "herramienta", ancho: 12 },
@@ -54,7 +54,9 @@ export const INSTRUCCIONES_EXCEL_MODALIDADES = [
   `1. En cada ítem elige la Modalidad (amarillo): ${MODALIDADES.map((m) => NOMBRE_MODALIDAD[m]).join(", ")}. Vacía = Administración.`,
   "2. Si eliges Administración o Subcontrato mano de obra, escribe la Mano de obra: el valor unitario oficial de la mano de obra del ítem, SIN herramienta menor (la app la suma con el % del ítem). Si el ítem no tiene mano de obra, déjala vacía.",
   "3. Subcontrato todo costo: el ítem vale el % de todo costo del proyecto sobre el precio oficial. Subcontrato mano de obra sin insumos: 50 % de mano de obra + herramienta menor; con insumos, la mano de obra sale del catálogo. Administración: 100 % de mano de obra + herramienta menor.",
-  "4. No cambies los códigos. Al subirlo verás un resumen antes de aplicar; lo ya resuelto del APU se conserva.",
+  "4. Subcontrato mano de obra en un ítem sin mano de obra en su APU (ej. suministro e instalación): se le agrega una línea de mano de obra para elegirla del catálogo en Revisar pendientes.",
+  "5. El Precio oficial también se puede ajustar (por ejemplo, a la propuesta): al subirlo se actualiza y queda en el historial.",
+  "6. No cambies los códigos. Al subirlo verás un resumen antes de aplicar; lo ya resuelto del APU se conserva.",
 ]
 
 const sinTildes = (s: unknown) =>
@@ -126,6 +128,7 @@ export function leerFilasModalidades(filas: unknown[][]): { filas: FilaModalidad
   const iCodigo = col("codigo")
   const iModalidad = col("modalidad")
   const iManoObra = col("valorManoObra")
+  const iPrecio = col("precio")
 
   const resultado: FilaModalidadExcel[] = []
   const errores: string[] = []
@@ -157,12 +160,19 @@ export function leerFilasModalidades(filas: unknown[][]): { filas: FilaModalidad
       error("la mano de obra no puede ser negativa")
       continue
     }
+    const crudoPrecio = iPrecio >= 0 ? f[iPrecio] : null
+    const precio = numeroCelda(crudoPrecio)
+    if (texto(crudoPrecio) !== "" && (precio == null || precio <= 0)) {
+      error(`el precio oficial "${texto(crudoPrecio)}" no es un número mayor que cero`)
+      continue
+    }
     resultado.push({
       filaExcel,
       vacia: textoModalidad === "",
       codigo,
       modalidad,
       ...(manoObra != null ? { mano_obra_oficial: Math.round(manoObra * 100) / 100 } : {}),
+      ...(precio != null ? { precio_oficial: Math.round(precio * 100) / 100 } : {}),
     })
   }
   return { filas: resultado, errores }

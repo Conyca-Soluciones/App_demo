@@ -206,6 +206,12 @@ export function ModalidadesDialog({
                   <li>
                     <strong>{entero(resumen.cambian)}</strong> ítem(s) cambian.
                   </li>
+                  {resumen.preciosCambian > 0 && (
+                    <li>
+                      {entero(resumen.preciosCambian)} precio(s) oficial(es) se actualizan con el del Excel (quedan en el
+                      historial con el valor de antes).
+                    </li>
+                  )}
                   <li>
                     Quedarán:{" "}
                     {[...MODALIDADES, "sin_modalidad" as const]

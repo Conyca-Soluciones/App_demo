@@ -184,6 +184,9 @@ export type FilaRevisionImport = {
   // Trabajo de una mano de obra dividida (20270101004400): el texto del Excel
   // que se dividió. null = línea normal del import.
   divididaDe?: string | null
+  // Mano de obra que agregó la modalidad (subcontrato de mano de obra en un ítem
+  // sin mano de obra en el Excel, 20270101004600).
+  agregadaPorModalidad?: boolean
   // motivo que escribió el admin al rechazar (apu_import_revision.motivo_rechazo,
   // copiado de la solicitud antes de borrarla) -- null si esta
   // línea no está rechazada, o si el admin no escribió nada.

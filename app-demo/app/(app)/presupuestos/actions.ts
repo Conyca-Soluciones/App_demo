@@ -375,6 +375,7 @@ export async function fijarModalidadesPresupuesto(
   })
   if (error) throw new Error(error.message)
   const r = data as any
+  if (confirmar && r.aplicado) await candidatosManoObraAgregada(supabase, presupuesto.version_actual_id)
   return {
     aplicado: Boolean(r.aplicado),
     errores: (r.errores ?? []).map((e: any) => ({ fila: Number(e.fila), codigo: e.codigo ?? null, error: String(e.error) })),
@@ -385,7 +386,30 @@ export async function fijarModalidadesPresupuesto(
     solicitudesCerradas: Number(r.solicitudes_cerradas ?? 0),
     valorAntes: Number(r.valor_antes ?? 0),
     valorDespues: Number(r.valor_despues ?? r.valor_antes ?? 0),
+    preciosCambian: Number(r.precios_cambian ?? 0),
   }
+}
+
+// La mano de obra que agregó la modalidad (subcontrato de mano de obra en un
+// ítem sin mano de obra, 20270101004600) llega sin candidatos: se le ponen los
+// del catálogo con el nombre del ítem (el mismo ranking del import), para
+// elegirla en Revisar pendientes. Solo las que todavía no tienen.
+async function candidatosManoObraAgregada(supabase: Awaited<ReturnType<typeof createClient>>, versionId: string) {
+  const { data, error } = await supabase
+    .from("apu_import_revision")
+    .select("id, candidatos, presupuesto_items!inner(descripcion, version_id)")
+    .eq("agregada_por_modalidad", true)
+    .eq("estado", "pendiente")
+    .is("dividida_de", null)
+    .eq("presupuesto_items.version_id", versionId)
+  if (error) throw new Error(error.message)
+  const sinCandidatos = (data ?? []).filter((f: any) => !Array.isArray(f.candidatos) || f.candidatos.length === 0)
+  await procesarEnLotes(sinCandidatos, 8, async (f: any) => {
+    const candidatos = await buscarManoObraSimilares(f.presupuesto_items?.descripcion ?? "")
+    if (candidatos.length === 0) return
+    const { error: e } = await supabase.from("apu_import_revision").update({ candidatos }).eq("id", f.id)
+    if (e) throw new Error(e.message)
+  })
 }
 
 // Ítems hoja de la versión con lo que hace falta para el Excel de modalidades
@@ -436,6 +460,36 @@ export async function infoModalidadesDeItem(
   const vigente = (data as any).presupuestos?.version_actual_id
   if (!vigente || vigente !== data.version_id) return null
   return { presupuestoId: data.presupuesto_id, codigo: data.codigo, items: await infoModalidadesVersion(vigente) }
+}
+
+// Versión nueva desde el Excel (20270101004700): cada línea que ya estaba en
+// la versión anterior toma lo decidido antes (línea resuelta con la cantidad
+// nueva, la misma solicitud pendiente, el rechazo); pasan el desperdicio y las
+// modalidades. Una sola vez por versión.
+export type ResultadoReutilizarDecisiones = {
+  resueltas: number
+  solicitudes: number
+  rechazadas: number
+  nuevas: number
+  quitadas: number
+  modalidades: number
+  erroresModalidades: { codigo: string | null; error: string }[]
+}
+
+export async function reutilizarDecisionesVersionAnterior(presupuestoId: string): Promise<ResultadoReutilizarDecisiones> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("reutilizar_decisiones_version", { p_presupuesto_id: presupuestoId })
+  if (error) throw new Error(error.message)
+  const r = data as any
+  return {
+    resueltas: Number(r.resueltas ?? 0),
+    solicitudes: Number(r.solicitudes ?? 0),
+    rechazadas: Number(r.rechazadas ?? 0),
+    nuevas: Number(r.nuevas ?? 0),
+    quitadas: Number(r.quitadas ?? 0),
+    modalidades: Number(r.modalidades ?? 0),
+    erroresModalidades: ((r.errores_modalidades ?? []) as any[]).map((e) => ({ codigo: e.codigo ?? null, error: String(e.error) })),
+  }
 }
 
 export async function crearVersionVacia(
@@ -4365,6 +4419,7 @@ function mapearFilaRevision(fila: any): FilaRevisionImport {
     itemApuId: fila.item_apu_id,
     convertirInsumoId: fila.convertir_insumo_id ?? null,
     divididaDe: fila.dividida_de ?? null,
+    agregadaPorModalidad: Boolean(fila.agregada_por_modalidad),
     // Lo copia borrar_solicitud_resuelta antes de borrar la solicitud.
     motivoRechazo: fila.motivo_rechazo ?? null,
   }
@@ -4383,7 +4438,7 @@ export type LoteRevisionInfo = {
 }
  
 const SELECT_REVISION_CON_MOTIVO =
-  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, convertir_insumo_id, dividida_de, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
+  "id, lote_import_id, presupuesto_item_id, apu_id, descripcion_original, tipo, unidad, cantidad, candidatos, estado, insumo_id_asignado, mano_obra_categoria_id_asignado, equipo_categoria_id_asignado, item_apu_id, motivo_rechazo, convertir_insumo_id, dividida_de, agregada_por_modalidad, presupuesto_items(id, codigo, descripcion, unidad, padre_id, nivel), transporte_precios(id, valor_unitario)"
  
 export async function listarRevisionLote(loteImportId: string): Promise<LoteRevisionInfo> {
   const supabase = await createClient()
@@ -5710,7 +5765,8 @@ async function diferenciasLineasApu(itemIds: string[]): Promise<Record<string, D
         .from("apu_import_revision")
         .select("presupuesto_item_id")
         .in("presupuesto_item_id", lote)
-        .eq("estado", "dividido")
+        // También la mano de obra que agregó la modalidad (20270101004600).
+        .or("estado.eq.dividido,agregada_por_modalidad.eq.true")
       if (error) throw new Error(error.message)
       for (const f of data ?? []) divididos.add(f.presupuesto_item_id)
       return []
