@@ -644,6 +644,11 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   const detalle = await obtenerRequisicion(id)
   if (detalle.solicitanteId !== userId) throw new Error("Solo quien hizo la requisición puede modificarla.")
   if (detalle.estado !== "pendiente") throw new Error("Solo se puede modificar una requisición pendiente de aprobación.")
+  // Las administrativas usan un ítem oculto sin versión del presupuesto: se
+  // modifican en Requisiciones administrativas.
+  if (detalle.administrativa)
+    throw new Error("Las requisiciones administrativas se modifican en Requisiciones administrativas › Mis requisiciones.")
+  if (detalle.extraordinaria) throw new Error("Esta requisición no se modifica: cancélala y pide otra.")
 
   const lineas = detalle.lineas.filter((l) => l.estado === "pendiente")
   if (lineas.length === 0) throw new Error("La requisición no tiene insumos pendientes.")

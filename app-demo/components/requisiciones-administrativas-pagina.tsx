@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2, PackagePlus, Plus, Send, Trash2, X } from "lucide-react"
+import { Loader2, PackagePlus, Pencil, Plus, Send, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -39,6 +39,7 @@ import {
   crearRequisicionAdministrativa,
   crearRequisicionAdministrativaEnEspera,
   listarMisRequisicionesAdministrativas,
+  modificarRequisicionAdministrativa,
   listarMisRequisicionesEnEspera,
   reintentarRequisicionEspera,
   resolverInsumoRechazadoEspera,
@@ -71,13 +72,15 @@ export function RequisicionesAdministrativasPagina({
   const [pestana, setPestana] = useState<Pestana>(verInicial || enEspera ? "mias" : "nueva")
   const [version, setVersion] = useState(0)
   const [verId, setVerId] = useState<string | null>(verInicial)
+  // Requisición que se está modificando (se abre en la primera pestaña).
+  const [editando, setEditando] = useState<ReqAdministrativaDetalle | null>(null)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex gap-1.5 border-b">
         {(
           [
-            { valor: "nueva", etiqueta: "Realizar requisición" },
+            { valor: "nueva", etiqueta: editando ? `Modificar ${editando.codigo}` : "Realizar requisición" },
             { valor: "mias", etiqueta: "Mis requisiciones" },
           ] as const
         ).map((p) => (
@@ -97,15 +100,31 @@ export function RequisicionesAdministrativasPagina({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {pestana === "nueva" ? (
           <FormularioReqAdministrativa
-            key={version}
+            key={editando ? `editar-${editando.id}-${version}` : version}
+            edicion={editando}
+            onCancelarEdicion={() => {
+              setEditando(null)
+              setPestana("mias")
+            }}
             onEnviada={(id) => {
+              setEditando(null)
               setVersion((v) => v + 1)
               setVerId(id)
               setPestana("mias")
             }}
           />
         ) : (
-          <MisRequisiciones key={version} verId={verId} onVer={setVerId} onCerrarVer={() => setVerId(null)} />
+          <MisRequisiciones
+            key={version}
+            verId={verId}
+            onVer={setVerId}
+            onCerrarVer={() => setVerId(null)}
+            onModificar={(d) => {
+              setVerId(null)
+              setEditando(d)
+              setPestana("nueva")
+            }}
+          />
         )}
       </div>
     </div>
@@ -114,15 +133,35 @@ export function RequisicionesAdministrativasPagina({
 
 // ---------------------------------------------------------------- formulario
 // onEnviada(null): quedó en espera de insumos nuevos (no tiene número todavía).
-function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | null) => void }) {
+// edicion: modificar una requisición pendiente de Subgerencia (20270101005100):
+// mismo formulario lleno, sin cambiar el proyecto ni pedir insumos nuevos.
+function FormularioReqAdministrativa({
+  onEnviada,
+  edicion = null,
+  onCancelarEdicion,
+}: {
+  onEnviada: (id: string | null) => void
+  edicion?: ReqAdministrativaDetalle | null
+  onCancelarEdicion?: () => void
+}) {
   const hoy = hoyColombia()
-  const [lineas, setLineas] = useState<LineaFormReqAdministrativa[]>([])
+  const [lineas, setLineas] = useState<LineaFormReqAdministrativa[]>(() =>
+    (edicion?.lineas ?? [])
+      .filter((l) => l.estado === "pendiente")
+      .map((l) => ({
+        insumoId: l.insumoId,
+        codigo: l.insumoCodigo,
+        descripcion: l.insumoDescripcion,
+        unidad: l.unidad ? nombreUnidad(l.unidad) : null,
+        cantidad: String(l.cantidad),
+      }))
+  )
   const [proyectos, setProyectos] = useState<ProyectoReqAdministrativa[] | null>(null)
-  const [proyectoId, setProyectoId] = useState<string | null>(null)
-  const [fechaRequerida, setFechaRequerida] = useState("")
-  const [urgente, setUrgente] = useState(false)
-  const [observaciones, setObservaciones] = useState("")
-  const [direccion, setDireccion] = useState("")
+  const [proyectoId, setProyectoId] = useState<string | null>(edicion?.proyectoId ?? null)
+  const [fechaRequerida, setFechaRequerida] = useState(edicion?.fechaRequerida ?? "")
+  const [urgente, setUrgente] = useState(edicion?.urgente ?? false)
+  const [observaciones, setObservaciones] = useState(edicion?.observaciones ?? "")
+  const [direccion, setDireccion] = useState(edicion?.direccionEntrega ?? "")
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [solicitando, setSolicitando] = useState(false)
@@ -163,7 +202,9 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | n
   }
 
   async function enviar() {
-    const e = validarReqAdministrativa(lineas, fechaRequerida, hoy, proyectoId, nuevos) ?? validarDireccion(direccion)
+    // Al modificar, la fecha que ya tenía puede haber quedado en el pasado.
+    const minimo = edicion && fechaRequerida === edicion.fechaRequerida ? "0000-01-01" : hoy
+    const e = validarReqAdministrativa(lineas, fechaRequerida, minimo, proyectoId, nuevos) ?? validarDireccion(direccion)
     if (e) {
       setError(e)
       return
@@ -171,6 +212,19 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | n
     setEnviando(true)
     setError(null)
     try {
+      if (edicion) {
+        await modificarRequisicionAdministrativa(edicion.id, {
+          proyectoId: proyectoId!,
+          lineas,
+          fechaRequerida,
+          fechaOriginal: edicion.fechaRequerida,
+          urgente,
+          observaciones,
+          direccionEntrega: direccion,
+        })
+        onEnviada(edicion.id)
+        return
+      }
       const datos = { proyectoId: proyectoId!, lineas, fechaRequerida, urgente, observaciones, direccionEntrega: direccion }
       if (nuevos.length > 0) {
         await crearRequisicionAdministrativaEnEspera({ ...datos, nuevos })
@@ -222,6 +276,18 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | n
 
   return (
     <div className="max-w-5xl space-y-5">
+      {edicion && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span>
+            Modificando la requisición <span className="font-medium">{edicion.codigo}</span>. Mientras Subgerencia no la
+            apruebe puedes cambiar los insumos, el proyecto, las fechas y la dirección. Si cambias el proyecto, recibe el
+            número del proyecto nuevo.
+          </span>
+          <Button size="sm" variant="outline" onClick={onCancelarEdicion} disabled={enviando}>
+            Cancelar modificación
+          </Button>
+        </div>
+      )}
       <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
         Pide para <span className="font-medium text-foreground">FUNCIONAMIENTO</span> (lo que necesita la empresa y no es de una
         obra) o para uno de tus proyectos. No descuenta del presupuesto. La aprueba Subgerencia y después pasa a Compras.
@@ -271,13 +337,16 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | n
               disabled={lineas.length >= MAX_LINEAS_REQ_ADMINISTRATIVA}
             />
           </div>
-          <Button
-            variant="outline"
-            onClick={() => setSolicitando(true)}
-            disabled={lineas.length + nuevos.length >= MAX_LINEAS_REQ_ADMINISTRATIVA}
-          >
-            <PackagePlus className="size-4" /> No está: agregar insumo nuevo
-          </Button>
+          {/* Al modificar no se piden insumos nuevos (eso deja la requisición en espera). */}
+          {!edicion && (
+            <Button
+              variant="outline"
+              onClick={() => setSolicitando(true)}
+              disabled={lineas.length + nuevos.length >= MAX_LINEAS_REQ_ADMINISTRATIVA}
+            >
+              <PackagePlus className="size-4" /> No está: agregar insumo nuevo
+            </Button>
+          )}
         </div>
         {lineas.length > 0 && (
           <TablaExcel dosLineas
@@ -344,7 +413,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | n
         onChange={setDireccion}
         disabled={enviando}
         proyectoId={proyectoId}
-        sugerir={proyectoId !== null}
+        sugerir={proyectoId !== null && !edicion}
       />
 
       <div className="space-y-1.5">
@@ -357,7 +426,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | n
       <div className="flex justify-end border-t pt-4">
         <Button onClick={enviar} disabled={enviando || lineas.length + nuevos.length === 0 || !proyectoId}>
           {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}{" "}
-          {nuevos.length > 0 ? "Enviar (espera los insumos nuevos)" : "Enviar a aprobación"}
+          {edicion ? "Guardar cambios" : nuevos.length > 0 ? "Enviar (espera los insumos nuevos)" : "Enviar a aprobación"}
         </Button>
       </div>
 
@@ -447,7 +516,17 @@ function NuevoInsumoDialog({
 }
 
 // ---------------------------------------------------------------- mis requisiciones
-function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null; onVer: (id: string) => void; onCerrarVer: () => void }) {
+function MisRequisiciones({
+  verId,
+  onVer,
+  onCerrarVer,
+  onModificar,
+}: {
+  verId: string | null
+  onVer: (id: string) => void
+  onCerrarVer: () => void
+  onModificar: (d: ReqAdministrativaDetalle) => void
+}) {
   const [datos, setDatos] = useState<{ pagina: number; filas: ReqAdministrativaFila[]; hayMas: boolean } | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -525,6 +604,7 @@ function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null;
         <DetalleDialog
           id={verId}
           onCerrar={onCerrarVer}
+          onModificar={onModificar}
           onCancelada={() => {
             onCerrarVer()
             cargar(datos?.pagina ?? 0)
@@ -535,7 +615,17 @@ function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null;
   )
 }
 
-function DetalleDialog({ id, onCerrar, onCancelada }: { id: string; onCerrar: () => void; onCancelada: () => void }) {
+function DetalleDialog({
+  id,
+  onCerrar,
+  onCancelada,
+  onModificar,
+}: {
+  id: string
+  onCerrar: () => void
+  onCancelada: () => void
+  onModificar: (d: ReqAdministrativaDetalle) => void
+}) {
   const [d, setD] = useState<ReqAdministrativaDetalle | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState(false)
@@ -656,6 +746,11 @@ function DetalleDialog({ id, onCerrar, onCancelada }: { id: string; onCerrar: ()
           </div>
         )}
         <DialogFooter>
+          {d?.modificable && !cancelando && (
+            <Button variant="outline" onClick={() => onModificar(d)}>
+              <Pencil className="size-4" /> Modificar
+            </Button>
+          )}
           {d?.cancelable &&
             (cancelando ? (
               <Button variant="destructive" onClick={cancelar} disabled={procesando || !motivo.trim()}>

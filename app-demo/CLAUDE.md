@@ -4227,6 +4227,15 @@ rechazan. Quien la hizo la cancela mientras no haya OC vigente.
   Avisos `requisicion_espera_enviada`, `insumo_requisicion_rechazado`, `requisicion_espera_error` (también por
   correo); los de siempre de insumo aprobado/rechazado no salen para estas solicitudes.
 
+- **Modificar una administrativa** (`20270101005100`, 2026-11-20, decisión del usuario): quien la hizo,
+  mientras Subgerencia no la haya resuelto (`modificable` en `detalle_requisicion_administrativa`). Mis
+  requisiciones › Modificar abre el mismo formulario lleno (sin insumos nuevos): insumos del maestro,
+  cantidades, proyecto, fechas, urgente, observaciones y dirección (`modificar_requisicion_administrativa`,
+  evento `modificada`). Si cambia el proyecto, sus líneas pasan al ítem oculto del proyecto nuevo, recibe el
+  siguiente número RQ de ese proyecto (el de antes queda en el historial) y se avisa a Subgerencia del proyecto
+  nuevo. En el Registro de requisiciones, "Modificar" de una administrativa lleva a esa pantalla (el flujo de
+  las técnicas no sirve: sin versión del presupuesto).
+
 ## Ítems globales y gasto administrativo (2026-11-06)
 
 Decisiones del usuario (sin AIU en el presupuesto):
@@ -4815,6 +4824,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004800` modalidades: un ítem sin APU solo puede ir a todo costo.
 `20270101004900` solicitudes de insumo con origen y proyecto (filtros de Aprobación de insumos).
 `20270101005000` requisición administrativa en espera de insumos nuevos.
+`20270101005100` modificar una requisición administrativa (también el proyecto).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

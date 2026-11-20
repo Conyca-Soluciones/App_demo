@@ -147,6 +147,7 @@ export type ReqAdministrativaFila = {
 
 export type LineaReqAdministrativa = {
   id: string
+  insumoId: string
   insumoCodigo: number
   insumoDescripcion: string
   unidad: string | null
@@ -160,6 +161,9 @@ export type ReqAdministrativaDetalle = ReqAdministrativaFila & {
   esMia: boolean
   solicitante: string | null
   cancelable: boolean
+  // Quien la hizo, mientras Subgerencia no la haya resuelto (20270101005100).
+  modificable: boolean
+  proyectoId: string | null
   direccionEntrega: string | null
   // Quién la aprobó o rechazó (Subgerencia) y el motivo del rechazo.
   resolucion: { por: string | null; at: string | null; motivo: string | null } | null
@@ -203,12 +207,15 @@ export function mapDetalleReqAdministrativa(r: any): ReqAdministrativaDetalle {
     esMia: Boolean(r.es_mia),
     solicitante: r.solicitante ?? null,
     cancelable: Boolean(r.cancelable),
+    modificable: Boolean(r.modificable),
+    proyectoId: r.proyecto_id ?? null,
     direccionEntrega: r.direccion_entrega ?? null,
     resolucion: r.resolucion
       ? { por: r.resolucion.por ?? null, at: r.resolucion.at ?? null, motivo: r.resolucion.motivo ?? null }
       : null,
     lineas: (Array.isArray(r.lineas) ? r.lineas : []).map((l: any) => ({
       id: String(l.id),
+      insumoId: String(l.insumo_id ?? ""),
       insumoCodigo: Number(l.insumo_codigo),
       insumoDescripcion: String(l.insumo_descripcion ?? ""),
       unidad: l.unidad ?? null,

@@ -33,6 +33,9 @@ export type RequisicionResumen = {
   // Pide más de lo que contempla el presupuesto: la aprueba Gerencia
   // (20261226000000_requisiciones_extraordinarias.sql).
   extraordinaria: boolean
+  // De Requisiciones administrativas (sin ítem real del presupuesto): no se
+  // modifican, se cancelan y se piden otra vez.
+  administrativa: boolean
   justificacion: string | null
   // Dirección de entrega (Paquete A, obligatoria desde 20261231999400; las de
   // antes no la tienen).
@@ -179,6 +182,7 @@ export function mapResumen(r: any): RequisicionResumen {
     estado: r.estado,
     estadoCompra: r.estado_compra,
     extraordinaria: r.extraordinaria === true,
+    administrativa: r.administrativa === true,
     justificacion: r.justificacion ?? null,
     direccionEntrega: r.direccion_entrega ?? null,
   }

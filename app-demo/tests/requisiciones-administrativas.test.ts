@@ -62,6 +62,20 @@ describe("requisición administrativa (FUNCIONAMIENTO)", () => {
     })
     expect(d).toMatchObject({ numero: 12, nLineas: 1, urgente: true, cancelable: true })
     expect(d.lineas[0]).toMatchObject({ cantidad: 10, comprado: 4, rechazadoCompras: false })
+    expect(d.modificable).toBe(false)
+  })
+
+  it("detalle modificable trae el proyecto y el insumo de cada línea", () => {
+    const d = mapDetalleReqAdministrativa({
+      id: "r2",
+      numero: 3,
+      estado: "pendiente",
+      modificable: true,
+      proyecto_id: "py1",
+      lineas: [{ id: "p1", insumo_id: "i9", insumo_codigo: 101, insumo_descripcion: "Resma", cantidad: 2, estado: "pendiente" }],
+    })
+    expect(d).toMatchObject({ modificable: true, proyectoId: "py1" })
+    expect(d.lineas[0].insumoId).toBe("i9")
   })
 })
 
