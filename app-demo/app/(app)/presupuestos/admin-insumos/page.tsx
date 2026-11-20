@@ -26,6 +26,7 @@ const SIN_PROYECTO = "__sin_proyecto__"
 const NOMBRE_ORIGEN: Record<OrigenSolicitudInsumo, string> = {
   presupuesto: "Presupuesto (técnica)",
   requisicion_administrativa: "Requisición administrativa",
+  requisicion_extraordinaria: "Requisición extraordinaria",
 }
 
 const headClasses = CLASE_ENCABEZADO_EXCEL
@@ -220,9 +221,10 @@ function AdminInsumosContent() {
               onChange={(e) => setFiltroOrigen(e.target.value as "" | OrigenSolicitudInsumo)}
               className="h-9 min-w-56 rounded-md border bg-background px-2 text-sm"
             >
-              <option value="">Técnicas y administrativas</option>
+              <option value="">Todos los orígenes</option>
               <option value="presupuesto">{NOMBRE_ORIGEN.presupuesto}</option>
               <option value="requisicion_administrativa">{NOMBRE_ORIGEN.requisicion_administrativa}</option>
+              <option value="requisicion_extraordinaria">{NOMBRE_ORIGEN.requisicion_extraordinaria}</option>
             </select>
           </label>
           {hayFiltro && (
@@ -435,8 +437,8 @@ function FilaPendiente({
       <td className={`${celda} text-muted-foreground`}>
         <p>{solicitud.solicitadoPorNombre ?? "alguien"}</p>
         <p>{formatearFechaSinHora(solicitud.createdAt)}</p>
-        {solicitud.origen === "requisicion_administrativa" && (
-          <p className="font-medium text-amber-700">Requisición administrativa</p>
+        {solicitud.origen !== "presupuesto" && (
+          <p className="font-medium text-amber-700">{NOMBRE_ORIGEN[solicitud.origen]}</p>
         )}
         {solicitud.proyectoNombre && (
           <p className="truncate">

@@ -1203,7 +1203,7 @@ async function asignarSolicitudInsumo(revisionIds: string[]): Promise<string> {
   return data as string
 }
 
-export type OrigenSolicitudInsumo = "presupuesto" | "requisicion_administrativa"
+export type OrigenSolicitudInsumo = "presupuesto" | "requisicion_administrativa" | "requisicion_extraordinaria"
 
 export type SolicitudInsumo = {
   id: string
@@ -1296,7 +1296,8 @@ export async function listarSolicitudesInsumos(): Promise<SolicitudInsumo[]> {
     // que se eligió al pedirlo.
     proyectoId: r.presupuesto_items?.presupuestos?.proyectos?.id ?? r.proyecto?.id ?? null,
     proyectoNombre: r.presupuesto_items?.presupuestos?.proyectos?.nombre ?? r.proyecto?.nombre ?? null,
-    origen: r.origen === "requisicion_administrativa" ? "requisicion_administrativa" : "presupuesto",
+    origen:
+      r.origen === "requisicion_administrativa" || r.origen === "requisicion_extraordinaria" ? r.origen : "presupuesto",
     estado: r.estado,
     createdAt: r.created_at,
     codigoMaestroAsignado: r.codigo_maestro_asignado,

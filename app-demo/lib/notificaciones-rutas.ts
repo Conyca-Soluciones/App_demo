@@ -11,6 +11,11 @@ export function rutaNotificacion(n: AvisoParaRuta): string {
   // Cuadro de SINCO: a quien debe adjuntar los soportes (20270101002800).
   if (n.entidadTipo === "cuadro_sinco") return `/cuadros-sinco/${n.entidadId}`
   // Insumo nuevo aprobado sin ítem (lo pidió una requisición administrativa).
+  // Insumo nuevo pedido desde una requisición extraordinaria: a Elaboración de
+  // requisiciones (20270101005200).
+  if (n.entidadTipo === "solicitud_insumo") return "/almacen"
+  if ((n.tipo === "insumo_aprobado" || n.tipo === "insumo_rechazado") && n.entidadTipo === "pedido_insumo")
+    return "/ayf/requisiciones-administrativas"
   if (n.tipo === "insumo_aprobado" && n.entidadTipo !== "presupuesto") return "/ayf/requisiciones-administrativas"
   // Requisición administrativa en espera de insumos nuevos: a Mis requisiciones.
   if (n.entidadTipo === "requisicion_espera") return "/ayf/requisiciones-administrativas?espera=1"
