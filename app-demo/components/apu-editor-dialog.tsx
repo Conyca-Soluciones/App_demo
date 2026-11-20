@@ -596,6 +596,7 @@ function SeccionCategoria({
   onAbrir,
   onEliminarLinea,
   onEditarConversion,
+  onEditarCantidad,
   onEditarRendimiento,
   onAgregado,
   apuId,
@@ -700,20 +701,25 @@ function SeccionCategoria({
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {/* Antes era editable con doble click (CantidadEditable) --
-                      la cantidad de cada línea del APU ahora viene siempre del
-                      import/revisión de APU, así que acá queda de solo
-                      lectura, igual que ya se hizo con la cantidad del ítem
-                      de presupuesto en presupuesto-table.tsx. onEditarCantidad
-                      y handleEditarCantidad quedan sin usar en este punto de
-                      la UI; no los borré por si hace falta ese round-trip en
-                      otro lado -- avisa si prefieres que los saque del todo. */}
-                  <span
-                    title="La cantidad viene del APU importado -- no es editable acá"
-                    className="px-1.5 py-0.5 text-muted-foreground"
-                  >
-                    {it.cantidad}
-                  </span>
+                  {/* La cantidad de un INSUMO se cambia con doble clic (decisión
+                      del usuario, 2026-11-20). Se escribe la cantidad SIN
+                      desperdicio: la base le suma el % de la línea
+                      (_item_apu_desperdicio). Mano de obra (1 por unidad del
+                      ítem), equipo, transporte y las líneas fijas de la
+                      modalidad siguen de solo lectura. */}
+                  {it.insumoId && !it.fijo ? (
+                    <CantidadEditable
+                      valor={it.cantidadBase ?? it.cantidad}
+                      onGuardar={(nuevaCantidad) => onEditarCantidad(it.id, nuevaCantidad)}
+                    />
+                  ) : (
+                    <span
+                      title="La cantidad viene del APU importado -- no es editable acá"
+                      className="px-1.5 py-0.5 text-muted-foreground"
+                    >
+                      {it.cantidad}
+                    </span>
+                  )}
                   {it.desperdicioPct != null && it.cantidadBase != null && (
                     <span
                       className="block text-xs text-amber-700"
