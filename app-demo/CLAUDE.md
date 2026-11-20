@@ -4214,6 +4214,19 @@ rechazan. Quien la hizo la cancela mientras no haya OC vigente.
 - Avisa a quien tiene `comprar` y ve el proyecto (`requisicion_administrativa`).
   Sus compras entran al precio dinámico como cualquier OC aprobada.
 
+- **Insumos nuevos dentro de la requisición** (`20270101005000`, 2026-11-20, decisión del usuario): en el
+  formulario, "No está: agregar insumo nuevo" pone el insumo como una línea más (nombre, unidad, cantidad).
+  Con insumos nuevos la requisición se guarda EN ESPERA (`requisiciones_admin_espera` + `_nuevos`, solo por
+  funciones: `crear_requisicion_administrativa_en_espera`, que crea una solicitud de insumo por cada uno con
+  origen `requisicion_administrativa`). `trg_requisicion_espera_sigue_solicitud` sigue cada solicitud: al
+  aprobarse guarda el insumo creado y, si no falta ninguno, `_enviar_requisicion_espera` crea la requisición de
+  siempre a nombre de quien la pidió (`app.requisicion_por`, que leen `_crear_requisicion_administrativa` y
+  `_evento_requisicion`) y pasa a Subgerencia; el número RQ se da ahí (fecha requerida pasada = hoy). Rechazado:
+  aviso con el motivo; en Mis requisiciones se cambia por uno del maestro o se quita
+  (`resolver_insumo_rechazado_espera`). Si no se puede crear al final queda en "error" (reintentar o cancelar).
+  Avisos `requisicion_espera_enviada`, `insumo_requisicion_rechazado`, `requisicion_espera_error` (también por
+  correo); los de siempre de insumo aprobado/rechazado no salen para estas solicitudes.
+
 ## Ítems globales y gasto administrativo (2026-11-06)
 
 Decisiones del usuario (sin AIU en el presupuesto):
@@ -4801,6 +4814,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004700` versión nueva desde el Excel reutilizando lo decidido en la anterior.
 `20270101004800` modalidades: un ítem sin APU solo puede ir a todo costo.
 `20270101004900` solicitudes de insumo con origen y proyecto (filtros de Aprobación de insumos).
+`20270101005000` requisición administrativa en espera de insumos nuevos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

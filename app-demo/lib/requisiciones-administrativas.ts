@@ -34,24 +34,42 @@ export type LineaFormReqAdministrativa = {
   cantidad: string // como se escribe
 }
 
+// Insumo que no está en el maestro, pedido desde la requisición (20270101005000):
+// se pide a Aprobación de insumos y la requisición espera a que lo aprueben.
+export type NuevoInsumoFormReqAdministrativa = {
+  clave: string // solo para la pantalla
+  descripcion: string
+  unidad: string
+  cantidad: string // como se escribe
+}
+
 // Primer error (null = lista para enviar). Mismas reglas que
-// crear_requisicion_administrativa.
+// crear_requisicion_administrativa (y _en_espera si hay insumos nuevos).
 export function validarReqAdministrativa(
   lineas: LineaFormReqAdministrativa[],
   fechaRequerida: string,
   hoy: string,
-  proyectoId: string | null = "x"
+  proyectoId: string | null = "x",
+  nuevos: NuevoInsumoFormReqAdministrativa[] = []
 ): string | null {
   if (!proyectoId) return "Elige FUNCIONAMIENTO o el proyecto."
   if (!fechaRequerida) return "Escribe la fecha requerida."
   if (fechaRequerida < hoy) return "La fecha requerida no puede ser anterior a hoy."
-  if (lineas.length === 0) return "Agrega al menos un insumo."
-  if (lineas.length > MAX_LINEAS_REQ_ADMINISTRATIVA) return `Una requisición puede tener máximo ${MAX_LINEAS_REQ_ADMINISTRATIVA} insumos.`
+  if (lineas.length + nuevos.length === 0) return "Agrega al menos un insumo."
+  if (lineas.length + nuevos.length > MAX_LINEAS_REQ_ADMINISTRATIVA)
+    return `Una requisición puede tener máximo ${MAX_LINEAS_REQ_ADMINISTRATIVA} insumos.`
   if (new Set(lineas.map((l) => l.insumoId)).size !== lineas.length) return "Hay un insumo repetido."
   for (const l of lineas) {
     const n = leerCantidadEntera(l.cantidad)
     if (!n.ok) return `${l.descripcion}: ${n.error}`
     if (n.valor <= 0) return `${l.descripcion}: la cantidad tiene que ser mayor que cero.`
+  }
+  for (const x of nuevos) {
+    if (!x.descripcion.trim()) return "Escribe el nombre de cada insumo nuevo."
+    if (!x.unidad) return `${x.descripcion}: elige la unidad.`
+    const n = leerCantidadEntera(x.cantidad)
+    if (!n.ok) return `${x.descripcion}: ${n.error}`
+    if (n.valor <= 0) return `${x.descripcion}: la cantidad tiene que ser mayor que cero.`
   }
   return null
 }
@@ -62,6 +80,52 @@ export function lineasParaGuardar(lineas: LineaFormReqAdministrativa[]) {
     const n = leerCantidadEntera(l.cantidad)
     return { insumo_id: l.insumoId, cantidad: n.ok ? n.valor : 0 }
   })
+}
+
+// Solo con insumos nuevos ya validados.
+export function nuevosParaGuardar(nuevos: NuevoInsumoFormReqAdministrativa[]) {
+  return nuevos.map((x) => {
+    const n = leerCantidadEntera(x.cantidad)
+    return { descripcion: x.descripcion.trim(), unidad: x.unidad, cantidad: n.ok ? n.valor : 0 }
+  })
+}
+
+// ---------------------------------------------------------------- en espera de insumos nuevos
+export type InsumoNuevoEspera = {
+  id: string
+  descripcion: string
+  unidad: string | null
+  cantidad: number
+  estado: "esperando" | "aprobado" | "rechazado"
+  motivoRechazo: string | null
+  codigo: number | null // código en el maestro, ya aprobado
+}
+
+export type ReqAdministrativaEspera = {
+  id: string
+  estado: "esperando" | "error"
+  error: string | null
+  createdAt: string
+  fechaRequerida: string
+  urgente: boolean
+  observaciones: string | null
+  direccionEntrega: string
+  proyecto: string | null
+  lineas: { insumoId: string; codigo: number; descripcion: string; unidad: string | null; cantidad: number }[]
+  nuevos: InsumoNuevoEspera[]
+}
+
+// Qué le falta a una requisición en espera (para la etiqueta).
+export function etapaReqEspera(e: Pick<ReqAdministrativaEspera, "estado" | "nuevos">): { etiqueta: string; clase: string } {
+  if (e.estado === "error") return { etiqueta: "No se pudo enviar", clase: "border-red-300 bg-red-50 text-red-700" }
+  const rechazados = e.nuevos.filter((n) => n.estado === "rechazado").length
+  if (rechazados > 0)
+    return { etiqueta: `${rechazados} insumo(s) rechazado(s)`, clase: "border-red-300 bg-red-50 text-red-700" }
+  const esperando = e.nuevos.filter((n) => n.estado === "esperando").length
+  return {
+    etiqueta: `Esperando aprobación de ${esperando} insumo(s) nuevo(s)`,
+    clase: "border-sky-300 bg-sky-50 text-sky-700",
+  }
 }
 
 // ---------------------------------------------------------------- lista y detalle
@@ -152,6 +216,35 @@ export function mapDetalleReqAdministrativa(r: any): ReqAdministrativaDetalle {
       estado: String(l.estado ?? ""),
       comprado: Number(l.comprado ?? 0),
       rechazadoCompras: Boolean(l.rechazado_compras),
+    })),
+  }
+}
+export function mapReqAdministrativaEspera(r: any): ReqAdministrativaEspera {
+  return {
+    id: String(r.id),
+    estado: r.estado === "error" ? "error" : "esperando",
+    error: r.error ?? null,
+    createdAt: String(r.created_at ?? ""),
+    fechaRequerida: String(r.fecha_requerida ?? ""),
+    urgente: Boolean(r.urgente),
+    observaciones: r.observaciones ?? null,
+    direccionEntrega: String(r.direccion_entrega ?? ""),
+    proyecto: r.proyecto ?? null,
+    lineas: (Array.isArray(r.lineas) ? r.lineas : []).map((l: any) => ({
+      insumoId: String(l.insumo_id),
+      codigo: Number(l.codigo),
+      descripcion: String(l.descripcion ?? ""),
+      unidad: l.unidad ?? null,
+      cantidad: Number(l.cantidad ?? 0),
+    })),
+    nuevos: (Array.isArray(r.nuevos) ? r.nuevos : []).map((n: any) => ({
+      id: String(n.id),
+      descripcion: String(n.descripcion ?? ""),
+      unidad: n.unidad ?? null,
+      cantidad: Number(n.cantidad ?? 0),
+      estado: n.estado === "aprobado" || n.estado === "rechazado" ? n.estado : "esperando",
+      motivoRechazo: n.motivo_rechazo ?? null,
+      codigo: n.codigo != null ? Number(n.codigo) : null,
     })),
   }
 }
