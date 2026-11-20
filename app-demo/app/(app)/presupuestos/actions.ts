@@ -3386,7 +3386,8 @@ export async function eliminarInsumoApu(itemApuId: string) {
   }
 }
 
-// Cantidad de una línea de insumo, desde el editor de APU. Es la cantidad SIN
+// Cantidad de una línea del APU desde el editor: insumos, equipo y "No aplica"
+// (las líneas cuyo valor usa la cantidad). En un insumo es la cantidad SIN
 // desperdicio: _item_apu_desperdicio le suma el % de la línea. La RLS exige
 // editar_presupuestos en un proyecto que la persona ve (si no, 0 filas).
 export async function actualizarCantidadItemApu(itemApuId: string, nuevaCantidad: number) {
@@ -3398,14 +3399,19 @@ export async function actualizarCantidadItemApu(itemApuId: string, nuevaCantidad
     .from("item_apu")
     .update({ cantidad: Math.round(nuevaCantidad * 10000) / 10000 })
     .eq("id", itemApuId)
-    .not("insumo_id", "is", null)
+    .is("mano_obra_categoria_id", null)
+    .is("transporte_precio_id", null)
+    .is("porcentaje_mano_obra", null)
+    .is("concepto_fijo", null)
     .select("id")
 
   if (error) {
     throw new Error(error.message)
   }
   if (!data || data.length === 0) {
-    throw new Error("No se pudo cambiar la cantidad: no tienes permiso para editar este presupuesto o la línea no es de un insumo.")
+    throw new Error(
+      "No se pudo cambiar la cantidad: no tienes permiso para editar este presupuesto o la cantidad de esta línea no cuenta en el valor (mano de obra, transporte o herramienta menor)."
+    )
   }
 }
 

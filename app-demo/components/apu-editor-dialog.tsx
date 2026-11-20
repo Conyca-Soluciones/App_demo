@@ -142,6 +142,14 @@ function rendimientoEsEditable(it: ItemApu): boolean {
   return !it.manoObraCategoriaId && !it.transportePrecioId && !it.esHerramientaMenor && !it.noAplica && !it.fijo
 }
 
+// La cantidad cuenta en el valor solo para insumos y equipo
+// (recalcular_valor_apus); "No aplica" vale $ 0 pero la cantidad queda por
+// trazabilidad. Mano de obra, transporte, herramienta menor y las líneas fijas
+// de la modalidad no la usan.
+function cantidadEsEditable(it: ItemApu): boolean {
+  return !it.fijo && !it.manoObraCategoriaId && !it.transportePrecioId && !it.esHerramientaMenor
+}
+
 // Celda de cantidad editable con doble click -- en toda la tabla del
 // APU, SOLO la cantidad se puede tocar así (descripción, unidad y
 // precio siguen siendo de solo lectura acá; el precio se cambia desde
@@ -701,13 +709,15 @@ function SeccionCategoria({
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  {/* La cantidad de un INSUMO se cambia con doble clic (decisión
-                      del usuario, 2026-11-20). Se escribe la cantidad SIN
-                      desperdicio: la base le suma el % de la línea
-                      (_item_apu_desperdicio). Mano de obra (1 por unidad del
-                      ítem), equipo, transporte y las líneas fijas de la
-                      modalidad siguen de solo lectura. */}
-                  {it.insumoId && !it.fijo ? (
+                  {/* La cantidad se cambia con doble clic (decisión del usuario,
+                      2026-11-20) en las líneas cuyo valor la usa: insumos (de
+                      cualquier categoría), equipo y "No aplica". En un insumo
+                      se escribe SIN desperdicio: la base le suma el % de la
+                      línea (_item_apu_desperdicio). Mano de obra (1 por unidad
+                      del ítem), transporte (valor por unidad del ítem),
+                      herramienta menor (% de la mano de obra) y las líneas
+                      fijas de la modalidad no usan la cantidad en el valor. */}
+                  {cantidadEsEditable(it) ? (
                     <CantidadEditable
                       valor={it.cantidadBase ?? it.cantidad}
                       onGuardar={(nuevaCantidad) => onEditarCantidad(it.id, nuevaCantidad)}
