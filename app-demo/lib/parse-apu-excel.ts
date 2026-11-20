@@ -217,6 +217,15 @@ export function parseApuSheet(workbook: XLSX.WorkBook, nombreHoja = "APU"): Resu
       continue;
     }
 
+    // Código con decimales guardado como número: Excel muestra "3.10" pero
+    // guarda 3.1 (y "5.1" puede verse "5.10"); no se puede saber cuál era.
+    if (typeof fila[colCodigo] === "number" && !Number.isInteger(fila[colCodigo])) {
+      erroresEstructura.push(
+        `Fila ${numeroFilaExcel}: el código ${codigo} está guardado como número en Excel; ponle formato de texto a la columna Código y escríbelo como en la hoja del presupuesto (por ejemplo "3.10").`
+      );
+      continue;
+    }
+
     if (unidad) {
       // fila de ÍTEM (tiene código + nombre + unidad, sin tipo)
       if (bloqueActual) bloques.push(bloqueActual);

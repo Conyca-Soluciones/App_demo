@@ -1913,7 +1913,9 @@ export function RevisionApuDialog({
                                 <p className="text-xs italic text-muted-foreground/70">
                                   {fila.divididaDe
                                     ? `Trabajo "${fila.descripcionOriginal}" (mano de obra dividida; en el Excel: ${fila.divididaDe})`
-                                    : `Está en el presupuesto como: ${fila.descripcionOriginal}`}
+                                    : fila.agregadaPorModalidad
+                                      ? "El Excel no trae mano de obra para este ítem; la pide su modalidad (subcontrato de mano de obra): elígela del catálogo."
+                                      : `Está en el presupuesto como: ${fila.descripcionOriginal}`}
                                 </p>
                               </div>
                               <TablaCategoriasManoObra

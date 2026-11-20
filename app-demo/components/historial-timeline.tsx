@@ -217,6 +217,7 @@ const EVENTOS_PRESUPUESTO: Record<string, DefEvento> = {
   modalidades: { etiqueta: "Modalidades cambiadas", tono: "aviso" },
   mano_obra_dividida: { etiqueta: "Mano de obra dividida en trabajos", tono: "aviso" },
   mano_obra_juntada: { etiqueta: "Mano de obra juntada otra vez", tono: "aviso" },
+  decisiones_reutilizadas: { etiqueta: "Versión nueva con lo decidido en la anterior", tono: "aviso" },
 }
 
 const EVENTOS_ROL: Record<string, DefEvento> = {
@@ -495,6 +496,11 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
         `Trabajos: ${Array.isArray(d.trabajos) ? d.trabajos.join(", ") : formatoValor(d.trabajos)}`,
       ]
     if (e.evento === "mano_obra_juntada") return [`Ítem ${formatoValor(d.codigo)}`]
+    if (e.evento === "decisiones_reutilizadas")
+      return [
+        `${formatoValor(d.resueltas)} línea(s) resueltas y ${formatoValor(d.solicitudes)} esperando aprobación pasaron a la versión nueva`,
+        `${formatoValor(d.nuevas)} nuevas · ${formatoValor(d.quitadas)} quitadas`,
+      ]
     if (e.evento === "modalidades")
       return [
         `${formatoValor(d.items)} ítem(s) cambiaron de modalidad`,

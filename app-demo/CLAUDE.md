@@ -3319,6 +3319,39 @@ la Loseta (15 und) necesita un contrato de FABRICACIÓN y otro de INSTALACIÓN, 
 - Pendiente (decisión del usuario): regla "un ítem sin modalidad no se contrata", para encender
   después de que el Malecón suba su Excel de modalidades.
 
+## Versión nueva desde el Excel sin perder lo decidido (2026-11-20)
+
+Caso: el Malecón con los APU recompuestos y los precios ajustados a la propuesta (plantilla V2).
+- **`20270101004700`** (`reutilizar_decisiones_version(presupuesto)`): subir el Excel a un proyecto que
+  ya tiene presupuesto crea la versión nueva y el import arma sus APU desde cero; al terminar,
+  `guardarPresupuestoConApu` (page.tsx) la llama y muestra el resumen. Cada línea del APU nuevo que ya
+  estaba en la versión anterior (mismo código de ítem, `_clave_actividad` del nombre de la línea, mismo
+  tipo y, si se repite, el mismo orden) toma lo decidido: resuelta (o automática que ahora no salió) =
+  la misma línea del APU (insumo / categoría / equipo / "No aplica", unidad, conversión, precio
+  congelado) con la CANTIDAD NUEVA del Excel (la mano de obra sigue en 1); esperando aprobación = la
+  MISMA solicitud, que se suelta de la versión anterior (al aprobarla entra a la nueva); rechazada =
+  rechazada con su motivo. Las líneas nuevas quedan como las dejó el import. Pasan el desperdicio y las
+  modalidades (`fijar_modalidades_presupuesto`). La versión anterior queda congelada (historial
+  `decisiones_reutilizadas`); una sola vez por versión (`presupuesto_versiones.decisiones_reutilizadas_at`).
+  Probado con el Malecón completo simulado: 319 resueltas, 1.868 solicitudes, 1 rechazada.
+- **Códigos guardados como número en Excel**: Excel muestra "3.10" y guarda 3.1 (y "5.1" puede verse
+  "5.10"). El import de las dos hojas (page.tsx y `parse-apu-excel.ts`) corta con un mensaje si el
+  código tiene decimales y es número: hay que ponerle formato de texto. La plantilla V2 del Malecón
+  traía así los capítulos 1 a 3; la copia corregida (`docs/PLANTILLA PRESUPUESTO V2 - codigos como
+  texto.xlsx`, fuera de git) tiene los códigos como en la base, el capítulo 15.10 y el bloque de la
+  Bomba jockey de la hoja APU con su código real (9.7.25, venía 9.7.26).
+- **`20270101004600`**: subcontrato de mano de obra en un ítem SIN mano de obra pero con insumos
+  (suministro e instalación) agrega al APU una línea de mano de obra pendiente
+  (`apu_import_revision.agregada_por_modalidad`, "Mano de obra (la pide la modalidad)") para elegirla
+  del catálogo en Revisar pendientes (con candidatos por el nombre del ítem,
+  `candidatosManoObraAgregada`). No cuenta como mano de obra del Excel (`_info_modalidad_item`): en
+  administración no pide mano de obra oficial y se guarda aparte; vuelve si regresa a subcontrato; se
+  puede dividir (los trabajos heredan la marca). El Excel de modalidades también actualiza el **precio
+  oficial** (columna "Precio oficial", ahora amarilla): `fijar_modalidades_presupuesto` acepta
+  `precio_oficial`, lo actualiza antes de aplicar la modalidad (todo costo sale de él), la vista previa
+  dice cuántos cambian y el historial `modalidades` guarda cada uno (antes, después). Corrige el código
+  del capítulo "ESTRUCTURA MODULAR METALICA" del Malecón ("15.1" repetido → "15.10").
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
@@ -4752,6 +4785,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004200` contratos de obra y mano de obra por encima del tope con autorización de Gerencia.
 `20270101004400` mano de obra dividida en trabajos y contratos por trabajo.
 `20270101004500` dividir: elegir la categoría del catálogo antes de enviar a aprobación.
+`20270101004600` subcontrato de mano de obra sin mano de obra en el APU, precio oficial en el Excel de modalidades y código 15.10 del Malecón.
+`20270101004700` versión nueva desde el Excel reutilizando lo decidido en la anterior.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

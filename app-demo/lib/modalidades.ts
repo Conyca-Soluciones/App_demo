@@ -93,7 +93,10 @@ export function lineaFijaModalidad(d: DatosModalidadItem): LineaFija | null {
     return { concepto: "todo_costo", valor: redondear2((d.precioOficial * d.topeTodoCostoPct) / 100) }
   }
   if (d.modalidad === "mano_obra") {
-    if (!d.tieneManoObra) throw new Error("no tiene mano de obra: no puede ser subcontrato de mano de obra")
+    // Sin mano de obra pero con insumos (suministro e instalación): la base le
+    // agrega una línea de mano de obra para elegirla del catálogo (20270101004600).
+    if (!d.tieneManoObra && !d.conInsumos)
+      throw new Error("no tiene mano de obra ni insumos: no puede ser subcontrato de mano de obra")
     if (d.conInsumos) return null
     if (!d.manoObraOficial || d.manoObraOficial <= 0) throw new Error("falta la mano de obra oficial")
     return { concepto: "mano_obra_subcontrato", valor: redondear2(0.5 * d.manoObraOficial * (1 + hm / 100)) }
@@ -116,6 +119,9 @@ export type FilaModalidad = {
   modalidad: Modalidad | null
   mano_obra_oficial?: number | null
   herramienta_menor_pct?: number | null
+  // Precio oficial ajustado (ej. a la propuesta); si cambia, se actualiza
+  // antes de aplicar la modalidad (20270101004600).
+  precio_oficial?: number | null
 }
 
 // Lo que devuelve fijar_modalidades_presupuesto.
@@ -129,6 +135,8 @@ export type ResultadoModalidades = {
   solicitudesCerradas: number
   valorAntes: number
   valorDespues: number
+  // Ítems cuyo precio oficial cambia con el Excel (20270101004600).
+  preciosCambian: number
 }
 
 // Lo que dice la hoja APU de un ítem, para validar su modalidad.

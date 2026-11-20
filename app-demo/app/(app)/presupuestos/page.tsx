@@ -34,6 +34,7 @@ import {
   crearNuevaVersion,
   contarLineasSinResolverVersion,
   crearVersionVacia,
+  reutilizarDecisionesVersionAnterior,
   actualizarEstadoPresupuesto,
   matchearYGuardarImportApu,
   obtenerEstadoApuPorItem,
@@ -270,6 +271,18 @@ function procesarOrdenPresupuesto(data: Record<string, unknown>[]): OrdenPresupu
     // reconocido -- también se ignora en silencio (mismo criterio que
     // antes: sin código no hay nada que ubicar en la jerarquía).
     if (!codigoRaw) return
+
+    // Código con decimales guardado como número: Excel muestra "3.10" pero
+    // guarda 3.1 (y "5.1" puede verse "5.10"); no se adivina, se corta.
+    const valorCodigo = fila[colMap.codigo!]
+    if (typeof valorCodigo === "number" && !Number.isInteger(valorCodigo)) {
+      const numeroFila = index + 2
+      filasInvalidas.push(
+        `  Fila ${numeroFila}: "${codigoRaw}" — el código está guardado como número en Excel; ponle formato de texto a la columna Código y escríbelo tal cual (por ejemplo "3.10")` +
+          (descripcionRaw ? ` (${descripcionRaw})` : "")
+      )
+      return
+    }
 
     const resultado = calcularNivelDesdeCodigo(codigoRaw, stackCodigos)
     if (!resultado.ok) {
@@ -1248,6 +1261,29 @@ function PresupuestoDeProyecto() {
       latidoImportRef.current = null
       await latidoImportPresupuesto(idPresupuesto, false)
       importAMediasRef.current = null
+
+      // Versión nueva: lo decidido en la versión anterior se conserva (líneas
+      // resueltas con la cantidad nueva, solicitudes pendientes, rechazos,
+      // desperdicio y modalidades). La anterior queda congelada.
+      if (versionNueva) {
+        const r = await reutilizarDecisionesVersionAnterior(idPresupuesto)
+        const partes = [
+          `${r.resueltas.toLocaleString("es-CO")} línea(s) ya resueltas se conservaron con la cantidad nueva`,
+          `${r.solicitudes.toLocaleString("es-CO")} siguen esperando su aprobación (las mismas solicitudes)`,
+          r.rechazadas > 0 ? `${r.rechazadas} siguen rechazadas` : null,
+          `${r.nuevas.toLocaleString("es-CO")} línea(s) nuevas pasan por la revisión normal`,
+          r.quitadas > 0 ? `${r.quitadas.toLocaleString("es-CO")} línea(s) de la versión anterior ya no están` : null,
+          r.modalidades > 0 ? `${r.modalidades} ítem(s) conservaron su modalidad` : null,
+        ].filter(Boolean)
+        let aviso = `Versión nueva: ${partes.join("; ")}.`
+        if (r.erroresModalidades.length > 0) {
+          aviso += ` Modalidades que no se pudieron pasar: ${r.erroresModalidades
+            .map((e) => `${e.codigo ?? "?"} (${e.error})`)
+            .join(", ")}.`
+        }
+        setAvisoImportApu(aviso)
+        await refrescarEstadosApu(items.map((i) => i.id))
+      }
 
       // Con todas las líneas del APU ya guardadas (la modalidad decide cuáles
       // dejan de contar).

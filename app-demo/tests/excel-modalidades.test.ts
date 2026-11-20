@@ -19,7 +19,7 @@ const encabezado = [
 ]
 
 describe("leerFilasModalidades", () => {
-  it("lee modalidad y mano de obra; vacía = Administración; sin mano de obra no la manda", () => {
+  it("lee modalidad, mano de obra y precio oficial; vacía = Administración; sin mano de obra no la manda", () => {
     const r = leerFilasModalidades([
       ["Modalidades — Malecón"],
       [],
@@ -32,10 +32,10 @@ describe("leerFilasModalidades", () => {
     ])
     expect(r.errores).toEqual([])
     expect(r.filas).toEqual([
-      { filaExcel: 4, vacia: false, codigo: "1.1", modalidad: "mano_obra" },
-      { filaExcel: 5, vacia: false, codigo: "1.3", modalidad: "administracion", mano_obra_oficial: 171999 },
-      { filaExcel: 6, vacia: false, codigo: "1.4", modalidad: "todo_costo", mano_obra_oficial: 14163 },
-      { filaExcel: 7, vacia: true, codigo: "1.10", modalidad: "administracion" },
+      { filaExcel: 4, vacia: false, codigo: "1.1", modalidad: "mano_obra", precio_oficial: 22372 },
+      { filaExcel: 5, vacia: false, codigo: "1.3", modalidad: "administracion", mano_obra_oficial: 171999, precio_oficial: 231596 },
+      { filaExcel: 6, vacia: false, codigo: "1.4", modalidad: "todo_costo", mano_obra_oficial: 14163, precio_oficial: 2606652 },
+      { filaExcel: 7, vacia: true, codigo: "1.10", modalidad: "administracion", precio_oficial: 2088 },
     ])
   })
   it("errores con fila e ítem", () => {
@@ -46,6 +46,8 @@ describe("leerFilasModalidades", () => {
       ["1.3", "", "", "", "", "", "", "Administración", -5],
       ["1.4", "", "", "", "", "", "", "Administración", ""],
       ["1.4", "", "", "", "", "", "", "Administración", ""],
+      ["1.5", "", "", "cero", "", "", "", "Administración", ""],
+      ["1.6", "", "", 0, "", "", "", "Administración", ""],
     ])
     expect(r.filas.map((f) => f.codigo)).toEqual(["1.4"])
     expect(r.errores).toEqual([
@@ -53,6 +55,8 @@ describe("leerFilasModalidades", () => {
       '  Fila 3 (ítem 1.2): la mano de obra "mucho" no es un número',
       "  Fila 4 (ítem 1.3): la mano de obra no puede ser negativa",
       "  Fila 6 (ítem 1.4): el código está repetido en el Excel",
+      '  Fila 7 (ítem 1.5): el precio oficial "cero" no es un número mayor que cero',
+      '  Fila 8 (ítem 1.6): el precio oficial "0" no es un número mayor que cero',
     ])
   })
   it("sin encabezado avisa", () => {
@@ -99,8 +103,8 @@ describe("Excel de modalidades de ida y vuelta", () => {
     const r = leerFilasModalidades(filas)
     expect(r.errores).toEqual([])
     expect(r.filas.map(({ filaExcel: _f, vacia: _v, ...resto }) => resto)).toEqual([
-      { codigo: "1.10", modalidad: "administracion" },
-      { codigo: "1.3", modalidad: "mano_obra", mano_obra_oficial: 171999 },
+      { codigo: "1.10", modalidad: "administracion", precio_oficial: 10120 },
+      { codigo: "1.3", modalidad: "mano_obra", mano_obra_oficial: 171999, precio_oficial: 231596 },
     ])
   })
 })

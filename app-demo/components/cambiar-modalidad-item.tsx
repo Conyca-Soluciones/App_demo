@@ -228,9 +228,16 @@ export function CambiarModalidadItem({
                       setResumen(null)
                       setError(null)
                     }}
-                    // Sin mano de obra no hay subcontrato de mano de obra.
-                    disabled={trabajando || (m === "mano_obra" && !item.tieneManoObra)}
-                    title={m === "mano_obra" && !item.tieneManoObra ? "El ítem no tiene mano de obra en su APU" : undefined}
+                    // Sin mano de obra ni insumos no hay subcontrato de mano de obra; con
+                    // insumos se le agrega una línea para elegir del catálogo (20270101004600).
+                    disabled={trabajando || (m === "mano_obra" && !item.tieneManoObra && !item.conInsumos)}
+                    title={
+                      m === "mano_obra" && !item.tieneManoObra
+                        ? item.conInsumos
+                          ? "El APU no trae mano de obra: se agrega una línea para elegirla del catálogo"
+                          : "El ítem no tiene mano de obra ni insumos en su APU"
+                        : undefined
+                    }
                     className={`rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${modalidad === m ? "border-primary bg-primary/10 font-medium" : "hover:bg-muted"}`}
                   >
                     {NOMBRE_MODALIDAD[m]}

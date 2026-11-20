@@ -35,6 +35,22 @@ describe("parseApuSheet", () => {
     expect(r.bloques[1].lineas[0].tipo).toBe("MO")
   })
 
+  it("un código con decimales guardado como número (Excel muestra 3.10 y guarda 3.1) corta el import", () => {
+    const r = parseApuSheet(
+      libro([
+        ENCABEZADO,
+        [3.1, "Demolición de muro", null, "m2", null, null],
+        [null, "Ayudante", "MO", "hc", 0.1, null],
+        ["3.11", "Demolición de piso", null, "m2", null, null],
+        [3, "CAPÍTULO", null, null, null, null],
+      ])
+    )
+    // El código y la línea que quedó sin ítem: los dos cortan el import.
+    expect(r.erroresEstructura[0]).toMatch(/Fila 2: el código 3.1 está guardado como número/)
+    expect(r.erroresEstructura[1]).toMatch(/Fila 3: insumo "Ayudante" sin ningún ítem abierto/)
+    expect(r.bloques.map((b) => b.codigoItem)).toEqual(["3.11"])
+  })
+
   it("un Tipo desconocido no corta el import: queda como INSUMO", () => {
     const r = parseApuSheet(libro([ENCABEZADO, ["2.1", "Ítem", null, "m2", null, null], [null, "Algo", "HR", "hr", 1, null]]))
     expect(r.bloques[0].lineas[0].tipo).toBe("INSUMO")

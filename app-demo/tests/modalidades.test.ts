@@ -135,7 +135,7 @@ describe("validarModalidadesImport", () => {
       [
         { codigo: "1.1", fila: 8, modalidad: "administracion", manoObraOficial: null, precioOficial: 22372 },
         { codigo: "1.4", fila: 10, modalidad: "todo_costo", manoObraOficial: null, precioOficial: 100 },
-        { codigo: "1.5", fila: 11, modalidad: "mano_obra", manoObraOficial: 100, precioOficial: 5000 },
+        { codigo: "1.6", fila: 11, modalidad: "mano_obra", manoObraOficial: 100, precioOficial: 5000 },
       ],
       new Set(),
       apu,
@@ -144,6 +144,16 @@ describe("validarModalidadesImport", () => {
     expect(r.errores).toHaveLength(3)
     expect(r.errores[0]).toContain("Fila 8 (ítem 1.1, Administración): falta la mano de obra oficial")
     expect(r.errores[1]).toContain("% de subcontrato a todo costo")
-    expect(r.errores[2]).toContain("no tiene mano de obra")
+    expect(r.errores[2]).toContain("no tiene mano de obra ni insumos")
+  })
+  it("subcontrato de mano de obra sin mano de obra pero con insumos: pasa (la mano de obra se elige del catálogo)", () => {
+    const r = validarModalidadesImport(
+      [{ codigo: "1.5", fila: 11, modalidad: "mano_obra", manoObraOficial: null, precioOficial: 5000 }],
+      new Set(),
+      apu,
+      null
+    )
+    expect(r.errores).toEqual([])
+    expect(r.filas).toHaveLength(1)
   })
 })
