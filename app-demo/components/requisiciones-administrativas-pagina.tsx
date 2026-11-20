@@ -22,19 +22,26 @@ import { nombreUnidad, UNIDADES_MAESTRO } from "@/lib/unidades"
 import {
   MAX_LINEAS_REQ_ADMINISTRATIVA,
   etapaReqAdministrativa,
+  etapaReqEspera,
   nombreProyectoReqAdministrativa,
   validarReqAdministrativa,
   type LineaFormReqAdministrativa,
+  type NuevoInsumoFormReqAdministrativa,
   type ProyectoReqAdministrativa,
+  type ReqAdministrativaEspera,
   type ReqAdministrativaDetalle,
   type ReqAdministrativaFila,
 } from "@/lib/requisiciones-administrativas"
 import { buscarInsumosMaestro, type InsumoMaestro } from "@/app/(app)/almacen/actions"
-import { crearSolicitudInsumo } from "@/app/(app)/presupuestos/actions"
 import {
   cancelarRequisicionAdministrativa,
+  cancelarRequisicionEspera,
   crearRequisicionAdministrativa,
+  crearRequisicionAdministrativaEnEspera,
   listarMisRequisicionesAdministrativas,
+  listarMisRequisicionesEnEspera,
+  reintentarRequisicionEspera,
+  resolverInsumoRechazadoEspera,
   listarProyectosReqAdministrativa,
   obtenerRequisicionAdministrativa,
 } from "@/app/(app)/ayf/requisiciones-administrativas/actions"
@@ -54,8 +61,14 @@ function EtiquetaEtapa({ r }: { r: Pick<ReqAdministrativaFila, "estado" | "estad
 
 // Requisiciones administrativas (FUNCIONAMIENTO o un proyecto): pedir insumos que compra
 // Compras y no son de una obra, y consultar las mías. ?ver=<id> abre una.
-export function RequisicionesAdministrativasPagina({ verInicial }: { verInicial: string | null }) {
-  const [pestana, setPestana] = useState<Pestana>(verInicial ? "mias" : "nueva")
+export function RequisicionesAdministrativasPagina({
+  verInicial,
+  enEspera = false,
+}: {
+  verInicial: string | null
+  enEspera?: boolean
+}) {
+  const [pestana, setPestana] = useState<Pestana>(verInicial || enEspera ? "mias" : "nueva")
   const [version, setVersion] = useState(0)
   const [verId, setVerId] = useState<string | null>(verInicial)
 
@@ -100,7 +113,8 @@ export function RequisicionesAdministrativasPagina({ verInicial }: { verInicial:
 }
 
 // ---------------------------------------------------------------- formulario
-function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) => void }) {
+// onEnviada(null): quedó en espera de insumos nuevos (no tiene número todavía).
+function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string | null) => void }) {
   const hoy = hoyColombia()
   const [lineas, setLineas] = useState<LineaFormReqAdministrativa[]>([])
   const [proyectos, setProyectos] = useState<ProyectoReqAdministrativa[] | null>(null)
@@ -112,7 +126,8 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [solicitando, setSolicitando] = useState(false)
-  const [aviso, setAviso] = useState<string | null>(null)
+  // Insumos que no están en el maestro: se piden con la requisición.
+  const [nuevos, setNuevos] = useState<NuevoInsumoFormReqAdministrativa[]>([])
 
   useEffect(() => {
     let vigente = true
@@ -148,7 +163,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
   }
 
   async function enviar() {
-    const e = validarReqAdministrativa(lineas, fechaRequerida, hoy, proyectoId) ?? validarDireccion(direccion)
+    const e = validarReqAdministrativa(lineas, fechaRequerida, hoy, proyectoId, nuevos) ?? validarDireccion(direccion)
     if (e) {
       setError(e)
       return
@@ -156,15 +171,14 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
     setEnviando(true)
     setError(null)
     try {
-      const r = await crearRequisicionAdministrativa({
-        proyectoId: proyectoId!,
-        lineas,
-        fechaRequerida,
-        urgente,
-        observaciones,
-        direccionEntrega: direccion,
-      })
-      onEnviada(r.id)
+      const datos = { proyectoId: proyectoId!, lineas, fechaRequerida, urgente, observaciones, direccionEntrega: direccion }
+      if (nuevos.length > 0) {
+        await crearRequisicionAdministrativaEnEspera({ ...datos, nuevos })
+        onEnviada(null)
+      } else {
+        const r = await crearRequisicionAdministrativa(datos)
+        onEnviada(r.id)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo enviar la requisición.")
     } finally {
@@ -211,6 +225,8 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
       <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
         Pide para <span className="font-medium text-foreground">FUNCIONAMIENTO</span> (lo que necesita la empresa y no es de una
         obra) o para uno de tus proyectos. No descuenta del presupuesto. La aprueba Subgerencia y después pasa a Compras.
+        Si un insumo no está en el maestro, agrégalo como insumo nuevo: la requisición espera a que lo aprueben y se envía
+        sola.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -255,12 +271,15 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
               disabled={lineas.length >= MAX_LINEAS_REQ_ADMINISTRATIVA}
             />
           </div>
-          <Button variant="outline" onClick={() => setSolicitando(true)}>
-            <PackagePlus className="size-4" /> No está: solicitar insumo nuevo
+          <Button
+            variant="outline"
+            onClick={() => setSolicitando(true)}
+            disabled={lineas.length + nuevos.length >= MAX_LINEAS_REQ_ADMINISTRATIVA}
+          >
+            <PackagePlus className="size-4" /> No está: agregar insumo nuevo
           </Button>
         </div>
-        {aviso && <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">{aviso}</p>}
-        {lineas.length > 0 ? (
+        {lineas.length > 0 && (
           <TablaExcel dosLineas
             filas={lineas.map((l, i) => ({ l, i }))}
             columnas={columnas}
@@ -271,7 +290,47 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
               campos: ["cantidad", "quitar"],
             }}
           />
-        ) : (
+        )}
+        {nuevos.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/50 p-3">
+            <p className="text-sm text-sky-900">
+              <span className="font-medium">Insumos nuevos (no están en el maestro).</span> Se piden a Aprobación de
+              insumos al enviar. La requisición queda en espera y pasa sola a Subgerencia cuando los aprueben; te avisamos
+              por la campanita y por correo.
+            </p>
+            <div className="space-y-1.5">
+              {nuevos.map((x) => (
+                <div key={x.clave} className="flex flex-wrap items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm">
+                  <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-700">
+                    Insumo nuevo
+                  </Badge>
+                  <span className="min-w-40 flex-1 font-medium">{x.descripcion}</span>
+                  <span className="text-xs text-muted-foreground">{x.unidad}</span>
+                  <Input
+                    inputMode="numeric"
+                    value={x.cantidad}
+                    onChange={(e) =>
+                      setNuevos((ns) => ns.map((y) => (y.clave === x.clave ? { ...y, cantidad: e.target.value } : y)))
+                    }
+                    className="h-8 w-28 text-right"
+                    aria-label={`Cantidad de ${x.descripcion}`}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-destructive"
+                    title="Quitar"
+                    aria-label="Quitar insumo nuevo"
+                    onClick={() => setNuevos((ns) => ns.filter((y) => y.clave !== x.clave))}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {lineas.length === 0 && nuevos.length === 0 && (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
             <Plus className="mx-auto mb-1 size-5" /> Busca y agrega los insumos que necesitas.
           </div>
@@ -296,20 +355,18 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
       {error && <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
       <div className="flex justify-end border-t pt-4">
-        <Button onClick={enviar} disabled={enviando || lineas.length === 0 || !proyectoId}>
-          {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Enviar a aprobación
+        <Button onClick={enviar} disabled={enviando || lineas.length + nuevos.length === 0 || !proyectoId}>
+          {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}{" "}
+          {nuevos.length > 0 ? "Enviar (espera los insumos nuevos)" : "Enviar a aprobación"}
         </Button>
       </div>
 
       {solicitando && (
-        <SolicitarInsumoDialog
-          proyectoId={proyectoId}
+        <NuevoInsumoDialog
           onCerrar={() => setSolicitando(false)}
-          onEnviada={(descripcion) => {
+          onAgregar={(nuevo) => {
             setSolicitando(false)
-            setAviso(
-              `Se pidió "${descripcion}" a Aprobación de insumos (Compras). Cuando lo aprueben te llega un aviso en la campanita: búscalo y agrégalo a una requisición.`
-            )
+            setNuevos((ns) => [...ns, nuevo])
           }}
         />
       )}
@@ -317,52 +374,36 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
   )
 }
 
-// Insumo que no está en el maestro: la misma solicitud que se hace desde el
-// presupuesto (Aprobación de insumos le pone tipo, precio e IVA).
-// Guarda el origen y el proyecto elegido en la requisición, para los filtros
-// de Aprobación de insumos.
-function SolicitarInsumoDialog({
-  proyectoId,
+// Insumo que no está en el maestro: va como línea de la requisición. Al
+// enviarla se crea la solicitud (Aprobación de insumos le pone tipo, precio e
+// IVA) y la requisición espera a que la aprueben.
+function NuevoInsumoDialog({
   onCerrar,
-  onEnviada,
+  onAgregar,
 }: {
-  proyectoId: string | null
   onCerrar: () => void
-  onEnviada: (descripcion: string) => void
+  onAgregar: (nuevo: NuevoInsumoFormReqAdministrativa) => void
 }) {
   const [descripcion, setDescripcion] = useState("")
   const [unidad, setUnidad] = useState("")
+  const [cantidad, setCantidad] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [enviando, setEnviando] = useState(false)
 
-  async function enviar() {
+  function agregar() {
     if (!descripcion.trim()) return setError("Escribe el nombre del insumo.")
     if (!unidad) return setError("Elige la unidad del insumo.")
-    setEnviando(true)
-    setError(null)
-    try {
-      await crearSolicitudInsumo({
-        descripcion: descripcion.trim(),
-        uM: unidad,
-        presupuestoItemId: null,
-        origen: "requisicion_administrativa",
-        proyectoId,
-      })
-      onEnviada(descripcion.trim())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo enviar la solicitud.")
-    } finally {
-      setEnviando(false)
-    }
+    if (!cantidad.trim()) return setError("Escribe la cantidad.")
+    onAgregar({ clave: crypto.randomUUID(), descripcion: descripcion.trim(), unidad, cantidad: cantidad.trim() })
   }
 
   return (
-    <Dialog open onOpenChange={(a) => !a && !enviando && onCerrar()}>
+    <Dialog open onOpenChange={(a) => !a && onCerrar()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Solicitar insumo nuevo</DialogTitle>
+          <DialogTitle>Agregar insumo nuevo</DialogTitle>
           <DialogDescription>
-            Va a Aprobación de insumos. Cuando lo aprueben, queda en el maestro y lo puedes agregar a una requisición.
+            Para lo que no está en el maestro. Queda en la requisición; al enviarla se pide a Aprobación de insumos y la
+            requisición pasa a Subgerencia cuando lo aprueben.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -370,31 +411,35 @@ function SolicitarInsumoDialog({
             <Label htmlFor="ins-nuevo">Nombre del insumo</Label>
             <Input id="ins-nuevo" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej. Resma papel carta 75 g" />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ins-nuevo-um">Unidad</Label>
-            <select
-              id="ins-nuevo-um"
-              value={unidad}
-              onChange={(e) => setUnidad(e.target.value)}
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Elegir...</option>
-              {UNIDADES_MAESTRO.map((u) => (
-                <option key={u.texto} value={u.texto}>
-                  {u.texto}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ins-nuevo-um">Unidad</Label>
+              <select
+                id="ins-nuevo-um"
+                value={unidad}
+                onChange={(e) => setUnidad(e.target.value)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Elegir...</option>
+                {UNIDADES_MAESTRO.map((u) => (
+                  <option key={u.texto} value={u.texto}>
+                    {u.texto}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ins-nuevo-cant">Cantidad</Label>
+              <Input id="ins-nuevo-cant" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} className="h-10 text-right" />
+            </div>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCerrar} disabled={enviando}>
+          <Button variant="outline" onClick={onCerrar}>
             Cancelar
           </Button>
-          <Button onClick={enviar} disabled={enviando}>
-            {enviando && <Loader2 className="size-4 animate-spin" />} Enviar solicitud
-          </Button>
+          <Button onClick={agregar}>Agregar a la requisición</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -448,6 +493,7 @@ function MisRequisiciones({ verId, onVer, onCerrarVer }: { verId: string | null;
 
   return (
     <div className="space-y-3">
+      <RequisicionesEnEspera onEnviada={() => cargar(datos?.pagina ?? 0)} />
       {error && <p className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</p>}
       {cargando && !datos ? (
         <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
@@ -626,5 +672,181 @@ function DetalleDialog({ id, onCerrar, onCancelada }: { id: string; onCerrar: ()
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------- en espera de insumos nuevos
+// Requisiciones que esperan insumos nuevos (20270101005000). Un insumo
+// rechazado se cambia por uno del maestro o se quita; cuando no falta nada,
+// la base crea la requisición y pasa a Subgerencia (onEnviada recarga la lista).
+function RequisicionesEnEspera({ onEnviada }: { onEnviada: () => void }) {
+  const [esperas, setEsperas] = useState<ReqAdministrativaEspera[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  function cargar(avisar = false) {
+    const antes = esperas?.length ?? 0
+    listarMisRequisicionesEnEspera()
+      .then((lista: ReqAdministrativaEspera[]) => {
+        setEsperas(lista)
+        setError(null)
+        // Una salió de la lista: se envió o se canceló; la tabla de abajo se recarga.
+        if (avisar && lista.length < antes) onEnviada()
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones en espera."))
+  }
+
+  useEffect(() => {
+    let vigente = true
+    listarMisRequisicionesEnEspera()
+      .then((lista: ReqAdministrativaEspera[]) => vigente && setEsperas(lista))
+      .catch((e) => vigente && setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones en espera."))
+    return () => {
+      vigente = false
+    }
+  }, [])
+
+  if (error) return <p className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</p>
+  if (!esperas || esperas.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">En espera de insumos nuevos</p>
+      {esperas.map((e) => (
+        <TarjetaEspera key={e.id} espera={e} onCambio={() => cargar(true)} />
+      ))}
+    </div>
+  )
+}
+
+function TarjetaEspera({ espera: e, onCambio }: { espera: ReqAdministrativaEspera; onCambio: () => void }) {
+  const [procesando, setProcesando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [cancelando, setCancelando] = useState(false)
+  const [motivo, setMotivo] = useState("")
+  const etapa = etapaReqEspera(e)
+
+  async function ejecutar(accion: () => Promise<void>) {
+    setProcesando(true)
+    setError(null)
+    try {
+      await accion()
+      onCambio()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo hacer el cambio.")
+    } finally {
+      setProcesando(false)
+    }
+  }
+
+  async function buscar(termino: string): Promise<OpcionBuscador[]> {
+    const lista: InsumoMaestro[] = await buscarInsumosMaestro(termino)
+    return lista.map((i) => ({ id: i.id, etiqueta: i.descripcion, subetiqueta: `${i.codigo}${i.um ? ` · ${nombreUnidad(i.um)}` : ""}` }))
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50/40 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">
+            {e.proyecto ?? "Requisición administrativa"} · para el {formatearFechaSinHora(e.fechaRequerida)}
+            {e.urgente && <span className="ml-1 text-amber-700">· Urgente</span>}
+          </p>
+          <p className="text-xs text-muted-foreground">Hecha el {formatearFechaHora(e.createdAt)} · todavía sin número</p>
+        </div>
+        <Badge variant="outline" className={`min-h-6 px-3 text-xs ${etapa.clase}`}>
+          {etapa.etiqueta}
+        </Badge>
+      </div>
+
+      {e.estado === "error" && e.error && (
+        <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800">
+          Ya se aprobaron los insumos nuevos, pero la requisición no se pudo crear: {e.error}
+        </p>
+      )}
+
+      <div className="space-y-1">
+        {e.lineas.map((l) => (
+          <p key={l.insumoId}>
+            <span className="text-muted-foreground">{l.codigo}</span> {l.descripcion} ·{" "}
+            <span className="tabular-nums">{formatoCantidad(l.cantidad)}</span> {nombreUnidad(l.unidad)}
+          </p>
+        ))}
+        {e.nuevos.map((n) => (
+          <div key={n.id} className="space-y-1.5">
+            <p>
+              <Badge
+                variant="outline"
+                className={
+                  n.estado === "aprobado"
+                    ? "border-green-300 bg-green-50 text-green-700"
+                    : n.estado === "rechazado"
+                      ? "border-red-300 bg-red-50 text-red-700"
+                      : "border-sky-300 bg-sky-50 text-sky-700"
+                }
+              >
+                {n.estado === "aprobado" ? `Aprobado${n.codigo ? ` (${n.codigo})` : ""}` : n.estado === "rechazado" ? "Rechazado" : "Por aprobar"}
+              </Badge>{" "}
+              {n.descripcion} · <span className="tabular-nums">{formatoCantidad(n.cantidad)}</span> {n.unidad}
+              {n.estado === "rechazado" && n.motivoRechazo && <span className="text-red-700"> · Motivo: {n.motivoRechazo}</span>}
+            </p>
+            {n.estado === "rechazado" && (
+              <div className="flex flex-wrap items-center gap-2 pl-2">
+                <div className="min-w-72 flex-1">
+                  <BuscadorAsync
+                    placeholder="Cambiarlo por un insumo del maestro"
+                    valorSeleccionado={null}
+                    onSeleccionar={(o) => o && ejecutar(() => resolverInsumoRechazadoEspera(n.id, o.id))}
+                    buscar={buscar}
+                    disabled={procesando}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive"
+                  disabled={procesando}
+                  onClick={() => ejecutar(() => resolverInsumoRechazadoEspera(n.id, null))}
+                >
+                  <Trash2 className="size-4" /> Quitarlo
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="text-destructive">{error}</p>}
+
+      {cancelando ? (
+        <div className="space-y-2 rounded-md border bg-background p-3">
+          <Label htmlFor={`motivo-espera-${e.id}`}>Motivo de la cancelación</Label>
+          <Textarea id={`motivo-espera-${e.id}`} rows={2} value={motivo} onChange={(x) => setMotivo(x.target.value)} />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setCancelando(false)} disabled={procesando}>
+              Volver
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={procesando || !motivo.trim()}
+              onClick={() => ejecutar(() => cancelarRequisicionEspera(e.id, motivo))}
+            >
+              {procesando && <Loader2 className="size-4 animate-spin" />} Confirmar cancelación
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap justify-end gap-2">
+          {e.estado === "error" && (
+            <Button size="sm" variant="outline" disabled={procesando} onClick={() => ejecutar(() => reintentarRequisicionEspera(e.id))}>
+              {procesando && <Loader2 className="size-4 animate-spin" />} Reintentar
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="text-destructive" disabled={procesando} onClick={() => setCancelando(true)}>
+            <X className="size-4" /> Cancelar requisición
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 import {
+  MAX_LINEAS_REQ_ADMINISTRATIVA,
   etapaReqAdministrativa,
+  etapaReqEspera,
   lineasParaGuardar,
+  nuevosParaGuardar,
   mapDetalleReqAdministrativa,
   validarReqAdministrativa,
   type LineaFormReqAdministrativa,
@@ -59,5 +62,41 @@ describe("requisición administrativa (FUNCIONAMIENTO)", () => {
     })
     expect(d).toMatchObject({ numero: 12, nLineas: 1, urgente: true, cancelable: true })
     expect(d.lineas[0]).toMatchObject({ cantidad: 10, comprado: 4, rechazadoCompras: false })
+  })
+})
+
+describe("requisición con insumos nuevos (en espera)", () => {
+  const nuevo = (cantidad: string, descripcion = "RESMA CARTA", unidad = "UNIDAD - UND") => ({
+    clave: descripcion,
+    descripcion,
+    unidad,
+    cantidad,
+  })
+
+  it("acepta una requisición solo con insumos nuevos", () => {
+    expect(validarReqAdministrativa([], "2099-01-01", "2026-11-20", "p", [nuevo("3")])).toBeNull()
+  })
+
+  it("pide nombre, unidad y cantidad entera en los insumos nuevos", () => {
+    expect(validarReqAdministrativa([], "2099-01-01", "2026-11-20", "p", [nuevo("3", " ")])).toMatch(/nombre/)
+    expect(validarReqAdministrativa([], "2099-01-01", "2026-11-20", "p", [nuevo("3", "X", "")])).toMatch(/unidad/)
+    expect(validarReqAdministrativa([], "2099-01-01", "2026-11-20", "p", [nuevo("0")])).toMatch(/mayor que cero/)
+    expect(validarReqAdministrativa([], "2099-01-01", "2026-11-20", "p", [nuevo("1,5")])).not.toBeNull()
+  })
+
+  it("cuenta los insumos nuevos en el máximo de líneas", () => {
+    const muchos = Array.from({ length: MAX_LINEAS_REQ_ADMINISTRATIVA + 1 }, (_, i) => nuevo("1", `INSUMO ${i}`))
+    expect(validarReqAdministrativa([], "2099-01-01", "2026-11-20", "p", muchos)).toMatch(/máximo/)
+  })
+
+  it("nuevosParaGuardar convierte la cantidad", () => {
+    expect(nuevosParaGuardar([nuevo("1.500", " RESMA ")])).toEqual([{ descripcion: "RESMA", unidad: "UNIDAD - UND", cantidad: 1500 }])
+  })
+
+  it("etapaReqEspera dice qué falta", () => {
+    const base = { estado: "esperando" as const, nuevos: [] as { estado: "esperando" | "aprobado" | "rechazado" }[] }
+    expect(etapaReqEspera({ ...base, estado: "error" } as never).etiqueta).toBe("No se pudo enviar")
+    expect(etapaReqEspera({ ...base, nuevos: [{ estado: "rechazado" }, { estado: "esperando" }] } as never).etiqueta).toMatch(/1 insumo\(s\) rechazado/)
+    expect(etapaReqEspera({ ...base, nuevos: [{ estado: "aprobado" }, { estado: "esperando" }] } as never).etiqueta).toMatch(/1 insumo\(s\) nuevo/)
   })
 })

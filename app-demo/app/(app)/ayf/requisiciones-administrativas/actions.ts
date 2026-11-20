@@ -8,11 +8,15 @@ import { normalizarDireccion, validarDireccion } from "@/lib/direccion-entrega"
 import {
   lineasParaGuardar,
   mapDetalleReqAdministrativa,
+  mapReqAdministrativaEspera,
+  nuevosParaGuardar,
   mapFilaReqAdministrativa,
   mapProyectoReqAdministrativa,
   validarReqAdministrativa,
   type LineaFormReqAdministrativa,
+  type NuevoInsumoFormReqAdministrativa,
   type ProyectoReqAdministrativa,
+  type ReqAdministrativaEspera,
   type ReqAdministrativaDetalle,
   type ReqAdministrativaFila,
 } from "@/lib/requisiciones-administrativas"
@@ -85,5 +89,63 @@ export async function cancelarRequisicionAdministrativa(id: string, motivo: stri
   if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
   const supabase = await clienteConSesion()
   const { error } = await supabase.rpc("cancelar_requisicion_administrativa", { p_id: id, p_motivo: motivo.trim() })
+  if (error) throw new Error(error.message)
+}
+
+// Con insumos que no están en el maestro (20270101005000): la requisición queda
+// en espera; cuando aprueban el último insumo nuevo, la base la crea y pasa a
+// Subgerencia.
+export async function crearRequisicionAdministrativaEnEspera(datos: {
+  proyectoId: string
+  lineas: LineaFormReqAdministrativa[]
+  nuevos: NuevoInsumoFormReqAdministrativa[]
+  fechaRequerida: string
+  urgente: boolean
+  observaciones: string
+  direccionEntrega: string
+}): Promise<{ id: string }> {
+  if (datos.nuevos.length === 0) throw new Error("No hay insumos nuevos: envía la requisición normal.")
+  const error =
+    validarReqAdministrativa(datos.lineas, datos.fechaRequerida, hoyColombia(), datos.proyectoId, datos.nuevos) ??
+    validarDireccion(datos.direccionEntrega)
+  if (error) throw new Error(error)
+  const supabase = await clienteConSesion()
+  const { data, error: e } = await supabase.rpc("crear_requisicion_administrativa_en_espera", {
+    p_proyecto_id: datos.proyectoId,
+    p_lineas: lineasParaGuardar(datos.lineas),
+    p_nuevos: nuevosParaGuardar(datos.nuevos),
+    p_fecha_requerida: datos.fechaRequerida,
+    p_urgente: datos.urgente,
+    p_observaciones: datos.observaciones.trim() || null,
+    p_direccion_entrega: normalizarDireccion(datos.direccionEntrega),
+  })
+  if (e) throw new Error(e.message)
+  return { id: String((data as { id: string }).id) }
+}
+
+export async function listarMisRequisicionesEnEspera(): Promise<ReqAdministrativaEspera[]> {
+  const supabase = await clienteConSesion()
+  const { data, error } = await supabase.rpc("mis_requisiciones_en_espera")
+  if (error) throw new Error(error.message)
+  return ((data as unknown[]) ?? []).map(mapReqAdministrativaEspera)
+}
+
+// Insumo nuevo rechazado: cambiarlo por uno del maestro (insumoId) o quitarlo (null).
+export async function resolverInsumoRechazadoEspera(nuevoId: string, insumoId: string | null): Promise<void> {
+  const supabase = await clienteConSesion()
+  const { error } = await supabase.rpc("resolver_insumo_rechazado_espera", { p_nuevo: nuevoId, p_insumo: insumoId })
+  if (error) throw new Error(error.message)
+}
+
+export async function reintentarRequisicionEspera(id: string): Promise<void> {
+  const supabase = await clienteConSesion()
+  const { error } = await supabase.rpc("reintentar_requisicion_espera", { p_id: id })
+  if (error) throw new Error(error.message)
+}
+
+export async function cancelarRequisicionEspera(id: string, motivo: string): Promise<void> {
+  if (!motivo.trim()) throw new Error("El motivo es obligatorio.")
+  const supabase = await clienteConSesion()
+  const { error } = await supabase.rpc("cancelar_requisicion_espera", { p_id: id, p_motivo: motivo.trim() })
   if (error) throw new Error(error.message)
 }
