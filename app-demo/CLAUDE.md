@@ -2302,6 +2302,12 @@ Decisiones del usuario:
   `aprobarSolicitudInsumo` (mismas reglas que la pantalla; tandas de 5, 3 a la vez,
   `aprobarSolicitudesInsumoDesdeExcel`); sin precio se deja para después; errores
   por fila. Exige `aprobar_insumos`.
+- **Filtros en Aprobación de insumos** (2026-11-20, `20270101004900`, decisión del usuario): filtro
+  Proyecto y filtro Origen (presupuesto / requisición administrativa) sobre la lista ya cargada; con filtros
+  el Excel baja solo lo filtrado (`BannerPreciosInsumos soloIds`). `solicitudes_insumos.origen` (por omisión
+  'presupuesto': el import y las funciones SQL no cambian) y `proyecto_id` (el de la requisición
+  administrativa; en las del presupuesto el proyecto sale del ítem). Las crea `crearSolicitudInsumo`
+  (`origen`, `proyectoId`) desde Requisiciones administrativas.
 - **Recuperados 172 insumos borrados** (`20261117100000`): de los 911 que borró
   `20261114200000`, vuelven los que tenían ≥ 3 compras y ≥ 80 % al 19 % (p. ej.
   CEMENTO X 42.5 KG: 39 de 40 compras al 19 %), con su id, código e historial; IVA
@@ -4794,6 +4800,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004600` subcontrato de mano de obra sin mano de obra en el APU, precio oficial en el Excel de modalidades y código 15.10 del Malecón.
 `20270101004700` versión nueva desde el Excel reutilizando lo decidido en la anterior.
 `20270101004800` modalidades: un ítem sin APU solo puede ir a todo costo.
+`20270101004900` solicitudes de insumo con origen y proyecto (filtros de Aprobación de insumos).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

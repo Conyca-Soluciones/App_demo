@@ -1,13 +1,14 @@
 "use client"
 
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { nombreUnidad, unidadMaestro, UNIDADES_MAESTRO } from "@/lib/unidades"
 import {
   listarSolicitudesInsumos,
   listarAgrupacionesInsumos,
   aprobarSolicitudInsumo,
   rechazarSolicitudInsumo,
+  type OrigenSolicitudInsumo,
   type SolicitudInsumo,
 } from "@/app/(app)/presupuestos/actions"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
@@ -20,6 +21,12 @@ import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } 
 import { CLASE_CELDA_EXCEL, CLASE_ENCABEZADO_EXCEL, CLASE_MARCO_EXCEL, CLASE_TABLA_EXCEL } from "@/components/tabla-excel"
 
 const TODOS_LOS_TIPOS = CATEGORIAS_APU.flatMap((c) => c.tipos as readonly string[])
+
+const SIN_PROYECTO = "__sin_proyecto__"
+const NOMBRE_ORIGEN: Record<OrigenSolicitudInsumo, string> = {
+  presupuesto: "Presupuesto (técnica)",
+  requisicion_administrativa: "Requisición administrativa",
+}
 
 const headClasses = CLASE_ENCABEZADO_EXCEL
 const celda = `${CLASE_CELDA_EXCEL} text-xs`
@@ -46,6 +53,10 @@ function AdminInsumosContent() {
   const [error, setError] = useState<string | null>(null)
   const [idsEnProceso, setIdsEnProceso] = useState<Set<string>>(new Set())
   const [agrupaciones, setAgrupaciones] = useState<string[]>([])
+  // Filtros (sobre lo ya cargado): proyecto ("" = todos, SIN_PROYECTO) y
+  // origen (presupuesto o requisición administrativa).
+  const [filtroProyecto, setFiltroProyecto] = useState("")
+  const [filtroOrigen, setFiltroOrigen] = useState<"" | OrigenSolicitudInsumo>("")
   useEffect(() => {
     listarAgrupacionesInsumos()
       .then((lista: string[]) => setAgrupaciones(lista))
@@ -82,6 +93,30 @@ function AdminInsumosContent() {
       .then(setSolicitudes)
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las solicitudes."))
   }
+
+  // Proyectos que tienen solicitudes, para la lista del filtro.
+  const proyectosConSolicitudes = useMemo(() => {
+    const porId = new Map<string, string>()
+    let sinProyecto = false
+    for (const s of solicitudes) {
+      if (s.proyectoId) porId.set(s.proyectoId, s.proyectoNombre ?? "Proyecto")
+      else sinProyecto = true
+    }
+    const lista = Array.from(porId, ([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+    return { lista, sinProyecto }
+  }, [solicitudes])
+
+  const visibles = useMemo(
+    () =>
+      solicitudes.filter(
+        (s) =>
+          (!filtroOrigen || s.origen === filtroOrigen) &&
+          (!filtroProyecto || (filtroProyecto === SIN_PROYECTO ? !s.proyectoId : s.proyectoId === filtroProyecto))
+      ),
+    [solicitudes, filtroOrigen, filtroProyecto]
+  )
+  const hayFiltro = Boolean(filtroProyecto || filtroOrigen)
+  const idsVisibles = useMemo(() => (hayFiltro ? new Set(visibles.map((s) => s.id)) : null), [hayFiltro, visibles])
 
   function marcarProcesando(id: string, activo: boolean) {
     setIdsEnProceso((prev) => {
@@ -149,7 +184,7 @@ function AdminInsumosContent() {
       </div>
     )}
 
-      <BannerPreciosInsumos onAprobadas={recargarSolicitudes} />
+      <BannerPreciosInsumos onAprobadas={recargarSolicitudes} soloIds={idsVisibles} />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -160,13 +195,66 @@ function AdminInsumosContent() {
           No hay solicitudes pendientes.
         </p>
       ) : (
+        <>
+        <div className="flex flex-wrap items-end gap-3 text-sm">
+          <label className="space-y-1">
+            <span className="block text-xs text-muted-foreground">Proyecto</span>
+            <select
+              value={filtroProyecto}
+              onChange={(e) => setFiltroProyecto(e.target.value)}
+              className="h-9 min-w-56 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="">Todos los proyectos</option>
+              {proyectosConSolicitudes.lista.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+              {proyectosConSolicitudes.sinProyecto && <option value={SIN_PROYECTO}>Sin proyecto</option>}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs text-muted-foreground">Origen</span>
+            <select
+              value={filtroOrigen}
+              onChange={(e) => setFiltroOrigen(e.target.value as "" | OrigenSolicitudInsumo)}
+              className="h-9 min-w-56 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="">Técnicas y administrativas</option>
+              <option value="presupuesto">{NOMBRE_ORIGEN.presupuesto}</option>
+              <option value="requisicion_administrativa">{NOMBRE_ORIGEN.requisicion_administrativa}</option>
+            </select>
+          </label>
+          {hayFiltro && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFiltroProyecto("")
+                setFiltroOrigen("")
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          )}
+          <span className="pb-2 text-xs text-muted-foreground">
+            {hayFiltro ? `${visibles.length} de ${solicitudes.length} solicitudes` : `${solicitudes.length} solicitudes`}
+          </span>
+        </div>
+        {visibles.length === 0 ? (
+          <p className="rounded-lg border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+            Ninguna solicitud cumple los filtros.
+          </p>
+        ) : (
         <TablaPendientes
-          solicitudes={solicitudes}
+          solicitudes={visibles}
           idsEnProceso={idsEnProceso}
           agrupaciones={agrupaciones}
           onAprobar={handleAprobar}
           onRechazar={handleRechazar}
         />
+        )}
+        </>
       )}
     </main>
     </>
@@ -347,6 +435,9 @@ function FilaPendiente({
       <td className={`${celda} text-muted-foreground`}>
         <p>{solicitud.solicitadoPorNombre ?? "alguien"}</p>
         <p>{formatearFechaSinHora(solicitud.createdAt)}</p>
+        {solicitud.origen === "requisicion_administrativa" && (
+          <p className="font-medium text-amber-700">Requisición administrativa</p>
+        )}
         {solicitud.proyectoNombre && (
           <p className="truncate">
             {solicitud.proyectoNombre}
@@ -505,6 +596,7 @@ function FilaPendiente({
         campos={[
           { etiqueta: "Solicitado por", valor: solicitud.solicitadoPorNombre ?? "" },
           { etiqueta: "Fecha", valor: formatearFechaSinHora(solicitud.createdAt) },
+          { etiqueta: "Origen", valor: NOMBRE_ORIGEN[solicitud.origen] },
           { etiqueta: "Proyecto", valor: solicitud.proyectoNombre ?? "" },
           { etiqueta: "Ítem", valor: solicitud.itemCodigo ?? "" },
           { etiqueta: "Tipo pedido", valor: solicitud.tipo ?? "" },

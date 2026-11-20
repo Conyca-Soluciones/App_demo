@@ -26,7 +26,15 @@ const ERRORES_VISIBLES = 50
 
 type Resultado = { aprobadas: number; sinPrecio: number; errores: ErrorFilaPrecio[] }
 
-export function BannerPreciosInsumos({ onAprobadas }: { onAprobadas?: () => void }) {
+// soloIds: con filtros en la página, el Excel baja solo esas solicitudes
+// (null = todas). La subida aprueba lo que traiga el archivo, como siempre.
+export function BannerPreciosInsumos({
+  onAprobadas,
+  soloIds = null,
+}: {
+  onAprobadas?: () => void
+  soloIds?: Set<string> | null
+}) {
   const [pendientes, setPendientes] = useState<number | null>(null)
   const [descargando, setDescargando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
@@ -44,10 +52,12 @@ export function BannerPreciosInsumos({ onAprobadas }: { onAprobadas?: () => void
     setDescargando(true)
     setError(null)
     try {
-      const { solicitudes, listas } = await listarSolicitudesInsumoParaPrecio()
+      const todas = await listarSolicitudesInsumoParaPrecio()
+      const { listas } = todas
+      const solicitudes = soloIds ? todas.solicitudes.filter((s) => soloIds.has(s.id)) : todas.solicitudes
       if (solicitudes.length === 0) {
-        setPendientes(0)
-        setError("No hay insumos esperando precio.")
+        if (!soloIds) setPendientes(0)
+        setError(soloIds ? "Ninguna solicitud cumple los filtros." : "No hay insumos esperando precio.")
         return
       }
       await descargarExcelPreciosInsumos(solicitudes, listas)
@@ -140,7 +150,7 @@ export function BannerPreciosInsumos({ onAprobadas }: { onAprobadas?: () => void
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleDescargar} disabled={descargando || pendientes === 0}>
-            {descargando ? "Generando…" : "Descargar Excel"}
+            {descargando ? "Generando…" : soloIds ? `Descargar Excel (${soloIds.size} filtradas)` : "Descargar Excel"}
           </Button>
           <label className="inline-flex">
             <input
