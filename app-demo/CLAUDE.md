@@ -3238,6 +3238,12 @@ Cómo se guarda:
   `tests/excel-modalidades.test.ts` (incluye ida y vuelta del Excel). La misma migración hace
   que una línea "Es herramienta menor" (No aplica de EQUIPO) ya no cuente como insumo en
   `_info_modalidad_item`.
+- **Carga parcial y ítems sin APU** (2026-11-20, `20270101004800`, decisión del usuario): las filas con
+  error del Excel de modalidades ya no frenan las demás: el diálogo quita las filas con error, revisa otra
+  vez las buenas, muestra la lista de errores junto al resumen y "Aplicar los N que sí se pueden"; después
+  sigue abierto con la lista para corregir el Excel y subirlo otra vez (solo cambian los ítems distintos).
+  Un ítem hoja SIN APU (ni APU guardado) que no sea global GL solo puede ir a todo costo: otra modalidad da
+  "no tiene APU" (antes Administración lo dejaba en $ 0 sin aviso).
 - **Cambiar la modalidad de UN ítem** (2026-11-19, sin migración): en el editor de APU ("Cambiar modalidad",
   el ítem fijo, `infoModalidadesDeItem`) y en Revisar pendientes ("Cambiar la modalidad de un ítem" arriba de
   las pestañas, buscando el ítem con `infoModalidadesPresupuesto`); solo versión vigente
@@ -4787,6 +4793,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101004500` dividir: elegir la categoría del catálogo antes de enviar a aprobación.
 `20270101004600` subcontrato de mano de obra sin mano de obra en el APU, precio oficial en el Excel de modalidades y código 15.10 del Malecón.
 `20270101004700` versión nueva desde el Excel reutilizando lo decidido en la anterior.
+`20270101004800` modalidades: un ítem sin APU solo puede ir a todo costo.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

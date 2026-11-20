@@ -4,6 +4,9 @@
 // se baja el Excel con los ítems, se llenan Modalidad y Mano de obra, se sube,
 // se ve el resumen (sin cambiar nada) y se aplica. Lo resuelto del APU se
 // conserva: lo que una modalidad no usa queda guardado aparte y vuelve si cambia.
+// Las filas con error no frenan las demás (decisión del usuario, 2026-11-20): se
+// aplican las buenas, se listan las que tienen error y el Excel corregido se
+// vuelve a subir (solo cambian los ítems distintos).
 
 import { useRef, useState } from "react"
 import * as XLSX from "xlsx"
@@ -48,6 +51,9 @@ export function ModalidadesDialog({
   const [resumen, setResumen] = useState<ResultadoModalidades | null>(null)
   // Ítems con requisiciones o contratos que se dejaron como estaban.
   const [saltadas, setSaltadas] = useState(0)
+  // Cuántos ítems se aplicaron cuando quedaron filas con error (el diálogo sigue
+  // abierto con la lista para corregirlas).
+  const [aplicados, setAplicados] = useState<number | null>(null)
 
   function limpiar() {
     setError(null)
@@ -56,6 +62,7 @@ export function ModalidadesDialog({
     setResumen(null)
     setNombreArchivo(null)
     setSaltadas(0)
+    setAplicados(null)
   }
 
   async function descargar() {
@@ -81,28 +88,39 @@ export function ModalidadesDialog({
       const hoja = libro.Sheets[libro.SheetNames[0]]
       const matriz = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null })
       const leido = leerFilasModalidades(matriz)
-      if (leido.errores.length > 0) {
-        setErrores(leido.errores)
-        return
-      }
+      // Las filas que no se pudieron leer quedan por fuera; las demás siguen.
+      const mensajes = [...leido.errores]
       if (leido.filas.length === 0) {
-        setError("El Excel no trae ítems.")
+        if (mensajes.length > 0) setErrores(mensajes)
+        else setError("El Excel no trae ítems.")
         return
       }
       const info = await infoModalidadesVersion(versionId)
       const porAplicar = filasParaAplicar(leido.filas, new Map(info.map((i) => [i.codigo, i])))
-      // Vista previa: la base aplica todo dentro de un bloque que deshace.
-      const r = await fijarModalidadesPresupuesto(presupuestoId, porAplicar.filas, false)
-      if (r.errores.length > 0) {
-        setErrores(
-          r.errores.map((e) => {
-            const f = porAplicar.filas[e.fila - 1]
-            return `  Fila ${f?.filaExcel ?? "?"} (ítem ${e.codigo ?? f?.codigo ?? "?"}): ${mensajeErrorModalidad(f, e.error)}`
-          })
-        )
-        return
+      // Vista previa: la base aplica todo dentro de un bloque que deshace. Si
+      // hay filas con error, se quitan y se revisan otra vez las demás (la base
+      // no aplica nada mientras haya un error).
+      let buenas = porAplicar.filas
+      let r: ResultadoModalidades | null = null
+      for (let intento = 0; intento < 3 && buenas.length > 0; intento++) {
+        const previa = await fijarModalidadesPresupuesto(presupuestoId, buenas, false)
+        if (previa.errores.length === 0) {
+          r = previa
+          break
+        }
+        const malas = new Set<number>()
+        for (const e of previa.errores) {
+          const f = buenas[e.fila - 1]
+          malas.add(e.fila - 1)
+          mensajes.push(
+            `  Fila ${f?.filaExcel ?? "?"} (ítem ${e.codigo ?? f?.codigo ?? "?"}): ${mensajeErrorModalidad(f, e.error)}`
+          )
+        }
+        buenas = buenas.filter((_, i) => !malas.has(i))
       }
-      setFilas(porAplicar.filas)
+      setErrores(mensajes)
+      if (!r) return
+      setFilas(buenas)
       setSaltadas(porAplicar.saltadas)
       setResumen(r)
     } catch (e) {
@@ -123,10 +141,18 @@ export function ModalidadesDialog({
         // Algo cambió entre la vista previa y ahora (otra persona, una requisición nueva...).
         setResumen(null)
         setFilas(null)
+        setAplicados(null)
         setErrores(r.errores.map((e) => `  Ítem ${e.codigo ?? "?"}: ${e.error}`))
         return
       }
       await onAplicado()
+      if (errores.length > 0) {
+        // Quedan filas con error: el diálogo sigue abierto con la lista.
+        setResumen(null)
+        setFilas(null)
+        setAplicados(r.cambian)
+        return
+      }
       limpiar()
       onOpenChange(false)
     } catch (e) {
@@ -185,10 +211,21 @@ export function ModalidadesDialog({
 
           {error && <p className="text-destructive">{error}</p>}
 
+          {aplicados !== null && (
+            <p className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900">
+              Se aplicaron {entero(aplicados)} ítem(s). Los de la lista de abajo quedaron sin aplicar: corrige el Excel y
+              súbelo otra vez (solo cambian los ítems distintos).
+            </p>
+          )}
+
           {errores.length > 0 && (
             <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-900">
               <p className="font-medium">
-                No se aplicó nada: {errores.length} ítem(s) con problemas. Corrige el Excel y súbelo otra vez.
+                {resumen
+                  ? `${errores.length} ítem(s) con error no se aplicarán. Puedes aplicar los demás ahora y después subir el Excel corregido.`
+                  : aplicados !== null
+                    ? `${errores.length} ítem(s) sin aplicar:`
+                    : `No se aplicó nada: ${errores.length} ítem(s) con problemas. Corrige el Excel y súbelo otra vez.`}
               </p>
               <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap font-sans text-xs">{errores.join("\n")}</pre>
             </div>
@@ -243,7 +280,11 @@ export function ModalidadesDialog({
                   Cancelar
                 </Button>
                 <Button onClick={aplicar} disabled={aplicando || resumen.cambian === 0}>
-                  {aplicando ? "Aplicando…" : "3. Aplicar"}
+                  {aplicando
+                    ? "Aplicando…"
+                    : errores.length > 0
+                      ? `3. Aplicar los ${entero(resumen.cambian)} que sí se pueden`
+                      : "3. Aplicar"}
                 </Button>
               </div>
             </div>
