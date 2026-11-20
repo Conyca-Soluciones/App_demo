@@ -3386,15 +3386,26 @@ export async function eliminarInsumoApu(itemApuId: string) {
   }
 }
 
+// Cantidad de una línea de insumo, desde el editor de APU. Es la cantidad SIN
+// desperdicio: _item_apu_desperdicio le suma el % de la línea. La RLS exige
+// editar_presupuestos en un proyecto que la persona ve (si no, 0 filas).
 export async function actualizarCantidadItemApu(itemApuId: string, nuevaCantidad: number) {
+  if (!Number.isFinite(nuevaCantidad) || nuevaCantidad <= 0) {
+    throw new Error("La cantidad tiene que ser un número mayor que cero.")
+  }
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("item_apu")
-    .update({ cantidad: nuevaCantidad })
+    .update({ cantidad: Math.round(nuevaCantidad * 10000) / 10000 })
     .eq("id", itemApuId)
+    .not("insumo_id", "is", null)
+    .select("id")
 
   if (error) {
     throw new Error(error.message)
+  }
+  if (!data || data.length === 0) {
+    throw new Error("No se pudo cambiar la cantidad: no tienes permiso para editar este presupuesto o la línea no es de un insumo.")
   }
 }
 
