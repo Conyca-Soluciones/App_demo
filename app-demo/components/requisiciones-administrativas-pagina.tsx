@@ -303,6 +303,7 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
 
       {solicitando && (
         <SolicitarInsumoDialog
+          proyectoId={proyectoId}
           onCerrar={() => setSolicitando(false)}
           onEnviada={(descripcion) => {
             setSolicitando(false)
@@ -318,7 +319,17 @@ function FormularioReqAdministrativa({ onEnviada }: { onEnviada: (id: string) =>
 
 // Insumo que no está en el maestro: la misma solicitud que se hace desde el
 // presupuesto (Aprobación de insumos le pone tipo, precio e IVA).
-function SolicitarInsumoDialog({ onCerrar, onEnviada }: { onCerrar: () => void; onEnviada: (descripcion: string) => void }) {
+// Guarda el origen y el proyecto elegido en la requisición, para los filtros
+// de Aprobación de insumos.
+function SolicitarInsumoDialog({
+  proyectoId,
+  onCerrar,
+  onEnviada,
+}: {
+  proyectoId: string | null
+  onCerrar: () => void
+  onEnviada: (descripcion: string) => void
+}) {
   const [descripcion, setDescripcion] = useState("")
   const [unidad, setUnidad] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -330,7 +341,13 @@ function SolicitarInsumoDialog({ onCerrar, onEnviada }: { onCerrar: () => void; 
     setEnviando(true)
     setError(null)
     try {
-      await crearSolicitudInsumo({ descripcion: descripcion.trim(), uM: unidad, presupuestoItemId: null })
+      await crearSolicitudInsumo({
+        descripcion: descripcion.trim(),
+        uM: unidad,
+        presupuestoItemId: null,
+        origen: "requisicion_administrativa",
+        proyectoId,
+      })
       onEnviada(descripcion.trim())
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo enviar la solicitud.")

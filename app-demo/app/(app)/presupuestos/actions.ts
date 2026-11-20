@@ -941,6 +941,10 @@ export type SolicitudInsumoInput = {
   // aprueba (solicitud hecha desde el editor de APU; en el import la cantidad
   // viene de la línea del Excel).
   cantidad?: number | null
+  // De dónde viene (filtro de Aprobación de insumos). Sin él, del presupuesto.
+  origen?: OrigenSolicitudInsumo
+  // Proyecto de la requisición administrativa (las del presupuesto lo toman del ítem).
+  proyectoId?: string | null
 }
 
 // Catálogo COMPLETO de mano de obra, sin filtro -- pensado para
@@ -1172,6 +1176,8 @@ export async function crearSolicitudInsumo(input: SolicitudInsumoInput) {
       solicitado_por: userId ?? null,
       presupuesto_item_id: input.presupuestoItemId ?? null,
       cantidad: input.cantidad ?? null,
+      origen: input.origen ?? "presupuesto",
+      proyecto_id: input.proyectoId ?? null,
       estado: "pendiente",
     })
     .select()
@@ -1197,6 +1203,8 @@ async function asignarSolicitudInsumo(revisionIds: string[]): Promise<string> {
   return data as string
 }
 
+export type OrigenSolicitudInsumo = "presupuesto" | "requisicion_administrativa"
+
 export type SolicitudInsumo = {
   id: string
   descripcion: string
@@ -1208,7 +1216,9 @@ export type SolicitudInsumo = {
   presupuestoItemId: string | null
   itemCodigo: string | null
   itemDescripcion: string | null
+  proyectoId: string | null
   proyectoNombre: string | null
+  origen: OrigenSolicitudInsumo
   estado: "pendiente" | "aprobado" | "rechazado"
   createdAt: string
   codigoMaestroAsignado: number | null
@@ -1231,11 +1241,12 @@ export async function listarSolicitudesInsumos(): Promise<SolicitudInsumo[]> {
         `
         id, descripcion, tipo, u_m, agrupacion, solicitado_por,
         presupuesto_item_id, estado, created_at,
-        codigo_maestro_asignado, resuelto_at, resuelto_por, motivo_rechazo,
+        codigo_maestro_asignado, resuelto_at, resuelto_por, motivo_rechazo, origen,
+        proyecto:proyectos!solicitudes_insumos_proyecto_id_fkey (id, nombre),
         presupuesto_items:presupuesto_item_id (
           codigo, descripcion,
           presupuestos:presupuesto_id (
-            proyectos:proyecto_id (nombre)
+            proyectos:proyecto_id (id, nombre)
           )
         )
       `
@@ -1281,7 +1292,11 @@ export async function listarSolicitudesInsumos(): Promise<SolicitudInsumo[]> {
     presupuestoItemId: r.presupuesto_item_id,
     itemCodigo: r.presupuesto_items?.codigo ?? null,
     itemDescripcion: r.presupuesto_items?.descripcion ?? null,
-    proyectoNombre: r.presupuesto_items?.presupuestos?.proyectos?.nombre ?? null,
+    // Del ítem del presupuesto; si no tiene (requisición administrativa), el
+    // que se eligió al pedirlo.
+    proyectoId: r.presupuesto_items?.presupuestos?.proyectos?.id ?? r.proyecto?.id ?? null,
+    proyectoNombre: r.presupuesto_items?.presupuestos?.proyectos?.nombre ?? r.proyecto?.nombre ?? null,
+    origen: r.origen === "requisicion_administrativa" ? "requisicion_administrativa" : "presupuesto",
     estado: r.estado,
     createdAt: r.created_at,
     codigoMaestroAsignado: r.codigo_maestro_asignado,
