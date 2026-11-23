@@ -53,6 +53,7 @@ import {
   pagoSinCuenta,
   rutaSoporteDispersor,
   rutaSoportePago,
+  textoVerSoporte,
   semanaIso,
   type ClaveConsolidado,
   type ConteoEtapas,
@@ -620,7 +621,7 @@ export function ConsolidadoPagosView({
   const colSoporte: ColumnaExcel<Pago> = {
     clave: "soporte",
     titulo: "Soporte",
-    ancho: 80,
+    ancho: 120,
     ordenable: false,
     texto: (p) => soportes[p.id]?.nombre ?? "",
     celda: (p) =>
@@ -629,10 +630,10 @@ export function ConsolidadoPagosView({
           href={rutaSoportePago(p.id)}
           target="_blank"
           rel="noreferrer"
-          title={soportes[p.id].nombre}
+          title={(soportes[p.id].todos ?? [soportes[p.id]]).map((x) => x.nombre).join("\n")}
           className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
         >
-          <Paperclip className="h-4 w-4" /> Ver
+          <Paperclip className="h-4 w-4" /> {textoVerSoporte(soportes[p.id])}
         </a>
       ) : (
         <span className="text-muted-foreground/60">—</span>

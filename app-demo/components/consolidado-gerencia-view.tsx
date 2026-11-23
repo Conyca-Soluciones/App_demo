@@ -27,6 +27,7 @@ import {
 import {
   formatoMoneda,
   rutaSoportePago,
+  textoVerSoporte,
   semanaIso,
   type FiltrosConsolidadoGerencia,
   type OpcionesConsolidadoGerencia,
@@ -226,10 +227,10 @@ export function ConsolidadoGerenciaView() {
             href={rutaSoportePago(p.id)}
             target="_blank"
             rel="noreferrer"
-            title={s.nombre}
+            title={(s.todos ?? [s]).map((x) => x.nombre).join("\n")}
             className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
           >
-            <Paperclip className="h-4 w-4" /> Ver
+            <Paperclip className="h-4 w-4" /> {textoVerSoporte(s)}
           </a>
         )
       },

@@ -723,6 +723,47 @@ export async function listarSoportesOrden(ordenId: string): Promise<SoporteGuard
   }))
 }
 
+// ---------------------------------------------------------------------------
+// Añadir y cambiar soportes de una orden ya creada (20270101005800): Compras,
+// mientras ningún pago de la orden esté liquidado ni pagado. No vuelve a aprobar.
+// ---------------------------------------------------------------------------
+
+// null = se puede; si no, por qué no (o "Sin permiso.").
+export async function soportesOrdenEditables(ordenId: string): Promise<string | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("soportes_orden_editables", { p_orden: ordenId })
+  if (error) return "Sin permiso."
+  return (data as string | null) ?? null
+}
+
+const aSoporteBase = (s: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }) => ({
+  tipo: s.tipo,
+  ruta: s.ruta,
+  nombre_archivo: s.nombreArchivo,
+  tamano: s.tamano,
+  mime: s.mime,
+})
+
+export async function agregarSoporteOrden(ordenId: string, soporte: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("agregar_soporte_orden", { p_orden: ordenId, p_soporte: aSoporteBase(soporte) })
+  if (error) throw new Error(error.message)
+}
+
+// Borra el soporte y deja el nuevo; después borra el archivo viejo del bucket (la
+// política solo deja borrar archivos que ya no son soporte de nada). Si eso falla,
+// el cambio queda hecho igual: solo sobra un archivo sin uso.
+export async function cambiarSoporteOrden(soporteId: string, nuevo: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }): Promise<void> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("cambiar_soporte_orden", { p_soporte_id: soporteId, p_nuevo: aSoporteBase(nuevo) })
+  if (error) throw new Error(error.message)
+  const rutaVieja = data as string | null
+  if (rutaVieja) {
+    const { error: e } = await supabase.storage.from("ordenes_compra").remove([rutaVieja])
+    if (e) console.error("No se pudo borrar el soporte anterior:", e.message)
+  }
+}
+
 // Enlace firmado de 2 minutos para ver un soporte (la política del bucket
 // exige ver la orden).
 export async function enlaceSoporteOrden(soporteId: string): Promise<string> {
@@ -1207,10 +1248,10 @@ export async function obtenerOrdenParaModificar(ordenId: string): Promise<OrdenP
 export async function modificarOrdenCompra(
   ordenId: string,
   datos: Omit<DatosOrdenCompra, "proyectoId">,
-  soporte: SoporteSubidoArchivo & { tipo: TipoSoporteOrden }
+  // Opcional (20270101005800): los soportes de la orden se conservan; si viene, se agrega.
+  soporte: (SoporteSubidoArchivo & { tipo: TipoSoporteOrden }) | null
 ): Promise<void> {
   await requerirScope("rol_compras")
-  if (!soporte?.ruta) throw new Error("Adjunta el soporte de la modificación (cotización, cuenta de cobro o factura).")
   const anticipo = validarDatosOrden({ ...datos, proyectoId: "" })
   const supabase = await createClient()
   const { error } = await supabase.rpc("modificar_orden_compra", {
@@ -1230,13 +1271,15 @@ export async function modificarOrdenCompra(
     p_fecha_pago_credito: datos.tipoPago === "credito" ? (datos.fechaPagoCredito ?? null) : null,
     ...(anticipo ?? {}),
     p_titular: datos.titular ?? null,
-    p_soporte: {
-      tipo: soporte.tipo,
-      ruta: soporte.ruta,
-      nombre_archivo: soporte.nombreArchivo,
-      tamano: soporte.tamano,
-      mime: soporte.mime,
-    },
+    p_soporte: soporte?.ruta
+      ? {
+          tipo: soporte.tipo,
+          ruta: soporte.ruta,
+          nombre_archivo: soporte.nombreArchivo,
+          tamano: soporte.tamano,
+          mime: soporte.mime,
+        }
+      : null,
   })
   if (error) throw new Error(error.message)
 }

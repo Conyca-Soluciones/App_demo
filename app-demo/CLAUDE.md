@@ -1170,6 +1170,15 @@ proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan)
   REF), deja la orden por aprobar SIN pago (bandera `app.devolviendo_oc` para que `_oc_estado_pagos` no
   cree uno) y marcada `devuelta_compras_*`, y avisa a quien la creó (`orden_compra_devuelta`, también
   por correo). Compras la modifica y el pago nuevo quita la marca (`trg_oc_quitar_devuelta`).
+- **Soportes después de crear la orden** (`20270101005800`, 2026-11-23, decisión del usuario): en el
+  detalle de la OC, Compras (`comprar` + proyecto) tiene "Añadir soporte" (uno más) y "Cambiar" en cada
+  soporte (lo borra y deja el nuevo; la app borra el archivo viejo del bucket), sin volver a aprobar ni
+  tocar el pago, mientras ningún pago de la orden esté liquidado ni dispersado
+  (`_motivo_soportes_orden_fijos`; `soportes_orden_editables` para la pantalla; `agregar_soporte_orden`,
+  `cambiar_soporte_orden`; historial `soporte_agregado` / `soporte_cambiado`). "Modificar" conserva los
+  soportes y el nuevo es opcional (solo se exige si la orden no tiene ninguno). En pagos,
+  `SoportePago.todos` trae todos los soportes del documento: con más de uno dice "Ver soportes"
+  (`textoVerSoporte`) y `/ayf/soporte-pago/<id>` muestra una página con la lista (`?n=k` abre uno).
 - En Generar OC la empresa se llama "Empresa que compra" (antes "que factura"; misma columna `empresa_id`).
 
 ## Pruebas de Compras y Contratos (2026-11-06)

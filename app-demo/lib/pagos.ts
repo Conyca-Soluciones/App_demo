@@ -322,11 +322,20 @@ export type OpcionesConsolidadoGerencia = {
 // El archivo original del pago: factura / cuenta de cobro de la OC (o su
 // cotización), soporte de pago del acta, o el del ítem de la requisición
 // administrativa.
-export type SoportePago =
+// `todos`: todos los soportes del documento (una OC puede tener varios, 20270101005800);
+// el primero es el principal. Con más de uno la pantalla dice "Ver soportes" y el
+// enlace fijo abre una página con la lista.
+export type ArchivoSoportePago = { ruta: string; nombre: string; tipo: string }
+export type SoportePago = (
   | { origen: "orden_compra"; id: string; ruta: string; nombre: string; tipo: string }
   | { origen: "acta"; ruta: string; nombre: string; tipo: string }
   | { origen: "requisicion_admin"; ruta: string; nombre: string; tipo: string }
   | { origen: "sinco"; ruta: string; nombre: string; tipo: string }
+) & { todos?: ArchivoSoportePago[] }
+
+/** "Ver soporte" o "Ver soportes" según cuántos tenga el pago. */
+export const textoVerSoporte = (s: SoportePago | null | undefined) =>
+  (s?.todos?.length ?? 1) > 1 ? "Ver soportes" : "Ver soporte"
 
 // "Pendientes" en Aprobación de pagos (decisión del usuario, 2026-11-11): por
 // aprobar, programados y en espera (crédito, factura del acta, saldos de

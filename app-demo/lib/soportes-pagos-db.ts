@@ -57,21 +57,34 @@ export async function buscarSoportesDePagos(supabase: any, pagos: PagoParaSoport
   ])
   for (const r of [rOc, rActa, rItem, rSinco]) if (r.error) throw new Error(r.error.message)
 
-  // Uno por documento: el más reciente, y en las OC la factura o cuenta de
-  // cobro antes que la cotización.
+  // El principal de cada documento: el más reciente, y en las OC la factura o
+  // cuenta de cobro antes que la cotización. Además, todos (en orden de subida).
   const peso = (tipo: string) => (tipo === "cotizacion" ? 0 : 1)
   const porOc = new Map<string, any>()
+  const todosOc = new Map<string, any[]>()
   for (const s of (rOc.data ?? []) as any[]) {
     const previo = porOc.get(s.orden_compra_id)
     if (!previo || peso(s.tipo) > peso(previo.tipo) || (peso(s.tipo) === peso(previo.tipo) && s.created_at > previo.created_at)) {
       porOc.set(s.orden_compra_id, s)
     }
+    const lista = todosOc.get(s.orden_compra_id) ?? []
+    lista.push(s)
+    todosOc.set(s.orden_compra_id, lista)
   }
   const porActa = new Map<string, any>()
+  const todosActa = new Map<string, any[]>()
   for (const s of (rActa.data ?? []) as any[]) {
     const previo = porActa.get(s.acta_id)
     if (!previo || s.created_at > previo.created_at) porActa.set(s.acta_id, s)
+    const lista = todosActa.get(s.acta_id) ?? []
+    lista.push(s)
+    todosActa.set(s.acta_id, lista)
   }
+  // El principal primero y los demás por fecha de subida.
+  const ordenar = (lista: any[] | undefined, principal: any) =>
+    [principal, ...(lista ?? []).filter((x) => x !== principal).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))].map(
+      (x) => ({ ruta: x.ruta, nombre: x.nombre_archivo, tipo: x.tipo })
+    )
   const porItem = new Map<string, any>(((rItem.data ?? []) as any[]).map((i) => [i.id, i]))
   const porSinco = new Map<string, any>(((rSinco.data ?? []) as any[]).map((i) => [i.id, i]))
 
@@ -81,8 +94,23 @@ export async function buscarSoportesDePagos(supabase: any, pagos: PagoParaSoport
     const acta = p.actaId ? porActa.get(p.actaId) : null
     const item = p.requisicionAdminItemId ? porItem.get(p.requisicionAdminItemId) : null
     const filaSinco = p.sincoFilaId ? porSinco.get(p.sincoFilaId) : null
-    if (oc) salida[p.id] = { origen: "orden_compra", id: oc.id, ruta: oc.ruta, nombre: oc.nombre_archivo, tipo: oc.tipo }
-    else if (acta) salida[p.id] = { origen: "acta", ruta: acta.ruta, nombre: acta.nombre_archivo, tipo: acta.tipo }
+    if (oc)
+      salida[p.id] = {
+        origen: "orden_compra",
+        id: oc.id,
+        ruta: oc.ruta,
+        nombre: oc.nombre_archivo,
+        tipo: oc.tipo,
+        todos: ordenar(todosOc.get(p.ordenCompraId!), oc),
+      }
+    else if (acta)
+      salida[p.id] = {
+        origen: "acta",
+        ruta: acta.ruta,
+        nombre: acta.nombre_archivo,
+        tipo: acta.tipo,
+        todos: ordenar(todosActa.get(p.actaId!), acta),
+      }
     else if (item) salida[p.id] = { origen: "requisicion_admin", ruta: item.soporte_ruta, nombre: item.soporte_nombre, tipo: item.soporte_tipo }
     else if (filaSinco) salida[p.id] = { origen: "sinco", ruta: filaSinco.soporte_ruta, nombre: filaSinco.soporte_nombre, tipo: "factura" }
   }

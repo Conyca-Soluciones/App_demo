@@ -46,6 +46,7 @@ import {
   crearOrdenCompra,
   modificarOrdenCompra,
   obtenerOrdenParaModificar,
+  listarSoportesOrden,
   opcionesEmpresaFactura,
   type EmpresaFactura,
   type OrdenParaModificar,
@@ -63,7 +64,7 @@ import {
 import { CampoFecha } from "@/components/ui/campo-fecha"
 import { CampoSoporte } from "@/components/campo-soporte"
 import { createClient } from "@/lib/supabase/client"
-import { ETIQUETA_SOPORTE_ORDEN, rutaSoporte, type TipoSoporteOrden } from "@/lib/soportes"
+import { ETIQUETA_SOPORTE_ORDEN, rutaSoporte, type SoporteGuardado, type TipoSoporteOrden } from "@/lib/soportes"
 
 // Valor del desplegable "UM disponible" para la opción normal: la unidad de
 // compra del insumo (la del maestro). Cualquier otra es una presentación.
@@ -272,6 +273,15 @@ export function GenerarOCView({
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar las requisiciones."))
       .finally(() => setCargandoPedidos(false))
   }, [seleccion, modificar])
+
+  // Modificar: los soportes que ya tiene la orden (se conservan).
+  const [soportesOrden, setSoportesOrden] = useState<SoporteGuardado[]>([])
+  useEffect(() => {
+    if (!ordenId) return
+    listarSoportesOrden(ordenId)
+      .then((l: SoporteGuardado[]) => setSoportesOrden(l))
+      .catch(() => setSoportesOrden([]))
+  }, [ordenId])
 
   // Modificar: el formulario se llena con la orden guardada.
   useEffect(() => {
@@ -544,7 +554,8 @@ export function GenerarOCView({
     !cargandoProveedor &&
     todasLasLineasValidas &&
     anticipoValido &&
-    archivoSoporte !== null &&
+    // Al modificar, los soportes de la orden se conservan: el nuevo es opcional (20270101005800).
+    (modificar || archivoSoporte !== null) &&
     !generando
 
   async function handleGenerar() {
@@ -571,7 +582,7 @@ export function GenerarOCView({
     ) {
       return
     }
-    if (!archivoSoporte) {
+    if (!archivoSoporte && !modificar) {
       setError("Adjunta el soporte de la orden (cotización, cuenta de cobro o factura).")
       return
     }
@@ -612,15 +623,18 @@ export function GenerarOCView({
     setError(null)
     // El soporte se sube primero; si la orden no se crea, se borra.
     const supabase = createClient()
-    const ruta = rutaSoporte(crypto.randomUUID(), tipoSoporte, archivoSoporte)
+    const ruta = archivoSoporte ? rutaSoporte(crypto.randomUUID(), tipoSoporte, archivoSoporte) : ""
     let subido = false
     try {
-      const { error: e } = await supabase.storage
-        .from("ordenes_compra")
-        .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
-      if (e) throw new Error(`No se pudo subir el soporte: ${e.message}`)
-      subido = true
-      const soporte = { tipo: tipoSoporte, ruta, nombreArchivo: archivoSoporte.name, tamano: archivoSoporte.size, mime: archivoSoporte.type }
+      let soporte: { tipo: TipoSoporteOrden; ruta: string; nombreArchivo: string; tamano: number; mime: string } | null = null
+      if (archivoSoporte) {
+        const { error: e } = await supabase.storage
+          .from("ordenes_compra")
+          .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
+        if (e) throw new Error(`No se pudo subir el soporte: ${e.message}`)
+        subido = true
+        soporte = { tipo: tipoSoporte, ruta, nombreArchivo: archivoSoporte.name, tamano: archivoSoporte.size, mime: archivoSoporte.type }
+      }
       const datos = {
         proveedorId: proveedor.id,
         sitioEntrega: sitioEntrega.trim() || null,
@@ -655,7 +669,7 @@ export function GenerarOCView({
         await modificarOrdenCompra(ordenId, datos, soporte)
         setOrdenCreada(ordenId)
       } else {
-        const nueva = await crearOrdenCompra({ ...datos, proyectoId: seleccion!.proyectoId, empresaId }, soporte)
+        const nueva = await crearOrdenCompra({ ...datos, proyectoId: seleccion!.proyectoId, empresaId }, soporte!)
         sessionStorage.removeItem(CLAVE_SELECCION)
         setOrdenCreada(nueva)
       }
@@ -1302,9 +1316,20 @@ export function GenerarOCView({
             />
           </div>
 
+          {modificar && soportesOrden.length > 0 && (
+            <div className="space-y-1 text-sm">
+              <p className="font-medium">Soportes de la orden (se conservan)</p>
+              {soportesOrden.map((s) => (
+                <p key={s.id} className="truncate text-xs text-muted-foreground" title={s.nombreArchivo}>
+                  {ETIQUETA_SOPORTE_ORDEN[s.tipo as TipoSoporteOrden] ?? s.tipo} · {s.nombreArchivo}
+                </p>
+              ))}
+              <p className="text-xs text-muted-foreground">Para cambiar uno, usa &ldquo;Cambiar soporte&rdquo; en el detalle de la orden.</p>
+            </div>
+          )}
           <CampoSoporte
-            etiqueta={modificar ? "Soporte de la modificación (los anteriores se conservan)" : "Soporte de la orden"}
-            obligatorio
+            etiqueta={modificar ? "Añadir otro soporte (los que tiene la orden se conservan)" : "Soporte de la orden"}
+            obligatorio={!modificar}
             tipos={ETIQUETA_SOPORTE_ORDEN}
             tipo={tipoSoporte}
             onTipo={setTipoSoporte}
@@ -1323,7 +1348,7 @@ export function GenerarOCView({
           {!proveedor && (
             <p className="text-xs text-muted-foreground">Selecciona un proveedor para continuar.</p>
           )}
-          {proveedor && todasLasLineasValidas && !archivoSoporte && (
+          {!modificar && proveedor && todasLasLineasValidas && !archivoSoporte && (
             <p className="text-xs text-muted-foreground">
               Adjunta el soporte (cotización, cuenta de cobro o factura) para {modificar ? "guardar los cambios" : "generar la orden"}.
             </p>

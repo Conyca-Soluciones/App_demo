@@ -1,5 +1,6 @@
 "use client"
 
+import { DialogoSoporteOrden } from "@/components/dialogo-soporte-orden"
 import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import { TituloPestana } from "@/components/titulo-pestana"
 
@@ -42,6 +43,7 @@ import {
   obtenerPermisosOrdenCompra,
   enlaceSoporteOrden,
   listarSoportesOrden,
+  soportesOrdenEditables,
   cancelarOrdenCompra,
   cambiarFechaCreditoOC,
   ordenCompraModificable,
@@ -78,6 +80,10 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
   const [fechaCreditoNueva, setFechaCreditoNueva] = useState<string | null>(null)
 
   const [soportes, setSoportes] = useState<SoporteGuardado[]>([])
+  // Añadir / cambiar soportes (Compras, 20270101005800): null = se puede; si no, por qué no.
+  const [soportesFijos, setSoportesFijos] = useState<string | null>("Sin permiso.")
+  // Diálogo: undefined = cerrado; null = añadir; un soporte = cambiar ese.
+  const [dialogoSoporte, setDialogoSoporte] = useState<SoporteGuardado | null | undefined>(undefined)
   // Modificar (Compras): null = se puede; si no, por qué no (lo dice la base:
   // ya se envió el pago a liquidar, tiene entradas...). undefined = sin permiso.
   const [noModificable, setNoModificable] = useState<string | null | undefined>(undefined)
@@ -94,11 +100,13 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
       obtenerPermisosOrdenCompra(),
       listarSoportesOrden(ordenId),
       ordenCompraModificable(ordenId).catch(() => undefined),
+      soportesOrdenEditables(ordenId).catch(() => "Sin permiso."),
     ])
-      .then(([o, p, s, modificable]) => {
+      .then(([o, p, s, modificable, fijos]) => {
         setOrden(o)
         setPermisos(p)
         setSoportes(s)
+        setSoportesFijos(fijos)
         setError(null)
         setNoModificable(
           p.rolCompras && (o.estado === "pendiente_aprobacion" || o.estado === "aprobada") ? modificable : undefined
@@ -536,7 +544,14 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
             </div>
           )}
           <div className="space-y-1 border-t pt-3">
-            <p className="text-muted-foreground">Soporte</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-muted-foreground">{soportes.length > 1 ? "Soportes" : "Soporte"}</p>
+              {soportesFijos === null && (
+                <Button size="sm" variant="outline" className="h-7" onClick={() => setDialogoSoporte(null)}>
+                  Añadir soporte
+                </Button>
+              )}
+            </div>
             {soportes.length === 0 ? (
               <p className="text-xs text-muted-foreground">Sin soporte (orden de antes de que fuera obligatorio).</p>
             ) : (
@@ -564,10 +579,31 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   >
                     Ver
                   </Button>
+                  {soportesFijos === null && (
+                    <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => setDialogoSoporte(s)}>
+                      Cambiar
+                    </Button>
+                  )}
                 </div>
               ))
             )}
+            {permisos?.rolCompras && soportesFijos && soportesFijos !== "Sin permiso." && (
+              <p className="text-xs text-muted-foreground">{soportesFijos}</p>
+            )}
           </div>
+          {dialogoSoporte !== undefined && (
+            <DialogoSoporteOrden
+              key={dialogoSoporte?.id ?? "nuevo"}
+              ordenId={orden.id}
+              cambiando={dialogoSoporte}
+              abierto
+              onCerrar={() => setDialogoSoporte(undefined)}
+              onListo={() => {
+                setDialogoSoporte(undefined)
+                cargar()
+              }}
+            />
+          )}
           <FacturasOrden
             ordenId={orden.id}
             aprobada={orden.estado === "aprobada"}

@@ -20,6 +20,7 @@ import {
   rutaComprobantePago,
   rutaSoporteDispersor,
   rutaSoportePago,
+  textoVerSoporte,
   type ComentarioPago,
   type FilaLiquidacion,
   type Pago,
@@ -360,7 +361,7 @@ function Contenido({
       <div className="flex flex-wrap gap-2">
         {soporte ? (
           <a href={rutaSoportePago(pago.id)} target="_blank" rel="noreferrer" className={buttonVariants({ size: "sm", variant: "outline" })} title={soporte.nombre}>
-            <Paperclip className="mr-1.5 h-4 w-4" /> Ver soporte
+            <Paperclip className="mr-1.5 h-4 w-4" /> {textoVerSoporte(soporte)}
           </a>
         ) : (
           <span className="self-center text-sm text-muted-foreground">Sin soporte</span>
