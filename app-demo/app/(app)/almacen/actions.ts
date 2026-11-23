@@ -205,12 +205,14 @@ async function conversionesItemInsumo(
   return mapa
 }
 
-// Un ítem de la búsqueda en unidades de compra. `propia` = lo que la misma
-// requisición ya tiene reservado (al modificar), en la unidad del APU.
+// Un ítem de la búsqueda en unidades de compra. `propiaCompra` = lo que la misma
+// requisición ya tiene reservado (al modificar), en UNIDADES DE COMPRA: se lleva a
+// la unidad actual de la línea con su factor (la requisición pudo pedirse con otra
+// conversión, ver 20270101005600).
 function itemEnCompra(
   fila: { presupuesto_item_id: string; item_codigo: string; item_descripcion: string; item_apu_id: string | null; cantidad_disponible: number | string },
   conv: ConversionLinea | undefined,
-  propia: number
+  propiaCompra: number
 ): InsumoAgrupado["items"][number] {
   const factor = conv?.factor ?? 1
   return {
@@ -218,7 +220,7 @@ function itemEnCompra(
     itemCodigo: fila.item_codigo,
     itemDescripcion: fila.item_descripcion,
     itemApuId: fila.item_apu_id,
-    cantidadDisponible: disponibleEnCompra(Number(fila.cantidad_disponible) + propia, factor),
+    cantidadDisponible: disponibleEnCompra(Number(fila.cantidad_disponible) + propiaCompra * factor, factor),
     factor,
     unidadLinea: conv?.unidadLinea ?? null,
     conversionPendiente: conv ? conversionPendiente(conv.unidadLinea, conv.umInsumo, conv.factor) : false,
@@ -859,12 +861,13 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   const versionId = item.version_id as string
 
   // En la unidad del APU (la del tope); abajo se pasan a unidades de compra.
-  const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidadUso]))
+  // En unidades de compra, cada una con la conversión con que se pidió (l.cantidad).
+  const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidad]))
   // Líneas agrupadas por insumo en una sola pasada (marcados = ítem -> cantidad).
   const marcadosPorInsumo = new Map<string, { linea: (typeof lineas)[number]; marcados: Record<string, number> }>()
   for (const l of lineas) {
     const g = marcadosPorInsumo.get(l.insumoId) ?? { linea: l, marcados: {} }
-    g.marcados[l.presupuestoItemId] = l.cantidadUso
+    g.marcados[l.presupuestoItemId] = l.cantidad
     marcadosPorInsumo.set(l.insumoId, g)
   }
   const insumosUnicos = Array.from(marcadosPorInsumo.values()).map((g) => g.linea)
@@ -894,11 +897,8 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
     const items = filas.map((f) =>
       itemEnCompra(f, f.item_apu_id ? conversiones.get(f.item_apu_id) : undefined, propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0)
     )
-    const factorDe = new Map(items.map((it) => [it.presupuestoItemId, it.factor ?? 1]))
-    const marcadosUso = marcadosPorInsumo.get(l.insumoId)?.marcados ?? {}
-    const marcados = Object.fromEntries(
-      Object.entries(marcadosUso).map(([item, cant]) => [item, cantidadEnCompra(cant, factorDe.get(item) ?? 1)])
-    )
+    // Ya en unidades de compra (con la conversión con que se pidió cada una).
+    const marcados = marcadosPorInsumo.get(l.insumoId)?.marcados ?? {}
     const conv0 = filas[0]?.item_apu_id ? conversiones.get(filas[0].item_apu_id) : undefined
     const agrupado: InsumoAgrupado = {
       insumoId: l.insumoId,

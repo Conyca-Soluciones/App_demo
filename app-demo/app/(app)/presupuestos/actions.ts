@@ -2347,6 +2347,9 @@ function unidadDeLinea(
   const comp = compararUnidad(unidadLinea, presentacion)
   if (conversion != null && comp.estado !== "igual" && comp.estado !== "sin_dato") {
     if (!(conversion > 0)) throw new Error("La conversión tiene que ser un número mayor que cero.")
+    // 1 a 1: la línea queda en la unidad del insumo (si no, parecería una
+    // conversión pendiente y no se podría pedir en una requisición).
+    if (conversion === 1) return { unidad: presentacion.u_m, factor: 1 }
     return { unidad: normalizarUnidad(unidadLinea), factor: conversion }
   }
   if (comp.estado === "conversion") return { unidad: presentacion.unidad_uso, factor: comp.factor }
@@ -2373,17 +2376,21 @@ export async function actualizarConversionLineaApu(input: {
   unidad: string
   conversion: number
 }): Promise<void> {
-  const unidad = normalizarUnidad(input.unidad)
+  let unidad = normalizarUnidad(input.unidad)
   if (!unidad) throw new Error("Falta la unidad de la línea.")
   if (!(input.conversion > 0)) throw new Error("La conversión tiene que ser un número mayor que cero.")
   const supabase = await createClient()
   const { data: linea, error } = await supabase
     .from("item_apu")
-    .select("id, apu_id, insumo_id, factor_unidad, precio_unitario_congelado")
+    .select("id, apu_id, insumo_id, factor_unidad, precio_unitario_congelado, insumo:maestro_insumos!item_apu_insumo_id_fkey(u_m)")
     .eq("id", input.itemApuId)
     .single()
   if (error) throw new Error(error.message)
   if (!linea.insumo_id) throw new Error("Solo las líneas de insumo tienen conversión.")
+  // 1 a 1 = la unidad del insumo: así la línea no queda como "conversión pendiente"
+  // (otra unidad con factor 1) y se puede pedir en una requisición.
+  const umInsumo = (linea.insumo as unknown as { u_m: string | null } | null)?.u_m ?? null
+  if (input.conversion === 1 && umInsumo) unidad = umInsumo
   const factorViejo = Number(linea.factor_unidad ?? 1)
   const congelado =
     linea.precio_unitario_congelado == null
