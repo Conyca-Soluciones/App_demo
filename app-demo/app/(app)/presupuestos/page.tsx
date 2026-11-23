@@ -58,6 +58,7 @@ import {
   crearVersionConDiferencias,
   reutilizarDecisionesItems,
   type CambiosVersionExcel,
+  type ResultadoReutilizarItems,
 } from "./actions"
 import { ComparacionVersion } from "@/components/comparacion-version"
 import { compararVersion, type ItemExcel, type ResultadoComparacion } from "@/lib/comparar-version"
@@ -555,6 +556,23 @@ function formatoCantidadExcel(valor: unknown): string {
 // ---------------------------------------------------------------------------
 // Ruta: /presupuestos
 // ---------------------------------------------------------------------------
+
+// Suma los resultados de reutilizar_decisiones_items de cada tanda.
+function sumarReutilizados(a: ResultadoReutilizarItems, b: ResultadoReutilizarItems): ResultadoReutilizarItems {
+  return {
+    resueltas: a.resueltas + b.resueltas,
+    solicitudes: a.solicitudes + b.solicitudes,
+    rechazadas: a.rechazadas + b.rechazadas,
+    lineasAMano: a.lineasAMano + b.lineasAMano,
+    lineasAManoRepetidas: a.lineasAManoRepetidas + b.lineasAManoRepetidas,
+    divisiones: a.divisiones + b.divisiones,
+    divisionesPerdidas: a.divisionesPerdidas + b.divisionesPerdidas,
+    moModalidad: a.moModalidad + b.moModalidad,
+    modalidades: a.modalidades + b.modalidades,
+    erroresModalidades: [...a.erroresModalidades, ...b.erroresModalidades],
+    solicitudesCerradas: a.solicitudesCerradas + b.solicitudesCerradas,
+  }
+}
 
 export default function Presupuestos() {
   // key: al cambiar de proyecto la página empieza de cero (presupuesto,
@@ -1459,6 +1477,7 @@ function PresupuestoDeProyecto() {
     setAvisoImportApu(null)
     setProgresoImport(null)
     const TAMANO_TANDA = 40
+    const TAMANO_TANDA_REUTILIZAR = 25
     try {
       const codigoPorId = new Map(items.map((i) => [i.id, i.codigo]))
       const porCodigo = new Map(items.map((i) => [i.codigo, i]))
@@ -1520,7 +1539,16 @@ function PresupuestoDeProyecto() {
           setProgresoImport({ procesados: Math.min(i + TAMANO_TANDA, bloquesAImportar.length), total: bloquesAImportar.length })
         }
       }
-      const reu = r.rehacer.length > 0 ? await reutilizarDecisionesItems(presupuestoId, r.rehacer) : null
+      // Lo decidido en la copia pasa a los APU nuevos por tandas: de una sola vez,
+      // 600 ítems pasaban del límite de 8 s de la base (Malecón, 23/11) y no se
+      // aplicaba nada.
+      let reu: ResultadoReutilizarItems | null = null
+      for (let i = 0; i < r.rehacer.length; i += TAMANO_TANDA_REUTILIZAR) {
+        const parcial = await reutilizarDecisionesItems(presupuestoId, r.rehacer.slice(i, i + TAMANO_TANDA_REUTILIZAR))
+        reu = reu === null ? parcial : sumarReutilizados(reu, parcial)
+        latidoImportPresupuesto(presupuestoId, true).catch((e) => console.error("Latido del import:", e))
+        setProgresoImport({ procesados: Math.min(i + TAMANO_TANDA_REUTILIZAR, r.rehacer.length), total: r.rehacer.length })
+      }
       if (latidoImportRef.current) clearInterval(latidoImportRef.current)
       latidoImportRef.current = null
       if (bloquesAImportar.length > 0) await latidoImportPresupuesto(presupuestoId, false)
