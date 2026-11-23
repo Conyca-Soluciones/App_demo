@@ -18,6 +18,7 @@ import {
   type ResultadoModalidades,
 } from "@/lib/modalidades"
 import type { ItemInfoModalidad } from "@/lib/excel-modalidades"
+import type { ItemVigente as ItemVigenteComparar } from "@/lib/comparar-version"
 import {
   compararUnidad,
   describirPresentacion,
@@ -5896,4 +5897,32 @@ export async function fijarDesperdicioPresupuesto(
     valorAntes: Number(r.valor_antes ?? 0),
     valorDespues: Number(r.valor_despues ?? 0),
   }
+}
+
+// Versión vigente para compararla con el Excel antes de crear una versión nueva
+// (20270101005300; la comparación está en lib/comparar-version.ts).
+export async function datosCompararVersion(presupuestoId: string): Promise<ItemVigenteComparar[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("datos_comparar_version", { p_presupuesto_id: presupuestoId })
+  if (error) throw new Error(error.message)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data as any[]) ?? []).map((i) => ({
+    codigo: String(i.codigo),
+    descripcion: String(i.descripcion ?? ""),
+    unidad: i.unidad ?? null,
+    cantidad: i.cantidad != null ? Number(i.cantidad) : null,
+    precioOficial: i.precio_oficial != null ? Number(i.precio_oficial) : null,
+    esHoja: Boolean(i.es_hoja),
+    tieneApu: Boolean(i.tiene_apu),
+    modalidad: i.modalidad ?? null,
+    conRequisiciones: Boolean(i.con_requisiciones),
+    conContratos: Boolean(i.con_contratos),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lineas: (Array.isArray(i.lineas) ? i.lineas : []).map((l: any) => ({
+      tipo: String(l.tipo ?? ""),
+      descripcion: String(l.descripcion ?? ""),
+      unidad: l.unidad ?? null,
+      cantidad: l.cantidad != null ? Number(l.cantidad) : null,
+    })),
+  }))
 }

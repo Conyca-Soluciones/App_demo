@@ -53,7 +53,10 @@ import {
   puedeEditarPresupuestos,
   obtenerTopeTodoCosto,
   fijarModalidadesPresupuesto,
+  datosCompararVersion,
 } from "./actions"
+import { ComparacionVersion } from "@/components/comparacion-version"
+import { compararVersion, type ItemExcel, type ResultadoComparacion } from "@/lib/comparar-version"
 import {
   Select,
   SelectContent,
@@ -62,7 +65,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
-import { aplicarItemsGlobales, idsConHijos, itemSinApu } from "@/lib/items-globales"
+import { aplicarItemsGlobales, esUnidadGlobal, idsConHijos, itemSinApu } from "@/lib/items-globales"
 import {
   leerModalidad,
   NOMBRE_MODALIDAD,
@@ -662,6 +665,11 @@ function PresupuestoDeProyecto() {
   const [bloquesApuPendientesDeVersion, setBloquesApuPendientesDeVersion] = useState<BloqueApu[]>(
     []
   )
+  // Qué cambia frente a la versión vigente (lib/comparar-version.ts), antes de
+  // crear la versión nueva. "cargando" mientras llegan los datos de la base.
+  const [comparacionVersion, setComparacionVersion] = useState<
+    ResultadoComparacion | "cargando" | { error: string } | null
+  >(null)
 
   const [guardandoImportApu, setGuardandoImportApu] = useState(false)
 
@@ -1375,6 +1383,31 @@ function PresupuestoDeProyecto() {
     if (presupuestoExistente) {
       setItemsPendientesDeVersion(resultado.items)
       setBloquesApuPendientesDeVersion(resultado.bloquesApu)
+      // Resumen de lo que cambia frente a la versión vigente (solo se muestra).
+      setComparacionVersion("cargando")
+      const conHijos = idsConHijos(resultado.items)
+      const bloquePorCodigo = new Map(resultado.bloquesApu.map((b) => [b.codigoItem, b]))
+      const itemsExcel: ItemExcel[] = resultado.items.map((i) => {
+        const bloque = bloquePorCodigo.get(i.codigo)
+        const esHoja = !conHijos.has(i.id)
+        return {
+          codigo: i.codigo,
+          descripcion: i.descripcion,
+          unidad: i.unidad,
+          cantidad: i.cantidad ?? null,
+          precioOficial: i.precioOriginal,
+          esHoja,
+          esGlobal: esHoja && !bloque && esUnidadGlobal(i.unidad),
+          lineas: bloque
+            ? bloque.lineas.map((l) => ({ tipo: l.tipo, descripcion: l.descripcion, unidad: l.unidad, cantidad: l.cantidad }))
+            : null,
+        }
+      })
+      datosCompararVersion(presupuestoExistente.id)
+        .then((vigentes) => setComparacionVersion(compararVersion(vigentes, itemsExcel)))
+        .catch((e) =>
+          setComparacionVersion({ error: e instanceof Error ? e.message : "No se pudo comparar con la versión vigente." })
+        )
       return
     }
 
@@ -1396,6 +1429,7 @@ function PresupuestoDeProyecto() {
     setItemsPendientesDeVersion(null)
     setBloquesApuPendientesDeVersion([])
     setNombreVersionDesdeImport("")
+    setComparacionVersion(null)
 
     // Sin hoja APU el guardado llega después (botón Guardar) y lee
     // versionPendienteDesdeImport del estado; con hoja APU se guarda ya, en
@@ -2010,6 +2044,14 @@ function PresupuestoDeProyecto() {
               versión nueva de &ldquo;{presupuestoExistente.nombre}&rdquo;.
             </p>
 
+            {comparacionVersion === "cargando" ? (
+              <p className="text-xs text-sky-800">Comparando con la versión vigente…</p>
+            ) : comparacionVersion && "error" in comparacionVersion ? (
+              <p className="text-xs text-destructive">{comparacionVersion.error}</p>
+            ) : comparacionVersion ? (
+              <ComparacionVersion comparacion={comparacionVersion} />
+            ) : null}
+
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
                 <label className="text-xs text-sky-800">Nombre de la versión</label>
@@ -2036,6 +2078,7 @@ function PresupuestoDeProyecto() {
                 onClick={() => {
                   setItemsPendientesDeVersion(null)
                   setBloquesApuPendientesDeVersion([])
+                  setComparacionVersion(null)
                   modalidadesPendientesRef.current = null
                 }}
               >
