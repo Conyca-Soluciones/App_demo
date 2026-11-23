@@ -23,15 +23,25 @@ export function LandingProyectos({
   const [eligiendo, setEligiendo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // En orden de número (000 FUNCIONAMIENTO, 001, 002...), de izquierda a
+  // derecha y de arriba abajo; los que no tienen número van al final.
+  const ordenados = useMemo(
+    () =>
+      [...proyectos].sort(
+        (a, b) => (a.numero ?? Number.MAX_SAFE_INTEGER) - (b.numero ?? Number.MAX_SAFE_INTEGER) || (a.codigo ?? "").localeCompare(b.codigo ?? "", "es")
+      ),
+    [proyectos]
+  )
+
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
-    if (!q || q === COMODIN_LISTAR) return proyectos
-    return proyectos.filter((p) =>
+    if (!q || q === COMODIN_LISTAR) return ordenados
+    return ordenados.filter((p) =>
       [p.numero != null ? String(p.numero).padStart(3, "0") : null, p.codigo, p.nombre, p.cliente, p.ciudad].some((x) =>
         (x ?? "").toLowerCase().includes(q)
       )
     )
-  }, [proyectos, busqueda])
+  }, [ordenados, busqueda])
 
   async function elegir(id: string) {
     setEligiendo(id)

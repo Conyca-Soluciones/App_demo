@@ -1,6 +1,7 @@
 import Image from "next/image"
 import { LandingProyectos } from "@/components/landing-proyectos"
-import { MarcoPagina } from "@/components/encabezado-pagina"
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { TituloPestana } from "@/components/titulo-pestana"
 
 export default async function InicioPage({
   searchParams,
@@ -14,11 +15,12 @@ export default async function InicioPage({
   const destino = "/pendientes"
 
   return (
-    <MarcoPagina
-      titulo="¿En qué proyecto vas a trabajar?"
-      subtitulo="Elige un proyecto para continuar. Siempre puedes cambiarlo desde la barra de arriba."
-      scroll
-    >
+    // Sin título ni subtítulo (decisión del usuario, 2026-11-23): solo el logo y
+    // los proyectos. El botón del menú se deja (en el celular es la única forma de abrirlo).
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <TituloPestana titulo="Proyectos" />
+      <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+      <SidebarTrigger />
       <div className="mb-8 flex justify-center pt-2">
         <div className="rounded-2xl dark:bg-white dark:px-6 dark:py-4">
           <Image
@@ -32,6 +34,7 @@ export default async function InicioPage({
         </div>
       </div>
       <LandingProyectos destino={destino} sinPermiso={error === "no-autorizado"} />
-    </MarcoPagina>
+      </div>
+    </div>
   )
 }
