@@ -1764,6 +1764,10 @@ Salen de la revisión por roles (`docs/agentes/revisiones/2026-10-19/`, E1).
   abrir un pendiente de otro proyecto cambia antes el proyecto actual. **Si se
   agrega un paso con aprobación, sumarlo en `_pendientes_de` y en
   `GRUPOS_PENDIENTES`.** Pólizas (rama de spr) falta sumarlas al unirlas.
+- **Pagos de semanas anteriores sin pagar** (`20270101005300`, 2026-11-23, decisión del usuario): en
+  Mis pendientes de Financiera (`gestionar_pagos`, consolidados que ve), tipo `pago_semana_anterior`:
+  pago `aprobado` (no dispersado) cuya semana de pago ya pasó, en cualquier etapa. Vence el domingo de
+  su semana; el enlace va a la pestaña del Consolidado donde está (liquidados no PSE: Realizar Pagos).
 - **Soportes** (T4, `20261202000000_soportes_oc_actas_entradas.sql`, decisiones
   del usuario 2026-10-21; numerada después de las de spr hasta 20261201000000):
   - **Generar OC**: soporte OBLIGATORIO (cotización, cuenta de cobro o factura;
