@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server"
 import { traerTodo } from "@/lib/supabase/traer-todo"
+import { cantidadEnCompra } from "@/lib/requisicion-unidades"
 
 // Líneas de requisiciones (cada una = un insumo en un ítem del presupuesto).
 // Va FUERA de actions.ts porque lo usan dos pantallas (detalle y aprobación) y
@@ -52,8 +53,11 @@ export type LineaRequisicion = {
   presupuestoId: string | null
   itemCodigo: string
   itemDescripcion: string
+  // En la unidad de compra del insumo (la de la maestra, insumoUm), como se pide
+  // desde 20270101005400. cantidadUso = la guardada, en la unidad del APU (la del tope).
   cantidad: number
   comprado: number
+  cantidadUso: number
   estado: "pendiente" | "aprobado" | "rechazado" | "cancelado"
   rechazadaPorCompras: boolean
   // Compras cerró el saldo de una requisición comprada a medias (no la rechazó
@@ -102,7 +106,7 @@ export async function cargarLineas(
           supabase
             .from("pedidos_insumos")
             .select(`
-              id, grupo_pedido_id, cantidad, unidad, estado, resuelto_at, comentario_resolucion, motivo_cancelacion,
+              id, grupo_pedido_id, cantidad, unidad, factor_unidad, estado, resuelto_at, comentario_resolucion, motivo_cancelacion,
               rechazado_compras_at, observaciones_compras, saldo_cerrado_at, presupuesto_item_id,
               insumo:maestro_insumos(id, codigo, descripcion, u_m),
               presupuesto_item:presupuesto_items(codigo, descripcion, presupuesto_id),
@@ -135,19 +139,21 @@ export async function cargarLineas(
 
   for (const l of lineas) {
     const arr = porRequisicion.get(l.grupo_pedido_id) ?? []
+    const factor = Number(l.factor_unidad ?? 1) || 1
     arr.push({
       id: l.id,
       insumoId: l.insumo?.id,
       insumoCodigo: l.insumo?.codigo,
       insumoDescripcion: l.insumo?.descripcion ?? "(insumo eliminado)",
-      // unidad de la línea del APU (en la que se pidió), no la de compra
-      insumoUm: l.unidad ?? l.insumo?.u_m ?? null,
+      // Unidad de compra del insumo (la de la maestra): la requisición se pide en ella.
+      insumoUm: l.insumo?.u_m ?? l.unidad ?? null,
       presupuestoItemId: l.presupuesto_item_id,
       presupuestoId: l.presupuesto_item?.presupuesto_id ?? null,
       itemCodigo: l.presupuesto_item?.codigo ?? "",
       itemDescripcion: l.presupuesto_item?.descripcion ?? "",
-      cantidad: Number(l.cantidad),
-      comprado: compradoPorId.get(l.id) ?? 0,
+      cantidad: cantidadEnCompra(Number(l.cantidad), factor),
+      comprado: cantidadEnCompra(compradoPorId.get(l.id) ?? 0, factor),
+      cantidadUso: Number(l.cantidad),
       estado: l.estado,
       rechazadaPorCompras: l.rechazado_compras_at !== null,
       saldoCerrado: l.saldo_cerrado_at != null,

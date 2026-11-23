@@ -14,6 +14,7 @@ import { puedeBuscar } from "@/lib/busqueda"
 import { useEffect, useRef, useState } from "react"
 import { CampoDireccionEntrega } from "@/components/campo-direccion-entrega"
 import { validarDireccion } from "@/lib/direccion-entrega"
+import { nombreUnidad } from "@/lib/unidades"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -78,6 +79,8 @@ function estadoLinea(linea: LineaPedido) {
 function motivoLinea(linea: LineaPedido): string | null {
   const { marcados, hayExceso, lista } = estadoLinea(linea)
   if (lista) return null
+  if (linea.items.every((it) => it.conversionPendiente))
+    return "Falta la conversión de unidad de este insumo en el presupuesto (APU del ítem). Pídele a quien hace el presupuesto que la escriba; sale en sus pendientes."
   if (linea.items.every((it) => it.cantidadDisponible <= 0))
     return "Este insumo no tiene cupo disponible en el presupuesto. Quítalo para poder guardar, o pide lo que falta con \"Solicitar requisición extraordinaria a Gerencia\"."
   if (marcados.length === 0) return "Marca al menos un ítem del presupuesto."
@@ -197,7 +200,7 @@ export function FormularioRequisicion({
         insumo,
         items: insumo.items.map((it) => ({
           ...it,
-          marcado: insumo.items.length === 1 && it.cantidadDisponible > 0,
+          marcado: insumo.items.length === 1 && it.cantidadDisponible > 0 && !it.conversionPendiente,
           cantidad: "",
         })),
       },
@@ -454,7 +457,10 @@ export function FormularioRequisicion({
 
                       {linea.items.map((it) => {
                         const excedido = Number(it.cantidad) > it.cantidadDisponible
-                        const sinDisponible = it.cantidadDisponible <= 0
+                        const sinDisponible = it.cantidadDisponible <= 0 || !!it.conversionPendiente
+                        // Se pide en la unidad de la maestra; el presupuesto va en la del APU.
+                        const unidad = nombreUnidad(insumo.insumoUm) || "unidades"
+                        const conConversion = (it.factor ?? 1) !== 1 && !!it.unidadLinea
 
                         return (
                           <div
@@ -480,9 +486,18 @@ export function FormularioRequisicion({
                                   sinDisponible ? "text-destructive" : "text-muted-foreground"
                                 }`}
                               >
-                                {sinDisponible
-                                  ? "Sin cantidad disponible en el presupuesto"
-                                  : `Disponible: ${it.cantidadDisponible}`}
+                                {it.conversionPendiente
+                                  ? "Falta la conversión de unidad en el APU de este ítem"
+                                  : sinDisponible
+                                    ? "Sin cantidad disponible en el presupuesto"
+                                    : `Disponible: ${it.cantidadDisponible} ${unidad}`}
+                                {conConversion && !it.conversionPendiente && (
+                                  <span className="text-muted-foreground">
+                                    {" "}
+                                    (1 {nombreUnidad(insumo.insumoUm) || "unidad"} = {String(it.factor).replace(".", ",")}{" "}
+                                    {nombreUnidad(it.unidadLinea)} del presupuesto)
+                                  </span>
+                                )}
                                 {onSolicitarGerencia && (sinDisponible || excedido) && (
                                   <>
                                     {" · "}
@@ -513,7 +528,7 @@ export function FormularioRequisicion({
                                   })
                                 }
                                 disabled={!it.marcado || sinDisponible}
-                                placeholder="Cantidad"
+                                placeholder={unidad}
                                 className={`h-8 text-right text-xs ${
                                   excedido ? "border-destructive focus-visible:ring-destructive" : ""
                                 }`}

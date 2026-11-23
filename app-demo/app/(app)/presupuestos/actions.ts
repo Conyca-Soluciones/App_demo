@@ -29,6 +29,7 @@ import {
   type PresentacionInsumo,
 } from "@/lib/unidades"
 import { CATEGORIAS_APU } from "@/app/(app)/presupuestos/categorias-apu"
+import { conversionPendiente } from "@/lib/requisicion-unidades"
 import type {
   BloqueApuInput,
   ResolucionInsumo,
@@ -5925,4 +5926,48 @@ export async function datosCompararVersion(presupuestoId: string): Promise<ItemV
       cantidad: l.cantidad != null ? Number(l.cantidad) : null,
     })),
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Conversión de unidad pendiente (20270101005400): líneas de insumo del APU en
+// otra unidad que la del insumo y sin conversión. La requisición se pide en la
+// unidad de compra, así que esas líneas no se pueden pedir hasta escribirla. Lo
+// usa el aviso de Elaboración de presupuestos (al llegar desde Mis pendientes).
+// ---------------------------------------------------------------------------
+
+export type LineaConversionPendiente = {
+  apuId: string
+  insumo: string
+  unidadLinea: string | null
+  umInsumo: string | null
+}
+
+export async function lineasConConversionPendiente(apuIds: string[]): Promise<LineaConversionPendiente[]> {
+  const supabase = await createClient()
+  const unicos = Array.from(new Set(apuIds.filter(Boolean)))
+  const resultado: LineaConversionPendiente[] = []
+  for (let i = 0; i < unicos.length; i += 100) {
+    const filas = await traerTodo<{
+      apu_id: string
+      unidad: string | null
+      factor_unidad: number | null
+      insumo: { descripcion: string | null; u_m: string | null } | null
+    }>((desde, hasta) =>
+      supabase
+        .from("item_apu")
+        .select("id, apu_id, unidad, factor_unidad, insumo:maestro_insumos!item_apu_insumo_id_fkey(descripcion, u_m)")
+        .in("apu_id", unicos.slice(i, i + 100))
+        .not("insumo_id", "is", null)
+        .eq("factor_unidad", 1)
+        .not("unidad", "is", null)
+        .order("id")
+        .range(desde, hasta) as never
+    )
+    for (const f of filas) {
+      if (conversionPendiente(f.unidad, f.insumo?.u_m ?? null, Number(f.factor_unidad ?? 1))) {
+        resultado.push({ apuId: f.apu_id, insumo: f.insumo?.descripcion ?? "Insumo", unidadLinea: f.unidad, umInsumo: f.insumo?.u_m ?? null })
+      }
+    }
+  }
+  return resultado
 }

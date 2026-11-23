@@ -53,6 +53,7 @@ import {
   type ProveedorDetalle,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
 import { nombreUnidad, unidadesDeCompra } from "@/lib/unidades"
+import { cantidadEnCompra } from "@/lib/requisicion-unidades"
 import {
   cantidadPorPresentacion,
   conversionValida,
@@ -761,7 +762,6 @@ export function GenerarOCView({
                     <TableHead>Ítem</TableHead>
                     <TableHead className="text-right">Solicitado</TableHead>
                     <TableHead className="min-w-44">UM disponible</TableHead>
-                    <TableHead className="min-w-48">Conversión</TableHead>
                     <TableHead className="min-w-28 text-right">Cantidad</TableHead>
                     <TableHead className="text-right">Equivale a</TableHead>
                     <TableHead className="min-w-40 text-right">Vr. Unitario</TableHead>
@@ -804,10 +804,16 @@ export function GenerarOCView({
                         </TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{pedido.itemCodigo ?? "—"}</TableCell>
                         <TableCell className="whitespace-nowrap text-right">
-                          {formatoCantidad(pedido.pendienteUso)} {nombreUnidad(pedido.unidadUso)}
+                          {/* En la unidad de compra (la de la maestra), como se pidió (20270101005400). */}
+                          {formatoCantidad(cantidadEnCompra(pedido.pendienteUso, pedido.factor))} {nombreUnidad(pedido.um) || "und"}
                           {pedido.pendienteUso < pedido.cantidadUso && (
                             <span className="block text-xs text-muted-foreground">
-                              de {formatoCantidad(pedido.cantidadUso)} pedidos
+                              de {formatoCantidad(cantidadEnCompra(pedido.cantidadUso, pedido.factor))} pedidos
+                            </span>
+                          )}
+                          {pedido.factor !== 1 && (
+                            <span className="block text-xs text-muted-foreground">
+                              = {formatoCantidad(pedido.pendienteUso)} {nombreUnidad(pedido.unidadUso)} del presupuesto
                             </span>
                           )}
                         </TableCell>
@@ -827,10 +833,12 @@ export function GenerarOCView({
                               ))}
                             </SelectContent>
                           </Select>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 whitespace-nowrap text-sm">
-                            <span>1 {l.umCompra ? l.umCompra.toLowerCase() : nombreUnidad(pedido.um) || "und"} =</span>
+                          {/* Sin presentación la conversión es la de la requisición (la del APU) y no
+                              se cambia: un rollo de 50 m y uno de 100 m son insumos distintos
+                              (20270101005400). Con presentación, cuánto trae cada una. */}
+                          {l.umCompra && (
+                          <div className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap text-sm">
+                            <span>1 {l.umCompra.toLowerCase()} =</span>
                             <Input
                               inputMode="decimal"
                               value={l.conversion}
@@ -842,10 +850,11 @@ export function GenerarOCView({
                                   ? "border-destructive"
                                   : ""
                               }`}
-                              aria-label="Conversión"
+                              aria-label="Cuánto trae"
                             />
                             <span>{nombreUnidad(pedido.unidadUso)}</span>
                           </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
@@ -1397,7 +1406,7 @@ export function GenerarOCView({
                                 {p.itemCodigo && <span className="block text-xs text-muted-foreground">Ítem {p.itemCodigo}</span>}
                               </TableCell>
                               <TableCell className="whitespace-nowrap text-right tabular-nums">
-                                {formatoCantidad(p.pendienteUso)} {nombreUnidad(p.unidadUso)}
+                                {formatoCantidad(cantidadEnCompra(p.pendienteUso, p.factor))} {nombreUnidad(p.um) || "und"}
                               </TableCell>
                             </TableRow>
                           )

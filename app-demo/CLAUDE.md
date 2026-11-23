@@ -1075,6 +1075,30 @@ historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
   dos veces en un APU dejaba las dos revisiones enlazadas a la misma fila.
   `20261231999600` junta las repetidas que ya había (va después).
 
+## Requisiciones en la unidad de compra (2026-11-23)
+
+`20270101005400_unidades_requisiciones_y_oc.sql` (reversa en `supabase/reversa/`), decisiones del usuario:
+- **La requisición se pide en la unidad de la maestra** (rollos), no en la del APU (metros). La base
+  sigue guardando `pedidos_insumos.cantidad` en la unidad del APU y el **tope no cambia**
+  (`disponible_insumo_item`, en la unidad del APU). La app convierte (`lib/requisicion-unidades.ts`):
+  lo disponible = unidades de compra COMPLETAS hacia abajo (250 m con rollos de 100 = 2 rollos);
+  lo pedido = n × `factor_unidad` de la línea del APU (`insumosEnUso` en `almacen/actions.ts`,
+  también al modificar y en extraordinarias). La base exige que la cantidad sea un número entero de
+  unidades de compra (`_cantidad_compra_entera` + `_factor_pedido`, en `crear_requisicion`,
+  `modificar_requisicion` y `crear_requisicion_extraordinaria`). Detalle, Excel del registro y
+  Generar OC muestran la cantidad en la unidad de compra (`LineaRequisicion.cantidad`;
+  `cantidadUso` = la guardada).
+- **Conversión de unidad pendiente**: línea de insumo del APU en una unidad conocida distinta de la
+  del insumo y con factor 1 (`conversionPendiente` / `_conversion_pendiente`, mismo criterio que
+  `lineaNecesitaConversion`). No se puede pedir; sale en Mis pendientes de quien edita presupuestos
+  (`conversion_pendiente`, enlace `/presupuestos?conversion=1`, que lista las líneas con "Abrir APU")
+  y en el editor de APU como botón ámbar "Falta conversión" (el de siempre ahora es un botón visible).
+  `_unidad_normal` / `_unidad_limpia` / `_unidad_reconocida` = `normalizarUnidad` en SQL (mismos
+  sinónimos; si se cambian en `lib/unidades.ts`, cambiarlos también ahí).
+- **Generar OC sin columna Conversión**: un rollo de 50 m y uno de 100 m son insumos distintos. La
+  orden usa siempre la conversión de la requisición (`_insertar_lineas_orden` ignora la que manda la
+  pantalla). "UM disponible" (presentación) se queda, con su "cuánto trae" dentro de esa celda.
+
 ## UM disponible, excedentes de compras y las tres categorías de costo (2026-10-06)
 
 - **UM disponible** (`generar-oc-view.tsx`, `lib/presentacion-compra.ts`,

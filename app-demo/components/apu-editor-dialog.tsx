@@ -43,6 +43,8 @@ import { DividirManoObraDialog } from "@/components/dividir-mano-obra-dialog"
 import { CambiarModalidadItem } from "@/components/cambiar-modalidad-item"
 import type { Modalidad } from "@/lib/modalidades"
 import { describirPresentacion, nombreUnidad, normalizarUnidad, sugerirPresentacion, UNIDADES_DE_USO, UNIDADES_MAESTRO } from "@/lib/unidades"
+import { conversionPendiente } from "@/lib/requisicion-unidades"
+import { ArrowLeftRight } from "lucide-react"
 
 // Qué "recurso" real corresponde a cada sección visual de CATEGORIAS_APU
 // -- determina qué buscador se muestra en el "+ Agregar" de cada
@@ -1593,9 +1595,29 @@ function EditorConversion({
   const valida = !!unidad && Number.isFinite(numero) && numero > 0
 
   if (!abierto) {
-    return (
-      <button type="button" onClick={() => setAbierto(true)} className="block text-[11px] text-primary hover:underline">
-        conversión
+    // Más a la vista (pedido del usuario, 2026-11-23): la requisición se pide en la
+    // unidad de compra, así que una línea en otra unidad sin conversión no se puede
+    // pedir y sale en Mis pendientes ("Conversión de unidad pendiente").
+    const pendiente = conversionPendiente(linea.uM, linea.uMCompra, linea.factorUnidad ?? 1)
+    return pendiente ? (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-400 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 hover:bg-amber-200"
+        title={`La línea va en ${nombreUnidad(linea.uM) || "otra unidad"} y el insumo se compra por ${compra}: escribe cuánto trae.`}
+      >
+        <ArrowLeftRight className="size-3" />
+        Falta conversión
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="mt-1 inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+        title="1 unidad de compra del insumo = cuántas unidades de esta línea"
+      >
+        <ArrowLeftRight className="size-3" />
+        {conFactor ? "Cambiar conversión" : "Conversión"}
       </button>
     )
   }

@@ -23,6 +23,7 @@ import {
   type RequisicionResumen,
 } from "@/lib/requisiciones-lineas"
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
+import { cantidadEnCompra, cantidadEnUso, conversionPendiente, disponibleEnCompra } from "@/lib/requisicion-unidades"
 import type { FilaExcelRequisicion } from "@/lib/exportar-requisiciones"
 
 // ---------------------------------------------------------------------------
@@ -112,27 +113,138 @@ export async function buscarInsumos(
   if (error) throw new Error(error.message)
   if (!data) return []
 
+  // En la unidad de compra (la de la maestra): ver lib/requisicion-unidades.ts.
+  const conversiones = await conversionesLineasApu(
+    supabase,
+    data.map((f: { item_apu_id: string | null }) => f.item_apu_id).filter((x: string | null): x is string => !!x)
+  )
   const mapa = new Map<string, InsumoAgrupado>()
   for (const fila of data) {
+    const conv = fila.item_apu_id ? conversiones.get(fila.item_apu_id) : undefined
     if (!mapa.has(fila.insumo_id)) {
       mapa.set(fila.insumo_id, {
         insumoId: fila.insumo_id,
         insumoCodigo: fila.insumo_codigo,
         insumoDescripcion: fila.insumo_descripcion,
-        insumoUm: fila.insumo_um,
+        insumoUm: conv?.umInsumo ?? fila.insumo_um,
         items: [],
       })
     }
-    mapa.get(fila.insumo_id)!.items.push({
-      presupuestoItemId: fila.presupuesto_item_id,
-      itemCodigo: fila.item_codigo,
-      itemDescripcion: fila.item_descripcion,
-      itemApuId: fila.item_apu_id,
-      cantidadDisponible: fila.cantidad_disponible,
-    })
+    mapa.get(fila.insumo_id)!.items.push(itemEnCompra(fila, conv, 0))
   }
 
   return [...mapa.values()]
+}
+
+// ---------------------------------------------------------------------------
+// Unidades de las requisiciones (20270101005400): se piden en la unidad de compra
+// del insumo y se guardan en la del APU. El tope del presupuesto sigue en la
+// unidad del APU (la base lo revisa igual que antes).
+// ---------------------------------------------------------------------------
+
+type ConversionLinea = { factor: number; unidadLinea: string | null; umInsumo: string | null }
+type Supa = Awaited<ReturnType<typeof createClient>>
+
+// Conversión de cada línea del APU (1 unidad de compra = factor unidades de la línea).
+async function conversionesLineasApu(supabase: Supa, ids: string[]): Promise<Map<string, ConversionLinea>> {
+  const unicos = Array.from(new Set(ids))
+  const mapa = new Map<string, ConversionLinea>()
+  for (let i = 0; i < unicos.length; i += 100) {
+    const { data, error } = await supabase
+      .from("item_apu")
+      .select("id, factor_unidad, unidad, insumo:maestro_insumos!item_apu_insumo_id_fkey(u_m)")
+      .in("id", unicos.slice(i, i + 100))
+    if (error) throw new Error(error.message)
+    for (const f of (data ?? []) as unknown as { id: string; factor_unidad: number | null; unidad: string | null; insumo: { u_m: string | null } | null }[]) {
+      mapa.set(f.id, { factor: Number(f.factor_unidad ?? 1) || 1, unidadLinea: f.unidad, umInsumo: f.insumo?.u_m ?? null })
+    }
+  }
+  return mapa
+}
+
+// Lo mismo cuando solo se sabe el ítem y el insumo (requisición extraordinaria): la
+// primera línea del insumo en el APU del ítem, como el disparador de la base.
+async function conversionesItemInsumo(
+  supabase: Supa,
+  pares: { presupuestoItemId: string; insumoId: string }[]
+): Promise<Map<string, ConversionLinea>> {
+  const mapa = new Map<string, ConversionLinea>()
+  if (pares.length === 0) return mapa
+  const { data: items, error } = await supabase
+    .from("presupuesto_items")
+    .select("id, apu_id")
+    .in("id", Array.from(new Set(pares.map((p) => p.presupuestoItemId))))
+  if (error) throw new Error(error.message)
+  const apuDeItem = new Map(((items ?? []) as { id: string; apu_id: string | null }[]).map((i) => [i.id, i.apu_id]))
+  const apus = Array.from(new Set(Array.from(apuDeItem.values()).filter((x): x is string => !!x)))
+  if (apus.length === 0) return mapa
+  const { data: lineas, error: e2 } = await supabase
+    .from("item_apu")
+    .select("id, apu_id, insumo_id, factor_unidad, unidad, insumo:maestro_insumos!item_apu_insumo_id_fkey(u_m)")
+    .in("apu_id", apus)
+    .in("insumo_id", Array.from(new Set(pares.map((p) => p.insumoId))))
+    .order("id")
+  if (e2) throw new Error(e2.message)
+  const primera = new Map<string, ConversionLinea>()
+  for (const f of (lineas ?? []) as unknown as {
+    apu_id: string
+    insumo_id: string
+    factor_unidad: number | null
+    unidad: string | null
+    insumo: { u_m: string | null } | null
+  }[]) {
+    const k = `${f.apu_id}|${f.insumo_id}`
+    if (!primera.has(k)) primera.set(k, { factor: Number(f.factor_unidad ?? 1) || 1, unidadLinea: f.unidad, umInsumo: f.insumo?.u_m ?? null })
+  }
+  for (const p of pares) {
+    const apu = apuDeItem.get(p.presupuestoItemId)
+    const c = apu ? primera.get(`${apu}|${p.insumoId}`) : undefined
+    if (c) mapa.set(`${p.presupuestoItemId}|${p.insumoId}`, c)
+  }
+  return mapa
+}
+
+// Un ítem de la búsqueda en unidades de compra. `propia` = lo que la misma
+// requisición ya tiene reservado (al modificar), en la unidad del APU.
+function itemEnCompra(
+  fila: { presupuesto_item_id: string; item_codigo: string; item_descripcion: string; item_apu_id: string | null; cantidad_disponible: number | string },
+  conv: ConversionLinea | undefined,
+  propia: number
+): InsumoAgrupado["items"][number] {
+  const factor = conv?.factor ?? 1
+  return {
+    presupuestoItemId: fila.presupuesto_item_id,
+    itemCodigo: fila.item_codigo,
+    itemDescripcion: fila.item_descripcion,
+    itemApuId: fila.item_apu_id,
+    cantidadDisponible: disponibleEnCompra(Number(fila.cantidad_disponible) + propia, factor),
+    factor,
+    unidadLinea: conv?.unidadLinea ?? null,
+    conversionPendiente: conv ? conversionPendiente(conv.unidadLinea, conv.umInsumo, conv.factor) : false,
+  }
+}
+
+// Pasa las cantidades de la pantalla (unidades de compra) a la unidad del APU, que es
+// la que guarda la base y en la que está el tope. Falla si falta la conversión.
+async function insumosEnUso(supabase: Supa, insumos: InsumoDePedido[]): Promise<InsumoDePedido[]> {
+  const conversiones = await conversionesLineasApu(
+    supabase,
+    insumos.flatMap((ins) => ins.items.map((it) => it.itemApuId).filter((x): x is string => !!x))
+  )
+  const sinApu = insumos.flatMap((ins) =>
+    ins.items.filter((it) => !it.itemApuId).map((it) => ({ presupuestoItemId: it.presupuestoItemId, insumoId: ins.insumoId }))
+  )
+  const porItem = await conversionesItemInsumo(supabase, sinApu)
+  return insumos.map((ins) => ({
+    insumoId: ins.insumoId,
+    items: ins.items.map((it) => {
+      const conv = it.itemApuId ? conversiones.get(it.itemApuId) : porItem.get(`${it.presupuestoItemId}|${ins.insumoId}`)
+      if (conv && conversionPendiente(conv.unidadLinea, conv.umInsumo, conv.factor)) {
+        throw new Error("Hay un insumo con la conversión de unidad pendiente en el presupuesto: escríbela en el APU del ítem antes de pedirlo.")
+      }
+      return { ...it, cantidad: cantidadEnUso(it.cantidad, conv?.factor ?? 1) }
+    }),
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +338,10 @@ export async function crearPedido(input: NuevoPedidoInput) {
     return data?.descripcion ?? "un insumo"
   }
 
+  // La pantalla pide en unidades de compra; de aquí en adelante todo va en la
+  // unidad del APU (la del tope del presupuesto y la que guarda la base).
+  input = { ...input, insumos: await insumosEnUso(supabase, input.insumos) }
+
   // -- 1. Tope de cantidad: TODOS los pares (ítem, insumo) en un viaje --
   // (disponible_insumos_items reusa disponible_insumo_item por dentro;
   // antes era una llamada por par, hasta cientos por pedido).
@@ -245,7 +361,7 @@ export async function crearPedido(input: NuevoPedidoInput) {
     cantidad: p.item.cantidad,
     disponible: disponiblePorIdx.get(i + 1) ?? 0,
   }))
-  const excedido = topes.find((t) => t.cantidad > t.disponible)
+  const excedido = topes.find((t) => t.cantidad > t.disponible + 1e-9)
   if (excedido) {
     throw new Error(
       `La cantidad pedida de "${await nombreInsumo(excedido.insumoId)}" supera lo disponible del presupuesto (máximo ${excedido.disponible}).`
@@ -372,7 +488,14 @@ export async function insumoEnItem(presupuestoItemId: string, insumoId: string):
   const filas = lineas.data ?? []
   if (filas.length === 0) return { enApu: false, presupuestado: 0, disponible: 0 }
   const porUnidad = filas.reduce((s, f) => s + Number(f.cantidad ?? 0), 0)
-  return { enApu: true, presupuestado: porUnidad * Number(item.cantidad ?? 0), disponible: Number(disponible.data ?? 0) }
+  // En unidades de compra (la requisición se pide en la unidad de la maestra).
+  const c = (await conversionesItemInsumo(supabase, [{ presupuestoItemId, insumoId }])).get(`${presupuestoItemId}|${insumoId}`)
+  const factor = c?.factor ?? 1
+  return {
+    enApu: true,
+    presupuestado: cantidadEnCompra(porUnidad * Number(item.cantidad ?? 0), factor),
+    disponible: disponibleEnCompra(Number(disponible.data ?? 0), factor),
+  }
 }
 
 export type NuevaRequisicionExtraordinaria = {
@@ -402,8 +525,17 @@ export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtr
   }
 
   const supabase = await createClient()
+  // Unidades de compra -> unidad del APU (si el insumo está en el APU del ítem).
+  const conv = await conversionesItemInsumo(supabase, input.lineas)
+  const lineasUso = input.lineas.map((l) => {
+    const c = conv.get(`${l.presupuestoItemId}|${l.insumoId}`)
+    if (c && conversionPendiente(c.unidadLinea, c.umInsumo, c.factor)) {
+      throw new Error("Hay un insumo con la conversión de unidad pendiente en el presupuesto: escríbela en el APU del ítem antes de pedirlo.")
+    }
+    return { ...l, cantidad: cantidadEnUso(l.cantidad, c?.factor ?? 1) }
+  })
   const { data, error } = await supabase.rpc("crear_requisicion_extraordinaria_con_direccion", {
-    p_lineas: input.lineas.map((l) => ({
+    p_lineas: lineasUso.map((l) => ({
       presupuesto_item_id: l.presupuestoItemId,
       insumo_id: l.insumoId,
       cantidad: l.cantidad,
@@ -531,7 +663,7 @@ export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Prom
         traerTodo<any>((desde, hasta) => {
           let q = supabase
             .from("pedidos_insumos")
-            .select("id, grupo_pedido_id, cantidad, unidad, insumo:maestro_insumos(codigo, descripcion, u_m)")
+            .select("id, grupo_pedido_id, cantidad, unidad, factor_unidad, insumo:maestro_insumos(codigo, descripcion, u_m)")
             .in("grupo_pedido_id", tanda)
           if (filtros.insumoId) q = q.eq("insumo_id", filtros.insumoId)
           return q.order("created_at", { ascending: true }).order("id", { ascending: true }).range(desde, hasta)
@@ -556,8 +688,9 @@ export async function exportarRequisiciones(filtros: FiltrosRequisiciones): Prom
         solicitadoPor: r.solicitanteNombre ?? "",
         insumoCodigo: l.insumo?.codigo ?? null,
         insumo: l.insumo?.descripcion ?? "(insumo eliminado)",
-        unidad: l.unidad ?? l.insumo?.u_m ?? "",
-        cantidad: Number(l.cantidad),
+        // En la unidad de compra (la de la maestra), como se pide.
+        unidad: l.insumo?.u_m ?? l.unidad ?? "",
+        cantidad: cantidadEnCompra(Number(l.cantidad), Number(l.factor_unidad ?? 1) || 1),
         fechaRequisicion: r.createdAt,
         fechaRequerida: r.fechaRequerida,
         fechaEstimada: r.fechaEstimada,
@@ -663,12 +796,13 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
   if (!item?.version_id) throw new Error("No se encontró la versión del presupuesto de esta requisición.")
   const versionId = item.version_id as string
 
-  const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidad]))
+  // En la unidad del APU (la del tope); abajo se pasan a unidades de compra.
+  const propias = new Map(lineas.map((l) => [`${l.insumoId}|${l.presupuestoItemId}`, l.cantidadUso]))
   // Líneas agrupadas por insumo en una sola pasada (marcados = ítem -> cantidad).
   const marcadosPorInsumo = new Map<string, { linea: (typeof lineas)[number]; marcados: Record<string, number> }>()
   for (const l of lineas) {
     const g = marcadosPorInsumo.get(l.insumoId) ?? { linea: l, marcados: {} }
-    g.marcados[l.presupuestoItemId] = l.cantidad
+    g.marcados[l.presupuestoItemId] = l.cantidadUso
     marcadosPorInsumo.set(l.insumoId, g)
   }
   const insumosUnicos = Array.from(marcadosPorInsumo.values()).map((g) => g.linea)
@@ -688,22 +822,30 @@ export async function cargarRequisicionParaEditar(id: string): Promise<EdicionRe
     arr.push(f)
     filasPorInsumo.set(f.insumo_id, arr)
   }
+  // En unidades de compra, como al crear (lib/requisicion-unidades.ts).
+  const conversiones = await conversionesLineasApu(
+    supabase,
+    ((data ?? []) as { item_apu_id: string | null }[]).map((f) => f.item_apu_id).filter((x): x is string => !!x)
+  )
   const grupos = insumosUnicos.map((l) => {
+    const filas = filasPorInsumo.get(l.insumoId) ?? []
+    const items = filas.map((f) =>
+      itemEnCompra(f, f.item_apu_id ? conversiones.get(f.item_apu_id) : undefined, propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0)
+    )
+    const factorDe = new Map(items.map((it) => [it.presupuestoItemId, it.factor ?? 1]))
+    const marcadosUso = marcadosPorInsumo.get(l.insumoId)?.marcados ?? {}
+    const marcados = Object.fromEntries(
+      Object.entries(marcadosUso).map(([item, cant]) => [item, cantidadEnCompra(cant, factorDe.get(item) ?? 1)])
+    )
+    const conv0 = filas[0]?.item_apu_id ? conversiones.get(filas[0].item_apu_id) : undefined
     const agrupado: InsumoAgrupado = {
       insumoId: l.insumoId,
       insumoCodigo: l.insumoCodigo,
       insumoDescripcion: l.insumoDescripcion,
-      insumoUm: l.insumoUm,
-      items: (filasPorInsumo.get(l.insumoId) ?? []).map((f) => ({
-        presupuestoItemId: f.presupuesto_item_id,
-        itemCodigo: f.item_codigo,
-        itemDescripcion: f.item_descripcion,
-        itemApuId: f.item_apu_id,
-        cantidadDisponible:
-          Number(f.cantidad_disponible) + (propias.get(`${l.insumoId}|${f.presupuesto_item_id}`) ?? 0),
-      })),
+      insumoUm: conv0?.umInsumo ?? l.insumoUm,
+      items,
     }
-    return { insumo: agrupado, marcados: marcadosPorInsumo.get(l.insumoId)?.marcados ?? {} }
+    return { insumo: agrupado, marcados }
   })
 
   return {
@@ -742,9 +884,11 @@ export async function modificarRequisicion(
   }
 
   const supabase = await createClient()
+  // Unidades de compra -> unidad del APU (la del tope y la que guarda la base).
+  const insumosUso = await insumosEnUso(supabase, input.insumos)
   const { error } = await supabase.rpc("modificar_requisicion_con_direccion", {
     p_id: id,
-    p_lineas: input.insumos.flatMap((ins) =>
+    p_lineas: insumosUso.flatMap((ins) =>
       ins.items.map((it) => ({
         presupuesto_item_id: it.presupuestoItemId,
         item_apu_id: it.itemApuId,

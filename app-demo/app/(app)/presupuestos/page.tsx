@@ -54,9 +54,12 @@ import {
   obtenerTopeTodoCosto,
   fijarModalidadesPresupuesto,
   datosCompararVersion,
+  lineasConConversionPendiente,
+  type LineaConversionPendiente,
 } from "./actions"
 import { ComparacionVersion } from "@/components/comparacion-version"
 import { compararVersion, type ItemExcel, type ResultadoComparacion } from "@/lib/comparar-version"
+import { nombreUnidad } from "@/lib/unidades"
 import {
   Select,
   SelectContent,
@@ -580,6 +583,12 @@ function PresupuestoDeProyecto() {
   // vacía sin ninguna pista de por qué.
   const [avisoImportApu, setAvisoImportApu] = useState<string | null>(null)
   const [itemApuAbierto, setItemApuAbierto] = useState<ItemPresupuesto | null>(null)
+  // ?conversion=1: viene de Mis pendientes ("Conversión de unidad pendiente",
+  // 20270101005400): se listan las líneas sin conversión con su ítem para abrir el APU.
+  const [conversionPedida] = useState<boolean>(() =>
+    typeof window === "undefined" ? false : new URLSearchParams(window.location.search).get("conversion") === "1"
+  )
+  const [conversionesPendientes, setConversionesPendientes] = useState<LineaConversionPendiente[] | null>(null)
   const [itemResaltadoId, setItemResaltadoId] = useState<string | null>(null)
   // ?item=<código>: viene del detalle de una requisición (Aprobación, Registro):
   // al cargar el presupuesto se va a ese ítem y se resalta. Se lee una vez de la
@@ -1869,6 +1878,21 @@ function PresupuestoDeProyecto() {
     }, 2000)
   }
 
+  // Líneas con conversión pendiente (solo si se pidió en la URL). Se vuelve a
+  // revisar al cerrar el editor de APU, para que desaparezca lo ya arreglado.
+  useEffect(() => {
+    if (!conversionPedida || itemApuAbierto) return
+    const apuIds = presupuesto.map((i) => i.apuId).filter((x): x is string => !!x)
+    if (apuIds.length === 0) return
+    let vigente = true
+    lineasConConversionPendiente(apuIds)
+      .then((l: LineaConversionPendiente[]) => vigente && setConversionesPendientes(l))
+      .catch((e) => console.error("No se pudieron revisar las conversiones:", e))
+    return () => {
+      vigente = false
+    }
+  }, [conversionPedida, presupuesto, itemApuAbierto])
+
   // Ir al ítem pedido en la URL apenas esté en la tabla (una sola vez); el
   // resaltado dura más que el del árbol, porque llega de otra pantalla.
   useEffect(() => {
@@ -2158,6 +2182,47 @@ function PresupuestoDeProyecto() {
           <div className="rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-900">
             {cantidadSinApu} ítem(s) no tienen APU (marcados en naranja, &ldquo;SIN APU&rdquo;). Ármalos con
             &ldquo;Agregar APU&rdquo; para que su valor no se quede sin análisis.
+          </div>
+        )}
+
+        {conversionesPendientes && conversionesPendientes.length > 0 && (
+          <div className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p className="font-medium">
+              Conversión de unidad pendiente ({conversionesPendientes.length}{" "}
+              {conversionesPendientes.length === 1 ? "línea" : "líneas"})
+            </p>
+            <p className="text-xs">
+              Estos insumos van en otra unidad que la de compra. Abre el APU y pulsa &ldquo;Falta conversión&rdquo; en la
+              línea: sin la conversión no se pueden pedir en una requisición.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {(() => {
+                const itemDeApu = new Map(presupuesto.filter((i) => i.apuId).map((i) => [i.apuId as string, i]))
+                return conversionesPendientes.map((c, k) => {
+                  const item = itemDeApu.get(c.apuId)
+                  return (
+                    <li key={`${c.apuId}-${k}`} className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs">{item?.codigo ?? "—"}</span>
+                      <span>{c.insumo}</span>
+                      <span className="text-xs">
+                        (va en {nombreUnidad(c.unidadLinea) || c.unidadLinea}; se compra por{" "}
+                        {nombreUnidad(c.umInsumo) || c.umInsumo})
+                      </span>
+                      {item && editable && (
+                        <Button size="sm" variant="outline" className="h-7" onClick={() => setItemApuAbierto(item)}>
+                          Abrir APU
+                        </Button>
+                      )}
+                    </li>
+                  )
+                })
+              })()}
+            </ul>
+          </div>
+        )}
+        {conversionPedida && conversionesPendientes?.length === 0 && (
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            Este presupuesto no tiene conversiones de unidad pendientes.
           </div>
         )}
 

@@ -17,6 +17,13 @@ export type InsumoAgrupado = {
     // (antes: solo aprobado -- ver CLAUDE.md "Riesgos conocidos" para
     // el porqué del cambio). Nunca negativo.
     cantidadDisponible: number
+    // Requisiciones en la unidad de compra (20270101005400): cantidadDisponible va
+    // en unidades de compra completas; 1 unidad de compra = factor unidadLinea (la
+    // del APU, donde vive el tope). conversionPendiente: la línea está en otra
+    // unidad y sin conversión, no se puede pedir.
+    factor?: number
+    unidadLinea?: string | null
+    conversionPendiente?: boolean
   }[]
 }
 
@@ -26,6 +33,9 @@ export type ItemSeleccionable = {
   itemDescripcion: string
   itemApuId: string | null
   cantidadDisponible: number
+  factor?: number
+  unidadLinea?: string | null
+  conversionPendiente?: boolean
   marcado: boolean
   cantidad: string
 }
