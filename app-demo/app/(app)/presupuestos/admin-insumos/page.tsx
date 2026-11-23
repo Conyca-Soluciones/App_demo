@@ -423,13 +423,24 @@ function FilaPendiente({
       onDoubleClick={alDobleClic(() => setViendo(true))}
     >
       <td className={celda}>
-        <Input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value.toUpperCase())}
-          disabled={mostrandoRechazo}
-          className="h-8 text-xs font-medium"
-          aria-label="Nombre en el maestro"
-        />
+        {/* El nombre se ve completo: el campo crece en alto con el texto (un
+            doble invisible en la misma celda del grid le da la altura). */}
+        <div className="grid">
+          <span
+            aria-hidden
+            className="invisible col-start-1 row-start-1 whitespace-pre-wrap break-words rounded-xl border px-3 py-1.5 text-xs font-medium"
+          >
+            {nombre + " "}
+          </span>
+          <textarea
+            value={nombre}
+            rows={1}
+            onChange={(e) => setNombre(e.target.value.replace(/\s*\n\s*/g, " ").toUpperCase())}
+            disabled={mostrandoRechazo}
+            className="col-start-1 row-start-1 w-full min-w-0 resize-none overflow-hidden break-words rounded-xl border border-input bg-input/30 px-3 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Nombre en el maestro"
+          />
+        </div>
         {nombre !== solicitud.descripcion.trim().replace(/\s+/g, " ").toUpperCase() && (
           <p className="mt-1 text-[11px] text-muted-foreground">Pedido como: {solicitud.descripcion}</p>
         )}
