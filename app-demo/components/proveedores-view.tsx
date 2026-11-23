@@ -559,11 +559,6 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
         <div className="min-w-0">
           <TituloPestana titulo="Proveedores" />
           <h1 className="text-2xl font-semibold tracking-tight">Proveedores</h1>
-          <p className="text-sm text-muted-foreground">
-            {puedeEditar
-              ? "Haz clic en una celda para editarla. Enter guarda, Esc cancela."
-              : "Consulta de proveedores (solo lectura)."}
-          </p>
         </div>
         {puedeEditar && (
           <Button className="ml-auto gap-1.5" onClick={() => setNuevoAbierto(true)}>

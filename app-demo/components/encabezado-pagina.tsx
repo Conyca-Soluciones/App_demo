@@ -1,17 +1,18 @@
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { TituloPestana } from "@/components/titulo-pestana"
 
-// Encabezado estándar de TODAS las páginas: botón del menú, título, subtítulo y
+// Encabezado estándar de TODAS las páginas: botón del menú, título y
 // acciones a la derecha. El proyecto se cambia solo en la barra de arriba.
 // Margen y alto iguales en todas (el de Salidas). En pantallas chicas el
 // selector baja a su propia línea (flex-wrap).
 export function EncabezadoPagina({
   titulo,
-  subtitulo,
   className = "",
   children,
 }: {
   titulo: string
+  // Ya no se muestra (decisión del usuario, 2026-11-23: sin la línea debajo del
+  // título). Se deja el parámetro para no tocar las ~56 páginas que lo pasan.
   subtitulo?: string
   // Para casos especiales (ej. encabezado fijo al hacer scroll).
   className?: string
@@ -26,7 +27,6 @@ export function EncabezadoPagina({
       <SidebarTrigger />
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">{titulo}</h1>
-        {subtitulo && <p className="text-sm text-muted-foreground">{subtitulo}</p>}
       </div>
       {children && <div className="ml-auto flex flex-wrap items-center gap-2">{children}</div>}
     </header>
