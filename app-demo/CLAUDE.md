@@ -3373,6 +3373,26 @@ Caso: el Malecón con los APU recompuestos y los precios ajustados a la propuest
   dice cuántos cambian y el historial `modalidades` guarda cada uno (antes, después). Corrige el código
   del capítulo "ESTRUCTURA MODULAR METALICA" del Malecón ("15.1" repetido → "15.10").
 
+## Comparar el Excel con la versión vigente (2026-11-23, paso 1)
+
+Paso 1 de "versión nueva desde el Excel aplicando solo las diferencias" (decisión del usuario). Al subir el
+Excel a un proyecto que ya tiene presupuesto, antes de "Crear versión" la página muestra qué cambia frente a
+la versión vigente (`components/comparacion-version.tsx`): ítems nuevos, que ya no vienen (y si tienen
+requisiciones o contratos), cantidad / descripción / unidad / precio oficial distintos, APU distintos (líneas
+nuevas, que ya no vienen o con otra cantidad) y alertas (pierde o gana APU, baja la cantidad de un ítem con
+movimientos, capítulo que pasa a ítem). Solo muestra: crear la versión sigue igual (import completo +
+`reutilizar_decisiones_version`).
+- `lib/comparar-version.ts` (pruebas en `tests/comparar-version.test.ts`): las líneas del APU se emparejan
+  por texto (`_clave_actividad`) y orden entre iguales, SIN el tipo (el import reclasifica: una "Volqueta"
+  EQUIPO del Excel queda TRANSPORTE). Cantidad vacía = 0 (el import guarda 0).
+- `datos_comparar_version(presupuesto)` (`20270101005300`, solo lectura): ítems de la vigente con sus líneas
+  de `apu_import_revision` (sin trabajos de una división ni la mano de obra agregada por la modalidad) y si
+  tienen requisiciones o contratos (por código). ~0,7 s y ~540 KB en el Malecón.
+- Probado: la versión 20/11 contra su propio Excel = 716 sin cambios; contra la plantilla del 11/11 = 589
+  APU distintos (las cantidades corridas que se corrigieron) y 1 ítem nuevo.
+- Pendiente (pasos siguientes): que `crear_nueva_version` copie también las líneas pendientes y las que
+  esperan solicitud, y crear la versión copiando la vigente y aplicando solo las diferencias.
+
 ## Paquete H (2026-11-12, sin migraciones)
 
 - **Anticipo sin póliza**: la app no paga el anticipo de los contratos (solo lo
@@ -4835,6 +4855,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005000` requisición administrativa en espera de insumos nuevos.
 `20270101005100` modificar una requisición administrativa (también el proyecto).
 `20270101005200` solicitar insumo nuevo desde la requisición extraordinaria.
+`20270101005300` datos de la versión vigente para compararla con el Excel.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
