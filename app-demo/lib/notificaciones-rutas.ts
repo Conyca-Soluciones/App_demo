@@ -19,6 +19,8 @@ export function rutaNotificacion(n: AvisoParaRuta): string {
   if (n.tipo === "insumo_aprobado" && n.entidadTipo !== "presupuesto") return "/ayf/requisiciones-administrativas"
   // Requisición administrativa en espera de insumos nuevos: a Mis requisiciones.
   if (n.entidadTipo === "requisicion_espera") return "/ayf/requisiciones-administrativas?espera=1"
+  // Requisición extraordinaria en espera de insumos nuevos: a Elaboración de requisiciones (20270101005500).
+  if (n.entidadTipo === "requisicion_extra_espera") return "/almacen"
   if (n.entidadTipo === "requisicion") {
     // A Subgerencia, su bandeja; a quien pidió una administrativa, sus requisiciones.
     if (n.tipo === "requisicion_administrativa_por_aprobar") return "/almacen/aprobacion-requisiciones-administrativas"

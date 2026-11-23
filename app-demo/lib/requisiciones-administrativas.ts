@@ -99,6 +99,7 @@ export type InsumoNuevoEspera = {
   estado: "esperando" | "aprobado" | "rechazado"
   motivoRechazo: string | null
   codigo: number | null // código en el maestro, ya aprobado
+  itemCodigo?: string | null // ítem del presupuesto (requisición extraordinaria en espera)
 }
 
 export type ReqAdministrativaEspera = {
@@ -111,7 +112,7 @@ export type ReqAdministrativaEspera = {
   observaciones: string | null
   direccionEntrega: string
   proyecto: string | null
-  lineas: { insumoId: string; codigo: number; descripcion: string; unidad: string | null; cantidad: number }[]
+  lineas: { insumoId: string; codigo: number; descripcion: string; unidad: string | null; cantidad: number; itemCodigo?: string | null }[]
   nuevos: InsumoNuevoEspera[]
 }
 
@@ -243,6 +244,7 @@ export function mapReqAdministrativaEspera(r: any): ReqAdministrativaEspera {
       descripcion: String(l.descripcion ?? ""),
       unidad: l.unidad ?? null,
       cantidad: Number(l.cantidad ?? 0),
+      itemCodigo: l.item_codigo ?? null,
     })),
     nuevos: (Array.isArray(r.nuevos) ? r.nuevos : []).map((n: any) => ({
       id: String(n.id),
@@ -252,6 +254,7 @@ export function mapReqAdministrativaEspera(r: any): ReqAdministrativaEspera {
       estado: n.estado === "aprobado" || n.estado === "rechazado" ? n.estado : "esperando",
       motivoRechazo: n.motivo_rechazo ?? null,
       codigo: n.codigo != null ? Number(n.codigo) : null,
+      itemCodigo: n.item_codigo ?? null,
     })),
   }
 }

@@ -3020,6 +3020,18 @@ general, o el enlace en un ítem sin cupo o con una cantidad que lo supera):
   `requisicion_extraordinaria` y el proyecto, SIN ítem (con ítem, al aprobarlo entraría al APU). Al aprobarlo o
   rechazarlo el aviso lleva a Elaboración de requisiciones (entidad `solicitud_insumo`); el rechazo de los de
   requisiciones administrativas ahora lleva a esa pantalla (entidad `pedido_insumo`).
+- **En espera de insumos nuevos** (`20270101005500`, 2026-11-23, decisión del usuario; reemplaza lo de arriba: la
+  solicitud suelta no se veía en ningún lado y había que armar la extraordinaria otra vez). "No está en el maestro:
+  agregar insumos nuevos" pone el insumo (nombre, unidad, cantidad) como línea de la requisición en el ítem
+  escogido. Con insumos nuevos, "Guardar en espera" la guarda en `requisiciones_admin_espera` con `tipo =
+  'extraordinaria'`, `justificacion` y líneas con su ítem; cada nuevo en `requisiciones_admin_espera_nuevos`
+  (`presupuesto_item_id`) con su solicitud (origen `requisicion_extraordinaria`, sin ítem). Al aprobarse el último
+  nuevo, `_enviar_requisicion_espera` crea la extraordinaria con `crear_requisicion_extraordinaria_con_direccion` a
+  nombre de quien la pidió (`app.requisicion_por`; el acceso al proyecto se revisa para esa persona) y pasa a
+  Gerencia. Rechazado: se cambia por uno del maestro (con la conversión del ítem) o se quita. Se ve arriba de
+  Elaboración de requisiciones (`mis_extraordinarias_en_espera`, `TarjetaEspera` compartida con las
+  administrativas). Avisos `requisicion_extra_espera_enviada` y entidad `requisicion_extra_espera` (lleva a
+  `/almacen`). Las 30 solicitudes sueltas que había (de Ricardo, 20/11) siguen como antes.
 - La aprueba Gerencia en **Aprobación de requisiciones extraordinarias**
   (`/almacen/requisiciones-extraordinarias`, pestaña `tecnico.aprobar_extraordinarias`,
   acción `aprobar_requisiciones_extraordinarias`), con `listar_requisiciones_extraordinarias`
@@ -4899,6 +4911,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005200` solicitar insumo nuevo desde la requisición extraordinaria.
 `20270101005300` datos de la versión vigente para compararla con el Excel.
 `20270101005400` versión nueva desde el Excel aplicando solo las diferencias (y copia de las líneas pendientes).
+`20270101005400_unidades_requisiciones_y_oc` (otra rama, mismo número) requisiciones en la unidad de compra.
+`20270101005500` requisición extraordinaria en espera de insumos nuevos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

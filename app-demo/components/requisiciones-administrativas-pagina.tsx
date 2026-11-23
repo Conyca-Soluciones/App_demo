@@ -813,7 +813,17 @@ function RequisicionesEnEspera({ onEnviada }: { onEnviada: () => void }) {
   )
 }
 
-function TarjetaEspera({ espera: e, onCambio }: { espera: ReqAdministrativaEspera; onCambio: () => void }) {
+// También la usa Elaboración de requisiciones para las extraordinarias en espera
+// (20270101005500): `titulo` y el código del ítem de cada línea.
+export function TarjetaEspera({
+  espera: e,
+  onCambio,
+  titulo,
+}: {
+  espera: ReqAdministrativaEspera
+  onCambio: () => void
+  titulo?: string
+}) {
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState(false)
@@ -843,7 +853,7 @@ function TarjetaEspera({ espera: e, onCambio }: { espera: ReqAdministrativaEsper
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="font-medium">
-            {e.proyecto ?? "Requisición administrativa"} · para el {formatearFechaSinHora(e.fechaRequerida)}
+            {titulo ?? e.proyecto ?? "Requisición administrativa"} · para el {formatearFechaSinHora(e.fechaRequerida)}
             {e.urgente && <span className="ml-1 text-amber-700">· Urgente</span>}
           </p>
           <p className="text-xs text-muted-foreground">Hecha el {formatearFechaHora(e.createdAt)} · todavía sin número</p>
@@ -861,7 +871,8 @@ function TarjetaEspera({ espera: e, onCambio }: { espera: ReqAdministrativaEsper
 
       <div className="space-y-1">
         {e.lineas.map((l) => (
-          <p key={l.insumoId}>
+          <p key={`${l.itemCodigo ?? ""}|${l.insumoId}`}>
+            {l.itemCodigo && <span className="mr-1 font-mono text-xs text-muted-foreground">Ítem {l.itemCodigo} ·</span>}
             <span className="text-muted-foreground">{l.codigo}</span> {l.descripcion} ·{" "}
             <span className="tabular-nums">{formatoCantidad(l.cantidad)}</span> {nombreUnidad(l.unidad)}
           </p>
@@ -881,6 +892,7 @@ function TarjetaEspera({ espera: e, onCambio }: { espera: ReqAdministrativaEsper
               >
                 {n.estado === "aprobado" ? `Aprobado${n.codigo ? ` (${n.codigo})` : ""}` : n.estado === "rechazado" ? "Rechazado" : "Por aprobar"}
               </Badge>{" "}
+              {n.itemCodigo && <span className="mr-1 font-mono text-xs text-muted-foreground">Ítem {n.itemCodigo} ·</span>}
               {n.descripcion} · <span className="tabular-nums">{formatoCantidad(n.cantidad)}</span> {n.unidad}
               {n.estado === "rechazado" && n.motivoRechazo && <span className="text-red-700"> · Motivo: {n.motivoRechazo}</span>}
             </p>
