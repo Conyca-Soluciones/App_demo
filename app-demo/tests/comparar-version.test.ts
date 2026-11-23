@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { compararApu, compararVersion, hayDiferencias, type ItemExcel, type ItemVigente } from "@/lib/comparar-version"
+import { claveLinea, compararApu, compararVersion, hayDiferencias, type ItemExcel, type ItemVigente } from "@/lib/comparar-version"
 
 const vig = (p: Partial<ItemVigente> & { codigo: string }): ItemVigente => ({
   descripcion: `Ítem ${p.codigo}`,
@@ -103,5 +103,16 @@ describe("comparar el Excel con la versión vigente", () => {
       [exc({ codigo: "1", esHoja: false, precioOficial: 5, cantidad: null, lineas: null })]
     )
     expect(r.sinCambios).toBe(1)
+  })
+
+  it("la tilde, el superíndice y la puntuación no hacen distinta una línea", () => {
+    const c = compararApu(
+      [L("Volqueta (6 m3)", 0.115, "EQUIPO"), L("Cuadrilla AA (Albañilería)", 0.45, "MO"), L("Concreto 3000 psi 210 kg/cm2", 0.1)],
+      [L("Volqueta (6 m³)", 0.115, "EQUIPO"), L("Cuadrilla AA (Albañileria)", 0.45, "MO"), L("Concreto 3000 psi 210 kg/cm²", 0.1)]
+    )
+    expect(c.nuevas).toHaveLength(0)
+    expect(c.quitadas).toHaveLength(0)
+    expect(c.cantidades).toHaveLength(0)
+    expect(claveLinea('Tubo PVC 1/2"')).not.toBe(claveLinea('Tubo PVC 12"'))
   })
 })

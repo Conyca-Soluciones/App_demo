@@ -3452,6 +3452,12 @@ movimientos, capítulo que pasa a ítem). Solo muestra: crear la versión sigue 
   suelta): al aprobarlas el insumo entra a la versión nueva. Probado en el Malecón sin guardar:
   3.100 líneas de revisión copiadas, quitar el capítulo 15 cerró 65 solicitudes, el 1.1 rehecho
   conservó 5 resueltas y 2 solicitudes.
+- **Texto de las líneas sin tildes** (`20270101005600`, 2026-11-23, decisión del usuario): las líneas del APU se
+  emparejan con `_clave_linea_apu` (en TS `claveLinea`): sin mayúsculas ni tildes, ³ = 3, ² = 2 y sin
+  puntuación. Antes "Volqueta (6 m3)" contra "(6 m³)" o "albañilería" contra "albañileria" (78 líneas del Excel
+  del 23/11) volvían a pendientes. Lo usan `reutilizar_decisiones_items`, `reutilizar_decisiones_version` y
+  `_desperdicio_de_linea` (la excepción de desperdicio de "kg/cm2" vale para "kg/cm²"). `_clave_actividad` no
+  cambia.
 
 ## Paquete H (2026-11-12, sin migraciones)
 
@@ -4919,6 +4925,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005400` versión nueva desde el Excel aplicando solo las diferencias (y copia de las líneas pendientes).
 `20270101005400_unidades_requisiciones_y_oc` (otra rama, mismo número) requisiciones en la unidad de compra.
 `20270101005500` requisición extraordinaria en espera de insumos nuevos.
+`20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

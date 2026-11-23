@@ -10,8 +10,9 @@
 //
 // Archivo plano, sin dependencias del servidor (pruebas en
 // tests/comparar-version.test.ts). Las líneas del APU se emparejan por el
-// texto de la línea sin mayúsculas ni espacios de más (_clave_actividad) y, si
-// se repite, el orden. El tipo NO cuenta: el import reclasifica algunas líneas
+// texto de la línea sin mayúsculas, tildes, superíndices ni puntuación
+// (claveLinea = _clave_linea_apu de la base, 20270101005600: "Volqueta (6 m3)" y
+// "Volqueta (6 m³)" son la misma línea) y, si se repite, el orden. El tipo NO cuenta: el import reclasifica algunas líneas
 // (una "Volqueta" que el Excel trae como EQUIPO queda como TRANSPORTE) y
 // saldrían cambios que no son. La cantidad vacía cuenta como 0 (el import
 // guarda 0 cuando el Excel no la trae).
@@ -102,6 +103,19 @@ const TOLERANCIA = 1e-4
 
 export const claveTexto = (s: string | null | undefined) => (s ?? "").trim().replace(/\s+/g, " ").toLowerCase()
 
+// Igual que _clave_linea_apu en la base: sin mayúsculas ni tildes, ³ = 3, ² = 2,
+// º/° = o, y solo letras y números separados por un espacio.
+export const claveLinea = (s: string | null | undefined) =>
+  (s ?? "")
+    .toLowerCase()
+    .replace(/³/g, "3")
+    .replace(/²/g, "2")
+    .replace(/[º°]/g, "o")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+
 const igualNumero = (a: number | null, b: number | null) =>
   a == null || b == null ? a == null && b == null : Math.abs(a - b) <= TOLERANCIA * Math.max(1, Math.abs(a), Math.abs(b))
 // Cantidad: vacía = 0.
@@ -115,7 +129,7 @@ function conClaves(lineas: LineaApuComparable[]): Map<string, LineaApuComparable
   const vistas = new Map<string, number>()
   const out = new Map<string, LineaApuComparable>()
   for (const l of lineas) {
-    const base = claveTexto(l.descripcion)
+    const base = claveLinea(l.descripcion)
     const n = (vistas.get(base) ?? 0) + 1
     vistas.set(base, n)
     out.set(`${base}|${n}`, l)
