@@ -1,5 +1,6 @@
 "use client"
 
+import { confirmar } from "@/components/ui/confirmar"
 import { DialogoSoporteOrden } from "@/components/dialogo-soporte-orden"
 import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
 import { TituloPestana } from "@/components/titulo-pestana"
@@ -44,6 +45,7 @@ import {
   enlaceSoporteOrden,
   listarSoportesOrden,
   soportesOrdenEditables,
+  eliminarSoporteOrden,
   cancelarOrdenCompra,
   cambiarFechaCreditoOC,
   ordenCompraModificable,
@@ -582,6 +584,36 @@ export function OrdenCompraDetalleView({ ordenId, onCerrar }: OrdenCompraDetalle
                   {soportesFijos === null && (
                     <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => setDialogoSoporte(s)}>
                       Cambiar
+                    </Button>
+                  )}
+                  {/* Eliminar (20270101005900): la orden no queda sin soporte. */}
+                  {soportesFijos === null && soportes.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 text-destructive hover:text-destructive"
+                      disabled={procesando}
+                      onClick={async () => {
+                        if (
+                          !(await confirmar(`Se elimina el soporte "${s.nombreArchivo}" de la orden. No se puede deshacer.`, {
+                            titulo: "Eliminar soporte",
+                            boton: "Eliminar",
+                          }))
+                        )
+                          return
+                        setProcesando(true)
+                        setError(null)
+                        try {
+                          await eliminarSoporteOrden(s.id)
+                          cargar()
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "No se pudo eliminar el soporte.")
+                        } finally {
+                          setProcesando(false)
+                        }
+                      }}
+                    >
+                      Eliminar
                     </Button>
                   )}
                 </div>

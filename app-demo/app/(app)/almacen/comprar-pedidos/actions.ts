@@ -764,6 +764,19 @@ export async function cambiarSoporteOrden(soporteId: string, nuevo: SoporteSubid
   }
 }
 
+// Elimina un soporte (20270101005900): la orden no se queda sin ninguno. Después borra
+// el archivo del bucket (si falla, solo sobra un archivo sin uso).
+export async function eliminarSoporteOrden(soporteId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("eliminar_soporte_orden", { p_soporte_id: soporteId })
+  if (error) throw new Error(error.message)
+  const ruta = data as string | null
+  if (ruta) {
+    const { error: e } = await supabase.storage.from("ordenes_compra").remove([ruta])
+    if (e) console.error("No se pudo borrar el archivo del soporte:", e.message)
+  }
+}
+
 // Enlace firmado de 2 minutos para ver un soporte (la política del bucket
 // exige ver la orden).
 export async function enlaceSoporteOrden(soporteId: string): Promise<string> {

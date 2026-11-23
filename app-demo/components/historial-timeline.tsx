@@ -243,6 +243,7 @@ const EVENTOS_ORDEN_COMPRA: Record<string, DefEvento> = {
   modificada: { etiqueta: "Orden modificada por Compras", tono: "aviso" },
   soporte_agregado: { etiqueta: "Soporte añadido", tono: "neutro" },
   soporte_cambiado: { etiqueta: "Soporte cambiado", tono: "aviso" },
+  soporte_eliminado: { etiqueta: "Soporte eliminado", tono: "aviso" },
   factura_registrada: { etiqueta: "Factura registrada", tono: "ok" },
   factura_anulada: { etiqueta: "Factura anulada", tono: "malo" },
   cerrada_con_faltante: { etiqueta: "Cerrada con faltante", tono: "aviso" },
@@ -417,7 +418,8 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
   if (tipo === "orden_compra" && (e.evento === "factura_registrada" || e.evento === "factura_anulada")) {
     return [`${d.parcial ? "Parcial" : "Total"} · ${pesosTexto(d.total)}`]
   }
-  if (tipo === "orden_compra" && e.evento === "soporte_agregado" && d.archivo) return [String(d.archivo)]
+  if (tipo === "orden_compra" && (e.evento === "soporte_agregado" || e.evento === "soporte_eliminado") && d.archivo)
+    return [String(d.archivo)]
   if (tipo === "orden_compra" && e.evento === "soporte_cambiado") return [`${formatoValor(d.antes)} → ${formatoValor(d.archivo)}`]
   if (tipo === "orden_compra" && e.evento === "modificada") {
     const lineas = [`Total: ${pesosTexto(d.total_antes)} → ${pesosTexto(d.total_despues)}`]

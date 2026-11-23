@@ -1175,7 +1175,9 @@ proveedor y datos de pago; soporte nuevo OBLIGATORIO (los de antes se conservan)
   soporte (lo borra y deja el nuevo; la app borra el archivo viejo del bucket), sin volver a aprobar ni
   tocar el pago, mientras ningún pago de la orden esté liquidado ni dispersado
   (`_motivo_soportes_orden_fijos`; `soportes_orden_editables` para la pantalla; `agregar_soporte_orden`,
-  `cambiar_soporte_orden`; historial `soporte_agregado` / `soporte_cambiado`). "Modificar" conserva los
+  `cambiar_soporte_orden`; historial `soporte_agregado` / `soporte_cambiado`). "Eliminar"
+  (`eliminar_soporte_orden`, `20270101005900`, historial `soporte_eliminado`): mismas reglas y la orden no
+  se queda sin soporte (el último se cambia, no se elimina). "Modificar" conserva los
   soportes y el nuevo es opcional (solo se exige si la orden no tiene ninguno). En pagos,
   `SoportePago.todos` trae todos los soportes del documento: con más de uno dice "Ver soportes"
   (`textoVerSoporte`) y `/ayf/soporte-pago/<id>` muestra una página con la lista (`?n=k` abre uno).
