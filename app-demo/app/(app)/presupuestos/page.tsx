@@ -32,7 +32,6 @@ import {
   actualizarCantidadPresupuestoItem,
   listarVersiones,
   crearNuevaVersion,
-  contarLineasSinResolverVersion,
   crearVersionVacia,
   reutilizarDecisionesVersionAnterior,
   actualizarEstadoPresupuesto,
@@ -54,6 +53,9 @@ import {
   obtenerTopeTodoCosto,
   fijarModalidadesPresupuesto,
   datosCompararVersion,
+  crearVersionConDiferencias,
+  reutilizarDecisionesItems,
+  type CambiosVersionExcel,
 } from "./actions"
 import { ComparacionVersion } from "@/components/comparacion-version"
 import { compararVersion, type ItemExcel, type ResultadoComparacion } from "@/lib/comparar-version"
@@ -923,24 +925,8 @@ function PresupuestoDeProyecto() {
     setCreandoVersion(true)
     setError(null)
     try {
-      // crear_nueva_version no copia lo que falta por revisar: se avisa antes.
-      const { pendientes, esperandoSolicitud } = await contarLineasSinResolverVersion(presupuestoDbId)
-      if (pendientes + esperandoSolicitud > 0) {
-        const partes: string[] = []
-        if (pendientes > 0)
-          partes.push(`• ${pendientes.toLocaleString("es-CO")} línea(s) pendiente(s) en "Revisar pendientes"`)
-        if (esperandoSolicitud > 0)
-          partes.push(
-            `• ${esperandoSolicitud.toLocaleString("es-CO")} línea(s) esperando aprobación de una solicitud de insumo (al aprobarse, el insumo entra en la versión anterior, no en la nueva)`
-          )
-        const seguro = await confirmar(
-          "La versión nueva copia los ítems y los APU con sus precios, pero NO lo que falta por revisar:\n\n" +
-            partes.join("\n") +
-            "\n\nEsas líneas no quedarán en el APU de la versión nueva. Lo recomendable es terminar de revisarlas antes.\n\n¿Crear la versión de todas formas?",
-          { titulo: "Se perderán líneas pendientes", boton: "Crear de todas formas", peligro: true }
-        )
-        if (!seguro) return
-      }
+      // crear_nueva_version copia también lo que falta por revisar y las
+      // solicitudes pendientes pasan a la versión nueva (20270101005400).
       const nueva = await crearNuevaVersion(presupuestoDbId, nombreNuevaVersion.trim())
       const [{ items, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente }, listaVersiones] =
         await Promise.all([cargarItemsConEstadoApu(presupuestoDbId), listarVersiones(presupuestoDbId)])
@@ -1425,11 +1411,19 @@ function PresupuestoDeProyecto() {
 
     const items = itemsPendientesDeVersion
     const bloques = bloquesApuPendientesDeVersion
+    const comparacion = comparacionVersion
 
     setItemsPendientesDeVersion(null)
     setBloquesApuPendientesDeVersion([])
     setNombreVersionDesdeImport("")
     setComparacionVersion(null)
+
+    // Con la comparación lista: copia de la vigente + solo las diferencias
+    // (20270101005400). Si la comparación falló, el import completo de siempre.
+    if (comparacion && comparacion !== "cargando" && !("error" in comparacion)) {
+      await crearVersionAplicandoDiferencias(presupuestoExistente.id, nombreVersion, items, bloques, comparacion)
+      return
+    }
 
     // Sin hoja APU el guardado llega después (botón Guardar) y lee
     // versionPendienteDesdeImport del estado; con hoja APU se guarda ya, en
@@ -1438,6 +1432,139 @@ function PresupuestoDeProyecto() {
       presupuestoId: presupuestoExistente.id,
       nombre: nombreVersion,
     })
+  }
+
+  // Versión nueva copiando la vigente y aplicando solo lo que cambió en el
+  // Excel: quita, cambia y agrega ítems en la base de una vez, vuelve a
+  // importar solo los APU que cambiaron (y los de los ítems nuevos) y les pasa
+  // lo decidido en la copia. Lo que no cambió queda igual, con sus pendientes.
+  async function crearVersionAplicandoDiferencias(
+    presupuestoId: string,
+    nombre: string,
+    items: ItemPresupuesto[],
+    bloques: BloqueApu[],
+    comparacion: ResultadoComparacion
+  ) {
+    setGuardandoImportApu(true)
+    setError(null)
+    setAvisoImportApu(null)
+    setProgresoImport(null)
+    const TAMANO_TANDA = 40
+    try {
+      const codigoPorId = new Map(items.map((i) => [i.id, i.codigo]))
+      const porCodigo = new Map(items.map((i) => [i.codigo, i]))
+      const cambios: CambiosVersionExcel = {
+        quitar: comparacion.quitados.filter((q) => !q.conMovimientos).map((q) => q.codigo),
+        cambios: comparacion.cambios.map((c) => {
+          const e = porCodigo.get(c.codigo)!
+          const campos = new Set(c.campos.map((f) => f.campo))
+          return {
+            codigo: c.codigo,
+            descripcion: e.descripcion,
+            unidad: e.unidad,
+            cantidad: e.cantidad ?? null,
+            precio_oficial: e.precioOriginal,
+            trae_descripcion: campos.has("descripcion"),
+            trae_unidad: campos.has("unidad"),
+            trae_cantidad: campos.has("cantidad"),
+            trae_precio: campos.has("precioOficial"),
+          }
+        }),
+        nuevos: comparacion.nuevos.map((n) => {
+          const e = porCodigo.get(n.codigo)!
+          return {
+            codigo: n.codigo,
+            codigo_padre: e.padreId ? codigoPorId.get(e.padreId) ?? null : null,
+            nivel: e.nivel,
+            descripcion: e.descripcion,
+            unidad: e.unidad,
+            cantidad: e.cantidad ?? null,
+            precio_oficial: e.precioOriginal,
+            es_global: n.esGlobal,
+          }
+        }),
+        rehacer: comparacion.apus.map((a) => a.codigo),
+      }
+      const r = await crearVersionConDiferencias(presupuestoId, nombre, cambios)
+      setPresupuestoDbId(presupuestoId)
+
+      // APU a importar: los que cambiaron y los de los ítems nuevos.
+      const idPorCodigo: Record<string, string> = { ...r.nuevos }
+      for (const x of r.rehacer) idPorCodigo[x.codigo] = x.itemId
+      const bloquesAImportar = bloques.filter((b) => idPorCodigo[b.codigoItem])
+      if (bloquesAImportar.length > 0) {
+        await latidoImportPresupuesto(presupuestoId, true)
+        importAMediasRef.current = presupuestoId
+        if (latidoImportRef.current) clearInterval(latidoImportRef.current)
+        latidoImportRef.current = setInterval(() => {
+          latidoImportPresupuesto(presupuestoId, true).catch((e) => console.error("Latido del import:", e))
+        }, 10_000)
+        const loteImportId = crypto.randomUUID()
+        for (let i = 0; i < bloquesAImportar.length; i += TAMANO_TANDA) {
+          const tanda = bloquesAImportar.slice(i, i + TAMANO_TANDA)
+          await matchearYGuardarImportApu(
+            loteImportId,
+            Object.fromEntries(tanda.map((b) => [b.codigoItem, idPorCodigo[b.codigoItem]])),
+            tanda
+          )
+          latidoImportPresupuesto(presupuestoId, true).catch((e) => console.error("Latido del import:", e))
+          setProgresoImport({ procesados: Math.min(i + TAMANO_TANDA, bloquesAImportar.length), total: bloquesAImportar.length })
+        }
+      }
+      const reu = r.rehacer.length > 0 ? await reutilizarDecisionesItems(presupuestoId, r.rehacer) : null
+      if (latidoImportRef.current) clearInterval(latidoImportRef.current)
+      latidoImportRef.current = null
+      if (bloquesAImportar.length > 0) await latidoImportPresupuesto(presupuestoId, false)
+      importAMediasRef.current = null
+
+      await aplicarModalidadesPendientes(presupuestoId)
+
+      const [{ items: frescos, estados, motivosRechazo: motivos, diferenciasLineas: diferencias, itemIdsTransportePendiente: transportePendiente }, listaVersiones] =
+        await Promise.all([cargarItemsConEstadoApu(presupuestoId), listarVersiones(presupuestoId)])
+      setPresupuesto(frescos)
+      setEstadosApu(estados)
+      setMotivosRechazo(motivos)
+      setDiferenciasLineas(diferencias)
+      setItemIdsTransportePendiente(transportePendiente)
+      setVersiones(listaVersiones)
+      setVersionViendoId(r.versionId)
+      setViendoVersionActual(true)
+      setVersionPendienteDesdeImport(null)
+
+      const fmt = (n: number) => n.toLocaleString("es-CO")
+      const partes = [
+        `${fmt(Object.keys(r.nuevos).length)} ítem(s) nuevo(s)`,
+        `${fmt(r.quitados.length)} quitado(s)`,
+        `${fmt(r.cambiados)} con cambios`,
+        `${fmt(r.rehacer.length)} APU vuelto(s) a importar`,
+        reu ? `${fmt(reu.resueltas)} línea(s) conservaron lo resuelto y ${fmt(reu.solicitudes)} siguen esperando su solicitud` : null,
+        r.noQuitados.length > 0
+          ? `no se quitaron (tienen requisiciones o contratos): ${r.noQuitados.map((x) => x.codigo).join(", ")}`
+          : null,
+        reu && reu.lineasAMano > 0 ? `${fmt(reu.lineasAMano)} línea(s) puestas a mano en el editor se conservaron` : null,
+        reu && reu.lineasAManoRepetidas > 0
+          ? `${fmt(reu.lineasAManoRepetidas)} línea(s) puestas a mano no se pasaron porque el Excel ya trae ese insumo o recurso`
+          : null,
+        reu && reu.divisiones > 0 ? `${fmt(reu.divisiones)} ítem(s) conservaron su mano de obra dividida en trabajos` : null,
+        reu && reu.divisionesPerdidas > 0
+          ? `${fmt(reu.divisionesPerdidas)} ítem(s) perdieron su división en trabajos porque el Excel ya no trae mano de obra`
+          : null,
+        r.solicitudesCerradas + (reu?.solicitudesCerradas ?? 0) > 0
+          ? `${fmt(r.solicitudesCerradas + (reu?.solicitudesCerradas ?? 0))} solicitud(es) que ya no hacen falta se cerraron`
+          : null,
+        reu && reu.erroresModalidades.length > 0
+          ? `modalidades que no se pudieron volver a aplicar: ${reu.erroresModalidades.map((e) => `${e.codigo} (${e.error})`).join(", ")}`
+          : null,
+      ].filter(Boolean)
+      setAvisoImportApu(`Versión "${nombre}" creada copiando la vigente: ${partes.join("; ")}. Lo demás quedó igual, con sus pendientes.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear la versión.")
+    } finally {
+      if (latidoImportRef.current) clearInterval(latidoImportRef.current)
+      latidoImportRef.current = null
+      setGuardandoImportApu(false)
+      setProgresoImport(null)
+    }
   }
 
   function handleAgregarManual(item: ItemPresupuesto) {
@@ -2049,7 +2176,14 @@ function PresupuestoDeProyecto() {
             ) : comparacionVersion && "error" in comparacionVersion ? (
               <p className="text-xs text-destructive">{comparacionVersion.error}</p>
             ) : comparacionVersion ? (
-              <ComparacionVersion comparacion={comparacionVersion} />
+              <>
+                <ComparacionVersion comparacion={comparacionVersion} />
+                <p className="text-xs text-sky-800">
+                  La versión nueva se crea copiando la vigente y aplicando solo estas diferencias: lo que no cambió queda
+                  igual, con sus pendientes y solicitudes; solo se vuelven a importar los APU distintos y los de los ítems
+                  nuevos.
+                </p>
+              </>
             ) : null}
 
             <div className="flex flex-wrap items-end gap-2">
@@ -2067,7 +2201,7 @@ function PresupuestoDeProyecto() {
               <Button
                 size="sm"
                 onClick={handleConfirmarNombreVersion}
-                disabled={!nombreVersionDesdeImport.trim()}
+                disabled={!nombreVersionDesdeImport.trim() || comparacionVersion === "cargando"}
               >
                 Crear versión
               </Button>
