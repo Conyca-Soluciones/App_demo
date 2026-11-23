@@ -3414,8 +3414,26 @@ movimientos, capítulo que pasa a ítem). Solo muestra: crear la versión sigue 
   tienen requisiciones o contratos (por código). ~0,7 s y ~540 KB en el Malecón.
 - Probado: la versión 20/11 contra su propio Excel = 716 sin cambios; contra la plantilla del 11/11 = 589
   APU distintos (las cantidades corridas que se corrigieron) y 1 ítem nuevo.
-- Pendiente (pasos siguientes): que `crear_nueva_version` copie también las líneas pendientes y las que
-  esperan solicitud, y crear la versión copiando la vigente y aplicando solo las diferencias.
+- **Paso 2 (`20270101005400`)**: "Crear versión" con la comparación lista ya NO reimporta todo:
+  `crear_version_con_diferencias(presupuesto, nombre, cambios)` copia la vigente y, en la misma
+  transacción, quita los ítems que ya no vienen (con sus hijos; los que tienen requisiciones o contratos
+  se dejan y se reportan), cambia descripción / unidad / cantidad / precio oficial (recalcula el total;
+  un global sin APU vale su precio; a todo costo se vuelve a aplicar la modalidad) y agrega los nuevos
+  (colgados del padre por código, en orden de nivel). Devuelve los ítems cuyo APU cambia (`rehacer`):
+  la app importa solo esos bloques y los nuevos (`crearVersionAplicandoDiferencias` en page.tsx, tandas
+  de 40 con latido) y llama `reutilizar_decisiones_items`, que empareja cada línea nueva con la de la
+  copia (texto, tipo y orden) y toma lo decidido (línea resuelta con la cantidad nueva, la misma
+  solicitud o el rechazo), borra el APU de la copia y vuelve a aplicar la modalidad del ítem. También pasan al APU nuevo
+  (decisión del usuario: que solo salga lo que el Excel quitó) las líneas puestas a mano en el editor
+  (con su cantidad; si el Excel ya trae ese mismo recurso no se repiten), la mano de obra dividida en
+  trabajos (si el Excel sigue trayendo mano de obra; sus líneas quedan 'dividido') y la mano de obra
+  que pide la modalidad con su categoría o solicitud (si el Excel sigue sin mano de obra). Las solicitudes
+  pendientes que ya ninguna línea usa se borran (`_borrar_solicitudes_sin_lineas`).
+  `crear_nueva_version` (también "Crear versión nueva" a secas) ahora copia todas las líneas de
+  `apu_import_revision` con los ids nuevos y les pasa las solicitudes pendientes (la versión vieja se
+  suelta): al aprobarlas el insumo entra a la versión nueva. Probado en el Malecón sin guardar:
+  3.100 líneas de revisión copiadas, quitar el capítulo 15 cerró 65 solicitudes, el 1.1 rehecho
+  conservó 5 resueltas y 2 solicitudes.
 
 ## Paquete H (2026-11-12, sin migraciones)
 
@@ -4880,6 +4898,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005100` modificar una requisición administrativa (también el proyecto).
 `20270101005200` solicitar insumo nuevo desde la requisición extraordinaria.
 `20270101005300` datos de la versión vigente para compararla con el Excel.
+`20270101005400` versión nueva desde el Excel aplicando solo las diferencias (y copia de las líneas pendientes).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

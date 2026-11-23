@@ -5971,3 +5971,118 @@ export async function lineasConConversionPendiente(apuIds: string[]): Promise<Li
   }
   return resultado
 }
+
+// Versión nueva copiando la vigente y aplicando solo lo que cambió en el Excel
+// (20270101005400). Devuelve los ítems nuevos y los que hay que volver a
+// importar (su APU cambió), con el APU de la copia.
+export type CambiosVersionExcel = {
+  quitar: string[]
+  cambios: {
+    codigo: string
+    descripcion: string
+    unidad: string | null
+    cantidad: number | null
+    precio_oficial: number | null
+    trae_descripcion: boolean
+    trae_unidad: boolean
+    trae_cantidad: boolean
+    trae_precio: boolean
+  }[]
+  nuevos: {
+    codigo: string
+    codigo_padre: string | null
+    nivel: number
+    descripcion: string
+    unidad: string | null
+    cantidad: number | null
+    precio_oficial: number | null
+    es_global: boolean
+  }[]
+  rehacer: string[]
+}
+
+export type ItemRehecho = { codigo: string; itemId: string; apuAnterior: string | null }
+
+export type ResultadoVersionExcel = {
+  versionId: string
+  quitados: string[]
+  noQuitados: { codigo: string; motivo: string }[]
+  cambiados: number
+  nuevos: Record<string, string>
+  rehacer: ItemRehecho[]
+  solicitudesCerradas: number
+}
+
+export async function crearVersionConDiferencias(
+  presupuestoId: string,
+  nombre: string,
+  cambios: CambiosVersionExcel
+): Promise<ResultadoVersionExcel> {
+  if (!nombre.trim()) throw new Error("Escribe el nombre de la versión.")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("crear_version_con_diferencias", {
+    p_presupuesto_id: presupuestoId,
+    p_nombre: nombre.trim(),
+    p_cambios: cambios,
+  })
+  if (error) throw new Error(error.message)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = data as any
+  return {
+    versionId: String(r.version.id),
+    quitados: (r.quitados ?? []).map(String),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    noQuitados: (r.no_quitados ?? []).map((x: any) => ({ codigo: String(x.codigo), motivo: String(x.motivo) })),
+    cambiados: Number(r.cambiados ?? 0),
+    nuevos: r.nuevos ?? {},
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rehacer: (r.rehacer ?? []).map((x: any) => ({ codigo: String(x.codigo), itemId: String(x.item_id), apuAnterior: x.apu_anterior ?? null })),
+    solicitudesCerradas: Number(r.solicitudes_cerradas ?? 0),
+  }
+}
+
+export type ResultadoReutilizarItems = {
+  resueltas: number
+  solicitudes: number
+  rechazadas: number
+  // Líneas puestas a mano en el editor que pasaron al APU nuevo, y las que no
+  // pasaron porque el Excel ya trae ese mismo recurso.
+  lineasAMano: number
+  lineasAManoRepetidas: number
+  // Mano de obra dividida en trabajos que se conservó / que se perdió porque el
+  // Excel ya no trae mano de obra para el ítem.
+  divisiones: number
+  divisionesPerdidas: number
+  // Líneas de la mano de obra que pide la modalidad que se conservaron.
+  moModalidad: number
+  modalidades: number
+  erroresModalidades: { codigo: string; error: string }[]
+  solicitudesCerradas: number
+}
+
+// Después de volver a importar el APU de esos ítems: lo decidido en la copia
+// pasa al APU nuevo y se vuelve a aplicar la modalidad (20270101005400).
+export async function reutilizarDecisionesItems(presupuestoId: string, items: ItemRehecho[]): Promise<ResultadoReutilizarItems> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("reutilizar_decisiones_items", {
+    p_presupuesto_id: presupuestoId,
+    p_items: items.map((i) => ({ item_id: i.itemId, apu_anterior: i.apuAnterior })),
+  })
+  if (error) throw new Error(error.message)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = data as any
+  return {
+    resueltas: Number(r.resueltas ?? 0),
+    solicitudes: Number(r.solicitudes ?? 0),
+    rechazadas: Number(r.rechazadas ?? 0),
+    lineasAMano: Number(r.lineas_a_mano ?? 0),
+    lineasAManoRepetidas: Number(r.lineas_a_mano_repetidas ?? 0),
+    divisiones: Number(r.divisiones ?? 0),
+    divisionesPerdidas: Number(r.divisiones_perdidas ?? 0),
+    moModalidad: Number(r.mo_modalidad ?? 0),
+    modalidades: Number(r.modalidades ?? 0),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    erroresModalidades: (r.errores_modalidades ?? []).map((e: any) => ({ codigo: String(e.codigo), error: String(e.error) })),
+    solicitudesCerradas: Number(r.solicitudes_cerradas ?? 0),
+  }
+}
