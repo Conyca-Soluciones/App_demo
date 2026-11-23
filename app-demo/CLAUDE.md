@@ -1095,6 +1095,12 @@ historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
   y en el editor de APU como botón ámbar "Falta conversión" (el de siempre ahora es un botón visible).
   `_unidad_normal` / `_unidad_limpia` / `_unidad_reconocida` = `normalizarUnidad` en SQL (mismos
   sinónimos; si se cambian en `lib/unidades.ts`, cambiarlos también ahí).
+- **Cambiar la conversión después de pedir** (`20270101005600`, encontrado en las pruebas): cada
+  requisición guarda su cantidad con la conversión con que se pidió. `_comprometido_insumo_item` y el
+  `v_previa` de `modificar_requisicion` la pasan a la unidad ACTUAL de la línea (cantidad / su factor ×
+  el de hoy); antes, cambiar "1 und" a "1 und = 2 m" dejaba pedir de más. Modificar requisición
+  muestra lo pedido con su propia conversión (`LineaRequisicion.cantidad`). Una conversión 1 a 1 deja la
+  línea en la unidad del insumo (si no, quedaba como conversión pendiente).
 - **Generar OC sin columna Conversión**: un rollo de 50 m y uno de 100 m son insumos distintos. La
   orden usa siempre la conversión de la requisición (`_insertar_lineas_orden` ignora la que manda la
   pantalla). "UM disponible" (presentación) se queda, con su "cuánto trae" dentro de esa celda.
