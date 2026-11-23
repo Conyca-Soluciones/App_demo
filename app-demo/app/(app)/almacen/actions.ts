@@ -25,6 +25,7 @@ import {
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
 import { cantidadEnCompra, cantidadEnUso, conversionPendiente, disponibleEnCompra } from "@/lib/requisicion-unidades"
 import type { FilaExcelRequisicion } from "@/lib/exportar-requisiciones"
+import { mapReqAdministrativaEspera, type ReqAdministrativaEspera } from "@/lib/requisiciones-administrativas"
 
 // ---------------------------------------------------------------------------
 // Proyectos
@@ -548,6 +549,67 @@ export async function crearRequisicionExtraordinaria(input: NuevaRequisicionExtr
   if (error) throw new Error(error.message)
   const r = data as { id: string; numero: number; codigo?: string }
   return { requisicionId: r.id, numero: Number(r.numero), codigo: r.codigo ?? `N° ${r.numero}` }
+}
+
+// Con insumos que no están en el maestro (20270101005500): la extraordinaria
+// queda en espera; cuando aprueban el último insumo nuevo, la base la crea a
+// nombre de quien la pidió y pasa a Gerencia.
+export type InsumoNuevoExtraordinaria = { presupuestoItemId: string; descripcion: string; unidad: string; cantidad: number }
+export async function crearRequisicionExtraordinariaEnEspera(
+  input: NuevaRequisicionExtraordinaria & { nuevos: InsumoNuevoExtraordinaria[] }
+): Promise<{ id: string }> {
+  if (input.nuevos.length === 0) throw new Error("No hay insumos nuevos: envía la requisición extraordinaria normal.")
+  if (!input.justificacion.trim()) throw new Error("Escribe por qué se necesita más de lo presupuestado.")
+  const errorDireccion = validarDireccion(input.direccionEntrega)
+  if (errorDireccion) throw new Error(errorDireccion)
+  if (input.lineas.length + input.nuevos.length > MAX_INSUMOS_POR_PEDIDO) {
+    throw new Error(`Una requisición puede tener máximo ${MAX_INSUMOS_POR_PEDIDO} insumos.`)
+  }
+  if (new Set(input.lineas.map((l) => `${l.insumoId}|${l.presupuestoItemId}`)).size !== input.lineas.length) {
+    throw new Error("Hay un insumo repetido para el mismo ítem del presupuesto.")
+  }
+  if (![...input.lineas, ...input.nuevos].every((l) => esCantidadEnteraPositiva(l.cantidad))) {
+    throw new Error("Todas las cantidades deben ser números enteros mayores que cero.")
+  }
+  if (input.nuevos.some((n) => !n.descripcion.trim() || !n.unidad.trim())) {
+    throw new Error("Escribe el nombre y la unidad de cada insumo nuevo.")
+  }
+  if (!input.fechaRequerida || input.fechaRequerida < hoyColombia()) {
+    throw new Error("La fecha requerida no puede ser anterior a hoy.")
+  }
+
+  const supabase = await createClient()
+  const conv = await conversionesItemInsumo(supabase, input.lineas)
+  const lineasUso = input.lineas.map((l) => {
+    const c = conv.get(`${l.presupuestoItemId}|${l.insumoId}`)
+    if (c && conversionPendiente(c.unidadLinea, c.umInsumo, c.factor)) {
+      throw new Error("Hay un insumo con la conversión de unidad pendiente en el presupuesto: escríbela en el APU del ítem antes de pedirlo.")
+    }
+    return { ...l, cantidad: cantidadEnUso(l.cantidad, c?.factor ?? 1) }
+  })
+  const { data, error } = await supabase.rpc("crear_requisicion_extraordinaria_en_espera", {
+    p_lineas: lineasUso.map((l) => ({ presupuesto_item_id: l.presupuestoItemId, insumo_id: l.insumoId, cantidad: l.cantidad })),
+    p_nuevos: input.nuevos.map((n) => ({
+      presupuesto_item_id: n.presupuestoItemId,
+      descripcion: n.descripcion.trim(),
+      unidad: n.unidad,
+      cantidad: n.cantidad,
+    })),
+    p_fecha_requerida: input.fechaRequerida,
+    p_urgente: input.urgente,
+    p_justificacion: input.justificacion.trim(),
+    p_direccion_entrega: normalizarDireccion(input.direccionEntrega),
+  })
+  if (error) throw new Error(error.message)
+  return { id: String((data as { id: string }).id) }
+}
+
+// Las extraordinarias de quien consulta que esperan insumos nuevos (o no se pudieron enviar).
+export async function listarMisExtraordinariasEnEspera(): Promise<ReqAdministrativaEspera[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("mis_extraordinarias_en_espera")
+  if (error) throw new Error(error.message)
+  return ((data as unknown[]) ?? []).map(mapReqAdministrativaEspera)
 }
 
 // ---------------------------------------------------------------------------
