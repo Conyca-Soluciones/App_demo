@@ -2099,6 +2099,12 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   `marcar_revisado_tercero` (botón "Revisado" de `AvisoRevisionTercero`, en la ventana del proveedor, la tarjeta de
   Generar OC y el detalle del contratista; evento `revisado`). `?revisar=<id>` abre el proveedor o contratista. Si
   el tercero deja de ser NIT, el proveedor sigue su tipo nuevo (`_tercero_a_proveedor`).
+  **Financiera y el Administrador editan TODO el tercero** (2026-11-24): también tipo, número y DV (el DV del
+  NIT se calcula), en la ventana del tercero con confirmación; `actualizarTercero(id, datos)` solo manda lo que
+  cambió y avisa si el documento ya es de otro tercero. **Eliminar tercero** (`20270101006200`,
+  `eliminar_tercero`, `editar_terceros`): solo si no se usa en pagos, proveedor, contratista, OC, contratos, actas,
+  otrosí ni pagos administrativos (si no, dice dónde); borra sus cuentas, deja los archivos en el bucket y queda en
+  la Auditoría ("Tercero borrado").
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una

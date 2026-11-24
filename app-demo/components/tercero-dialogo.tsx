@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { extensionArchivo, revisarArchivoTercero } from "@/lib/archivos-tercero"
 import { RutTercero } from "@/components/rut-tercero"
-import { BadgeCheck, Download, History, Loader2, Pencil, Plus } from "lucide-react"
+import { BadgeCheck, Download, History, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import {
   agregarCuenta,
   buscarTerceroPorDocumento,
   crearTercero,
+  eliminarTercero,
   enlaceCertificacionTercero,
   inactivarCuenta,
   reactivarCuenta,
@@ -270,6 +271,7 @@ export function TerceroDialogo({
   puedeVerificar,
   onCambio,
   onCerrar,
+  onEliminado,
 }: {
   tercero: Tercero | null
   bancos: Banco[]
@@ -277,6 +279,8 @@ export function TerceroDialogo({
   puedeVerificar: boolean
   onCambio: (t: Tercero) => void
   onCerrar: () => void
+  /** Se eliminó el tercero (20270101006200): la lista lo quita. */
+  onEliminado?: (id: string) => void
 }) {
   return (
     <Dialog open={tercero !== null} onOpenChange={(abierto) => !abierto && onCerrar()}>
@@ -289,6 +293,10 @@ export function TerceroDialogo({
             puedeEditar={puedeEditar}
             puedeVerificar={puedeVerificar}
             onCambio={onCambio}
+            onEliminado={(id) => {
+              onEliminado?.(id)
+              onCerrar()
+            }}
           />
         )}
       </DialogContent>
@@ -302,12 +310,14 @@ function ContenidoTercero({
   puedeEditar,
   puedeVerificar,
   onCambio,
+  onEliminado,
 }: {
   tercero: Tercero
   bancos: Banco[]
   puedeEditar: boolean
   puedeVerificar: boolean
   onCambio: (t: Tercero) => void
+  onEliminado: (id: string) => void
 }) {
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -321,6 +331,8 @@ function ContenidoTercero({
     const [pn, sn] = tercero.primerNombre ? [tercero.primerNombre, tercero.segundoNombre ?? ""] : partirNombre(tercero.nombres)
     const [pa, sa] = tercero.primerApellido ? [tercero.primerApellido, tercero.segundoApellido ?? ""] : partirNombre(tercero.apellidos)
     return {
+      tipoDocumento: tercero.tipoDocumento as string,
+      numeroDocumento: tercero.numeroDocumento,
       razonSocial: tercero.razonSocial,
       primerNombre: pn,
       segundoNombre: sn,
@@ -412,7 +424,41 @@ function ContenidoTercero({
     if (ok) setFormCuenta(null)
   }
 
-  const esNit = tercero.tipoDocumento === "NIT"
+  // Financiera y el Administrador cambian también el documento (2026-11-24).
+  const esNit = datos.tipoDocumento === "NIT"
+  const documentoCambio = datos.tipoDocumento !== inicial.tipoDocumento || datos.numeroDocumento !== inicial.numeroDocumento
+  const dvCalculado = esNit && datos.numeroDocumento ? String(calcularDvNit(datos.numeroDocumento)) : ""
+
+  function guardarDatos() {
+    if (
+      documentoCambio &&
+      !window.confirm(
+        `Vas a cambiar el documento de ${tercero.tipoDocumento} ${documentoFormateado(tercero)} a ${datos.tipoDocumento} ${datos.numeroDocumento}${dvCalculado ? `-${dvCalculado}` : ""}.
+
+` +
+          "Cambia en todos sus pagos, y su proveedor o contratista queda en revisión. ¿Seguir?"
+      )
+    )
+      return
+    setErroresDatos({})
+    void ejecutar(() => actualizarTercero(tercero.id, { ...datos, dv: dvCalculado }), "Datos guardados.")
+  }
+
+  const [eliminando, setEliminando] = useState(false)
+  async function eliminar() {
+    if (!window.confirm(`¿Eliminar el tercero ${tercero.razonSocial} y sus cuentas? No se puede deshacer (queda en la Auditoría).`)) return
+    setEliminando(true)
+    setError(null)
+    setAviso(null)
+    try {
+      await eliminarTercero(tercero.id)
+      onEliminado(tercero.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo eliminar el tercero.")
+    } finally {
+      setEliminando(false)
+    }
+  }
 
   return (
     <>
@@ -431,6 +477,47 @@ function ContenidoTercero({
       {/* ------------------------------------------------------------ datos */}
       <section className="space-y-3">
         <h3 className="text-sm font-medium">Datos</h3>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label>Tipo de documento</Label>
+            <Select
+              value={datos.tipoDocumento}
+              disabled={!puedeEditar}
+              onValueChange={(v) => v && ponerDatos({ tipoDocumento: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIPOS_DOCUMENTO_TERCERO.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Número {esNit ? "(sin DV)" : ""}</Label>
+            <Input
+              inputMode="numeric"
+              value={datos.numeroDocumento}
+              disabled={!puedeEditar}
+              onChange={(e) => ponerDatos({ numeroDocumento: soloDigitos(e.target.value) })}
+            />
+          </div>
+          {esNit && (
+            <div className="space-y-1.5">
+              <Label>DV (se calcula)</Label>
+              <Input value={dvCalculado} disabled readOnly />
+            </div>
+          )}
+        </div>
+        {documentoCambio && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Cambiar el documento lo cambia en todos sus pagos, y su proveedor o contratista queda en revisión.
+          </p>
+        )}
         {esNit ? (
           <div className="space-y-1.5">
             <Label>Razón social</Label>
@@ -456,18 +543,12 @@ function ContenidoTercero({
             <Button
               size="sm"
               disabled={ocupado}
-              onClick={() => {
-                setErroresDatos({})
-                void ejecutar(() => actualizarTercero(tercero.id, tercero.tipoDocumento, datos), "Datos guardados.")
-              }}
+              onClick={guardarDatos}
             >
               {ocupado ? "Guardando..." : "Guardar datos"}
             </Button>
           </div>
         )}
-        <p className="text-xs text-muted-foreground">
-          El documento no se puede cambiar: identifica al tercero en todos sus pagos.
-        </p>
       </section>
 
       {/* ------------------------------------------------------------- RUT */}
@@ -631,6 +712,19 @@ function ContenidoTercero({
           </div>
         )}
       </section>
+
+      {/* ---------------------------------------------------------- eliminar */}
+      {puedeEditar && (
+        <section className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+          <p className="text-xs text-muted-foreground">
+            Solo se elimina si no se usa en ningún pago, proveedor, contratista, orden, contrato ni acta.
+          </p>
+          <Button size="sm" variant="destructive" onClick={eliminar} disabled={eliminando || ocupado}>
+            {eliminando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}
+            Eliminar tercero
+          </Button>
+        </section>
+      )}
     </>
   )
 }

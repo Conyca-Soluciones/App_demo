@@ -284,6 +284,7 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
         puedeVerificar={puedeVerificar}
         onCambio={actualizarFila}
         onCerrar={() => setAbierto(null)}
+        onEliminado={(id) => setTerceros((actuales) => (actuales ? actuales.filter((x) => x.id !== id) : actuales))}
       />
 
       <NuevoTerceroDialogo

@@ -19,6 +19,7 @@ import {
   type Tercero,
   type TerceroBasico,
 } from "@/lib/terceros"
+import { calcularDvNit } from "@/lib/contratistas"
 
 const PESTANA = "ayf.terceros"
 
@@ -230,60 +231,100 @@ export async function crearTercero(
 // El documento (tipo, número y DV) no se edita: identifica al tercero en todos
 // los pagos. Un error de digitación en el documento se corrige creando el
 // tercero correcto.
-export async function actualizarTercero(
-  id: string,
-  tipoDocumento: string,
-  crudo: Omit<DatosTercero, "tipoDocumento" | "numeroDocumento" | "dv">
-): Promise<Tercero> {
+// Financiera (editar_terceros) y el Administrador cambian TODO el tercero, también tipo,
+// número y DV (decisión del usuario, 2026-11-24). Si cambia el documento (o el nombre o el
+// contacto), sus proveedores y contratistas toman el dato nuevo y quedan en revisión
+// (20270101006100). Un pago apunta al tercero: ve el documento nuevo.
+export async function actualizarTercero(id: string, crudo: DatosTercero): Promise<Tercero> {
   await requerirAccion("editar_terceros")
+  const supabase = await createClient()
+  const { data: actual, error: errActual } = await supabase
+    .from("terceros")
+    .select("tipo_documento, numero_documento, dv")
+    .eq("id", id)
+    .maybeSingle()
+  if (errActual) throw new Error(errActual.message)
+  if (!actual) throw new Error("El tercero ya no existe.")
 
-  // Se valida con un documento de relleno válido: solo importan nombre y contacto.
+  const tipo = (crudo.tipoDocumento || actual.tipo_documento).trim().toUpperCase()
+  const numero = soloDigitos(crudo.numeroDocumento || actual.numero_documento || "")
+  const persona = tipo !== "NIT"
+  const eraPersona = actual.tipo_documento !== "NIT"
   // El contacto es obligatorio salvo en un tercero viejo que aún no lo tiene (todo vacío).
   const sinContacto = !crudo.correo.trim() && !crudo.telefono.trim() && !crudo.direccion.trim() && !crudo.ciudad.trim()
-  const persona = tipoDocumento !== "NIT"
-  // Persona vieja sin casillas: se puede guardar sin llenarlas (conserva su nombre).
-  const sinCasillas = persona && !crudo.primerNombre.trim() && !crudo.primerApellido.trim()
+  // Persona vieja sin casillas: se puede guardar sin llenarlas (conserva su nombre),
+  // salvo que pase de NIT a persona (ahí el nombre hay que escribirlo).
+  const sinCasillas = persona && eraPersona && !crudo.primerNombre.trim() && !crudo.primerApellido.trim()
   const r = validarTercero(
     {
       ...crudo,
-      tipoDocumento: persona ? "CC" : "NIT",
-      numeroDocumento: "1",
-      dv: persona ? "" : "1",
+      tipoDocumento: tipo,
+      numeroDocumento: numero,
+      // El DV del NIT se calcula: no se escribe a mano.
+      dv: persona || !numero ? "" : String(calcularDvNit(numero)),
       razonSocial: crudo.razonSocial || "X",
       ...(sinCasillas ? { primerNombre: "X", primerApellido: "X" } : {}),
     },
     { contacto: !sinContacto }
   )
   if (!r.ok) {
-    const errores = { ...r.errores }
-    delete errores.dv
-    const primero = Object.values(errores)[0]
-    if (primero) throw new Error(primero)
+    const primero = Object.values(r.errores)[0]
+    throw new Error(primero ?? "Revisa los datos del tercero.")
   }
-  const d = r.ok ? r.datos : null
+  const d = r.datos
 
   const cambio: Record<string, unknown> = { observaciones: crudo.observaciones.trim() || null }
-  if (persona && !sinCasillas && d) {
+  if (d.tipoDocumento !== actual.tipo_documento) cambio.tipo_documento = d.tipoDocumento
+  if (d.numeroDocumento !== actual.numero_documento) cambio.numero_documento = d.numeroDocumento
+  if ((d.dv ?? null) !== (actual.dv ?? null)) cambio.dv = d.dv
+  if (persona && !sinCasillas) {
     // La base arma la razón social, los nombres y el nombre para el banco.
     cambio.primer_nombre = d.primerNombre
     cambio.segundo_nombre = d.segundoNombre
     cambio.primer_apellido = d.primerApellido
     cambio.segundo_apellido = d.segundoApellido
-  } else if (!persona && d) {
+  } else if (!persona) {
     cambio.razon_social = d.razonSocial
+    if (eraPersona) {
+      // Pasa a NIT: las casillas de persona ya no aplican.
+      cambio.primer_nombre = null
+      cambio.segundo_nombre = null
+      cambio.primer_apellido = null
+      cambio.segundo_apellido = null
+    }
   }
-  if (!sinContacto && d) {
+  if (!sinContacto) {
     cambio.correo = d.contacto.correo
     cambio.telefono = d.contacto.telefono
     cambio.direccion = d.contacto.direccion
     cambio.ciudad = d.contacto.ciudad
   }
 
-  const supabase = await createClient()
   const { data, error } = await supabase.from("terceros").update(cambio).eq("id", id).select("id")
-  if (error) throw new Error(mensajeError(error))
+  if (error) {
+    if (error.code === "23505") {
+      const { data: otro } = await supabase
+        .from("terceros")
+        .select("razon_social")
+        .eq("numero_documento", d.numeroDocumento)
+        .neq("id", id)
+        .limit(1)
+        .maybeSingle()
+      throw new Error(`Ya existe otro tercero con el documento ${d.numeroDocumento}${otro ? `: ${otro.razon_social}` : ""}.`)
+    }
+    throw new Error(mensajeError(error))
+  }
   if (!data || data.length === 0) throw new Error("No se pudo actualizar el tercero (¿tienes permiso?).")
   return await obtenerTercero(id)
+}
+
+// Eliminar un tercero (20270101006200): Financiera y el Administrador, solo si no se usa en
+// nada; si se usa, la base dice dónde. Queda en la Auditoría.
+export async function eliminarTercero(id: string): Promise<void> {
+  await requerirAccion("editar_terceros")
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("eliminar_tercero", { p_id: id })
+  if (error) throw new Error(error.message)
 }
 
 // Correo, teléfono, dirección y ciudad del tercero desde Contratistas o Proveedores
