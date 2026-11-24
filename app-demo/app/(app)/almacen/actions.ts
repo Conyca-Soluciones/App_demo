@@ -8,8 +8,6 @@ import { createClient } from "@/lib/supabase/server"
 import { obtenerPermisosRol, obtenerPermisosUsuario, obtenerUsuarioId } from "@/lib/permisos"
 import { hoyColombia } from "@/lib/fechas"
 import { normalizarDireccion, validarDireccion } from "@/lib/direccion-entrega"
-import { cookies } from "next/headers"
-import { COOKIE_PROYECTO } from "@/lib/proyecto-actual"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { limiteBusqueda, puedeBuscar } from "@/lib/busqueda"
 import { traerTodo } from "@/lib/supabase/traer-todo"
@@ -965,24 +963,6 @@ export async function modificarRequisicion(
     p_direccion_entrega: normalizarDireccion(input.direccionEntrega),
   })
   if (error) throw new Error(error.message)
-}
-
-// La última dirección de entrega que se usó en el proyecto (para no escribirla
-// cada vez). Sin proyecto, el proyecto actual. null si no hay o no se ve.
-export async function ultimaDireccionEntrega(proyectoId?: string | null): Promise<string | null> {
-  const id = proyectoId ?? (await cookies()).get(COOKIE_PROYECTO)?.value ?? null
-  if (!id) return null
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from("requisiciones_vista")
-    .select("direccion_entrega")
-    .eq("proyecto_id", id)
-    .not("direccion_entrega", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (error) return null
-  return (data as { direccion_entrega: string | null } | null)?.direccion_entrega ?? null
 }
 
 // ---------------------------------------------------------------------------

@@ -573,14 +573,7 @@ export function FormularioRequisicion({
           <div className="space-y-4 border-t pt-5">
             {/* Al modificar, los anexos se cambian en el detalle de la requisición. */}
             {!edicion && <CampoAnexosNuevos archivos={anexos} onCambio={setAnexos} onError={setError} disabled={guardando} />}
-            {/* key: al vaciar el formulario vuelve a proponer la última dirección. */}
-            <CampoDireccionEntrega
-              key={`${reinicio}-${edicion?.requisicionId ?? "nueva"}`}
-              value={direccion}
-              onChange={setDireccion}
-              disabled={guardando}
-              sugerir={!edicion?.direccionEntrega}
-            />
+            <CampoDireccionEntrega value={direccion} onChange={setDireccion} disabled={guardando} />
             <div className="flex items-center gap-2">
               <Checkbox checked={urgente} onCheckedChange={(v) => setUrgente(v === true)} />
               <label className="text-sm font-medium">Marcar como urgente</label>
