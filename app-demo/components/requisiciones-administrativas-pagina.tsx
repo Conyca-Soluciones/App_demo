@@ -406,15 +406,7 @@ function FormularioReqAdministrativa({
         )}
       </div>
 
-      {/* Espera a saber para qué proyecto es (si no, propondría la del proyecto actual). */}
-      <CampoDireccionEntrega
-        id="req-adm-direccion"
-        value={direccion}
-        onChange={setDireccion}
-        disabled={enviando}
-        proyectoId={proyectoId}
-        sugerir={proyectoId !== null && !edicion}
-      />
+      <CampoDireccionEntrega id="req-adm-direccion" value={direccion} onChange={setDireccion} disabled={enviando} />
 
       <div className="space-y-1.5">
         <Label htmlFor="req-adm-obs">Observaciones (opcional)</Label>
