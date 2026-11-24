@@ -5,7 +5,7 @@ import { AnexosRequisicion } from "@/components/anexos-requisicion"
 import { formatearFechaSinHora } from "@/lib/fechas"
 
 import { useState } from "react"
-import { FileText, X } from "lucide-react"
+import { X } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -82,19 +82,39 @@ export function TablaPedidosCompra({
     (x, y) => (x.requisicionCodigo ?? "￿").localeCompare(y.requisicionCodigo ?? "￿") || (x.requisicionNumero ?? SIN_NUMERO) - (y.requisicionNumero ?? SIN_NUMERO)
   )
 
+  // Sin scroll horizontal en una pantalla de portátil (decisión del usuario, 2026-11-24):
+  // sin columnas Ítem, Obs, Urgente ni Rechazar (las tres están en la ventana del insumo,
+  // doble clic); "Urgente" va junto a la REF; los textos largos bajan de línea en vez de
+  // cortarse y la unidad va abreviada. Suma de anchos ~1.175 px.
+  const envolver = "whitespace-normal break-words leading-snug py-0.5"
   const columnas: ColumnaExcel<PedidoParaComprar>[] = [
     {
       clave: "requisicion",
       titulo: "REF",
-      ancho: 130,
+      ancho: 110,
       fija: true,
-      texto: (p) => (p.requisicionCodigo ?? (p.requisicionNumero != null ? String(p.requisicionNumero) : "")) + (p.administrativa ? " · Administrativa" : ""),
+      texto: (p) =>
+        (p.requisicionCodigo ?? (p.requisicionNumero != null ? String(p.requisicionNumero) : "")) +
+        (p.administrativa ? " · Administrativa" : "") +
+        (p.urgente ? " · Urgente" : ""),
       celda: (p) => (
-        <span className="flex items-center gap-1.5">
-          {p.requisicionCodigo ?? p.requisicionNumero ?? ""}
-          {p.administrativa && (
-            <span className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-normal text-sky-800" title="Requisición administrativa (FUNCIONAMIENTO): sin presupuesto ni aprobación">
-              Admin.
+        <span className="flex flex-col items-start gap-0.5 py-0.5">
+          <span>{p.requisicionCodigo ?? p.requisicionNumero ?? ""}</span>
+          {(p.urgente || p.administrativa) && (
+            <span className="flex flex-wrap gap-1">
+              {p.urgente && (
+                <Badge variant="destructive" className="min-h-5 px-1.5 text-[11px]">
+                  Urgente
+                </Badge>
+              )}
+              {p.administrativa && (
+                <span
+                  className="rounded border border-sky-300 bg-sky-50 px-1.5 text-[11px] font-normal text-sky-800"
+                  title="Requisición administrativa (FUNCIONAMIENTO): sin presupuesto ni aprobación"
+                >
+                  Admin.
+                </span>
+              )}
             </span>
           )}
         </span>
@@ -102,26 +122,30 @@ export function TablaPedidosCompra({
       valorOrden: (p) => p.requisicionCodigo ?? "",
       claseCelda: "font-medium tabular-nums",
     },
-    { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (p) => p.proyectoTexto ?? "", claseCelda: "tabular-nums" },
-    // Sin columna Ítem; el insumo se lee completo (baja a varias líneas) y la unidad
-    // va abreviada (UND, M², KG) para darle el ancho al insumo (2026-11-24).
+    {
+      clave: "proyecto",
+      titulo: "Proyecto",
+      ancho: 110,
+      texto: (p) => p.proyectoTexto ?? "",
+      celda: (p) => <span className={`${envolver} tabular-nums`}>{p.proyectoTexto ?? "—"}</span>,
+    },
     {
       clave: "insumo",
       titulo: "Insumo",
-      ancho: 320,
+      ancho: 200,
       flexible: true,
       texto: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
       celda: (p) => (
-        <span className="whitespace-normal break-words py-0.5 leading-snug">
+        <span className={envolver}>
           <span className="text-muted-foreground">{p.insumoCodigo}</span> · {p.insumoDescripcion}
         </span>
       ),
     },
-    { clave: "um", titulo: "UM", ancho: 70, alinear: "center", texto: (p) => abreviaturaUnidad(p.um), claseCelda: "tabular-nums" },
+    { clave: "um", titulo: "UM", ancho: 60, alinear: "center", texto: (p) => abreviaturaUnidad(p.um), claseCelda: "tabular-nums" },
     {
       clave: "cantidad",
-      titulo: "Cant.",
-      ancho: 90,
+      titulo: "Cantidad",
+      ancho: 95,
       alinear: "right",
       texto: (p) => p.cantidadPendiente.toLocaleString("es-CO"),
       valorOrden: (p) => p.cantidadPendiente,
@@ -138,19 +162,25 @@ export function TablaPedidosCompra({
     },
     {
       clave: "valor",
-      titulo: "Vr. Unit. Proyectado",
-      ancho: 150,
+      titulo: "Vr. unitario",
+      ancho: 110,
       alinear: "right",
       texto: (p) => (p.valorUnitarioProyectado != null ? formatoMoneda.format(p.valorUnitarioProyectado) : ""),
       valorOrden: (p) => p.valorUnitarioProyectado,
       claseCelda: "tabular-nums",
     },
-    { clave: "solicitante", titulo: "Solicitante", ancho: 150, texto: (p) => p.solicitadoPorNombre ?? "" },
-    { clave: "pedido", titulo: "Fecha Ped.", ancho: 110, alinear: "center", texto: (p) => formatoFecha(p.fechaPedido), valorOrden: (p) => p.fechaPedido, claseCelda: "tabular-nums" },
+    {
+      clave: "solicitante",
+      titulo: "Solicitante",
+      ancho: 100,
+      texto: (p) => p.solicitadoPorNombre ?? "",
+      celda: (p) => <span className={envolver}>{p.solicitadoPorNombre ?? "—"}</span>,
+    },
+    { clave: "pedido", titulo: "F. pedido", ancho: 95, alinear: "center", texto: (p) => formatoFecha(p.fechaPedido), valorOrden: (p) => p.fechaPedido, claseCelda: "tabular-nums" },
     {
       clave: "requerida",
-      titulo: "Fecha Req.",
-      ancho: 110,
+      titulo: "F. requerida",
+      ancho: 95,
       alinear: "center",
       texto: (p) => formatearFechaSinHora(p.fechaRequerida),
       valorOrden: (p) => p.fechaRequerida,
@@ -158,71 +188,20 @@ export function TablaPedidosCompra({
     },
     {
       clave: "direccion",
-      titulo: "Dirección de entrega",
-      ancho: 200,
+      titulo: "Dirección",
+      ancho: 120,
       texto: (p) => p.direccionEntrega ?? "",
       celda: (p) =>
         p.direccionEntrega ? (
-          <span className="truncate" title={p.direccionEntrega}>
-            {p.direccionEntrega}
-          </span>
+          <span className={envolver}>{p.direccionEntrega}</span>
         ) : (
           <span className="text-muted-foreground/60">—</span>
         ),
-    },
-    {
-      clave: "obs",
-      titulo: "Obs",
-      ancho: 70,
-      alinear: "center",
-      ordenable: false,
-      texto: (p) => p.observaciones ?? "",
-      celda: (p) =>
-        p.observaciones ? (
-          <span title={p.observaciones}>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </span>
-        ) : (
-          <span className="text-muted-foreground/60">—</span>
-        ),
-    },
-    {
-      clave: "urgente",
-      titulo: "Urgente",
-      ancho: 100,
-      alinear: "center",
-      texto: (p) => (p.urgente ? "Urgente" : ""),
-      celda: (p) => (p.urgente ? <Badge variant="destructive">Urgente</Badge> : <span className="text-muted-foreground/60">—</span>),
-    },
-    {
-      clave: "rechazar",
-      titulo: "Rechazar",
-      ancho: 90,
-      alinear: "center",
-      ordenable: false,
-      texto: () => "",
-      celda: (p) => (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-          title={esParcial(p) ? "Cerrar saldo" : "Rechazar"}
-          disabled={p.cantidadPendiente <= 0}
-          aria-label={`${esParcial(p) ? "Cerrar saldo de la requisición de" : "Rechazar insumo"} ${p.insumoDescripcion}`}
-          onClick={() => {
-            setError(null)
-            setPedidoARechazar(p)
-          }}
-        >
-          <X className="h-5 w-5" strokeWidth={3} />
-        </Button>
-      ),
     },
     {
       clave: "comprar",
       titulo: "Comprar",
-      ancho: 90,
+      ancho: 80,
       alinear: "center",
       ordenable: false,
       texto: () => "",
@@ -261,7 +240,7 @@ export function TablaPedidosCompra({
           titulo: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
           subtitulo: (p) => `Requisición ${p.requisicionCodigo ?? "—"}`,
           esquina: (p) => columnas.find((c) => c.clave === "comprar")!.celda!(p),
-          campos: ["proyecto", "solicitante", "um", "cantidad", "valor", "requerida", "urgente", "rechazar"],
+          campos: ["proyecto", "solicitante", "um", "cantidad", "valor", "requerida"],
         }}
       />
 
