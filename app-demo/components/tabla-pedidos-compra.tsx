@@ -235,7 +235,6 @@ export function TablaPedidosCompra({
         onOrdenar={ordenar}
         onDobleClickFila={setViendo}
         tituloFila={AYUDA_DOBLE_CLIC}
-        fondoFila={(p) => (p.urgente ? "bg-amber-50" : undefined)}
         tarjeta={{
           titulo: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
           subtitulo: (p) => `Requisición ${p.requisicionCodigo ?? "—"}`,
