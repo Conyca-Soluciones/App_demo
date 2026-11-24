@@ -78,7 +78,8 @@ type Props<T> = {
   // Texto en hasta dos líneas en vez de cortado en una (tablas de A&F, 2026-11-13).
   dosLineas?: boolean
   // Alto hasta el final de su contenedor (el mismo margen abajo que a los lados) en vez
-  // del alto máximo fijo. El contenedor tiene que tener alto (flex-1 min-h-0).
+  // del alto máximo fijo, con el scroll DENTRO de la tabla (así la fila de títulos queda
+  // fija). El contenedor tiene que ser columna flex con alto (flex min-h-0 flex-1 flex-col).
   altoContenedor?: boolean
 }
 
@@ -113,9 +114,11 @@ export function TablaExcel<T>({
     a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left"
 
   return (
-    <div className={altoContenedor ? "@container h-full min-h-0" : "@container"}>
+    <div className={altoContenedor ? "@container flex min-h-0 flex-1 flex-col" : "@container"}>
       {/* ---------- Tabla (cuando hay espacio) ---------- */}
-      <div className={`hidden overflow-auto rounded-lg border @3xl:block ${altoContenedor ? "max-h-full" : claseAltoMax}`}>
+      {/* altoContenedor: alto de sus filas, pero se encoge hasta el espacio que hay
+          (min-h-0) y ahí hace scroll por dentro: el encabezado sticky sigue visible. */}
+      <div className={`hidden overflow-auto rounded-lg border @3xl:block ${altoContenedor ? "min-h-0" : claseAltoMax}`}>
         {/* Ancho = todo el disponible, nunca menos que la suma de columnas
             (si no cabe, aparece el scroll horizontal). Con table-fixed, la
             columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
@@ -220,7 +223,7 @@ export function TablaExcel<T>({
       </div>
 
       {/* ---------- Tarjetas (poco espacio) ---------- */}
-      <ul className="grid items-start gap-3 @xl:grid-cols-2 @3xl:hidden">
+      <ul className={`grid items-start gap-3 @xl:grid-cols-2 @3xl:hidden ${altoContenedor ? "min-h-0 overflow-auto" : ""}`}>
         {filas.map((fila) => (
           <li
             key={claveFila(fila)}
