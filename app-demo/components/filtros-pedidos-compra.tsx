@@ -90,8 +90,11 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
   if (!abierto) return <FiltrosPlegados onAbrir={() => setAbierto(true)} />
 
   return (
-    <div className="w-full max-w-xs shrink-0 rounded-lg border bg-card">
-      <div className="flex items-center justify-between rounded-t-lg bg-primary px-4 py-3 text-primary-foreground">
+    // La página mide el alto de la pantalla (MarcoPagina altoPantalla): el panel no pasa
+    // de ese alto y sus campos hacen scroll por dentro, para que Consultar siempre se
+    // alcance sin bajar el zoom.
+    <div className="flex max-h-full w-full max-w-xs shrink-0 flex-col self-start rounded-lg border bg-card">
+      <div className="flex shrink-0 items-center justify-between rounded-t-lg bg-primary px-4 py-3 text-primary-foreground">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4" />
           <span className="font-medium">Filtros</span>
@@ -106,7 +109,7 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
         </button>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="min-h-0 space-y-4 overflow-y-auto p-4">
         <div className="space-y-1.5">
           <Label>Proyecto</Label>
           <Select value={proyectoId} onValueChange={(v) => setProyectoId(v ?? TODOS)}>
@@ -131,6 +134,7 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
             valorSeleccionado={usuario}
             onSeleccionar={setUsuario}
             buscar={buscarUsuariosAdaptado}
+            flotante
           />
         </div>
 
@@ -141,6 +145,7 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
             valorSeleccionado={insumo}
             onSeleccionar={setInsumo}
             buscar={buscarInsumosAdaptado}
+            flotante
           />
         </div>
 
