@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
-import { BadgeCompraRequisicion } from "@/components/badge-requisicion"
+import { BadgeCompraRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
+import { Badge } from "@/components/ui/badge"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -39,30 +40,19 @@ export default function RegistroRequisiciones() {
       {
         clave: "numero",
         titulo: "REF",
-        // Sin scroll de lado (decisión del usuario, 2026-11-24): columnas angostas; la REF
-        // nunca se corta y las etiquetas van en chiquito al lado ("Ext." / "Urg.").
-        ancho: 145,
+        // REF arriba y debajo Extraordinaria / Urgente de tamaño normal (decisión del usuario,
+        // 2026-11-24). Ancha para que quepan las dos; si no caben, bajan a otra línea.
+        ancho: 200,
         fija: true,
-        texto: (r) => [r.codigo, r.extraordinaria ? "Extraordinaria" : "", r.urgente ? "Urgente" : ""].filter(Boolean).join(" · "),
+        texto: (r) => r.codigo,
         valorOrden: (r) => r.codigo,
         celda: (r) => (
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 font-medium tabular-nums">{r.codigo}</span>
+          <span className="flex min-w-0 flex-col items-start gap-1 py-0.5">
+            <span className="font-medium tabular-nums">{r.codigo}</span>
             {(r.extraordinaria || r.urgente) && (
-              <span className="flex shrink-0 flex-col gap-0.5">
-                {r.extraordinaria && (
-                  <span
-                    className="rounded bg-orange-100 px-1 text-[9px] leading-tight font-semibold text-orange-800"
-                    title="Extraordinaria: por encima del presupuesto, la aprueba Gerencia"
-                  >
-                    Ext.
-                  </span>
-                )}
-                {r.urgente && (
-                  <span className="rounded bg-red-100 px-1 text-[9px] leading-tight font-semibold text-red-800" title="Urgente">
-                    Urg.
-                  </span>
-                )}
+              <span className="flex flex-wrap gap-1">
+                {r.extraordinaria && <BadgeExtraordinaria />}
+                {r.urgente && <Badge variant="destructive">Urgente</Badge>}
               </span>
             )}
           </span>
