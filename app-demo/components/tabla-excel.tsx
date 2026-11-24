@@ -81,6 +81,10 @@ type Props<T> = {
   // del alto máximo fijo, con el scroll DENTRO de la tabla (así la fila de títulos queda
   // fija). El contenedor tiene que ser columna flex con alto (flex min-h-0 flex-1 flex-col).
   altoContenedor?: boolean
+  // Sin scroll de lado (2026-11-24): las columnas se reparten el ancho que haya, en la
+  // proporción de su `ancho`, y el texto que no cabe se corta (completo en el title).
+  // Por debajo de @3xl sigue pasando a tarjetas.
+  ajustarAncho?: boolean
 }
 
 export function TablaExcel<T>({
@@ -97,6 +101,7 @@ export function TablaExcel<T>({
   vacioEnBlanco = false,
   dosLineas = false,
   altoContenedor = false,
+  ajustarAncho = false,
 }: Props<T>) {
   // Offset izquierdo de cada columna fija: suma de los anchos anteriores.
   const izquierda = new Map<string, number>()
@@ -124,11 +129,20 @@ export function TablaExcel<T>({
             columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
         <table
           className="w-full table-fixed border-separate border-spacing-0 text-sm"
-          style={{ minWidth: anchoTabla }}
+          style={ajustarAncho ? undefined : { minWidth: anchoTabla }}
         >
           <colgroup>
             {columnas.map((c) => (
-              <col key={c.clave} style={c.flexible ? undefined : { width: c.ancho }} />
+              <col
+                key={c.clave}
+                style={
+                  ajustarAncho
+                    ? { width: `${(c.ancho / anchoTabla) * 100}%` }
+                    : c.flexible
+                      ? undefined
+                      : { width: c.ancho }
+                }
+              />
             ))}
           </colgroup>
           <thead>
@@ -164,12 +178,12 @@ export function TablaExcel<T>({
                       <button
                         type="button"
                         onClick={() => onOrdenar!(c.clave)}
-                        className={`flex w-full items-center gap-1 px-3 py-2.5 ${claseJustificar}`}
+                        className={`flex w-full items-center gap-1 ${ajustarAncho ? "px-2" : "px-3"} py-2.5 ${claseJustificar}`}
                       >
                         {contenido}
                       </button>
                     ) : (
-                      <div className={`flex w-full items-center gap-1 px-3 py-2.5 ${claseJustificar}`}>{contenido}</div>
+                      <div className={`flex w-full items-center gap-1 ${ajustarAncho ? "px-2" : "px-3"} py-2.5 ${claseJustificar}`}>{contenido}</div>
                     )}
                   </th>
                 )
@@ -200,14 +214,14 @@ export function TablaExcel<T>({
                       } ${c.clave === ultimaFija ? "shadow-[2px_0_0_0_var(--border)]" : ""}`}
                     >
                       {c.celda ? (
-                        <div className={`flex min-w-0 items-center px-3 py-1 ${alineacion(c.alinear)} ${
+                        <div className={`flex min-w-0 items-center py-1 ${ajustarAncho ? "overflow-hidden px-2" : "px-3"} ${alineacion(c.alinear)} ${
                           c.alinear === "right" ? "justify-end" : c.alinear === "center" ? "justify-center" : ""
                         } ${c.claseCelda ?? ""}`}>
                           {c.celda(fila)}
                         </div>
                       ) : (
                         <div
-                          className={`${dosLineas ? "line-clamp-2 break-words" : "truncate"} px-3 py-2 ${alineacion(c.alinear)} ${c.claseCelda ?? ""}`}
+                          className={`${dosLineas ? "line-clamp-2 break-words" : "truncate"} ${ajustarAncho ? "px-2" : "px-3"} py-2 ${alineacion(c.alinear)} ${c.claseCelda ?? ""}`}
                           title={texto || undefined}
                         >
                           {texto || (vacioEnBlanco ? null : <span className="text-muted-foreground/60">—</span>)}

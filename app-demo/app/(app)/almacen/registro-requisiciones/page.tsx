@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { RequisicionDetalleView } from "@/components/requisicion-detalle-view"
-import { BadgeCompraRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
+import { BadgeCompraRequisicion } from "@/components/badge-requisicion"
 import { FiltrosRequisicionesPanel } from "@/components/filtros-requisiciones"
 import { PaginacionSimple } from "@/components/paginacion-simple"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -17,7 +17,6 @@ import { descargarExcelRequisiciones } from "@/lib/exportar-requisiciones"
 import { exportarRequisiciones, listarRequisiciones, type FiltrosRequisiciones } from "../actions"
 import { AYUDA_DOBLE_CLIC } from "@/components/ventana-detalle"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
-import { Badge } from "@/components/ui/badge"
 
 
 
@@ -40,53 +39,71 @@ export default function RegistroRequisiciones() {
       {
         clave: "numero",
         titulo: "REF",
-        ancho: 240,
+        // Sin scroll de lado (decisión del usuario, 2026-11-24): columnas angostas; la REF
+        // nunca se corta y las etiquetas van en chiquito al lado ("Ext." / "Urg.").
+        ancho: 145,
         fija: true,
-        texto: (r) => r.codigo,
+        texto: (r) => [r.codigo, r.extraordinaria ? "Extraordinaria" : "", r.urgente ? "Urgente" : ""].filter(Boolean).join(" · "),
         valorOrden: (r) => r.codigo,
         celda: (r) => (
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-medium">{r.codigo}</span>
-            {r.extraordinaria && <BadgeExtraordinaria />}
-            {r.urgente && <Badge variant="destructive">Urgente</Badge>}
+            <span className="shrink-0 font-medium tabular-nums">{r.codigo}</span>
+            {(r.extraordinaria || r.urgente) && (
+              <span className="flex shrink-0 flex-col gap-0.5">
+                {r.extraordinaria && (
+                  <span
+                    className="rounded bg-orange-100 px-1 text-[9px] leading-tight font-semibold text-orange-800"
+                    title="Extraordinaria: por encima del presupuesto, la aprueba Gerencia"
+                  >
+                    Ext.
+                  </span>
+                )}
+                {r.urgente && (
+                  <span className="rounded bg-red-100 px-1 text-[9px] leading-tight font-semibold text-red-800" title="Urgente">
+                    Urg.
+                  </span>
+                )}
+              </span>
+            )}
           </span>
         ),
       },
-      { clave: "proyecto", titulo: "Proyecto", ancho: 220, flexible: true, texto: (r) => [r.proyectoCodigo, r.proyectoNombre].filter(Boolean).join(" · ") },
-      { clave: "solicitante", titulo: "Solicitado por", ancho: 170, texto: (r) => r.solicitanteNombre ?? "" },
+      // Solo el código del proyecto (decisión del usuario, 2026-11-24).
+      { clave: "proyecto", titulo: "Proyecto", ancho: 165, flexible: true, texto: (r) => r.proyectoCodigo ?? "" },
+      { clave: "solicitante", titulo: "Solicitado por", ancho: 105, texto: (r) => r.solicitanteNombre ?? "" },
       {
         clave: "creada",
-        titulo: "Fecha requisición",
-        ancho: 130,
+        titulo: "Creada",
+        ancho: 84,
         alinear: "center",
         texto: (r) => formatearFechaSinHora(r.createdAt),
         valorOrden: (r) => r.createdAt,
-        claseCelda: "tabular-nums",
+        claseCelda: "tabular-nums text-xs",
       },
       {
         clave: "requerida",
-        titulo: "Fecha requerida",
-        ancho: 130,
+        titulo: "Requerida",
+        ancho: 84,
         alinear: "center",
         texto: (r) => (r.fechaRequerida ? formatearFechaSinHora(r.fechaRequerida) : ""),
         valorOrden: (r) => r.fechaRequerida,
-        claseCelda: "tabular-nums",
+        claseCelda: "tabular-nums text-xs",
       },
       {
         clave: "estimada",
-        titulo: "Fecha estimada",
-        ancho: 130,
+        titulo: "Estimada",
+        ancho: 84,
         alinear: "center",
         // la más tardía de sus órdenes de compra vigentes (Generar OC)
         texto: (r) => (r.fechaEstimada ? formatearFechaSinHora(r.fechaEstimada) : ""),
         valorOrden: (r) => r.fechaEstimada,
-        claseCelda: "tabular-nums",
+        claseCelda: "tabular-nums text-xs",
       },
-      { clave: "insumos", titulo: "Insumos", ancho: 90, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
+      { clave: "insumos", titulo: "Insumos", ancho: 64, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
       {
         clave: "compra",
         titulo: "Compra",
-        ancho: 130,
+        ancho: 157,
         alinear: "center",
         texto: (r) => r.estadoCompra ?? "",
         celda: (r) => <BadgeCompraRequisicion estadoCompra={r.estadoCompra} />,
@@ -183,10 +200,11 @@ export default function RegistroRequisiciones() {
                 onOrdenar={ordenar}
                 onDobleClickFila={(r) => setAbiertaId(r.id)}
                 tituloFila={AYUDA_DOBLE_CLIC}
+                ajustarAncho
                 fondoFila={(r) => (r.urgente && r.estado === "pendiente" ? "bg-amber-50" : undefined)}
                 tarjeta={{
                   titulo: (r) => r.codigo,
-                  subtitulo: (r) => `${r.proyectoCodigo ?? "—"} · ${r.proyectoNombre ?? ""}`,
+                  subtitulo: (r) => r.proyectoCodigo ?? "—",
                   esquina: (r) => <BadgeCompraRequisicion estadoCompra={r.estadoCompra} />,
                   campos: ["solicitante", "creada", "requerida", "insumos"],
                 }}
