@@ -125,16 +125,17 @@ describe("Excel de solicitudes: ida y vuelta", () => {
       if (String(r.getCell(1).value) === C.insumo) filaEncabezado = n
     })
     const primera = hojaExcel.getRow(filaEncabezado + 1)
-    expect(primera.getCell(8).value).toBe("METRO CUBICO - M3") // por defecto, la del presupuesto ("m³")
-    expect(primera.getCell(8).dataValidation?.type).toBe("list") // y se puede cambiar a la de compra
+    expect(primera.getCell(8).value).toBe("") // la unidad de compra viene vacía: se elige
+    expect(primera.getCell(8).dataValidation?.type).toBe("list") // de la lista
     const tercera = hojaExcel.getRow(filaEncabezado + 3)
-    expect(tercera.getCell(8).value).toBe("") // "Ins" no es una unidad: se elige
+    expect(tercera.getCell(8).value).toBe("")
     expect(primera.getCell(11).value).toBe(19)
     expect(primera.getCell(2).value).toBe("1.2, 1.10") // ítems del presupuesto, sin repetir y en orden
     expect(hojaExcel.getRow(filaEncabezado + 2).getCell(2).value).toBe("") // sin ítems: vacío
     expect(primera.getCell(5).value).toBe(3650) // total del presupuesto
     expect(hojaExcel.getRow(filaEncabezado + 2).getCell(5).value).toBeNull() // sin cantidad del ítem: vacío
     primera.getCell(7).value = "MATERIAL - M"
+    primera.getCell(8).value = "METRO CUBICO - M3"
     primera.getCell(9).value = "006 - 006 - CONCRETOS Y MORTEROS"
     primera.getCell(10).value = 95000
 
