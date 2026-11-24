@@ -78,6 +78,22 @@ export function normalizarUnidad(texto: string | null | undefined): string | nul
   return ultima || null
 }
 
+/**
+ * Abreviatura en mayúsculas para tablas angostas (decisión del usuario, 2026-11-24):
+ * "UNIDAD - UND" -> UND, "METRO CUADRADO - M2" -> M², "ROLLO - ROLL" -> ROLL. Toma la
+ * sigla que trae el maestro después del guion; si no hay, el código común
+ * (normalizarUnidad). M2 / M3 con superíndice.
+ */
+export function abreviaturaUnidad(texto: string | null | undefined): string {
+  if (texto == null) return ""
+  const partes = String(texto)
+    .split(/\s+-\s+/)
+    .map((p) => p.trim())
+    .filter((p) => p && p.toLowerCase() !== "null")
+  const sigla = (partes.length > 1 ? partes[partes.length - 1] : null) ?? normalizarUnidad(texto) ?? ""
+  return sigla.toUpperCase().replace(/^(M|MT|CM|MM)2$/, "$1²").replace(/^(M|MT|CM|MM)3$/, "$1³")
+}
+
 /** Nombre corto para mostrar ("kg", "rollo", "m²"). */
 export function nombreUnidad(texto: string | null | undefined): string {
   const codigo = normalizarUnidad(texto)

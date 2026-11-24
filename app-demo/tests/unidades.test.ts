@@ -218,3 +218,17 @@ describe("lineaNecesitaConversion (aprobar un insumo en su unidad de compra)", (
     expect(esUnidadReconocida("gr")).toBe(true)
   })
 })
+
+describe("abreviaturaUnidad", () => {
+  it("usa la sigla del maestro y pone superíndice al m² y m³", async () => {
+    const { abreviaturaUnidad } = await import("@/lib/unidades")
+    expect(abreviaturaUnidad("UNIDAD - UND")).toBe("UND")
+    expect(abreviaturaUnidad("METRO CUADRADO - M2")).toBe("M²")
+    expect(abreviaturaUnidad("METRO CUBICO - M3")).toBe("M³")
+    expect(abreviaturaUnidad("ROLLO - ROLL")).toBe("ROLL")
+    expect(abreviaturaUnidad("kg")).toBe("KG")
+    expect(abreviaturaUnidad("m³")).toBe("M³")
+    expect(abreviaturaUnidad("Metro lineal")).toBe("M")
+    expect(abreviaturaUnidad(null)).toBe("")
+  })
+})

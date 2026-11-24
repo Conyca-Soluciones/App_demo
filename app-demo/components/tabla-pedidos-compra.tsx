@@ -22,7 +22,7 @@ import {
   rechazarPedidoCompras,
   type PedidoParaComprar,
 } from "@/app/(app)/almacen/comprar-pedidos/actions"
-import { nombreUnidad, textoConversionCompra } from "@/lib/unidades"
+import { abreviaturaUnidad, nombreUnidad, textoConversionCompra } from "@/lib/unidades"
 import { AYUDA_DOBLE_CLIC, VentanaDetalle } from "@/components/ventana-detalle"
 import { TablaExcel, useOrdenExcel, type ColumnaExcel } from "@/components/tabla-excel"
 
@@ -103,22 +103,35 @@ export function TablaPedidosCompra({
       claseCelda: "font-medium tabular-nums",
     },
     { clave: "proyecto", titulo: "Proyecto", ancho: 140, texto: (p) => p.proyectoTexto ?? "", claseCelda: "tabular-nums" },
-    { clave: "item", titulo: "Ítem", ancho: 90, texto: (p) => p.itemCodigo ?? "—", claseCelda: "tabular-nums" },
-    { clave: "insumo", titulo: "Insumo", ancho: 280, flexible: true, texto: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}` },
-    { clave: "um", titulo: "UM", ancho: 120, texto: (p) => p.um ?? "" },
+    // Sin columna Ítem; el insumo se lee completo (baja a varias líneas) y la unidad
+    // va abreviada (UND, M², KG) para darle el ancho al insumo (2026-11-24).
+    {
+      clave: "insumo",
+      titulo: "Insumo",
+      ancho: 320,
+      flexible: true,
+      texto: (p) => `${p.insumoCodigo} · ${p.insumoDescripcion}`,
+      celda: (p) => (
+        <span className="whitespace-normal break-words py-0.5 leading-snug">
+          <span className="text-muted-foreground">{p.insumoCodigo}</span> · {p.insumoDescripcion}
+        </span>
+      ),
+    },
+    { clave: "um", titulo: "UM", ancho: 70, alinear: "center", texto: (p) => abreviaturaUnidad(p.um), claseCelda: "tabular-nums" },
     {
       clave: "cantidad",
-      titulo: "Cantidad",
-      ancho: 130,
+      titulo: "Cant.",
+      ancho: 90,
       alinear: "right",
       texto: (p) => p.cantidadPendiente.toLocaleString("es-CO"),
       valorOrden: (p) => p.cantidadPendiente,
       celda: (p) => {
         const conversion = textoConversionCompra(p.cantidadUso, p.unidadUso, p.factor, p.um)
+        // Columna angosta: la conversión va en el tooltip (y en la ventana del insumo).
         return (
-          <span className="flex flex-col items-end leading-tight tabular-nums">
-            <span>{p.cantidadPendiente.toLocaleString("es-CO")}</span>
-            {conversion && <span className="text-[11px] text-muted-foreground">{conversion}</span>}
+          <span className="tabular-nums" title={conversion ?? undefined}>
+            {p.cantidadPendiente.toLocaleString("es-CO")}
+            {conversion && <span className="ml-0.5 text-muted-foreground">*</span>}
           </span>
         )
       },
@@ -274,6 +287,7 @@ export function TablaPedidosCompra({
                   valor: viendo.valorUnitarioProyectado != null ? formatoMoneda.format(viendo.valorUnitarioProyectado) : "",
                 },
                 { etiqueta: "Proyecto", valor: viendo.proyectoTexto ?? "" },
+                { etiqueta: "Ítem del presupuesto", valor: viendo.itemCodigo ?? "—" },
                 { etiqueta: "Solicitante", valor: viendo.solicitadoPorNombre ?? "" },
                 { etiqueta: "Fecha de la requisición", valor: formatoFecha(viendo.fechaPedido) },
                 { etiqueta: "Fecha requerida", valor: formatearFechaSinHora(viendo.fechaRequerida) },
