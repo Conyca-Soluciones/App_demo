@@ -90,7 +90,7 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
   if (!abierto) return <FiltrosPlegados onAbrir={() => setAbierto(true)} />
 
   return (
-    <div className="w-full max-w-xs shrink-0 rounded-lg border bg-card">
+    <div data-filtros="abierto" className="w-full max-w-xs shrink-0 rounded-lg border bg-card">
       <div className="flex items-center justify-between rounded-t-lg bg-primary px-4 py-3 text-primary-foreground">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4" />

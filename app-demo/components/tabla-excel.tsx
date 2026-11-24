@@ -77,6 +77,10 @@ type Props<T> = {
   vacioEnBlanco?: boolean
   // Texto en hasta dos líneas en vez de cortado en una (tablas de A&F, 2026-11-13).
   dosLineas?: boolean
+  // La tabla ES la página (2026-11-24): llena todo el alto y el ancho de su contenedor,
+  // de borde a borde (sin recuadro redondeado ni alto máximo), con su scroll y el
+  // encabezado fijo. El contenedor tiene que tener alto (flex-1 min-h-0).
+  llenar?: boolean
 }
 
 export function TablaExcel<T>({
@@ -92,6 +96,7 @@ export function TablaExcel<T>({
   fondoFila,
   vacioEnBlanco = false,
   dosLineas = false,
+  llenar = false,
 }: Props<T>) {
   // Offset izquierdo de cada columna fija: suma de los anchos anteriores.
   const izquierda = new Map<string, number>()
@@ -109,9 +114,9 @@ export function TablaExcel<T>({
     a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left"
 
   return (
-    <div className="@container">
+    <div className={llenar ? "@container h-full min-h-0" : "@container"}>
       {/* ---------- Tabla (cuando hay espacio) ---------- */}
-      <div className={`hidden overflow-auto rounded-lg border @3xl:block ${claseAltoMax}`}>
+      <div className={`hidden overflow-auto @3xl:block ${llenar ? "h-full border-t" : `rounded-lg border ${claseAltoMax}`}`}>
         {/* Ancho = todo el disponible, nunca menos que la suma de columnas
             (si no cabe, aparece el scroll horizontal). Con table-fixed, la
             columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
@@ -216,7 +221,7 @@ export function TablaExcel<T>({
       </div>
 
       {/* ---------- Tarjetas (poco espacio) ---------- */}
-      <ul className="grid items-start gap-3 @xl:grid-cols-2 @3xl:hidden">
+      <ul className={`grid items-start gap-3 @xl:grid-cols-2 @3xl:hidden ${llenar ? "h-full overflow-auto p-4" : ""}`}>
         {filas.map((fila) => (
           <li
             key={claveFila(fila)}

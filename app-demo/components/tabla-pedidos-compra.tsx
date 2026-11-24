@@ -219,7 +219,7 @@ export function TablaPedidosCompra({
 
   if (pedidos.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+      <div className="m-4 flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
         No hay requisiciones aprobadas con estos filtros.
       </div>
     )
@@ -228,6 +228,7 @@ export function TablaPedidosCompra({
   return (
     <>
       <TablaExcel
+        llenar
         filas={ordenadas}
         columnas={columnas}
         claveFila={(p) => p.id}
