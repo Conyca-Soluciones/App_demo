@@ -87,7 +87,7 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
   // Colapsado: franja angosta con un botón para reabrir. Se mantiene el
   // mismo componente montado (no un componente aparte) para no perder la
   // selección de proyecto/usuario/insumo ni los rangos de fecha al cerrar.
-  if (!abierto) return <FiltrosPlegados onAbrir={() => setAbierto(true)} detalle={proyecto ? proyecto.etiqueta : null} />
+  if (!abierto) return <FiltrosPlegados onAbrir={() => setAbierto(true)} />
 
   return (
     <div className="w-full max-w-xs shrink-0 rounded-lg border bg-card">
