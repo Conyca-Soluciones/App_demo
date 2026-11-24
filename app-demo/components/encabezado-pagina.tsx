@@ -40,17 +40,27 @@ export function MarcoPagina({
   titulo,
   subtitulo,
   scroll = false,
+  altoPantalla = false,
   children,
 }: {
   titulo: string
   subtitulo?: string
   scroll?: boolean
+  // La página mide exactamente lo que queda de pantalla bajo la barra de arriba (el
+  // contenedor de la app crece con el contenido: sin esto, la que se mueve es toda la
+  // página). Así una tabla con alto hasta abajo hace scroll por dentro y su fila de
+  // títulos queda fija.
+  altoPantalla?: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      className={`flex min-h-0 flex-col overflow-hidden ${altoPantalla ? "h-[calc(100svh-var(--alto-barra))]" : "h-full"}`}
+    >
       <EncabezadoPagina titulo={titulo} subtitulo={subtitulo} />
-      <div className={`min-h-0 flex-1 p-4 sm:p-6 ${scroll ? "overflow-auto" : ""}`}>{children}</div>
+      <div className={`min-h-0 flex-1 p-4 sm:p-6 ${altoPantalla ? "flex flex-col" : ""} ${scroll ? "overflow-auto" : ""}`}>
+        {children}
+      </div>
     </div>
   )
 }
