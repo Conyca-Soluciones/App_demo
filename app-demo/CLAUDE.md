@@ -2207,7 +2207,7 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
   una pestaña; en Consolidado y Realizar Pagos los filtros van arriba (`PanelFiltros apilarEnCelular`
   + `flex-col md:flex-row` en la página; las demás pantallas con filtros siguen igual).
 - **Filtros plegados encima de la tabla** (2026-11-24, todas las pantallas con panel de filtros): al
-  plegarse queda un botón "Filtros" arriba a la derecha (`FiltrosPlegados`, `data-filtros="plegado"`) y
+  plegarse queda un botón "Filtros" arriba a la izquierda (`FiltrosPlegados`, `data-filtros="plegado"`) y
   el contenedor de la página, con la clase `con-filtros`, se pone en columna (regla en `globals.css`), así
   la tabla usa todo el ancho. Una pantalla nueva con panel de filtros: poner `con-filtros` en el
   contenedor que tiene el panel y la tabla.

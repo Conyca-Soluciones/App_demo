@@ -173,7 +173,7 @@
 }
 /* Filtros plegados encima de la tabla (2026-11-24): con el panel de filtros plegado
    (data-filtros="plegado", components/filtros-plegados.tsx) el contenedor se pone en
-   columna: el botón "Filtros" queda en su fila, arriba a la derecha, y la tabla usa todo
+   columna: el botón "Filtros" queda en su fila, arriba a la izquierda, y la tabla usa todo
    el ancho. Fuera de las capas de Tailwind para que gane a md:flex-row / lg:flex-row. */
 .con-filtros:has(> [data-filtros="plegado"]) {
   flex-direction: column;
