@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { BadgeCompraRequisicion, BadgeEstadoRequisicion, BadgeExtraordinaria } from "@/components/badge-requisicion"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { AnexosRequisicion } from "@/components/anexos-requisicion"
 import { SolicitudInsumoDialog } from "@/components/dialogue-nuevo-pedido"
 import { createClient } from "@/lib/supabase/client"
 import { formatearFechaHora, formatearFechaSinHora } from "@/lib/fechas"
@@ -357,6 +358,11 @@ export function RequisicionDetalleView({
             <p className="text-muted-foreground">{req.extraordinaria ? "Justificación (por encima del presupuesto)" : "Observaciones"}</p>
             <p className="whitespace-pre-wrap break-words">{req.observaciones ?? "—"}</p>
           </div>
+          {/* Anexos para Compras (20270101006000): quien la hizo los añade o quita. */}
+          <AnexosRequisicion
+            requisicionId={requisicionId}
+            puedeEditar={esDueno && req.estado !== "cancelada" && req.estado !== "rechazada"}
+          />
           {req.soporteUrl && (
             <div className="space-y-1">
               <p className="text-muted-foreground">Soporte</p>

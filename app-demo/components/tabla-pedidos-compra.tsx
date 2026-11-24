@@ -1,5 +1,7 @@
 "use client"
 
+import { AnexosRequisicion } from "@/components/anexos-requisicion"
+
 import { formatearFechaSinHora } from "@/lib/fechas"
 
 import { useState } from "react"
@@ -284,6 +286,10 @@ export function TablaPedidosCompra({
         acciones={
           viendo && (
             <>
+              {/* Anexos de la requisición para Compras (20270101006000). */}
+              <div className="w-full text-sm">
+                <AnexosRequisicion requisicionId={viendo.requisicionId} />
+              </div>
               <Button
                 variant="outline"
                 className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"

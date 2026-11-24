@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react"
 import { CampoDireccionEntrega } from "@/components/campo-direccion-entrega"
 import { validarDireccion } from "@/lib/direccion-entrega"
 import { nombreUnidad } from "@/lib/unidades"
+import { CampoAnexosNuevos, subirAnexosRequisicion } from "@/components/anexos-requisicion"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -112,6 +113,10 @@ export function FormularioRequisicion({
   const [direccion, setDireccion] = useState("")
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Anexos para Compras (20270101006000): se suben al crear la requisición. El aviso de
+  // los que no se pudieron no se borra al vaciar el formulario.
+  const [anexos, setAnexos] = useState<File[]>([])
+  const [avisoAnexos, setAvisoAnexos] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLDivElement>(null)
 
@@ -143,6 +148,7 @@ export function FormularioRequisicion({
     setBusqueda("")
     setSugerencias([])
     setError(null)
+    setAnexos([])
     if (edicion) {
       setFechaRequerida(edicion.fechaRequerida.slice(0, 10))
       setUrgente(edicion.urgente)
@@ -270,6 +276,7 @@ export function FormularioRequisicion({
 
     setGuardando(true)
     setError(null)
+    setAvisoAnexos(null)
 
     try {
       const insumos = lineas.map((l) => ({
@@ -297,6 +304,14 @@ export function FormularioRequisicion({
           soporteUrl: null, // subida de archivo a Storage: pendiente de implementar
           direccionEntrega: direccion,
         })
+        if (anexos.length > 0) {
+          const errores = await subirAnexosRequisicion(creada.requisicionId, anexos)
+          if (errores.length > 0) {
+            setAvisoAnexos(
+              `La requisición ${creada.codigo} se creó, pero no se pudieron adjuntar estos anexos (agrégalos desde su detalle):\n${errores.join("\n")}`
+            )
+          }
+        }
         onPedidoCreado?.({ requisicionId: creada.requisicionId, numero: creada.numero, codigo: creada.codigo })
         setReinicio((r) => r + 1)
         onTerminar?.()
@@ -556,6 +571,8 @@ export function FormularioRequisicion({
 
           {/* Dirección, urgente y observaciones */}
           <div className="space-y-4 border-t pt-5">
+            {/* Al modificar, los anexos se cambian en el detalle de la requisición. */}
+            {!edicion && <CampoAnexosNuevos archivos={anexos} onCambio={setAnexos} onError={setError} disabled={guardando} />}
             {/* key: al vaciar el formulario vuelve a proponer la última dirección. */}
             <CampoDireccionEntrega
               key={`${reinicio}-${edicion?.requisicionId ?? "nueva"}`}
@@ -581,6 +598,7 @@ export function FormularioRequisicion({
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {avisoAnexos && <p className="whitespace-pre-line text-sm text-amber-800">{avisoAnexos}</p>}
 
           {/* Acciones */}
           <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-5">

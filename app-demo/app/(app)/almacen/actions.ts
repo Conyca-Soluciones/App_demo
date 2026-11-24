@@ -25,6 +25,7 @@ import {
 import { MAX_INSUMOS_POR_PEDIDO, type InsumoAgrupado, type PresupuestoActivo } from "./types"
 import { cantidadEnCompra, cantidadEnUso, conversionPendiente, disponibleEnCompra } from "@/lib/requisicion-unidades"
 import type { FilaExcelRequisicion } from "@/lib/exportar-requisiciones"
+import type { AnexoRequisicion } from "@/lib/anexos-requisicion"
 import { mapReqAdministrativaEspera, type ReqAdministrativaEspera } from "@/lib/requisiciones-administrativas"
 
 // ---------------------------------------------------------------------------
@@ -982,4 +983,56 @@ export async function ultimaDireccionEntrega(proyectoId?: string | null): Promis
     .maybeSingle()
   if (error) return null
   return (data as { direccion_entrega: string | null } | null)?.direccion_entrega ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Anexos de la requisición (20270101006000). Los ve quien ve la requisición; los
+// agrega o quita solo quien la hizo (lo revisa la base).
+// ---------------------------------------------------------------------------
+
+export async function listarAnexosRequisicion(requisicionId: string): Promise<AnexoRequisicion[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("requisicion_anexos")
+    .select("id, nombre_archivo, mime, tamano, created_at")
+    .eq("requisicion_id", requisicionId)
+    .order("created_at", { ascending: true })
+  // Sin la migración todavía, la requisición se sigue viendo (sin anexos).
+  if (error) return []
+  return ((data ?? []) as { id: string; nombre_archivo: string; mime: string | null; tamano: number | null; created_at: string }[]).map(
+    (a) => ({ id: a.id, nombreArchivo: a.nombre_archivo, mime: a.mime, tamano: a.tamano != null ? Number(a.tamano) : null, creadoEn: a.created_at })
+  )
+}
+
+export async function agregarAnexoRequisicion(
+  requisicionId: string,
+  anexo: { ruta: string; nombreArchivo: string; mime: string; tamano: number }
+): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("agregar_anexo_requisicion", {
+    p_req: requisicionId,
+    p_anexo: { ruta: anexo.ruta, nombre_archivo: anexo.nombreArchivo, mime: anexo.mime, tamano: anexo.tamano },
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function eliminarAnexoRequisicion(anexoId: string): Promise<void> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("eliminar_anexo_requisicion", { p_anexo: anexoId })
+  if (error) throw new Error(error.message)
+  const ruta = data as string | null
+  if (ruta) {
+    const { error: e } = await supabase.storage.from("requisiciones").remove([ruta])
+    if (e) console.error("No se pudo borrar el archivo del anexo:", e.message)
+  }
+}
+
+// Enlace firmado de 2 minutos (la política del bucket exige ver la requisición).
+export async function enlaceAnexoRequisicion(anexoId: string): Promise<string> {
+  const supabase = await createClient()
+  const { data: a, error } = await supabase.from("requisicion_anexos").select("ruta").eq("id", anexoId).maybeSingle()
+  if (error || !a) throw new Error("No se encontró el anexo.")
+  const { data, error: e } = await supabase.storage.from("requisiciones").createSignedUrl(a.ruta as string, 120)
+  if (e || !data) throw new Error("No se pudo abrir el anexo.")
+  return data.signedUrl
 }

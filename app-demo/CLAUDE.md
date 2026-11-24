@@ -1582,6 +1582,18 @@ líneas de APU): el import completo tarda ~5,5 min (tandas de 40, ~8 s c/u).
 - Medido (1.500 ítems): import 5,5-6,2 min; abrir el presupuesto 3,6 s;
   "Revisar pendientes" con ~1.800 líneas pendientes de ~10.000: 4,3 s.
 
+## Anexos de la requisición (2026-11-24)
+
+`20270101006000_anexos_requisicion.sql` (reversa en `supabase/reversa/`), decisión del usuario: al crear una
+requisición se pueden adjuntar archivos para Compras (opcionales; hasta 10, 10 MB, PDF, imagen, Excel o Word;
+`lib/anexos-requisicion.ts`). Tabla `requisicion_anexos` (la ve quien ve la requisición; se escribe con
+`agregar_anexo_requisicion` / `eliminar_anexo_requisicion`, solo quien la hizo y no cancelada ni rechazada;
+historial `anexo_agregado` / `anexo_eliminado`) y bucket privado `requisiciones` (carpeta = id de la
+requisición). El navegador sube después de crear la requisición (`subirAnexosRequisicion`); si alguno falla, la
+requisición queda y se agrega desde el detalle. `components/anexos-requisicion.tsx`: `CampoAnexosNuevos`
+(formulario), `AnexosRequisicion` (detalle de la requisición, con Añadir / Quitar para quien la hizo, y la
+ventana del insumo en Requisiciones por comprar, solo ver). `requisiciones.soporte_url` sigue sin uso.
+
 ## Salidas registradas, confirmar aprobaciones y fechas de requisición (2026-10-07)
 
 - **Salidas** (`/almacen/salidas`, `components/salidas-pagina.tsx`): pestañas
