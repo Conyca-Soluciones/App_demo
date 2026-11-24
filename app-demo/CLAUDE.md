@@ -1593,6 +1593,10 @@ requisición). El navegador sube después de crear la requisición (`subirAnexos
 requisición queda y se agrega desde el detalle. `components/anexos-requisicion.tsx`: `CampoAnexosNuevos`
 (formulario), `AnexosRequisicion` (detalle de la requisición, con Añadir / Quitar para quien la hizo, y la
 ventana del insumo en Requisiciones por comprar, solo ver). `requisiciones.soporte_url` sigue sin uso.
+**Excel de Requisiciones por comprar** (2026-11-24): botón "Descargar Excel" sobre la tabla
+(`lib/exportar-pedidos-compra.ts`, una fila por insumo de lo consultado) con la columna Anexos: enlace fijo
+`/almacen/comprar-pedidos/anexos/<requisición>` (route handler bajo la ruta de la pestaña; pide la sesión, la
+RLS decide; un anexo redirige a un enlace firmado de 5 min, varios muestran una página con la lista).
 
 ## Salidas registradas, confirmar aprobaciones y fechas de requisición (2026-10-07)
 

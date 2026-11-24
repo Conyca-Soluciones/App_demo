@@ -1016,3 +1016,17 @@ export async function enlaceAnexoRequisicion(anexoId: string): Promise<string> {
   if (e || !data) throw new Error("No se pudo abrir el anexo.")
   return data.signedUrl
 }
+
+// Cuántos anexos tiene cada requisición (para el Excel de Requisiciones por comprar).
+// En tandas de 100 ids (van en la URL).
+export async function contarAnexosRequisiciones(requisicionIds: string[]): Promise<Record<string, number>> {
+  const supabase = await createClient()
+  const ids = Array.from(new Set(requisicionIds))
+  const cuenta: Record<string, number> = {}
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase.from("requisicion_anexos").select("requisicion_id").in("requisicion_id", ids.slice(i, i + 100))
+    if (error) return cuenta
+    for (const a of (data ?? []) as { requisicion_id: string }[]) cuenta[a.requisicion_id] = (cuenta[a.requisicion_id] ?? 0) + 1
+  }
+  return cuenta
+}

@@ -3,7 +3,8 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ShoppingCart } from "lucide-react"
+import { Download, Loader2, ShoppingCart } from "lucide-react"
+import { contarAnexosRequisiciones } from "@/app/(app)/almacen/actions"
 import { Button } from "@/components/ui/button"
 import { useProyectoActual } from "@/components/proyecto-provider"
 import { FiltrosPedidosCompraPanel } from "./filtros-pedidos-compra"
@@ -28,6 +29,23 @@ function PedidosCompraDeProyecto() {
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [descargando, setDescargando] = useState(false)
+
+  // Excel de lo consultado, con el enlace a los anexos de cada requisición (2026-11-24).
+  async function descargarExcel() {
+    if (!pedidos || pedidos.length === 0) return
+    setDescargando(true)
+    setError(null)
+    try {
+      const anexos = await contarAnexosRequisiciones(pedidos.map((p) => p.requisicionId))
+      const { descargarExcelCompras } = await import("@/lib/exportar-pedidos-compra")
+      await descargarExcelCompras(pedidos, anexos, window.location.origin)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descargar el Excel.")
+    } finally {
+      setDescargando(false)
+    }
+  }
 
   async function handleConsultar(filtros: FiltrosPedidosCompra) {
     setCargando(true)
@@ -94,6 +112,15 @@ function PedidosCompraDeProyecto() {
               Elige un proyecto (o todos) y presiona Consultar para ver las requisiciones aprobadas listas para comprar.
             </div>
           ) : (
+            <>
+            {pedidos.length > 0 && (
+              <div className="flex shrink-0 justify-end">
+                <Button size="sm" variant="outline" disabled={descargando} onClick={descargarExcel}>
+                  {descargando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                  Descargar Excel
+                </Button>
+              </div>
+            )}
             <div className="min-h-0 flex-1 overflow-auto">
               <TablaPedidosCompra
                 pedidos={pedidos}
@@ -102,6 +129,7 @@ function PedidosCompraDeProyecto() {
                 onPedidoRechazado={handlePedidoRechazado}
               />
             </div>
+            </>
           )}
         </div>
       </div>
