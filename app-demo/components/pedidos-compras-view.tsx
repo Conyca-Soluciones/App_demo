@@ -100,7 +100,7 @@ function PedidosCompraDeProyecto() {
       <div className="flex min-h-0 flex-1 gap-4 con-filtros">
         <FiltrosPedidosCompraPanel onConsultar={handleConsultar} cargando={cargando} />
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-3">
           {error && (
             <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error}
@@ -114,7 +114,8 @@ function PedidosCompraDeProyecto() {
           ) : (
             <>
             {pedidos.length > 0 && (
-              <div className="flex shrink-0 justify-end">
+              // Con los filtros plegados sube a la línea del botón "Filtros" (globals.css).
+              <div data-junto-a-filtros className="flex shrink-0 justify-end">
                 <Button size="sm" variant="outline" disabled={descargando} onClick={descargarExcel}>
                   {descargando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
                   Descargar Excel

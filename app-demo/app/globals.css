@@ -178,3 +178,11 @@
 .con-filtros:has(> [data-filtros="plegado"]) {
   flex-direction: column;
 }
+/* Botones que van en la misma línea del botón "Filtros" cuando está plegado (ej.
+   "Descargar Excel"), arriba a la derecha, para no quitarle alto a la tabla. Su
+   columna lleva `relative`; el botón y el espacio entre filas miden 2rem y 1rem. */
+.con-filtros:has(> [data-filtros="plegado"]) [data-junto-a-filtros] {
+  position: absolute;
+  right: 0;
+  top: -3rem;
+}
