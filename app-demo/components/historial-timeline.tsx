@@ -177,6 +177,8 @@ const EVENTOS_TERCERO: Record<string, { etiqueta: string; tono: "ok" | "malo" | 
 const EVENTOS_PROVEEDOR: Record<string, { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }> = {
   creado: { etiqueta: "Proveedor creado", tono: "neutro" },
   editado: { etiqueta: "Proveedor editado", tono: "aviso" },
+  en_revision: { etiqueta: "En revisión: su tercero cambió", tono: "aviso" },
+  revisado: { etiqueta: "Revisado por Compras", tono: "ok" },
 }
 
 type DefEvento = { etiqueta: string; tono: "ok" | "malo" | "aviso" | "neutro" }
@@ -187,6 +189,8 @@ const EVENTOS_CONTRATISTA: Record<string, DefEvento> = {
   documento_subido: { etiqueta: "Documento subido", tono: "neutro" },
   documento_reemplazado: { etiqueta: "Documento reemplazado", tono: "aviso" },
   documento_quitado: { etiqueta: "Documento quitado", tono: "malo" },
+  en_revision: { etiqueta: "En revisión: su tercero cambió", tono: "aviso" },
+  revisado: { etiqueta: "Revisado", tono: "ok" },
 }
 
 const EVENTOS_ENTRADA: Record<string, DefEvento> = {
@@ -455,6 +459,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     if (d.cuenta) return [String(d.cuenta)]
     return []
   }
+  if ((tipo === "proveedor" || tipo === "contratista") && e.evento === "en_revision") return lineasCambios(d.cambios)
   if (tipo === "proveedor") {
     if (e.evento === "editado") return lineasCambios(d.cambios)
     return []

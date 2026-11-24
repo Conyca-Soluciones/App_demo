@@ -7,6 +7,8 @@ import { ProveedoresView } from "@/components/proveedores-view"
 export default async function ProveedoresPage() {
   const permisos = await obtenerPermisosRol()
   const puedeEditar = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("editar_proveedores"))
+  // Marcar como revisado un proveedor cuyo tercero cambió (20270101006100).
+  const puedeRevisar = Boolean(permisos?.esAdministrador || permisos?.acciones.includes("revisar_proveedores"))
 
-  return <ProveedoresView puedeEditar={puedeEditar} />
+  return <ProveedoresView puedeEditar={puedeEditar} puedeRevisar={puedeRevisar} />
 }

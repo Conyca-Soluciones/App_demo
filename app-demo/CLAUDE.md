@@ -2084,6 +2084,21 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   `actualizar_contacto_tercero` (uno o varios datos; A&F, `editar_proveedores` o `gestionar_contratistas`):
   los formularios de Contratistas y Proveedores llegan con el contacto del tercero (`TerceroBasico.contacto`)
   y lo guardan allá. Componentes `CamposNombrePersona` y `CamposContacto` en `tercero-dialogo.tsx`.
+- **El tercero manda y su proveedor / contratista se revisan** (`20270101006100_revision_por_cambio_de_tercero.sql`,
+  2026-11-24, decisiones del usuario). Solo Financiera (`editar_terceros`) y el Administrador cambian el tercero,
+  incluido el contacto: `actualizar_contacto_tercero` ya no lo usan quienes editan proveedores o contratistas, y en
+  sus formularios el contacto se ve pero no se edita (`ContactoDelTercero`). Compras solo edita lo propio del
+  proveedor (estado, tipo, tipo de documento de la OC, nombre de contacto); quien gestiona contratistas, lo propio
+  del contratista. Si cambian nombre, tipo o número de documento, DV o contacto del tercero (no cuentas ni RUT),
+  `trg_tercero_pide_revision` abre una fila en `revisiones_tercero` (una abierta por proveedor/contratista, con los
+  cambios de → a) y anota `en_revision` en su historial. Pendientes: `proveedor_en_revision` a quien tiene la acción
+  `revisar_proveedores` (Compras y Líder Compras) y `contratista_en_revision` a quien creó el contratista (sin
+  creador, a `gestionar_contratistas`). Mientras esté abierta no se crean OC con ese proveedor
+  (`crear_orden_compra_con_soporte`; `modificar_orden_compra` no deja cambiar a él) ni solicitudes de contrato con
+  ese contratista (`_guardar_solicitud_contrato`, `_guardar_contrato_general`); lo existente sigue. Se cierra con
+  `marcar_revisado_tercero` (botón "Revisado" de `AvisoRevisionTercero`, en la ventana del proveedor, la tarjeta de
+  Generar OC y el detalle del contratista; evento `revisado`). `?revisar=<id>` abre el proveedor o contratista. Si
+  el tercero deja de ser NIT, el proveedor sigue su tipo nuevo (`_tercero_a_proveedor`).
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una

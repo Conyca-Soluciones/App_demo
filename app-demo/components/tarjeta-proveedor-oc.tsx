@@ -1,5 +1,7 @@
 "use client"
 
+import { AvisoRevisionTercero } from "@/components/aviso-revision-tercero"
+
 import { useState } from "react"
 import { Loader2, Pencil } from "lucide-react"
 
@@ -18,15 +20,10 @@ import { ETIQUETA_CAMPO, validarCampo, type CampoEditable } from "@/lib/proveedo
 // sale de Terceros, en el bloque "¿Cómo se paga?" (components/metodo-pago-oc.tsx).
 // ---------------------------------------------------------------------------
 
-// Campos editables, en el orden en que se muestran. El nombre y el documento
-// salen del tercero (20261223000000): se corrigen en Terceros (A&F).
-const CAMPOS: CampoEditable[] = [
-  "nombreContacto",
-  "telefono",
-  "correo",
-  "ciudad",
-  "direccion",
-]
+// Lo único que se edita aquí: el nombre de la persona de contacto, que es del
+// proveedor. Nombre, documento y contacto (teléfono, correo, ciudad, dirección)
+// salen del tercero y solo los corrige Financiera en Terceros (20270101006100).
+const CAMPOS: CampoEditable[] = ["nombreContacto"]
 
 function valorTexto(d: ProveedorDetalle, campo: CampoEditable): string {
   const v = d[campo as keyof ProveedorDetalle]
@@ -115,6 +112,8 @@ export function TarjetaProveedorOC({
 
   return (
     <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
+      {/* En revisión (Financiera cambió su tercero): la base no deja crear la orden. */}
+      <AvisoRevisionTercero entidad="proveedor" id={detalle.id} puedeMarcar />
       {!editando ? (
         <>
           <div className="flex items-start justify-between gap-2">
@@ -141,7 +140,8 @@ export function TarjetaProveedorOC({
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Los cambios se guardan en el proveedor (para todas las órdenes) y se usan en esta orden.
+            El contacto se guarda en el proveedor (para todas las órdenes) y se usa en esta orden. Teléfono,
+            correo, ciudad y dirección son los del tercero: los corrige Financiera en Terceros.
           </p>
           {CAMPOS.map((campo) => {
             const id = `oc-proveedor-${campo}`

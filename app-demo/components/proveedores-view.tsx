@@ -17,6 +17,8 @@ import { SelectorTercero } from "@/components/selector-tercero"
 import { CuentasTercero } from "@/components/cuentas-tercero"
 import type { TerceroBasico } from "@/lib/terceros"
 import { AYUDA_DOBLE_CLIC, CLASE_FILA_DOBLE_CLIC, VentanaDetalle, alDobleClic } from "@/components/ventana-detalle"
+import { AvisoRevisionTercero } from "@/components/aviso-revision-tercero"
+import { enRevisionTercero } from "@/app/(app)/revision-tercero-actions"
 
 // ---------------------------------------------------------------------------
 // Proveedores: tabla tipo Excel con edición en línea (clic en la celda,
@@ -278,18 +280,28 @@ function CeldaEditable({
 // Diálogo "Nuevo proveedor". El ID (PV0395...) lo asigna el servidor.
 // ---------------------------------------------------------------------------
 
-// Orden de los campos en el formulario. Nombre y número de documento salen del
-// tercero (20261223000000); el tipo dice si la OC lo muestra como NIT o CC.
-const CAMPOS_FORMULARIO: CampoEditable[] = [
-  "tipoProveedor",
-  "estado",
-  "tipoDocumento",
-  "nombreContacto",
-  "telefono",
-  "correo",
-  "ciudad",
-  "direccion",
-]
+// Lo que Compras pone y cambia: lo propio del proveedor (20270101006100). Nombre,
+// documento y contacto (teléfono, correo, ciudad, dirección) salen del tercero y
+// solo los cambia Financiera en Terceros. El tipo dice si la OC lo muestra como NIT o CC.
+const CAMPOS_FORMULARIO: CampoEditable[] = ["tipoProveedor", "estado", "tipoDocumento", "nombreContacto"]
+
+// Contacto del tercero, solo para ver.
+function ContactoDelTercero({ contacto }: { contacto: { correo?: string | null; telefono?: string | null; direccion?: string | null; ciudad?: string | null } | null }) {
+  const fila = (t: string, v?: string | null) => (
+    <p className="truncate">
+      <span className="text-muted-foreground">{t}:</span> {v || "—"}
+    </p>
+  )
+  return (
+    <div className="space-y-0.5 rounded-md border bg-muted/30 px-3 py-2 text-xs sm:col-span-2">
+      <p className="font-medium">Contacto del tercero (lo corrige Financiera en Terceros)</p>
+      {fila("Teléfono", contacto?.telefono)}
+      {fila("Correo", contacto?.correo)}
+      {fila("Ciudad", contacto?.ciudad)}
+      {fila("Dirección", contacto?.direccion)}
+    </div>
+  )
+}
 const FORMULARIO_VACIO: Partial<Record<CampoEditable, string>> = { estado: "ACTIVO" }
 
 function NuevoProveedorDialog({
@@ -364,19 +376,9 @@ function NuevoProveedorDialog({
                 setTercero(t)
                 setErrorTercero(undefined)
                 // La OC lo muestra como el tercero; una persona natural puede facturar como NIT.
-                // El contacto es el del tercero (20270101004300): viene lleno, no se pide otra vez.
-                const c = t.contacto
                 setValores((v) => ({
                   ...v,
                   tipoDocumento: t.tipoDocumento === "NIT" ? "NIT" : (v.tipoDocumento ?? t.tipoDocumento),
-                  ...(c
-                    ? {
-                        telefono: c.telefono || v.telefono,
-                        correo: c.correo || v.correo,
-                        ciudad: c.ciudad || v.ciudad,
-                        direccion: c.direccion || v.direccion,
-                      }
-                    : {}),
                 }))
               }}
               onQuitar={() => setTercero(null)}
@@ -387,10 +389,8 @@ function NuevoProveedorDialog({
                 errorTercero ? "border-destructive" : ""
               }`}
             />
-            <p className="text-xs text-muted-foreground">
-              Teléfono, correo, ciudad y dirección son los del tercero: si los cambias aquí se cambian también en Terceros.
-            </p>
           </div>
+          {tercero && <ContactoDelTercero contacto={tercero.contacto ?? null} />}
           {CAMPOS_FORMULARIO.map((campo) => {
             const opciones = OPCIONES[campo]
             const id = `nuevo-proveedor-${campo}`
@@ -452,7 +452,7 @@ function NuevoProveedorDialog({
 // Página
 // ---------------------------------------------------------------------------
 
-export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
+export function ProveedoresView({ puedeEditar, puedeRevisar = false }: { puedeEditar: boolean; puedeRevisar?: boolean }) {
   const [proveedores, setProveedores] = useState<Proveedor[] | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState("")
@@ -467,13 +467,30 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
   const [historialDe, setHistorialDe] = useState<Proveedor | null>(null)
   // Ventana del proveedor (doble clic): datos fijos; con "Editar", los mismos
   // campos se vuelven editables (se guarda cada uno al salir, como antes).
-  const [viendoId, setViendoId] = useState<string | null>(null)
+  // ?revisar=<id> (viene de Mis pendientes, su tercero cambió): abre ese proveedor.
+  const [viendoId, setViendoId] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("revisar")
+  )
   const [editandoVentana, setEditandoVentana] = useState(false)
 
   useEffect(() => {
     listarProveedores()
       .then((lista: Proveedor[]) => setProveedores(lista))
       .catch((e) => setErrorCarga(e instanceof Error ? e.message : "No se pudieron cargar los proveedores."))
+  }, [])
+
+  // En revisión porque Financiera cambió su tercero (20270101006100).
+  const [enRevision, setEnRevision] = useState<Set<string>>(new Set())
+  function cargarRevisiones() {
+    enRevisionTercero("proveedor")
+      .then((ids: string[]) => setEnRevision(new Set(ids)))
+      .catch(() => setEnRevision(new Set()))
+  }
+  useEffect(() => {
+    cargarRevisiones()
+  }, [])
+  useEffect(() => {
+    if (window.location.search.includes("revisar=")) window.history.replaceState(null, "", window.location.pathname)
   }, [])
 
   // El aviso de "guardado" se va solo; el de error se queda hasta el próximo.
@@ -754,6 +771,14 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
                                 <span className="min-w-0 flex-1 truncate py-2 text-xs text-muted-foreground tabular-nums" title={p.idProv ?? undefined}>
                                   {p.idProv}
                                 </span>
+                                {enRevision.has(p.uniqueId) && (
+                                  <span
+                                    className="shrink-0 rounded border border-amber-300 bg-amber-50 px-1 text-[10px] font-medium text-amber-800"
+                                    title="En revisión: Financiera cambió su tercero"
+                                  >
+                                    Revisión
+                                  </span>
+                                )}
                                 <BotonHistorial onClick={() => setHistorialDe(p)} />
                               </div>
                             ) : (
@@ -865,6 +890,18 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
           )
         }
       >
+        {viendo && !editandoVentana && enRevision.has(viendo.uniqueId) && (
+          <AvisoRevisionTercero
+            key={`rev-${viendo.uniqueId}`}
+            entidad="proveedor"
+            id={viendo.uniqueId}
+            puedeMarcar={puedeRevisar}
+            onRevisado={() => {
+              cargarRevisiones()
+              setAviso({ tipo: "ok", texto: `${viendo.nombre}: revisado.` })
+            }}
+          />
+        )}
         {viendo && editandoVentana && (
           <FormularioProveedor
             key={viendo.uniqueId}
@@ -954,9 +991,10 @@ function FormularioProveedor({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Nombre, número y DV salen de Terceros (los corrige A&amp;F). El contacto se guarda en el tercero.
+        Nombre, documento y contacto salen de Terceros: los corrige Financiera.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
+        <ContactoDelTercero contacto={proveedor} />
         {CAMPOS_FORMULARIO.map((c) => {
           const opciones = OPCIONES[c]
           const id = `proveedor-${c}`

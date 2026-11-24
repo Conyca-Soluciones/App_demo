@@ -1,5 +1,7 @@
 "use client"
 
+import { AvisoRevisionTercero } from "@/components/aviso-revision-tercero"
+
 import { useEffect, useMemo, useState } from "react"
 import { CheckCircle2, Download, Eye, FileUp, History, Loader2, Pencil, Plus, X } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
@@ -24,7 +26,6 @@ import { createClient } from "@/lib/supabase/client"
 import { CuentasTercero } from "@/components/cuentas-tercero"
 import { SelectorTercero } from "@/components/selector-tercero"
 import type { TerceroBasico } from "@/lib/terceros"
-import { actualizarContactoTercero } from "@/app/(app)/ayf/terceros/actions"
 import { formatearFechaSinHora } from "@/lib/fechas"
 import {
   DOCUMENTOS_POR_PERSONA,
@@ -46,6 +47,7 @@ import {
   crearContratista,
   editarContratista,
   enlaceDocumentoContratista,
+  listarContratistas,
   listarContratistasPagina,
   type DocumentoSubido,
 } from "@/app/(app)/contratos/contratistas/actions"
@@ -99,6 +101,25 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
   // La consulta en curso; cada cambio (Consultar, página, orden) trae esa
   // página. null = no se ha presionado Consultar.
   const [consulta, setConsulta] = useState<{ filtros: FiltrosContratistas; pagina: number; orden: OrdenExcel; vez: number } | null>(null)
+
+  // ?revisar=<id>: viene de Mis pendientes (su tercero cambió); abre ese contratista.
+  const [revisarPedido] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("revisar")
+  )
+  useEffect(() => {
+    if (!revisarPedido) return
+    let activo = true
+    listarContratistas()
+      .then((lista: Contratista[]) => {
+        const c = lista.find((x) => x.id === revisarPedido)
+        if (activo && c) setDetalle(c)
+      })
+      .catch(() => {})
+      .finally(() => window.history.replaceState(null, "", window.location.pathname))
+    return () => {
+      activo = false
+    }
+  }, [revisarPedido])
 
   useEffect(() => {
     if (!consulta) return
@@ -410,6 +431,8 @@ function DetalleContratistaDialog({
         )}
         {c && !viendo && (
           <div className="space-y-5">
+            {/* Financiera cambió su tercero (20270101006100): lo revisa quien lo creó. */}
+            <AvisoRevisionTercero key={`rev-${c.id}`} entidad="contratista" id={c.id} puedeMarcar />
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               {campos.map(([etiqueta, valor]) => (
                 <div key={etiqueta} className="min-w-0">
@@ -669,13 +692,7 @@ function ContratistaFormDialog({
       )
 
       setPaso("guardando")
-      // El contacto se guarda en el tercero; la base lo copia al contratista.
-      await actualizarContactoTercero(valores.terceroId, {
-        correo: valores.correo,
-        telefono: valores.telefono,
-        direccion: valores.direccion,
-        ciudad: valores.ciudad,
-      })
+      // El contacto es el del tercero (lo copia la base) y solo lo cambia Financiera.
       if (editando) {
         const r = await editarContratista(id, valores, subidos)
         // Los archivos reemplazados ya no son documento de nadie: se borran
@@ -792,15 +809,25 @@ function ContratistaFormDialog({
             <div>
               <h3 className="text-sm font-semibold">Contacto</h3>
               <p className="text-xs text-muted-foreground">
-                Es el contacto del tercero: viene lleno si ya lo tiene, y si lo cambias aquí se cambia también en Terceros y en su proveedor.
+                Es el contacto del tercero: aquí solo se ve. Si está mal o falta, lo corrige Financiera en Terceros (20270101006100).
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-6">
-              {campoTexto("correo", "Correo de notificación *", { ancho: "sm:col-span-3", inputMode: "email" })}
-              {campoTexto("telefono", "Teléfono *", { ancho: "sm:col-span-3", inputMode: "tel" })}
-              {campoTexto("direccion", "Dirección (calle y número) *", { ancho: "sm:col-span-4" })}
-              {campoTexto("ciudad", "Ciudad *", { ancho: "sm:col-span-2" })}
-            </div>
+            <dl className="grid gap-x-6 gap-y-2 rounded-md border bg-muted/30 px-3 py-2 text-sm sm:grid-cols-2">
+              {(
+                [
+                  ["correo", "Correo de notificación"],
+                  ["telefono", "Teléfono"],
+                  ["direccion", "Dirección"],
+                  ["ciudad", "Ciudad"],
+                ] as const
+              ).map(([k, t]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{t}</dt>
+                  <dd className="break-words">{valores[k] || <span className="text-amber-700">Falta en el tercero</span>}</dd>
+                  {errores[k] && <p className="text-xs text-destructive">Falta en el tercero: pídele a Financiera que lo complete.</p>}
+                </div>
+              ))}
+            </dl>
           </section>
 
           <section className="space-y-3">

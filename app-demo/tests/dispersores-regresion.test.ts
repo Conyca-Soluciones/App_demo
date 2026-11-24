@@ -62,7 +62,8 @@ function casoBogota(): { tanda: Tanda; esperado: string } {
   return { tanda, esperado: readFileSync(TXT).toString("latin1") }
 }
 
-describe.skipIf(!hayOro)("Banco de Bogotá contra el archivo real del banco", () => {
+// Lee el .xlsm real en cada prueba: con toda la suite a la vez pasa de 5 s.
+describe.skipIf(!hayOro)("Banco de Bogotá contra el archivo real del banco", { timeout: 30_000 }, () => {
   it("reproduce byte a byte el archivo del banco", () => {
     const { tanda, esperado } = casoBogota()
     const obtenido = planoBogota(tanda)
