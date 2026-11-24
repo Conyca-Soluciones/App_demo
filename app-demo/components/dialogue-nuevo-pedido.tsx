@@ -556,14 +556,7 @@ export function FormularioRequisicion({
 
           {/* Dirección, urgente y observaciones */}
           <div className="space-y-4 border-t pt-5">
-            {/* key: al vaciar el formulario vuelve a proponer la última dirección. */}
-            <CampoDireccionEntrega
-              key={`${reinicio}-${edicion?.requisicionId ?? "nueva"}`}
-              value={direccion}
-              onChange={setDireccion}
-              disabled={guardando}
-              sugerir={!edicion?.direccionEntrega}
-            />
+            <CampoDireccionEntrega value={direccion} onChange={setDireccion} disabled={guardando} />
             <div className="flex items-center gap-2">
               <Checkbox checked={urgente} onCheckedChange={(v) => setUrgente(v === true)} />
               <label className="text-sm font-medium">Marcar como urgente</label>
