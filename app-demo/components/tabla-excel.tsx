@@ -81,8 +81,9 @@ type Props<T> = {
   // del alto máximo fijo, con el scroll DENTRO de la tabla (así la fila de títulos queda
   // fija). El contenedor tiene que ser columna flex con alto (flex min-h-0 flex-1 flex-col).
   altoContenedor?: boolean
-  // Sin scroll de lado (2026-11-24): las columnas se reparten el ancho que haya, en la
-  // proporción de su `ancho`, y el texto que no cabe se corta (completo en el title).
+  // Sin scroll de lado (2026-11-24): las columnas `fija` conservan su `ancho` y las demás
+  // se reparten el resto por partes iguales; el texto que no cabe se corta (completo en el
+  // title).
   // Por debajo de @3xl sigue pasando a tarjetas.
   ajustarAncho?: boolean
 }
@@ -137,7 +138,10 @@ export function TablaExcel<T>({
                 key={c.clave}
                 style={
                   ajustarAncho
-                    ? { width: `${(c.ancho / anchoTabla) * 100}%` }
+                    ? // Las fijas conservan su ancho; las demás se reparten el resto por igual.
+                      c.fija
+                      ? { width: c.ancho }
+                      : undefined
                     : c.flexible
                       ? undefined
                       : { width: c.ancho }

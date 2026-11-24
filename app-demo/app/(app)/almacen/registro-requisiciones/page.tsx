@@ -40,21 +40,17 @@ export default function RegistroRequisiciones() {
       {
         clave: "numero",
         titulo: "REF",
-        // REF arriba y debajo Extraordinaria / Urgente de tamaño normal (decisión del usuario,
-        // 2026-11-24). Ancha para que quepan las dos; si no caben, bajan a otra línea.
-        ancho: 200,
+        // REF y, en la misma línea, Extraordinaria / Urgente de tamaño normal (decisión del
+        // usuario, 2026-11-24). Ancho fijo: no se encoge aunque se abran los filtros.
+        ancho: 290,
         fija: true,
         texto: (r) => r.codigo,
         valorOrden: (r) => r.codigo,
         celda: (r) => (
-          <span className="flex min-w-0 flex-col items-start gap-1 py-0.5">
+          <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
             <span className="font-medium tabular-nums">{r.codigo}</span>
-            {(r.extraordinaria || r.urgente) && (
-              <span className="flex flex-wrap gap-1">
-                {r.extraordinaria && <BadgeExtraordinaria />}
-                {r.urgente && <Badge variant="destructive">Urgente</Badge>}
-              </span>
-            )}
+            {r.extraordinaria && <BadgeExtraordinaria />}
+            {r.urgente && <Badge variant="destructive">Urgente</Badge>}
           </span>
         ),
       },
