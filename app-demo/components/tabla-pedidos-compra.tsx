@@ -228,6 +228,7 @@ export function TablaPedidosCompra({
   return (
     <>
       <TablaExcel
+        altoContenedor
         filas={ordenadas}
         columnas={columnas}
         claveFila={(p) => p.id}

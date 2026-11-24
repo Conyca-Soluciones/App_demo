@@ -77,6 +77,9 @@ type Props<T> = {
   vacioEnBlanco?: boolean
   // Texto en hasta dos líneas en vez de cortado en una (tablas de A&F, 2026-11-13).
   dosLineas?: boolean
+  // Alto hasta el final de su contenedor (el mismo margen abajo que a los lados) en vez
+  // del alto máximo fijo. El contenedor tiene que tener alto (flex-1 min-h-0).
+  altoContenedor?: boolean
 }
 
 export function TablaExcel<T>({
@@ -92,6 +95,7 @@ export function TablaExcel<T>({
   fondoFila,
   vacioEnBlanco = false,
   dosLineas = false,
+  altoContenedor = false,
 }: Props<T>) {
   // Offset izquierdo de cada columna fija: suma de los anchos anteriores.
   const izquierda = new Map<string, number>()
@@ -109,9 +113,9 @@ export function TablaExcel<T>({
     a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left"
 
   return (
-    <div className="@container">
+    <div className={altoContenedor ? "@container h-full min-h-0" : "@container"}>
       {/* ---------- Tabla (cuando hay espacio) ---------- */}
-      <div className={`hidden overflow-auto rounded-lg border @3xl:block ${claseAltoMax}`}>
+      <div className={`hidden overflow-auto rounded-lg border @3xl:block ${altoContenedor ? "max-h-full" : claseAltoMax}`}>
         {/* Ancho = todo el disponible, nunca menos que la suma de columnas
             (si no cabe, aparece el scroll horizontal). Con table-fixed, la
             columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
