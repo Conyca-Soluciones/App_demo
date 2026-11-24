@@ -106,7 +106,20 @@ export async function actualizarProveedor(
   if (!data || data.length === 0) {
     throw new Error("No se guardó el cambio: el proveedor no existe o no tienes permiso para editarlo.")
   }
-  return mapearProveedor(data[0])
+  const guardado = mapearProveedor(data[0])
+  if (campo === "tipoDocumento") revisarTipoDocumento(validado.valor, guardado)
+  return guardado
+}
+
+// La base (_proveedor_desde_tercero) deja el proveedor en NIT si el tercero es NIT:
+// pasarlo a CC o CE no se guarda. Antes se deshacía en silencio; ahora se avisa.
+function revisarTipoDocumento(pedido: string | number | null | undefined, guardado: Proveedor) {
+  if (pedido != null && pedido !== "" && guardado.tipoDocumento !== pedido) {
+    throw new Error(
+      `No se puede cambiar el tipo de documento a ${pedido}: en Terceros es ${guardado.tipoDocumento ?? "otro"}, y ahí manda. ` +
+        "Si está mal, que A&F lo corrija en Terceros."
+    )
+  }
 }
 
 async function terceroDelProveedor(supabase: Awaited<ReturnType<typeof createClient>>, uniqueId: string): Promise<string | null> {
@@ -237,5 +250,7 @@ export async function actualizarDatosProveedor(
   if (!data || data.length === 0) {
     throw new Error("No se guardó: no tienes permiso para editar proveedores.")
   }
-  return mapearProveedor(data[0] as FilaProveedor)
+  const guardado = mapearProveedor(data[0] as FilaProveedor)
+  if ("tipo_documento" in fila) revisarTipoDocumento(fila.tipo_documento, guardado)
+  return guardado
 }

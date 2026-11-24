@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { actualizarProveedor, crearProveedor, listarProveedores } from "@/app/(app)/almacen/proveedores/actions"
-import { ETIQUETA_CAMPO, OPCIONES, esCampoDeTercero, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
+import { actualizarDatosProveedor, actualizarProveedor, crearProveedor, listarProveedores } from "@/app/(app)/almacen/proveedores/actions"
+import { ETIQUETA_CAMPO, OPCIONES, validarCampo, type CampoEditable, type Proveedor } from "@/lib/proveedores"
 import { SelectorTercero } from "@/components/selector-tercero"
 import { CuentasTercero } from "@/components/cuentas-tercero"
 import type { TerceroBasico } from "@/lib/terceros"
@@ -834,26 +834,14 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
           setEditandoVentana(false)
         }}
         titulo={viendo?.nombre}
-        subtitulo={
-          viendo
-            ? editandoVentana
-              ? "Haz clic en un dato para cambiarlo; se guarda al salir del campo."
-              : `ID ${viendo.idProv ?? "—"}`
-            : undefined
-        }
+        subtitulo={viendo ? `ID ${viendo.idProv ?? "—"}` : undefined}
         campos={
-          viendo
+          viendo && !editandoVentana
             ? [...COLUMNAS.filter((c) => c.campo !== "idProv").map((c) => ({
                 etiqueta: c.titulo,
                 valor: (
                   <div className={editandoVentana ? "-mx-3 rounded-md border" : "-mx-3 -my-2"}>
-                    <CeldaEditable
-                      proveedor={viendo}
-                      campo={c.campo as CampoEditable}
-                      puedeEditar={editandoVentana && !esCampoDeTercero(c.campo as CampoEditable)}
-                      onGuardar={guardar}
-                      multilinea
-                    />
+                    <CeldaEditable proveedor={viendo} campo={c.campo as CampoEditable} puedeEditar={false} onGuardar={guardar} multilinea />
                   </div>
                 ),
               })),
@@ -870,13 +858,26 @@ export function ProveedoresView({ puedeEditar }: { puedeEditar: boolean }) {
         }
         onEditar={viendo && puedeEditar && !editandoVentana ? () => setEditandoVentana(true) : undefined}
         acciones={
-          viendo && (
+          viendo && !editandoVentana && (
             <Button variant="outline" onClick={() => setHistorialDe(viendo)}>
               <History className="mr-1.5 h-4 w-4" /> Historial
             </Button>
           )
         }
-      />
+      >
+        {viendo && editandoVentana && (
+          <FormularioProveedor
+            key={viendo.uniqueId}
+            proveedor={viendo}
+            onCancelar={() => setEditandoVentana(false)}
+            onGuardado={(actualizado) => {
+              setProveedores((prev) => prev?.map((x) => (x.uniqueId === actualizado.uniqueId ? actualizado : x)) ?? prev)
+              setAviso({ tipo: "ok", texto: `Guardado: ${actualizado.nombre}.` })
+              setEditandoVentana(false)
+            }}
+          />
+        )}
+      </VentanaDetalle>
 
       <HistorialDialog
         abierto={historialDe !== null}
@@ -902,5 +903,105 @@ function BotonHistorial({ onClick }: { onClick: () => void }) {
     >
       <History className="h-3.5 w-3.5" />
     </Button>
+  )
+}
+
+// Editar un proveedor desde su ventana (2026-11-24): un formulario con "Guardar" en vez
+// de guardar cada dato al salir del campo (no se veía que se guardaba). Nombre, número
+// y DV vienen de Terceros y no se editan aquí. Guarda todo junto (actualizarDatosProveedor).
+// Los mismos campos del formulario de Nuevo proveedor (CAMPOS_FORMULARIO).
+
+function FormularioProveedor({
+  proveedor,
+  onCancelar,
+  onGuardado,
+}: {
+  proveedor: Proveedor
+  onCancelar: () => void
+  onGuardado: (p: Proveedor) => void
+}) {
+  const inicial = Object.fromEntries(CAMPOS_FORMULARIO.map((c) => [c, textoEditable(proveedor, c)])) as Record<CampoEditable, string>
+  const [valores, setValores] = useState(inicial)
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function guardar() {
+    const cambios: Partial<Record<CampoEditable, string>> = {}
+    for (const c of CAMPOS_FORMULARIO) {
+      if ((valores[c] ?? "").trim() === (inicial[c] ?? "").trim()) continue
+      const v = validarCampo(c, valores[c] ?? "")
+      if (!v.ok) {
+        setError(`${ETIQUETA[c]}: ${v.error}`)
+        return
+      }
+      cambios[c] = valores[c] ?? ""
+    }
+    if (Object.keys(cambios).length === 0) {
+      onCancelar()
+      return
+    }
+    setGuardando(true)
+    setError(null)
+    try {
+      onGuardado(await actualizarDatosProveedor(proveedor.uniqueId, cambios))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar.")
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Nombre, número y DV salen de Terceros (los corrige A&amp;F). El contacto se guarda en el tercero.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {CAMPOS_FORMULARIO.map((c) => {
+          const opciones = OPCIONES[c]
+          const id = `proveedor-${c}`
+          return (
+            <div key={c} className={`space-y-1 ${c === "direccion" ? "sm:col-span-2" : ""}`}>
+              <label htmlFor={id} className="text-xs text-muted-foreground">
+                {c === "tipoDocumento" ? "Se muestra en la OC como" : ETIQUETA[c]}
+              </label>
+              {opciones ? (
+                <select
+                  id={id}
+                  value={valores[c] ?? ""}
+                  disabled={guardando}
+                  onChange={(e) => setValores((v) => ({ ...v, [c]: e.target.value }))}
+                  className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                >
+                  <option value="">— Sin valor —</option>
+                  {opciones.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id={id}
+                  value={valores[c] ?? ""}
+                  disabled={guardando}
+                  onChange={(e) => setValores((v) => ({ ...v, [c]: e.target.value }))}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onCancelar} disabled={guardando}>
+          Cancelar
+        </Button>
+        <Button onClick={guardar} disabled={guardando}>
+          {guardando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+          Guardar
+        </Button>
+      </div>
+    </div>
   )
 }
