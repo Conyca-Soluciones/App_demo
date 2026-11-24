@@ -186,17 +186,3 @@
   right: 0;
   top: -3rem;
 }
-/* Página que ES la tabla, de borde a borde (2026-11-24): sin margen de página; el
-   panel abierto y la fila del botón "Filtros" llevan el suyo. Con los filtros
-   plegados, los botones de al lado suben a esa misma fila (alto 2rem + 0,5rem arriba
-   y abajo). */
-.tabla-pagina > [data-filtros="abierto"] {
-  margin: 1rem;
-  margin-right: 0;
-}
-.tabla-pagina > [data-filtros="plegado"] {
-  padding: 0.5rem 1rem;
-}
-.tabla-pagina:has(> [data-filtros="plegado"]) [data-junto-a-filtros] {
-  top: -3rem;
-}

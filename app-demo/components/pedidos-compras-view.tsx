@@ -96,35 +96,33 @@ function PedidosCompraDeProyecto() {
   }
 
   return (
-    // La tabla ocupa la página de borde a borde (2026-11-24): solo los filtros, los
-    // avisos y la barra de selección llevan margen (tabla-pagina en globals.css).
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-0 flex-1 con-filtros tabla-pagina">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 gap-4 con-filtros">
         <FiltrosPedidosCompraPanel onConsultar={handleConsultar} cargando={cargando} />
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-3">
           {error && (
-            <div className="m-4 mb-0 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-2 text-sm text-destructive">
               {error}
             </div>
           )}
 
           {pedidos === null ? (
-            <div className="m-4 flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
+            <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed p-12 text-center text-muted-foreground">
               Elige un proyecto (o todos) y presiona Consultar para ver las requisiciones aprobadas listas para comprar.
             </div>
           ) : (
             <>
             {pedidos.length > 0 && (
               // Con los filtros plegados sube a la línea del botón "Filtros" (globals.css).
-              <div data-junto-a-filtros className="flex shrink-0 justify-end px-4 py-2">
+              <div data-junto-a-filtros className="flex shrink-0 justify-end">
                 <Button size="sm" variant="outline" disabled={descargando} onClick={descargarExcel}>
                   {descargando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
                   Descargar Excel
                 </Button>
               </div>
             )}
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-auto">
               <TablaPedidosCompra
                 pedidos={pedidos}
                 seleccionados={seleccionados}
@@ -138,7 +136,7 @@ function PedidosCompraDeProyecto() {
       </div>
 
       {seleccionados.size > 0 && (
-        <div className="m-4 mt-2 flex shrink-0 items-center justify-between rounded-lg border bg-card px-4 py-3 shadow-lg">
+        <div className="flex shrink-0 items-center justify-between rounded-lg border bg-card px-4 py-3 shadow-lg">
           <span className="text-sm">
             <strong>{seleccionados.size}</strong> {seleccionados.size === 1 ? "línea seleccionada" : "líneas seleccionadas"}
             {" "}para comprar

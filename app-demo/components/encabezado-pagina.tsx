@@ -40,20 +40,17 @@ export function MarcoPagina({
   titulo,
   subtitulo,
   scroll = false,
-  sinMargen = false,
   children,
 }: {
   titulo: string
   subtitulo?: string
   scroll?: boolean
-  // La página es una tabla de borde a borde (la vista pone sus propios márgenes).
-  sinMargen?: boolean
   children: React.ReactNode
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <EncabezadoPagina titulo={titulo} subtitulo={subtitulo} />
-      <div className={`min-h-0 flex-1 ${sinMargen ? "" : "p-4 sm:p-6"} ${scroll ? "overflow-auto" : ""}`}>{children}</div>
+      <div className={`min-h-0 flex-1 p-4 sm:p-6 ${scroll ? "overflow-auto" : ""}`}>{children}</div>
     </div>
   )
 }
