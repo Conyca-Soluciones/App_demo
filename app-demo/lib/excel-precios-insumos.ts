@@ -3,9 +3,11 @@
 // en Aprobación de insumos se descarga este Excel, se corrige el nombre si
 // hace falta y se llena tipo, agrupación, IVA y precio unitario; al subirlo
 // cada fila completa se aprueba y entra al maestro (aprobarSolicitudInsumo).
-// La unidad es la de COMPRA y el precio es por esa unidad; viene la del
-// presupuesto. Si se cambia (m -> rollo), el ingeniero confirma la conversión
-// en su presupuesto.
+// La unidad es la de COMPRA y el precio es por esa unidad; viene VACÍA y la
+// elige quien aprueba (decisión del usuario, 2026-11-24: prellenada con la del
+// presupuesto se dejaba sin mirar y entraban precios de rollo o tubo por metro).
+// Si es otra que la del presupuesto (m -> rollo), el ingeniero confirma la
+// conversión en su presupuesto.
 //
 // leerFilasPreciosInsumos es lógica pura (pruebas en
 // tests/excel-precios-insumos.test.ts); descargarExcelPreciosInsumos arma el
@@ -276,7 +278,7 @@ export async function construirLibroPreciosInsumos(
     if (c.clave === "insumo") celda.note = "Nombre con que entra al maestro: se puede corregir."
     if (c.clave === "uM") {
       celda.note =
-        "En la que se compra y se pone el precio. Viene la del presupuesto; si se compra por rollo, bulto o unidad, cámbiala y escribe en el nombre cuánto trae (ej. ROLLO X 100 M). El ingeniero confirma la conversión en su presupuesto."
+        "En la que se compra y se pone el precio. Elígela (viene vacía): si se compra por rollo, bulto, tubo o unidad, escribe en el nombre cuánto trae (ej. ROLLO X 100 M, TUBO X 6 M) y el precio de esa unidad. El ingeniero confirma la conversión en su presupuesto."
     }
     if (c.clave === "items") celda.note = "Códigos de los ítems del presupuesto donde se usa. Solo informativo: no se sube."
     if (c.clave === "precio") celda.note = "Precio por la unidad de compra, sin IVA."
@@ -298,8 +300,8 @@ export async function construirLibroPreciosInsumos(
       cantidadTotal: s.cantidadTotal,
       proyectos: s.proyectos.join(", "),
       tipo: s.tipo && tipos.has(s.tipo) ? s.tipo : "",
-      // por defecto, la del presupuesto
-      uM: unidadMaestro(s.unidadPedida) ?? "",
+      // vacía: la elige quien aprueba (ver arriba)
+      uM: "",
       agrupacion: s.agrupacion && agrupaciones.has(s.agrupacion) ? s.agrupacion : "",
       precio: null,
       iva: 19,
