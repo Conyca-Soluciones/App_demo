@@ -223,10 +223,11 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
           </div>
         </PanelFiltros>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+        {/* relative: con los filtros plegados, "Nuevo tercero" sube a la línea del botón Filtros. */}
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-4">
           {/* Crear un tercero lo puede cualquiera (20261221000000); editar, solo A&F. */}
-          <div className="flex justify-end">
-            <Button onClick={() => setCreando(true)}>
+          <div className="flex justify-end" data-junto-a-filtros>
+            <Button size="sm" onClick={() => setCreando(true)}>
               <Plus className="mr-1.5 h-4 w-4" />
               Nuevo tercero
             </Button>
