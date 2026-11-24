@@ -9,10 +9,12 @@ import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } fr
 import { diaColombia, formatoCantidadExcel } from "@/lib/exportar-requisiciones"
 import type { PedidoParaComprar } from "@/app/(app)/almacen/comprar-pedidos/actions"
 
+// A y B juntas tienen que ser más anchas que el logo del encabezado (si no, el logo
+// tapa el título): por eso REF y Proyecto van primero.
 export const COLUMNAS_EXCEL_COMPRAS = [
-  { titulo: "REF", ancho: 15 },
-  { titulo: "Urgente", ancho: 9 },
+  { titulo: "REF", ancho: 18 },
   { titulo: "Proyecto", ancho: 28 },
+  { titulo: "Urgente", ancho: 9 },
   { titulo: "Ítem del presupuesto", ancho: 14 },
   { titulo: "Código insumo", ancho: 10 },
   { titulo: "Insumo", ancho: 48 },
@@ -85,7 +87,7 @@ export async function descargarExcelCompras(pedidos: PedidoParaComprar[], anexos
     const anexos = anexosPorRequisicion[p.requisicionId] ?? 0
     const v = valoresFilaCompras(p, anexos)
     const valores = [
-      v.ref, v.urgente, v.proyecto, v.item, v.codigo, v.insumo, v.um, v.porComprar, v.pedida, v.valor,
+      v.ref, v.proyecto, v.urgente, v.item, v.codigo, v.insumo, v.um, v.porComprar, v.pedida, v.valor,
       v.solicitante, v.fechaPedido, v.fechaRequerida, v.direccion, v.observaciones,
     ]
     valores.forEach((x, k) => (fila.getCell(k + 1).value = x as never))
@@ -93,7 +95,7 @@ export async function descargarExcelCompras(pedidos: PedidoParaComprar[], anexos
     fila.getCell(15).alignment = { wrapText: true, vertical: "top" }
     fila.getCell(8).numFmt = formatoCantidadExcel(v.porComprar)
     fila.getCell(9).numFmt = formatoCantidadExcel(v.pedida)
-    if (v.urgente) fila.getCell(2).font = { bold: true, color: { argb: "FFC0392B" } }
+    if (v.urgente) fila.getCell(3).font = { bold: true, color: { argb: "FFC0392B" } }
     if (anexos > 0) {
       const celda = fila.getCell(16)
       celda.value = { text: v.anexos, hyperlink: `${origenUrl}/almacen/comprar-pedidos/anexos/${p.requisicionId}` }
