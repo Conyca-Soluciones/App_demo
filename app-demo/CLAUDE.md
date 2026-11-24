@@ -2206,6 +2206,11 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
 - **Celular** (2026-11-17): el menú lateral muestra un nivel a la vez con "Volver" y se cierra al elegir
   una pestaña; en Consolidado y Realizar Pagos los filtros van arriba (`PanelFiltros apilarEnCelular`
   + `flex-col md:flex-row` en la página; las demás pantallas con filtros siguen igual).
+- **Filtros plegados encima de la tabla** (2026-11-24, todas las pantallas con panel de filtros): al
+  plegarse queda un botón "Filtros" arriba a la derecha (`FiltrosPlegados`, `data-filtros="plegado"`) y
+  el contenedor de la página, con la clase `con-filtros`, se pone en columna (regla en `globals.css`), así
+  la tabla usa todo el ancho. Una pantalla nueva con panel de filtros: poner `con-filtros` en el
+  contenedor que tiene el panel y la tabla.
 - **Soporte con enlace fijo**: `/ayf/soporte-pago/<id>` (route handler; pide la
   sesión, la RLS decide, redirige a un enlace firmado de 5 min). Lo usan la
   tabla, la ventana, el Excel y el Consolidado Gerencia. La ruta está en las

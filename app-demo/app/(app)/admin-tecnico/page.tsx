@@ -238,7 +238,7 @@ export default function AdminTecnico() {
         subtitulo="Requisiciones de insumos de todos los proyectos. Se aprueba o rechaza la requisición completa."
       />
 
-      <main className="flex w-full flex-1 gap-4 p-6">
+      <main className="flex w-full flex-1 gap-4 p-6 con-filtros">
         <FiltrosRequisicionesPanel
           conSoloPorAprobar
           cargando={cargando}

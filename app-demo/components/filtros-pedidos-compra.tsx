@@ -1,5 +1,7 @@
 "use client"
 
+import { FiltrosPlegados } from "@/components/filtros-plegados"
+
 import { useState } from "react"
 import { ChevronLeft, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -85,27 +87,7 @@ export function FiltrosPedidosCompraPanel({ onConsultar, cargando }: FiltrosPedi
   // Colapsado: franja angosta con un botón para reabrir. Se mantiene el
   // mismo componente montado (no un componente aparte) para no perder la
   // selección de proyecto/usuario/insumo ni los rangos de fecha al cerrar.
-  if (!abierto) {
-    return (
-      <div className="flex w-12 shrink-0 flex-col items-center gap-2 rounded-lg border bg-card py-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setAbierto(true)}
-          title={proyecto ? `Mostrar filtros — Proyecto: ${proyecto.etiqueta}` : "Mostrar filtros"}
-        >
-          <Filter className="h-4 w-4" />
-        </Button>
-        {proyecto && (
-          <span
-            className="max-h-40 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground [writing-mode:vertical-rl]"
-          >
-            {proyecto.etiqueta}
-          </span>
-        )}
-      </div>
-    )
-  }
+  if (!abierto) return <FiltrosPlegados onAbrir={() => setAbierto(true)} detalle={proyecto ? proyecto.etiqueta : null} />
 
   return (
     <div className="w-full max-w-xs shrink-0 rounded-lg border bg-card">

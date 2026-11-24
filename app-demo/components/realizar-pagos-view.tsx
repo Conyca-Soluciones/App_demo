@@ -720,7 +720,7 @@ export function RealizarPagosView({ puedeGenerar }: { puedeGenerar: boolean }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row con-filtros">
         <PanelFiltros
           apilarEnCelular
           cargando={cargando}

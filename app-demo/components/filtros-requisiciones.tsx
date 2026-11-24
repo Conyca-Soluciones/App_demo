@@ -1,5 +1,7 @@
 "use client"
 
+import { FiltrosPlegados } from "@/components/filtros-plegados"
+
 import { useEffect, useState } from "react"
 import { ChevronLeft, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -131,15 +133,7 @@ export function FiltrosRequisicionesPanel({
     setHasta("")
   }
 
-  if (!abierto) {
-    return (
-      <div className="flex h-fit w-12 shrink-0 flex-col items-center gap-2 rounded-lg border bg-card py-3">
-        <Button variant="ghost" size="icon" onClick={() => setAbierto(true)} title="Mostrar filtros">
-          <Filter className="h-4 w-4" />
-        </Button>
-      </div>
-    )
-  }
+  if (!abierto) return <FiltrosPlegados onAbrir={() => setAbierto(true)} />
 
   return (
     <div className="h-fit w-full max-w-xs shrink-0 rounded-lg border bg-card">

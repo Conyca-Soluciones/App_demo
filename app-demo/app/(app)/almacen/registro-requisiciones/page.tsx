@@ -139,7 +139,7 @@ export default function RegistroRequisiciones() {
         subtitulo="Requisiciones de todos los proyectos a los que tienes acceso."
       />
 
-      <main className="flex w-full flex-1 gap-4 p-6">
+      <main className="flex w-full flex-1 gap-4 p-6 con-filtros">
         <FiltrosRequisicionesPanel conTipo onConsultar={consultar} cargando={cargando} onError={setError} />
 
         <div className="min-w-0 flex-1 space-y-3">

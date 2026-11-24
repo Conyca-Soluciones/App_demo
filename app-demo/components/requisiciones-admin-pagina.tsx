@@ -211,7 +211,7 @@ function MisRequisicionesAdmin({
   ]
 
   return (
-    <div className="flex h-full min-h-0 gap-4">
+    <div className="flex h-full min-h-0 gap-4 con-filtros">
       <PanelFiltros
         cargando={cargando}
         onConsultar={consultar}
