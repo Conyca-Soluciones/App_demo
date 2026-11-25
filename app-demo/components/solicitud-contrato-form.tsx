@@ -251,7 +251,7 @@ function MensajeError({ texto }: { texto?: string }) {
 const ITEM_GLOBAL_VACIO: ItemGlobalForm = { descripcion: "", unidad: "", cantidad: "", valorUnitario: "" }
 
 // Lista opcional de los ítems que se pueden usar con un contrato de suministro a
-// valor global (ACPM, gasolina, papelería...; 20270101006500). Solo la
+// valor global (ACPM, gasolina, papelería...; 20270101006700). Solo la
 // descripción es obligatoria; lo que tenga cantidad × precio no pasa del valor.
 function ListaItemsGlobales({
   items,
