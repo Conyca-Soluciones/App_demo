@@ -1351,6 +1351,33 @@ panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITEN
   8:00) de 002300 se quitaron en `20270101002700_quitar_resumenes_correo.sql`. Por correo solo salen
   avisos puntuales. `perfiles.correo_resumen` queda sin uso.
 
+## Copia de los archivos en Google Drive (2026-11-25)
+
+`20270101006800_copia_drive.sql` (reversa en `supabase/reversa/`) y la función de Supabase **`subir-drive`**
+(`supabase/functions/subir-drive/index.ts`). Decisiones del usuario: Drive es una COPIA (Supabase sigue
+siendo donde vive cada archivo; si Drive falla la app no cambia), en una UNIDAD COMPARTIDA de CONYCA, por
+proyecto, al momento (cola). Sin pestaña en la app por ahora (la idea es mostrar después la carpeta del
+proyecto dentro de la app).
+- `trg_drive_encolar` (AFTER INSERT/UPDATE en `storage.objects`) mete cada archivo nuevo o sobreescrito en
+  `drive_cola` (nunca hace fallar una subida). `_drive_destino(bucket, ruta)` lo ubica por la tabla donde la
+  app lo registró: `Proyectos/<001 - CODIGO>/Contratos/<CJ>/` (documentos, firmado, Pólizas, Acta NN,
+  Otrosí N° n), `Órdenes de compra/<OC>/` (soportes, Facturas, Entradas, PDF firmado), `Requisiciones/<RQ>/`,
+  `Pagos administrativos/<PA>/`, `SINCO/Cuadro n/`; sin proyecto: `Terceros/<doc - nombre>/`,
+  `Contratistas/…`, `Pagos/Dispersores/<año> - Semana NN/`, `Pagos/PSE y otros medios/`, `Balances/`. Lo que
+  no se ubica en 24 h va a `Otros/<bucket>/` (el navegador sube antes de registrar: se reintenta cada 15 min).
+  Un bucket nuevo: agregar su rama en `_drive_destino`.
+- pg_cron `subir-drive` cada minuto llama la función solo si `ajustes_drive.activo` y hay algo por subir;
+  `tomar_drive` / `marcar_drive` (solo service_role), hasta 5 intentos. Carpetas ya creadas en
+  `drive_carpetas` (clave `proyecto:<id>` para la del proyecto: cambiar el código del proyecto no crea otra).
+- Es copia, no espejo: cambiar o borrar un soporte en la app no toca Drive; sobreescribir la MISMA ruta sí
+  actualiza el archivo en Drive.
+- Google: la cuenta de servicio de los correos (o `DRIVE_SA_JSON`) es MIEMBRO de la unidad compartida
+  (Administrador de contenido), con la API de Drive activada en su proyecto de Google Cloud; `DRIVE_SUB` solo
+  si se quiere subir a nombre de una persona (delegación de dominio). Se publica con "Verify JWT" apagado.
+- **Nace apagada.** Encender: `update ajustes_drive set unidad_id = '<id de la unidad>', activo = true;` y
+  `select drive_encolar_existentes();` para copiar lo que ya había. Ver cómo va: `select estado, count(*) from
+  drive_cola group by 1` (y `ultimo_error` de los que fallan).
+
 ## Cuadros de SINCO (2026-11-13, temporal)
 
 `20270101002800_cuadros_sinco.sql` (reversa en `supabase/reversa/`). Decisiones del usuario: los
@@ -5029,6 +5056,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
+`20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
