@@ -94,8 +94,10 @@ export function MinutaSuministroPDF({ minuta: m, numero, logo, foco, firmaContra
             )
           })}
           <View style={s.tr} wrap={false}>
-            <Text style={[s.td, s.b, { width: "84%", textAlign: "right" }]}>TOTAL</Text>
-            <Text style={[s.td, s.celdaBorde, s.b, { width: anchos.total, textAlign: "right" }]}>$ {pesosSinSimbolo(totalItems)}</Text>
+            <Text style={[s.td, s.b, { width: "84%", textAlign: "right" }]}>{m.totalEsValorGlobal ? "VALOR GLOBAL DEL CONTRATO" : "TOTAL"}</Text>
+            <Text style={[s.td, s.celdaBorde, s.b, { width: anchos.total, textAlign: "right" }]}>
+              $ {m.totalEsValorGlobal ? (valor !== null ? pesosSinSimbolo(valor) : blanco(m.valor)) : pesosSinSimbolo(totalItems)}
+            </Text>
           </View>
         </View>
 
