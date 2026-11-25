@@ -81,9 +81,10 @@ type Props<T> = {
   // del alto máximo fijo, con el scroll DENTRO de la tabla (así la fila de títulos queda
   // fija). El contenedor tiene que ser columna flex con alto (flex min-h-0 flex-1 flex-col).
   altoContenedor?: boolean
-  // Sin scroll de lado (2026-11-24): las columnas `fija` conservan su `ancho` y las demás
-  // se reparten el resto en proporción a su `ancho` (se mide el ancho disponible); el texto
-  // que no cabe se corta (completo en el title).
+  // Sin scroll de lado mientras quepa (2026-11-24/25): las columnas `fija` conservan su
+  // `ancho` y las demás se reparten el resto en proporción a su `ancho` (se mide el ancho
+  // disponible). Se encogen como mucho hasta el 85 % de su `ancho`; si ni así cabe (ventana
+  // angosta, filtros abiertos), vuelve el scroll de lado como en las demás tablas.
   // Por debajo de @3xl sigue pasando a tarjetas.
   ajustarAncho?: boolean
 }
@@ -128,12 +129,12 @@ export function TablaExcel<T>({
     ro.observe(el)
     return () => ro.disconnect()
   }, [ajustarAncho])
+  const MINIMO_AJUSTE = 0.85
+  const factorAjuste = anchoMarco ? Math.max((anchoMarco - anchoFijas) / anchoResto, MINIMO_AJUSTE) : null
   const anchoColumna = (c: ColumnaExcel<T>): number | string =>
-    c.fija
-      ? c.ancho
-      : anchoMarco
-        ? Math.max(Math.floor((c.ancho * (anchoMarco - anchoFijas)) / anchoResto), 24)
-        : `${(c.ancho / anchoTabla) * 100}%`
+    c.fija ? c.ancho : factorAjuste ? Math.floor(c.ancho * factorAjuste) : `${(c.ancho / anchoTabla) * 100}%`
+  // Si no cabe ni encogida, la tabla mide la suma (y aparece el scroll de lado).
+  const anchoMinimoAjustado = factorAjuste ? anchoFijas + Math.floor(anchoResto * factorAjuste) : undefined
   const columnaPorClave = new Map(columnas.map((c) => [c.clave, c]))
 
   const alineacion = (a?: "right" | "center") =>
@@ -150,7 +151,7 @@ export function TablaExcel<T>({
             columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
         <table
           className="w-full table-fixed border-separate border-spacing-0 text-sm"
-          style={ajustarAncho ? undefined : { minWidth: anchoTabla }}
+          style={ajustarAncho ? (anchoMinimoAjustado ? { minWidth: anchoMinimoAjustado } : undefined) : { minWidth: anchoTabla }}
         >
           <colgroup>
             {columnas.map((c) => (
