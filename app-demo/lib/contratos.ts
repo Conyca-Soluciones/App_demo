@@ -110,6 +110,14 @@ export const polizaObligatoria = (tipo: string): boolean => tipo === "obra" || t
 // presupuesto), así el precio queda limitado por el presupuesto. La base
 // repite la regla en _guardar_solicitud_contrato (20261231970000).
 export const soloValoresUnitarios = (tipo: string): boolean => tipo === "obra" || tipo === "mano_obra"
+// Suministro e instalación a valor global puede llevar una lista de los ítems que
+// se pueden usar con el contrato (ACPM, gasolina, papelería...; 20270101006500).
+export const permiteItemsGlobales = (tipo: string): boolean => tipo === "suministro_instalacion"
+// Nombres en pantalla de cada forma de valor.
+export const ETIQUETA_ANEXO_TIPO: Record<"valor_global" | "valores_unitarios", string> = {
+  valor_global: "Valor global",
+  valores_unitarios: "Valores unitarios del presupuesto",
+}
 
 // Tipos que, además del valor del contrato, llevan un valor de pago mensual
 // obligatorio (la base repite la regla en _guardar_solicitud_contrato,
@@ -340,6 +348,8 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   // Actividades por encima del tope (obra y mano de obra, 20270101004200): por
   // qué, y quién de Gerencia lo autorizó (null = todavía no o no hizo falta).
   sobreTopeJustificacion?: string | null
+  // Ítems de un suministro a valor global (20270101006500); vacío = sin desglose.
+  itemsGlobales?: ItemGlobalContrato[]
   sobreTopeAutorizadoAt?: string | null
   sobreTopeAutorizadoPorNombre?: string | null
   documentos: { id: string; tipo: TipoDocumentoContrato; nombreArchivo: string; mime: string; ruta: string; tamano: number }[]
@@ -457,6 +467,61 @@ export const aCentavos = (n: number) => Math.round(n * 100) / 100
 // del proyecto (la descripción y la unidad salen de ahí).
 // manoObraCategoriaId: en mano de obra, el trabajo del ítem que cubre la
 // actividad ("" o ausente = la mano de obra completa, 20270101004400).
+// Ítem de la lista de un contrato de suministro a valor global (20270101006500):
+// descripción obligatoria; unidad, cantidad y valor unitario si se conocen.
+export type ItemGlobalContrato = { descripcion: string; unidad: string | null; cantidad: number | null; valorUnitario: number | null }
+export type ItemGlobalForm = { descripcion: string; unidad: string; cantidad: string; valorUnitario: string }
+export const MAX_ITEMS_GLOBALES = 50
+
+// Valida la lista: nada lleno = sin desglose. Lo que tiene cantidad × precio no
+// pasa del valor global (la base lo revisa otra vez, _validar_items_globales).
+export function validarItemsGlobales(
+  items: ItemGlobalForm[],
+  valor: number | null
+): { ok: true; items: ItemGlobalContrato[] } | { ok: false; error: string } {
+  const llenos = items.filter((it) => it.descripcion.trim() || it.unidad.trim() || it.cantidad.trim() || it.valorUnitario.trim())
+  if (llenos.length > MAX_ITEMS_GLOBALES) return { ok: false, error: `La lista admite hasta ${MAX_ITEMS_GLOBALES} ítems.` }
+  const vistas = new Set<string>()
+  const salida: ItemGlobalContrato[] = []
+  let suma = 0
+  for (let i = 0; i < llenos.length; i++) {
+    const it = llenos[i]
+    const descripcion = it.descripcion.trim().replace(/\s+/g, " ")
+    if (!descripcion) return { ok: false, error: `Escribe la descripción del ítem ${i + 1}.` }
+    if (descripcion.length > 300) return { ok: false, error: `La descripción del ítem ${i + 1} es muy larga (máximo 300 caracteres).` }
+    const clave = descripcion.toLowerCase()
+    if (vistas.has(clave)) return { ok: false, error: `El ítem "${descripcion}" está repetido.` }
+    vistas.add(clave)
+    const unidad = it.unidad.trim() || null
+    if (unidad && unidad.length > 40) return { ok: false, error: `La unidad del ítem ${i + 1} es muy larga.` }
+    let cantidad: number | null = null
+    if (it.cantidad.trim()) {
+      cantidad = leerNumero(it.cantidad)
+      if (cantidad === null || cantidad <= 0) return { ok: false, error: `La cantidad del ítem ${i + 1} debe ser mayor que cero (o déjala vacía).` }
+    }
+    let valorUnitario: number | null = null
+    if (it.valorUnitario.trim()) {
+      valorUnitario = leerNumero(it.valorUnitario)
+      if (valorUnitario === null || valorUnitario <= 0)
+        return { ok: false, error: `El valor unitario del ítem ${i + 1} debe ser mayor que cero (o déjalo vacío).` }
+      valorUnitario = aCentavos(valorUnitario)
+    }
+    if (cantidad !== null && valorUnitario !== null) suma += aCentavos(cantidad * valorUnitario)
+    salida.push({ descripcion, unidad, cantidad, valorUnitario })
+  }
+  suma = aCentavos(suma)
+  if (valor !== null && suma > valor)
+    return { ok: false, error: `Los ítems con cantidad y valor unitario suman ${pesos(suma)} y pasan del valor del contrato (${pesos(valor)}).` }
+  return { ok: true, items: salida }
+}
+
+// Suma de los ítems que tienen cantidad y valor unitario (para mostrar).
+export function sumaItemsGlobales(items: ItemGlobalContrato[]): number {
+  let suma = 0
+  for (const it of items) if (it.cantidad !== null && it.valorUnitario !== null) suma += aCentavos(it.cantidad * it.valorUnitario)
+  return aCentavos(suma)
+}
+
 export type ItemAnexoForm = { presupuestoItemId: string; cantidad: string; valorUnitario: string; manoObraCategoriaId?: string }
 
 // Un trabajo de la mano de obra de un ítem (trabajos_items_contrato): el ítem
@@ -547,6 +612,8 @@ export type SolicitudContratoForm = {
   valor: string
   valorMensual: string
   items: ItemAnexoForm[]
+  // Lista opcional de un suministro a valor global (20270101006500).
+  itemsGlobales: ItemGlobalForm[]
   tieneAnticipo: boolean
   anticipoPorcentaje: string
   requierePoliza: boolean
@@ -591,6 +658,7 @@ export type CampoSolicitud =
   | "valor"
   | "valorMensual"
   | "items"
+  | "itemsGlobales"
   | "anticipoPorcentaje"
   | "formaPago"
   | "pagoObservaciones"
@@ -622,6 +690,7 @@ export type SolicitudContratoValida = {
   valor: number
   valorMensual: number | null
   items: { presupuestoItemId: string; cantidad: number; valorUnitario: number; manoObraCategoriaId: string | null }[]
+  itemsGlobales: ItemGlobalContrato[]
   tieneAnticipo: boolean
   anticipoPorcentaje: number | null
   requierePoliza: boolean
@@ -758,6 +827,14 @@ export function validarSolicitud(
     else valor = aCentavos(valor)
   }
 
+  // Lista de ítems de un suministro a valor global (opcional).
+  let itemsGlobales: ItemGlobalContrato[] = []
+  if (f.anexoTipo === "valor_global" && permiteItemsGlobales(f.tipo)) {
+    const r = validarItemsGlobales(f.itemsGlobales, valor !== null && valor > 0 ? valor : null)
+    if (r.ok) itemsGlobales = r.items
+    else errores.itemsGlobales = r.error
+  }
+
   let valorMensual: number | null = null
   if (pideValorMensual(f.tipo)) {
     valorMensual = leerNumero(f.valorMensual)
@@ -871,6 +948,7 @@ export function validarSolicitud(
       valor: valor!,
       valorMensual,
       items,
+      itemsGlobales,
       tieneAnticipo: f.tieneAnticipo,
       anticipoPorcentaje,
       // Con anticipo, siempre póliza (no hay anticipo sin póliza).

@@ -23,6 +23,12 @@ import {
   pideValorMensual,
   polizaObligatoria,
   soloValoresUnitarios,
+  permiteItemsGlobales,
+  sumaItemsGlobales,
+  validarItemsGlobales,
+  ETIQUETA_ANEXO_TIPO,
+  MAX_ITEMS_GLOBALES,
+  type ItemGlobalForm,
   leerNumero,
   pesos,
   numero,
@@ -69,6 +75,7 @@ const FORMULARIO_VACIO: SolicitudContratoForm = {
   valor: "",
   valorMensual: "",
   items: [{ ...ITEM_VACIO }],
+  itemsGlobales: [],
   tieneAnticipo: false,
   anticipoPorcentaje: "",
   requierePoliza: true,
@@ -125,6 +132,12 @@ function formularioDesde(d: SolicitudContratoDetalle): SolicitudContratoForm {
             manoObraCategoriaId: i.manoObraCategoriaId ?? "",
           }))
         : [{ ...ITEM_VACIO }],
+    itemsGlobales: (d.itemsGlobales ?? []).map((i) => ({
+      descripcion: i.descripcion,
+      unidad: i.unidad ?? "",
+      cantidad: i.cantidad !== null ? numero(i.cantidad) : "",
+      valorUnitario: i.valorUnitario !== null ? numero(i.valorUnitario) : "",
+    })),
     tieneAnticipo: d.tieneAnticipo,
     requierePoliza: d.requierePoliza !== false,
     anticipoPorcentaje: d.anticipoPorcentaje !== null ? numero(d.anticipoPorcentaje) : "",
@@ -233,6 +246,158 @@ function Seccion({ titulo, ayuda, children }: { titulo: string; ayuda?: string; 
 
 function MensajeError({ texto }: { texto?: string }) {
   return texto ? <p className="text-xs text-destructive">{texto}</p> : null
+}
+
+const ITEM_GLOBAL_VACIO: ItemGlobalForm = { descripcion: "", unidad: "", cantidad: "", valorUnitario: "" }
+
+// Lista opcional de los ítems que se pueden usar con un contrato de suministro a
+// valor global (ACPM, gasolina, papelería...; 20270101006500). Solo la
+// descripción es obligatoria; lo que tenga cantidad × precio no pasa del valor.
+function ListaItemsGlobales({
+  items,
+  valor,
+  error,
+  disabled,
+  onChange,
+}: {
+  items: ItemGlobalForm[]
+  valor: number | null
+  error?: string
+  disabled?: boolean
+  onChange: (items: ItemGlobalForm[]) => void
+}) {
+  const cambiarItem = (i: number, cambio: Partial<ItemGlobalForm>) => onChange(items.map((it, k) => (k === i ? { ...it, ...cambio } : it)))
+  // Suma de lo que ya tiene cantidad y precio (para el aviso; la validación la hace validarSolicitud).
+  const revision = validarItemsGlobales(items, null)
+  const suma = revision.ok ? sumaItemsGlobales(revision.items) : null
+  const pasa = suma !== null && valor !== null && valor > 0 && suma > valor
+  if (items.length === 0) {
+    return (
+      <div className="space-y-1">
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange([{ ...ITEM_GLOBAL_VACIO }])} disabled={disabled}>
+          <Plus className="size-4" /> Especificar ítems del contrato
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Opcional: la lista de lo que se puede usar con este contrato (por ejemplo ACPM, gasolina o papelería). Sin lista, el
+          contrato queda a valor global sin desglose.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2" data-error={Boolean(error)}>
+      <div>
+        <p className="text-sm font-medium">Ítems que se pueden usar con el contrato</p>
+        <p className="text-xs text-muted-foreground">
+          Solo la descripción es obligatoria. Unidad, cantidad y valor unitario, si se conocen (la gasolina puede ir sin
+          cantidad ni precio). El valor del contrato sigue siendo el valor global: lo que tenga cantidad y valor unitario no
+          puede sumar más que ese valor.
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full min-w-[680px] text-sm">
+          <thead>
+            <tr className="bg-primary text-left text-xs text-primary-foreground">
+              <th className="px-2 py-2 font-medium">Descripción *</th>
+              <th className="w-28 px-2 py-2 font-medium">Unidad</th>
+              <th className="w-28 px-2 py-2 font-medium">Cantidad</th>
+              <th className="w-36 px-2 py-2 font-medium">Valor unitario</th>
+              <th className="w-32 px-2 py-2 text-right font-medium">Valor</th>
+              <th className="w-10 px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => {
+              const c = leerNumero(it.cantidad)
+              const v = leerNumero(it.valorUnitario)
+              return (
+                <tr key={i} className="border-t align-top">
+                  <td className="px-2 py-1.5">
+                    <input
+                      value={it.descripcion}
+                      onChange={(e) => cambiarItem(i, { descripcion: e.target.value })}
+                      placeholder="Ej. ACPM"
+                      maxLength={300}
+                      disabled={disabled}
+                      aria-label={`Descripción del ítem ${i + 1}`}
+                      className={claseCampo()}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input
+                      value={it.unidad}
+                      onChange={(e) => cambiarItem(i, { unidad: e.target.value })}
+                      placeholder="Ej. gal"
+                      maxLength={40}
+                      disabled={disabled}
+                      aria-label={`Unidad del ítem ${i + 1}`}
+                      className={claseCampo()}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input
+                      inputMode="decimal"
+                      value={it.cantidad}
+                      onChange={(e) => cambiarItem(i, { cantidad: e.target.value })}
+                      disabled={disabled}
+                      aria-label={`Cantidad del ítem ${i + 1}`}
+                      className={claseCampo()}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input
+                      inputMode="decimal"
+                      value={it.valorUnitario}
+                      onChange={(e) => cambiarItem(i, { valorUnitario: e.target.value })}
+                      disabled={disabled}
+                      aria-label={`Valor unitario del ítem ${i + 1}`}
+                      className={claseCampo()}
+                    />
+                  </td>
+                  <td className="px-2 py-2.5 text-right tabular-nums text-muted-foreground">
+                    {c !== null && v !== null && c > 0 && v > 0 ? pesos(Math.round(c * v * 100) / 100) : "—"}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => onChange(items.filter((_, k) => k !== i))}
+                      disabled={disabled}
+                      aria-label={`Quitar el ítem ${i + 1}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          {suma !== null && suma > 0 && (
+            <tfoot>
+              <tr className="border-t bg-muted/40 font-medium">
+                <td colSpan={4} className="px-2 py-2 text-right">
+                  Suma de los ítems con precio{valor !== null && valor > 0 ? ` (valor del contrato ${pesos(valor)})` : ""}
+                </td>
+                <td className={`px-2 py-2 text-right tabular-nums ${pasa ? "text-destructive" : ""}`}>{pesos(suma)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...items, { ...ITEM_GLOBAL_VACIO }])}
+        disabled={disabled || items.length >= MAX_ITEMS_GLOBALES}
+      >
+        <Plus className="size-4" /> Agregar ítem
+      </Button>
+      <MensajeError texto={error} />
+    </div>
+  )
 }
 
 // Buscador de un ítem del presupuesto (por código o descripción). Muestra
@@ -775,8 +940,8 @@ export function SolicitudContratoForm({
         <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Tipo de anexo">
           {(
             [
-              ["valor_global", "Valor global"],
-              ["valores_unitarios", "Valores unitarios"],
+              ["valor_global", ETIQUETA_ANEXO_TIPO.valor_global],
+              ["valores_unitarios", ETIQUETA_ANEXO_TIPO.valores_unitarios],
             ] as const
           )
             .filter(([valor]) => valor === "valores_unitarios" || !soloValoresUnitarios(f.tipo))
@@ -797,6 +962,7 @@ export function SolicitudContratoForm({
         </div>
 
         {f.anexoTipo === "valor_global" ? (
+          <div className="space-y-4">
           <div className="max-w-sm space-y-1" data-error={Boolean(errores.valor)}>
             <label htmlFor="contrato-valor" className="text-xs font-medium text-muted-foreground">
               Valor del contrato (pesos) *
@@ -815,6 +981,16 @@ export function SolicitudContratoForm({
             ) : (
               total !== null && total > 0 && <p className="text-xs text-muted-foreground tabular-nums">{pesosEnLetras(total)}</p>
             )}
+          </div>
+          {permiteItemsGlobales(f.tipo) && (
+            <ListaItemsGlobales
+              items={f.itemsGlobales}
+              valor={total}
+              error={errores.itemsGlobales}
+              disabled={enviando}
+              onChange={(items) => cambiar("itemsGlobales", items)}
+            />
+          )}
           </div>
         ) : catalogo === null && !errorCatalogo ? (
           <p className="flex items-center text-sm text-muted-foreground">

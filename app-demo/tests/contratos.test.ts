@@ -8,6 +8,9 @@ import {
   porcentajeEnLetras,
   totalAnexo,
   validarSolicitud,
+  validarItemsGlobales,
+  sumaItemsGlobales,
+  permiteItemsGlobales,
   datosTipoABase,
   datosTipoDesdeBase,
   type ItemPresupuestoContrato,
@@ -24,6 +27,7 @@ const base: SolicitudContratoForm = {
   valor: "",
   valorMensual: "",
   items: [{ presupuestoItemId: "p1", cantidad: "1.000", valorUnitario: "25.000" }],
+  itemsGlobales: [],
   tieneAnticipo: false,
   anticipoPorcentaje: "",
   requierePoliza: true,
@@ -400,5 +404,76 @@ describe("domicilio y datos de la minuta según el tipo", () => {
     expect(datosTipoABase("obra", { pagoCadaDias: 15, retencionGarantia: false })).toEqual({ pago_cada_dias: 15, retencion_garantia: false })
     expect(datosTipoDesdeBase({ bien_nombre: "Grúa", actas: "otra", exige_garantia: false, raro: 1 })).toEqual({ bienNombre: "Grúa", exigeGarantia: false })
     expect(datosTipoDesdeBase(null)).toEqual({})
+  })
+})
+
+describe("ítems de un suministro a valor global (20270101006500)", () => {
+  const item = (descripcion: string, unidad = "", cantidad = "", valorUnitario = "") => ({ descripcion, unidad, cantidad, valorUnitario })
+  const suministro = {
+    tipo: "suministro_instalacion" as const,
+    anexoTipo: "valor_global" as const,
+    valor: "10.000.000",
+    items: [],
+    pagoCadaDias: "",
+    retencionGarantia: "" as const,
+    exigeGarantia: "" as const,
+  }
+
+  it("solo en suministro e instalación", () => {
+    expect(permiteItemsGlobales("suministro_instalacion")).toBe(true)
+    for (const t of ["obra", "mano_obra", "prestacion_servicios", "alquiler_vehiculo", "arrendamiento"]) expect(permiteItemsGlobales(t)).toBe(false)
+  })
+
+  it("la lista es opcional: sin ítems es global sin desglose", () => {
+    const r = validarSolicitud({ ...base, ...suministro, itemsGlobales: [item("", "", "", "")] })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.datos.itemsGlobales).toEqual([])
+      expect(r.datos.valor).toBe(10_000_000)
+    }
+  })
+
+  it("descripción obligatoria; unidad, cantidad y precio opcionales; el valor sigue siendo el global", () => {
+    const r = validarSolicitud({
+      ...base,
+      ...suministro,
+      itemsGlobales: [item(" ACPM ", "gal"), item("Gasolina"), item("Resma de papel carta", "und", "20", "18.500")],
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.datos.valor).toBe(10_000_000)
+      expect(r.datos.itemsGlobales).toEqual([
+        { descripcion: "ACPM", unidad: "gal", cantidad: null, valorUnitario: null },
+        { descripcion: "Gasolina", unidad: null, cantidad: null, valorUnitario: null },
+        { descripcion: "Resma de papel carta", unidad: "und", cantidad: 20, valorUnitario: 18500 },
+      ])
+    }
+    expect(errores({ ...suministro, itemsGlobales: [item("", "gal", "3")] }).itemsGlobales).toMatch(/descripción del ítem 1/)
+  })
+
+  it("lo que tiene cantidad × precio no pasa del valor global", () => {
+    expect(errores({ ...suministro, valor: "400.000", itemsGlobales: [item("Resma", "und", "20", "18.500")] }).itemsGlobales).toBeUndefined()
+    expect(errores({ ...suministro, valor: "400.000", itemsGlobales: [item("Resma", "und", "20", "18.500"), item("Tóner", "und", "1", "80.000")] }).itemsGlobales).toMatch(
+      /pasan del valor del contrato/
+    )
+  })
+
+  it("cantidad o precio en cero o no numéricos, repetidos y más de 50", () => {
+    expect(validarItemsGlobales([item("ACPM", "", "0")], 1000)).toEqual({ ok: false, error: expect.stringMatching(/cantidad del ítem 1/) })
+    expect(validarItemsGlobales([item("ACPM", "", "", "abc")], 1000)).toEqual({ ok: false, error: expect.stringMatching(/valor unitario del ítem 1/) })
+    expect(validarItemsGlobales([item("ACPM"), item("acpm")], 1000)).toEqual({ ok: false, error: expect.stringMatching(/repetido/) })
+    expect(validarItemsGlobales(Array.from({ length: 51 }, (_, i) => item(`Ítem ${i}`)), 1000).ok).toBe(false)
+  })
+
+  it("la suma solo cuenta los ítems con cantidad y precio", () => {
+    expect(sumaItemsGlobales([
+      { descripcion: "ACPM", unidad: null, cantidad: null, valorUnitario: 12_000 },
+      { descripcion: "Resma", unidad: "und", cantidad: 3, valorUnitario: 18_500.5 },
+    ])).toBe(55_501.5)
+  })
+
+  it("en otros tipos o en valores unitarios la lista se ignora", () => {
+    const r = validarSolicitud({ ...base, itemsGlobales: [item("ACPM")] })
+    expect(r.ok && r.datos.itemsGlobales).toEqual([])
   })
 })

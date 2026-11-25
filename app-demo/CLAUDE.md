@@ -3721,6 +3721,26 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   devuelta se corrige pasando a valores unitarios); `soloValoresUnitarios` en
   `lib/contratos.ts` y `_guardar_solicitud_contrato` lo exigen. Los contratos ya
   creados no cambian.
+- **Ítems de un suministro a valor global** (`20270101006500`, reversa en
+  `supabase/reversa/`, decisión del usuario 2026-11-25; caso: contrato de ACPM,
+  gasolina y papelería, que no son ítems del presupuesto). En Suministro e
+  instalación con "Valor global" hay una lista OPCIONAL de los ítems que se
+  pueden usar con el contrato ("Especificar ítems del contrato",
+  `ListaItemsGlobales` en el formulario): descripción obligatoria y, si se
+  conocen, unidad, cantidad y valor unitario (la gasolina puede ir sin cantidad
+  ni precio). El valor del contrato sigue siendo el global escrito a mano; lo que
+  tiene cantidad × precio no puede sumar más que ese valor
+  (`validarItemsGlobales` en TS, `_validar_items_globales` en la base). Sin lista
+  = global sin desglose. Tabla `contrato_items_globales` (se escribe solo por
+  `_guardar_solicitud_contrato`, parchado por texto: `p_datos.items_globales`;
+  se lee con `_ids_contratos_visibles()`). Solo suministro
+  (`permiteItemsGlobales`); actas (por % de avance), otrosí y Control del
+  proyecto no cambian. El detalle del contrato los muestra y la minuta de
+  suministro los pone en la tabla de especificaciones con el TOTAL = valor
+  global (`MinutaSuministro.totalEsValorGlobal`). En pantalla, "Valores
+  unitarios" se llama ahora "Valores unitarios del presupuesto"
+  (`ETIQUETA_ANEXO_TIPO`). La migración va ANTES del código (el detalle embebe
+  la tabla).
 - **Números** en formato colombiano con `leerNumero` (`lib/contratos.ts`):
   "1.250,5" = 1250,5; "38.500" = 38500; "2.5" = 2,5.
 - **Permisos**: pestaña `contratos.solicitar` (ver las del proyecto) y acción
@@ -5003,6 +5023,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
+`20270101006500` ítems opcionales de un contrato de suministro a valor global.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

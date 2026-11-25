@@ -25,6 +25,8 @@ import {
   plazoTexto,
   fechaFinContrato,
   contratoVencido,
+  ETIQUETA_ANEXO_TIPO,
+  sumaItemsGlobales,
   type SolicitudContratoDetalle,
 } from "@/lib/contratos"
 import { DOCUMENTOS_POR_PERSONA } from "@/lib/contratistas"
@@ -243,7 +245,14 @@ export function DetalleSolicitudContrato({
                 titulo="Valor y pago"
                 filas={[
                   ["Valor", <span key="v" className="font-medium tabular-nums">{pesos(detalle.valor)}</span>],
-                  ["Modalidad", detalle.anexoTipo === "valor_global" ? "Valor global" : "Valores unitarios (anexo abajo)"],
+                  [
+                    "Modalidad",
+                    detalle.anexoTipo === "valor_global"
+                      ? (detalle.itemsGlobales ?? []).length > 0
+                        ? `${ETIQUETA_ANEXO_TIPO.valor_global} (ítems del contrato abajo)`
+                        : ETIQUETA_ANEXO_TIPO.valor_global
+                      : `${ETIQUETA_ANEXO_TIPO.valores_unitarios} (anexo abajo)`,
+                  ],
                   ...(detalle.valorMensual !== null ? ([["Pago mensual", pesosEnLetras(detalle.valorMensual)]] as FilaDatos[]) : []),
                   ...(general
                     ? ([
@@ -328,6 +337,49 @@ export function DetalleSolicitudContrato({
                           </td>
                         </tr>
                       </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {(detalle.itemsGlobales ?? []).length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Ítems que se pueden usar con el contrato</h3>
+                  <p className="text-xs text-muted-foreground">El valor del contrato es el valor global ({pesos(detalle.valor)}).</p>
+                  <div className="overflow-x-auto rounded-md border">
+                    <table className="w-full min-w-[560px]">
+                      <thead>
+                        <tr className="bg-muted/60 text-left text-xs">
+                          <th className="px-2 py-1.5">Descripción</th>
+                          <th className="px-2 py-1.5">Unidad</th>
+                          <th className="px-2 py-1.5 text-right">Cantidad</th>
+                          <th className="px-2 py-1.5 text-right">Valor unitario</th>
+                          <th className="px-2 py-1.5 text-right">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(detalle.itemsGlobales ?? []).map((it, i) => (
+                          <tr key={i} className="border-t">
+                            <td className="px-2 py-1.5">{it.descripcion}</td>
+                            <td className="px-2 py-1.5">{it.unidad ?? "—"}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{it.cantidad !== null ? numero(it.cantidad) : "—"}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{it.valorUnitario !== null ? pesos(it.valorUnitario) : "—"}</td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">
+                              {it.cantidad !== null && it.valorUnitario !== null ? pesos(it.cantidad * it.valorUnitario) : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {sumaItemsGlobales(detalle.itemsGlobales ?? []) > 0 && (
+                        <tfoot>
+                          <tr className="border-t bg-muted/40 font-medium">
+                            <td className="px-2 py-1.5" colSpan={4}>
+                              Suma de los ítems con precio
+                            </td>
+                            <td className="px-2 py-1.5 text-right tabular-nums">{pesos(sumaItemsGlobales(detalle.itemsGlobales ?? []))}</td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </div>
