@@ -123,7 +123,7 @@ async function guardarSolicitud(
       // Actividades sobre el tope (obra y mano de obra): la base decide si hace
       // falta y entonces la exige (20270101004200).
       sobre_tope_justificacion: d.sobreTopeJustificacion ?? "",
-      // Lista de ítems de un suministro a valor global (20270101006500).
+      // Lista de ítems de un suministro a valor global (20270101006600).
       ...(d.itemsGlobales.length > 0
         ? {
             items_globales: d.itemsGlobales.map((i) => ({

@@ -407,7 +407,7 @@ describe("domicilio y datos de la minuta según el tipo", () => {
   })
 })
 
-describe("ítems de un suministro a valor global (20270101006500)", () => {
+describe("ítems de un suministro a valor global (20270101006600)", () => {
   const item = (descripcion: string, unidad = "", cantidad = "", valorUnitario = "") => ({ descripcion, unidad, cantidad, valorUnitario })
   const suministro = {
     tipo: "suministro_instalacion" as const,
