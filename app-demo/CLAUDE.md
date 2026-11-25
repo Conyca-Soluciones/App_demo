@@ -2090,8 +2090,8 @@ tabla de rol. Se llega por pasos: 1) crear terceros abierto (hecho), 2)
 contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 4) empleados.
 - **Nombre en casillas y contacto en el tercero** (`20270101004300_terceros_nombres_y_contacto.sql`,
   2026-11-17, decisión del usuario). Persona (no NIT): primer nombre y primer apellido obligatorios,
-  segundos opcionales (`terceros.primer_nombre`…); `trg_tercero_nombre` arma `razon_social` = apellidos +
-  nombres (como ya estaba), `nombres`, `apellidos` y `nombre_banco` = nombres + apellidos (40); un NIT
+  segundos opcionales (`terceros.primer_nombre`…); `trg_tercero_nombre` arma `razon_social` = nombres +
+  apellidos (desde `20270101006500`, decisión del usuario 2026-11-25; antes apellidos + nombres), `nombres`, `apellidos` y `nombre_banco` = nombres + apellidos (40); un NIT
   usa la razón social. Ya no se escribe el nombre para el banco a mano (el dispersor sigue leyendo
   `nombre_banco`); los viejos no cambian hasta que se edite su nombre. Correo, teléfono, dirección (calle
   y número) y ciudad viven en `terceros` (obligatorios en `crear_tercero`, `_validar_contacto_tercero`);

@@ -73,7 +73,7 @@ function Banner({ error }: { error: string | null }) {
 
 // ---------------------------------------------------------------------------
 // Nombre de una persona en 4 casillas (20270101004300): primer nombre y primer
-// apellido obligatorios. La razón social (apellidos + nombres) y el nombre para el
+// apellido obligatorios. La razón social (nombres + apellidos) y el nombre para el
 // banco los arma la base.
 // ---------------------------------------------------------------------------
 export type CasillasNombre = { primerNombre: string; segundoNombre: string; primerApellido: string; segundoApellido: string }

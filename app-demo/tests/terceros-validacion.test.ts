@@ -19,11 +19,11 @@ const base: DatosTercero = {
 }
 
 describe("validarTercero", () => {
-  it("arma la razón social de una persona con apellidos y nombres", () => {
+  it("arma la razón social de una persona con nombres y apellidos", () => {
     const r = validarTercero(base)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(r.datos.razonSocial).toBe("MONCAYO TEJADA KEVIN SANTIAGO")
+    expect(r.datos.razonSocial).toBe("KEVIN SANTIAGO MONCAYO TEJADA")
     expect(r.datos.primerNombre).toBe("KEVIN")
     expect(r.datos.contacto).toEqual({ correo: "kevin@correo.com", telefono: "3001234567", direccion: "Calle 26 # 69-76", ciudad: "BOGOTÁ" })
   })
@@ -55,7 +55,7 @@ describe("validarTercero", () => {
 
 describe("ayudas del nombre y del contacto", () => {
   it("razón social sin segundos nombres", () => {
-    expect(razonSocialPersona({ primerNombre: "ana", segundoNombre: "", primerApellido: "pérez", segundoApellido: "" })).toBe("PÉREZ ANA")
+    expect(razonSocialPersona({ primerNombre: "ana", segundoNombre: "", primerApellido: "pérez", segundoApellido: "" })).toBe("ANA PÉREZ")
   })
   it("parte nombres viejos en primera palabra y resto", () => {
     expect(partirNombre("MARTINEZ DE LA OSAA")).toEqual(["MARTINEZ", "DE LA OSAA"])

@@ -137,8 +137,8 @@ export const soloDigitos = (v: string) => v.replace(/\D/g, "")
 // ------------------------------------------------------------- validación
 
 // Persona (no NIT): primer nombre y primer apellido obligatorios; la razón social
-// la arma la base (apellidos + nombres) y el nombre para el banco (nombres +
-// apellidos). NIT: razón social. El contacto es obligatorio al crear.
+// la arma la base (nombres + apellidos, 20270101006500) y el nombre para el banco
+// (también nombres + apellidos). NIT: razón social. El contacto es obligatorio al crear.
 export type DatosTercero = {
   tipoDocumento: string
   numeroDocumento: string
@@ -187,9 +187,10 @@ export function validarContacto(c: ContactoTercero): { ok: true; datos: Contacto
   return { ok: true, datos: { correo, telefono, direccion, ciudad } }
 }
 
-// Razón social de una persona como la arma la base: apellidos + nombres.
+// Razón social de una persona como la arma la base: nombres + apellidos.
 export function razonSocialPersona(d: Pick<DatosTercero, "primerNombre" | "segundoNombre" | "primerApellido" | "segundoApellido">): string {
-  return normalizarTexto([d.primerApellido, d.segundoApellido, d.primerNombre, d.segundoNombre].join(" "))
+  // Nombres primero (20270101006500, decisión del usuario).
+  return normalizarTexto([d.primerNombre, d.segundoNombre, d.primerApellido, d.segundoApellido].join(" "))
 }
 
 // Casillas a partir de "nombres" y "apellidos" de un tercero viejo (para editarlo):
