@@ -867,8 +867,10 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   en una función plpgsql `stable security invoker` que devuelve el conjunto
   (`col in (select f())`): no se expande en el plan y, por ser INVOKER, aplica las
   mismas políticas (se ve lo mismo). Medir con
-  `explain (analyze, memory, summary)` como `authenticated`. Siguen pesadas (~16 MB)
-  las demás políticas de Storage (contratos, pagos, actas, OC...). No probar
+  `explain (analyze, memory, summary)` como `authenticated`. Las demás políticas de
+  lectura de Storage (actas, contratos, dispersores, OC, entradas, pólizas, pagos
+  administrativos, SINCO, RUT) pasaron igual en `20270101006400`: abrir un archivo
+  bajó de 16 MB / 219 ms a 1 MB / 2 ms de plan (29 usuarios, mismos archivos). No probar
   consultas completas con las políticas viejas en horario de oficina: cada una
   tardaba 20-40 s y frenó la app (2026-11-25, 8:15-8:23).
 - **Políticas RLS: nada de funciones de permiso por fila.** Lo que no depende
@@ -4994,6 +4996,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005500` requisición extraordinaria en espera de insumos nuevos.
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
+`20270101006400` permisos de lectura de Storage sin árboles anidados.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
