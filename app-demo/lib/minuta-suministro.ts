@@ -54,7 +54,7 @@ export type MinutaSuministro = {
   objeto: string
   obra: string
   items: ItemAnexoMinuta[]
-  // Contrato a valor global (20270101006500): la tabla es la lista de lo que se
+  // Contrato a valor global (20270101006600): la tabla es la lista de lo que se
   // puede usar y el TOTAL es el valor global, no la suma de la tabla. Sin dato
   // (minutas guardadas antes) = lo de la solicitud.
   totalEsValorGlobal: boolean

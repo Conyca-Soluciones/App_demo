@@ -111,7 +111,7 @@ export const polizaObligatoria = (tipo: string): boolean => tipo === "obra" || t
 // repite la regla en _guardar_solicitud_contrato (20261231970000).
 export const soloValoresUnitarios = (tipo: string): boolean => tipo === "obra" || tipo === "mano_obra"
 // Suministro e instalación a valor global puede llevar una lista de los ítems que
-// se pueden usar con el contrato (ACPM, gasolina, papelería...; 20270101006500).
+// se pueden usar con el contrato (ACPM, gasolina, papelería...; 20270101006600).
 export const permiteItemsGlobales = (tipo: string): boolean => tipo === "suministro_instalacion"
 // Nombres en pantalla de cada forma de valor.
 export const ETIQUETA_ANEXO_TIPO: Record<"valor_global" | "valores_unitarios", string> = {
@@ -348,7 +348,7 @@ export type SolicitudContratoDetalle = SolicitudContratoFila & {
   // Actividades por encima del tope (obra y mano de obra, 20270101004200): por
   // qué, y quién de Gerencia lo autorizó (null = todavía no o no hizo falta).
   sobreTopeJustificacion?: string | null
-  // Ítems de un suministro a valor global (20270101006500); vacío = sin desglose.
+  // Ítems de un suministro a valor global (20270101006600); vacío = sin desglose.
   itemsGlobales?: ItemGlobalContrato[]
   sobreTopeAutorizadoAt?: string | null
   sobreTopeAutorizadoPorNombre?: string | null
@@ -467,7 +467,7 @@ export const aCentavos = (n: number) => Math.round(n * 100) / 100
 // del proyecto (la descripción y la unidad salen de ahí).
 // manoObraCategoriaId: en mano de obra, el trabajo del ítem que cubre la
 // actividad ("" o ausente = la mano de obra completa, 20270101004400).
-// Ítem de la lista de un contrato de suministro a valor global (20270101006500):
+// Ítem de la lista de un contrato de suministro a valor global (20270101006600):
 // descripción obligatoria; unidad, cantidad y valor unitario si se conocen.
 export type ItemGlobalContrato = { descripcion: string; unidad: string | null; cantidad: number | null; valorUnitario: number | null }
 export type ItemGlobalForm = { descripcion: string; unidad: string; cantidad: string; valorUnitario: string }
@@ -612,7 +612,7 @@ export type SolicitudContratoForm = {
   valor: string
   valorMensual: string
   items: ItemAnexoForm[]
-  // Lista opcional de un suministro a valor global (20270101006500).
+  // Lista opcional de un suministro a valor global (20270101006600).
   itemsGlobales: ItemGlobalForm[]
   tieneAnticipo: boolean
   anticipoPorcentaje: string

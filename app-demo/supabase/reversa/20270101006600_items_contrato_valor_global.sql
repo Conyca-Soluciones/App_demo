@@ -1,4 +1,5 @@
--- Reversa de 20270101006500_items_contrato_valor_global.sql.
+-- Reversa de 20270101006600_items_contrato_valor_global.sql (aplicada con el número
+-- 20270101006500: los textos que se buscan en la función conservan ese número).
 -- Quita los parches de _guardar_solicitud_contrato, la validación y la tabla de
 -- ítems de los contratos a valor global (se pierden las listas guardadas: los
 -- contratos siguen a valor global, sin desglose).

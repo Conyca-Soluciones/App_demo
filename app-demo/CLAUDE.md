@@ -3726,7 +3726,7 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   devuelta se corrige pasando a valores unitarios); `soloValoresUnitarios` en
   `lib/contratos.ts` y `_guardar_solicitud_contrato` lo exigen. Los contratos ya
   creados no cambian.
-- **Ítems de un suministro a valor global** (`20270101006500`, reversa en
+- **Ítems de un suministro a valor global** (`20270101006600`, reversa en
   `supabase/reversa/`, decisión del usuario 2026-11-25; caso: contrato de ACPM,
   gasolina y papelería, que no son ítems del presupuesto). En Suministro e
   instalación con "Valor global" hay una lista OPCIONAL de los ítems que se
@@ -5028,7 +5028,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
-`20270101006500` ítems opcionales de un contrato de suministro a valor global.
+`20270101006600` ítems opcionales de un contrato de suministro a valor global.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

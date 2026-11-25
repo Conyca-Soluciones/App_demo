@@ -157,7 +157,7 @@ export async function cargarDetalleContrato(
       topeValorUnitario: i.tope_valor_unitario == null ? null : Number(i.tope_valor_unitario),
       manoObraCategoriaId: i.mano_obra_categoria_id ?? null,
     })),
-    // Ítems de un suministro a valor global (20270101006500).
+    // Ítems de un suministro a valor global (20270101006600).
     itemsGlobales: [...(x.items_globales ?? [])].sort(porOrden).map((i: any) => ({
       descripcion: i.descripcion,
       unidad: i.unidad ?? null,
