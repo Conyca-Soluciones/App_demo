@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { ChevronLeft, ChevronRight, HardHat, Inbox, Landmark, Settings } from "lucide-react"
 
@@ -63,18 +63,28 @@ export function AppSidebar({ permisos }: { permisos: PermisosRol | null }) {
   const [seccionAbierta, setSeccionAbierta] = useState<string | null>(null)
 
   // Cuántas cosas le tocan a la persona (Mis pendientes). Se vuelve a contar al
-  // cambiar de página: resolver algo y volver baja el número.
+  // cambiar de página (resolver algo y volver baja el número), pero como mucho una
+  // vez por minuto: contar cuesta ~0,3 s de base y se pedía en cada página
+  // (2026-11-25, la base se quedó sin memoria). En Mis pendientes y al guardar la
+  // firma se cuenta siempre.
   const [pendientes, setPendientes] = useState<number | null>(null)
   const [recontar, setRecontar] = useState(0)
+  const ultimoConteo = useRef(0)
   useEffect(() => {
-    const otraVez = () => setRecontar((n) => n + 1)
+    const otraVez = () => {
+      ultimoConteo.current = 0
+      setRecontar((n) => n + 1)
+    }
     window.addEventListener(EVENTO_FIRMA_GUARDADA, otraVez)
     return () => window.removeEventListener(EVENTO_FIRMA_GUARDADA, otraVez)
   }, [])
   useEffect(() => {
+    const reciente = Date.now() - ultimoConteo.current < 60_000
+    if (reciente && !pathname.startsWith("/pendientes")) return
     let activo = true
     // Las server actions van en fila: contar después deja que la página cargue primero.
     const espera = setTimeout(() => {
+      ultimoConteo.current = Date.now()
       contarMisPendientes()
         .then((n: number) => activo && setPendientes(n))
         .catch(() => activo && setPendientes(null))

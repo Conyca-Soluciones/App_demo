@@ -857,6 +857,20 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
   `getUser()`. Las server actions leen el usuario con `obtenerUsuarioId()`.
+- **Memoria de la base (2026-11-25, `20270101006300`)**: la base (plan Free,
+  ~450 MB) se quedó sin memoria y usó swap: todo lento y consultas canceladas. La
+  memoria se iba en PLANEAR políticas anidadas (anexos -> requisiciones -> pedidos
+  -> ítems/OC/pagos, cada una con sus políticas): 49 MB para leer los anexos de una
+  requisición, 57 MB para abrir CUALQUIER archivo de Storage (las políticas de
+  lectura de `storage.objects` se juntan para todos los buckets). Regla: si una
+  política lee otra tabla con RLS (sobre todo en `storage.objects`), esa lectura va
+  en una función plpgsql `stable security invoker` que devuelve el conjunto
+  (`col in (select f())`): no se expande en el plan y, por ser INVOKER, aplica las
+  mismas políticas (se ve lo mismo). Medir con
+  `explain (analyze, memory, summary)` como `authenticated`. Siguen pesadas (~16 MB)
+  las demás políticas de Storage (contratos, pagos, actas, OC...). No probar
+  consultas completas con las políticas viejas en horario de oficina: cada una
+  tardaba 20-40 s y frenó la app (2026-11-25, 8:15-8:23).
 - **Políticas RLS: nada de funciones de permiso por fila.** Lo que no depende
   de la fila va envuelto en `(select f(...))` (se evalúa una vez por consulta)
   y "¿puede ver el proyecto?" se escribe
@@ -4979,6 +4993,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005400_unidades_requisiciones_y_oc` (otra rama, mismo número) requisiciones en la unidad de compra.
 `20270101005500` requisición extraordinaria en espera de insumos nuevos.
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
+`20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
