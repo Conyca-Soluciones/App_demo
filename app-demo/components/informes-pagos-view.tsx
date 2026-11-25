@@ -70,8 +70,6 @@ export function InformesPagosView() {
       ancho: 220,
       texto: (d) => `${d.apodo} · ${d.banco}${d.esNomina ? " · nómina" : ""}`,
     },
-    { clave: "secuencia", titulo: "Secuencia", ancho: 100, alinear: "center", texto: (d) => d.secuencia, claseCelda: "tabular-nums" },
-    { clave: "ronda", titulo: "Ronda", ancho: 70, alinear: "center", texto: (d) => String(d.ronda), valorOrden: (d) => d.ronda },
     { clave: "pagos", titulo: "Pagos", ancho: 70, alinear: "center", texto: (d) => String(d.registros), valorOrden: (d) => d.registros },
     {
       clave: "total",
@@ -177,7 +175,7 @@ export function InformesPagosView() {
                   titulo: (d) => d.apodo,
                   subtitulo: (d) => `${d.banco} · semana ${d.semana ?? "—"} de ${d.anio ?? "—"}`,
                   esquina: (d) => <span className="font-medium tabular-nums">{formatoMoneda(d.total)}</span>,
-                  campos: ["secuencia", "ronda", "pagos", "generado", "soporte"],
+                  campos: ["pagos", "generado", "soporte"],
                 }}
               />
               <div className="flex justify-end text-sm text-muted-foreground">
