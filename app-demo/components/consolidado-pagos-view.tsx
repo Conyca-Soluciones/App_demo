@@ -155,6 +155,8 @@ export function ConsolidadoPagosView({
   const [estado, setEstado] = useState<EstadoPago | "todos">("todos")
   const [tercero, setTercero] = useState("")
   const [soloConNovedad, setSoloConNovedad] = useState(false)
+  // Los anulados no se ven salvo que se pidan (decisión del usuario, 2026-11-25).
+  const [mostrarAnulados, setMostrarAnulados] = useState(false)
 
   const [resolviendo, setResolviendo] = useState<Pago | null>(null)
   const [historialDe, setHistorialDe] = useState<Pago | null>(null)
@@ -222,6 +224,7 @@ export function ConsolidadoPagosView({
       estado: estado === "todos" ? undefined : estado,
       tercero: tercero.trim() || undefined,
       soloConNovedad: soloConNovedad || undefined,
+      incluirAnulados: mostrarAnulados || undefined,
       etapa,
     }
   }
@@ -594,7 +597,7 @@ export function ConsolidadoPagosView({
   const colEtapa: ColumnaExcel<Pago> = {
     clave: "etapa",
     titulo: "Etapa",
-    ancho: 130,
+    ancho: 115,
     alinear: "center",
     texto: (p) => (p.estado === "aprobado" ? "" : ETIQUETA_ESTADO_PAGO[p.estado]),
     celda: (p) => <EtiquetaEtapa pago={p} />,
@@ -621,7 +624,7 @@ export function ConsolidadoPagosView({
   const colSoporte: ColumnaExcel<Pago> = {
     clave: "soporte",
     titulo: "Soporte",
-    ancho: 120,
+    ancho: 135,
     ordenable: false,
     texto: (p) => soportes[p.id]?.nombre ?? "",
     celda: (p) =>
@@ -799,6 +802,19 @@ export function ConsolidadoPagosView({
           {/* Acciones de la etapa. */}
           {pagos !== null && (
             <div className="flex flex-wrap items-center gap-2">
+              {etapa === "todos" && (
+                <label className="mr-2 flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={mostrarAnulados}
+                    onCheckedChange={(v) => {
+                      const si = v === true
+                      setMostrarAnulados(si)
+                      if (ultimosFiltros) cargar({ ...ultimosFiltros, incluirAnulados: si || undefined }, 0)
+                    }}
+                  />
+                  Mostrar anulados
+                </label>
+              )}
               {conSeleccion && seleccionables.length > 0 && (
                 <Button
                   size="sm"
@@ -933,6 +949,8 @@ export function ConsolidadoPagosView({
           ) : (
             <>
               <TablaExcel dosLineas
+                // Todos: sin scroll de lado (decisión del usuario, 2026-11-25).
+                ajustarAncho={etapa === "todos"}
                 filas={pagos}
                 columnas={columnas}
                 claveFila={(p) => p.id}

@@ -365,6 +365,8 @@ export type FiltrosConsolidado = FiltroCreacion & {
   soloConNovedad?: boolean
   // Pestaña de la etapa (sin enviar = todas).
   etapa?: EtapaConsolidado
+  // Los anulados solo salen con "Mostrar anulados" o eligiendo el estado Anulado (2026-11-25).
+  incluirAnulados?: boolean
 }
 
 export const formatoMoneda = (n: number) =>

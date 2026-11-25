@@ -57,6 +57,7 @@ function consultaConsolidado(supabase: any, consolidadoId: string, filtros: Filt
   if (semanas.length > 0) query = query.in("semana", semanas)
   query = filtrarSemanaCreacion(query, filtros)
   if (filtros.estado) query = query.eq("estado", filtros.estado)
+  else if (!filtros.incluirAnulados) query = query.neq("estado", "anulado")
   if (filtros.soloConNovedad) query = query.not("novedad", "is", null)
   if (tercero) query = query.ilike("tercero.razon_social", `%${tercero}%`)
   // Las etapas son de los pagos aprobados (los anulados o en dispersión, en "Todos").
@@ -114,6 +115,23 @@ export async function conteoEtapasConsolidado(clave: string, filtros: FiltrosCon
   })
   if (error) throw new Error(error.message)
   const c = (data ?? {}) as Record<string, number>
+  // "Todos" sin los anulados, salvo "Mostrar anulados" (2026-11-25): se restan con los mismos filtros.
+  if (!filtros.incluirAnulados && filtros.estado !== "anulado" && Number(c.todos ?? 0) > 0) {
+    let q: any = supabase
+      .from("pagos")
+      .select("id", { count: "exact", head: true })
+      .eq("consolidado_id", consolidadoId)
+      .not("semana", "is", null)
+      .eq("estado", "anulado")
+    const anios = enteros(filtros.anios, 2020, 2100, "un año no válido")
+    const semanas = enteros(filtros.semanas, 1, 53, "una semana no válida")
+    if (anios.length > 0) q = q.in("anio", anios)
+    if (semanas.length > 0) q = q.in("semana", semanas)
+    q = filtrarSemanaCreacion(q, filtros)
+    const { count, error: errAnulados } = await q
+    if (errAnulados) throw new Error(errAnulados.message)
+    c.todos = Math.max(Number(c.todos ?? 0) - (count ?? 0), 0)
+  }
   return {
     preparacion: Number(c.preparacion ?? 0),
     por_liquidar: Number(c.por_liquidar ?? 0),

@@ -2247,6 +2247,12 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
 - **Celular** (2026-11-17): el menú lateral muestra un nivel a la vez con "Volver" y se cierra al elegir
   una pestaña; en Consolidado y Realizar Pagos los filtros van arriba (`PanelFiltros apilarEnCelular`
   + `flex-col md:flex-row` en la página; las demás pantallas con filtros siguen igual).
+- **Sin scroll de lado** (2026-11-24/25, decisión del usuario): `TablaExcel ajustarAncho` mide el marco
+  (ResizeObserver): las columnas `fija` conservan su `ancho` y las demás se reparten el resto en proporción a
+  su `ancho` (el texto que no cabe se corta, completo en el title). Lo usan el Registro de requisiciones y la
+  pestaña Todos del Consolidado. **Mostrar anulados** (Consolidado › Todos, apagado por omisión):
+  `FiltrosConsolidado.incluirAnulados`; sin él la lista y el conteo de Todos no traen anulados (salvo
+  filtrando el estado Anulado).
 - **Filtros plegados encima de la tabla** (2026-11-24, todas las pantallas con panel de filtros): al
   plegarse queda un botón "Filtros" arriba a la izquierda (`FiltrosPlegados`, `data-filtros="plegado"`) y
   el contenedor de la página, con la clase `con-filtros`, se pone en columna (regla en `globals.css`), así

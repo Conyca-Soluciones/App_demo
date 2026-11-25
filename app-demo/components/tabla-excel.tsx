@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import { alDobleClic } from "@/components/ventana-detalle"
 
@@ -82,8 +82,8 @@ type Props<T> = {
   // fija). El contenedor tiene que ser columna flex con alto (flex min-h-0 flex-1 flex-col).
   altoContenedor?: boolean
   // Sin scroll de lado (2026-11-24): las columnas `fija` conservan su `ancho` y las demás
-  // se reparten el resto por partes iguales; el texto que no cabe se corta (completo en el
-  // title).
+  // se reparten el resto en proporción a su `ancho` (se mide el ancho disponible); el texto
+  // que no cabe se corta (completo en el title).
   // Por debajo de @3xl sigue pasando a tarjetas.
   ajustarAncho?: boolean
 }
@@ -114,6 +114,26 @@ export function TablaExcel<T>({
   }
   const ultimaFija = [...izquierda.keys()].at(-1)
   const anchoTabla = columnas.reduce((acc, c) => acc + c.ancho, 0)
+  const anchoFijas = columnas.reduce((acc, c) => acc + (c.fija ? c.ancho : 0), 0)
+  const anchoResto = Math.max(anchoTabla - anchoFijas, 1)
+  // ajustarAncho: ancho real del marco de la tabla (cambia con la ventana y los filtros).
+  const marcoRef = useRef<HTMLDivElement>(null)
+  const [anchoMarco, setAnchoMarco] = useState<number | null>(null)
+  useEffect(() => {
+    const el = marcoRef.current
+    if (!ajustarAncho || !el) return
+    const medir = () => setAnchoMarco(el.clientWidth > 0 ? el.clientWidth : null)
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ajustarAncho])
+  const anchoColumna = (c: ColumnaExcel<T>): number | string =>
+    c.fija
+      ? c.ancho
+      : anchoMarco
+        ? Math.max(Math.floor((c.ancho * (anchoMarco - anchoFijas)) / anchoResto), 24)
+        : `${(c.ancho / anchoTabla) * 100}%`
   const columnaPorClave = new Map(columnas.map((c) => [c.clave, c]))
 
   const alineacion = (a?: "right" | "center") =>
@@ -124,7 +144,7 @@ export function TablaExcel<T>({
       {/* ---------- Tabla (cuando hay espacio) ---------- */}
       {/* altoContenedor: alto de sus filas, pero se encoge hasta el espacio que hay
           (min-h-0) y ahí hace scroll por dentro: el encabezado sticky sigue visible. */}
-      <div className={`hidden overflow-auto rounded-lg border @3xl:block ${altoContenedor ? "min-h-0" : claseAltoMax}`}>
+      <div ref={marcoRef} className={`hidden overflow-auto rounded-lg border @3xl:block ${altoContenedor ? "min-h-0" : claseAltoMax}`}>
         {/* Ancho = todo el disponible, nunca menos que la suma de columnas
             (si no cabe, aparece el scroll horizontal). Con table-fixed, la
             columna sin ancho declarado (`flexible`) se queda con el sobrante. */}
@@ -138,10 +158,7 @@ export function TablaExcel<T>({
                 key={c.clave}
                 style={
                   ajustarAncho
-                    ? // Las fijas conservan su ancho; las demás se reparten el resto por igual.
-                      c.fija
-                      ? { width: c.ancho }
-                      : undefined
+                    ? { width: anchoColumna(c) }
                     : c.flexible
                       ? undefined
                       : { width: c.ancho }

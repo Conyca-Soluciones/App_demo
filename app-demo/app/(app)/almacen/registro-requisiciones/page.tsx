@@ -41,7 +41,8 @@ export default function RegistroRequisiciones() {
         clave: "numero",
         titulo: "REF",
         // REF y, en la misma línea, Extraordinaria / Urgente de tamaño normal (decisión del
-        // usuario, 2026-11-24). Ancho fijo: no se encoge aunque se abran los filtros.
+        // usuario, 2026-11-24). Ancho fijo: no se encoge aunque se abran los filtros; las
+        // demás columnas (todas de 120) se reparten el resto por partes iguales.
         ancho: 290,
         fija: true,
         texto: (r) => r.codigo,
@@ -55,12 +56,12 @@ export default function RegistroRequisiciones() {
         ),
       },
       // Solo el código del proyecto (decisión del usuario, 2026-11-24).
-      { clave: "proyecto", titulo: "Proyecto", ancho: 165, flexible: true, texto: (r) => r.proyectoCodigo ?? "" },
-      { clave: "solicitante", titulo: "Solicitado por", ancho: 105, texto: (r) => r.solicitanteNombre ?? "" },
+      { clave: "proyecto", titulo: "Proyecto", ancho: 120, flexible: true, texto: (r) => r.proyectoCodigo ?? "" },
+      { clave: "solicitante", titulo: "Solicitado por", ancho: 120, texto: (r) => r.solicitanteNombre ?? "" },
       {
         clave: "creada",
         titulo: "Creada",
-        ancho: 84,
+        ancho: 120,
         alinear: "center",
         texto: (r) => formatearFechaSinHora(r.createdAt),
         valorOrden: (r) => r.createdAt,
@@ -69,7 +70,7 @@ export default function RegistroRequisiciones() {
       {
         clave: "requerida",
         titulo: "Requerida",
-        ancho: 84,
+        ancho: 120,
         alinear: "center",
         texto: (r) => (r.fechaRequerida ? formatearFechaSinHora(r.fechaRequerida) : ""),
         valorOrden: (r) => r.fechaRequerida,
@@ -78,18 +79,18 @@ export default function RegistroRequisiciones() {
       {
         clave: "estimada",
         titulo: "Estimada",
-        ancho: 84,
+        ancho: 120,
         alinear: "center",
         // la más tardía de sus órdenes de compra vigentes (Generar OC)
         texto: (r) => (r.fechaEstimada ? formatearFechaSinHora(r.fechaEstimada) : ""),
         valorOrden: (r) => r.fechaEstimada,
         claseCelda: "tabular-nums text-xs",
       },
-      { clave: "insumos", titulo: "Insumos", ancho: 64, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
+      { clave: "insumos", titulo: "Insumos", ancho: 120, alinear: "center", texto: (r) => String(r.nLineas), valorOrden: (r) => r.nLineas },
       {
         clave: "compra",
         titulo: "Compra",
-        ancho: 157,
+        ancho: 120,
         alinear: "center",
         texto: (r) => r.estadoCompra ?? "",
         celda: (r) => <BadgeCompraRequisicion estadoCompra={r.estadoCompra} />,
