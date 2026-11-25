@@ -1360,12 +1360,14 @@ proyecto, al momento (cola). Sin pestaña en la app por ahora (la idea es mostra
 proyecto dentro de la app).
 - `trg_drive_encolar` (AFTER INSERT/UPDATE en `storage.objects`) mete cada archivo nuevo o sobreescrito en
   `drive_cola` (nunca hace fallar una subida). `_drive_destino(bucket, ruta)` lo ubica por la tabla donde la
-  app lo registró: `Proyectos/<001 - CODIGO>/Contratos/<CJ>/` (documentos, firmado, Pólizas, Acta NN,
-  Otrosí N° n), `Órdenes de compra/<año> - Semana NN/<PROVEEDOR>/<OC>/` (soportes, Facturas, Entradas, PDF
-  firmado), `Requisiciones/<año> - Semana NN/<RQ>/`, `Pagos administrativos/<año> - Semana NN/<PA>/`,
-  `SINCO/Cuadro n/`. La semana (`20270101006900`, decisión del usuario) es la ISO en que se CREÓ el registro, en
-  hora de Colombia (`_drive_semana`): una factura que llega después queda en la carpeta de su OC; sin proyecto: `Terceros/<doc - nombre>/`,
-  `Contratistas/…`, `Pagos/Dispersores/<año> - Semana NN/`, `Pagos/PSE y otros medios/`, `Balances/`. Lo que
+  app lo registró: `Proyectos/<001 - CODIGO>/Contratos/<CJ>/` (documentos, firmado, Pólizas, Otrosí N° n,
+  `Actas/<año> - Semana NN/Acta NN/`), `Órdenes de compra/<año> - Semana NN/<PROVEEDOR>/<OC>/` (soportes,
+  Facturas, Entradas, PDF firmado), `Requisiciones/<año> - Semana NN/<RQ>/`, `Pagos administrativos/<año> -
+  Semana NN/<PA>/`, `SINCO/Cuadro n/`. La semana (`20270101006900`, decisión del usuario) es la ISO en que se
+  CREÓ el registro, en hora de Colombia (`_drive_semana`): una factura que llega después queda en la carpeta de
+  su OC. Sin proyecto: `Terceros/<NOMBRE - documento>/` con TODOS los documentos del tercero (RUT,
+  certificaciones bancarias y los del contratista: cédula, cámara de comercio...), `Pagos/Dispersores/<año> -
+  Semana NN/` y `Pagos/PSE y otros medios/<año> - Semana NN/` (semana del pago), `Balances/`. Lo que
   no se ubica en 24 h va a `Otros/<bucket>/` (el navegador sube antes de registrar: se reintenta cada 15 min).
   Un bucket nuevo: agregar su rama en `_drive_destino`.
 - pg_cron `subir-drive` cada minuto llama la función solo si `ajustes_drive.activo` y hay algo por subir;
@@ -5062,7 +5064,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
-`20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos) y por proveedor (OC).
+`20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

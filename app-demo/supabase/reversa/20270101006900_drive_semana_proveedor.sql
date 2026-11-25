@@ -183,6 +183,7 @@ $$;
 
 revoke all on function public._drive_destino(text, text) from public, anon, authenticated;
 drop function if exists public._drive_carpetas_oc(uuid);
+drop function if exists public._drive_carpeta_tercero(text, text);
 drop function if exists public._drive_semana(timestamptz);
 
 commit;

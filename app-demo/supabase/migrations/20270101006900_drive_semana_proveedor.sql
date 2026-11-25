@@ -4,9 +4,14 @@
 -- - Órdenes de compra / <año> - Semana NN / <PROVEEDOR> / OC-001-0004 / (Facturas, Entradas).
 -- - Requisiciones / <año> - Semana NN / RQ-001-0001.
 -- - Pagos administrativos / <año> - Semana NN / PA-001-0001.
+-- - Contratos / CJ-001-0001 / Actas / <año> - Semana NN / Acta 02.
 -- La semana es la ISO en que se CREÓ el registro (hora de Colombia): los archivos
 -- que llegan después (facturas, entradas) quedan en la misma carpeta de su OC.
--- Contratos, actas y lo demás no cambian. Solo cambia a dónde van los archivos
+-- - Pagos / Dispersores y Pagos / PSE y otros medios: por la semana del PAGO
+--   (anio/semana, la misma del Consolidado).
+-- - Terceros / <NOMBRE - documento> / con TODOS sus documentos: RUT,
+--   certificaciones bancarias y los del contratista (cédula, cámara de comercio...),
+--   que antes iban aparte en Contratistas/. Solo cambia a dónde van los archivos
 -- que se suban desde ahora: lo que ya está en Drive no se mueve. Reversa en
 -- supabase/reversa/.
 
@@ -22,6 +27,16 @@ set search_path = public
 as $$
   select case when p_fecha is null then 'Sin fecha' else
     to_char(p_fecha at time zone 'America/Bogota', 'IYYY') || ' - Semana ' || to_char(p_fecha at time zone 'America/Bogota', 'IW') end;
+$$;
+
+-- Carpeta de un tercero: "NOMBRE - documento" (el nombre primero, para ordenar).
+create or replace function public._drive_carpeta_tercero(p_nombre text, p_documento text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select coalesce(nullif(trim(p_nombre), ''), 'Sin nombre') || coalesce(' - ' || nullif(trim(p_documento), ''), '');
 $$;
 
 -- Carpetas de una orden de compra: Órdenes de compra / semana / proveedor / OC.
@@ -78,12 +93,13 @@ begin
     end if;
 
   elsif p_bucket = 'actas' then
-    select c.proyecto_id, a.contrato_id, a.numero, s.tipo, s.nombre_archivo into r
+    select c.proyecto_id, a.contrato_id, a.numero, a.created_at, s.tipo, s.nombre_archivo into r
       from public.acta_soportes s join public.actas a on a.id = s.acta_id join public.contratos c on c.id = a.contrato_id
      where s.ruta = p_ruta limit 1;
     if found then
       return public._drive_resultado(r.proyecto_id,
-        array['Contratos', public._drive_carpeta_contrato(r.contrato_id), 'Acta ' || lpad(coalesce(r.numero, 0)::text, 2, '0')],
+        array['Contratos', public._drive_carpeta_contrato(r.contrato_id), 'Actas', public._drive_semana(r.created_at),
+              'Acta ' || lpad(coalesce(r.numero, 0)::text, 2, '0')],
         r.tipo || ' - ' || coalesce(r.nombre_archivo, v_archivo));
     end if;
 
@@ -152,7 +168,8 @@ begin
                   from public.otrosis o where o.id = r.entidad_id);
       elsif r.entidad = 'acta' then
         return (select public._drive_resultado(c.proyecto_id,
-                  array['Contratos', public._drive_carpeta_contrato(c.id), 'Acta ' || lpad(coalesce(a.numero, 0)::text, 2, '0')],
+                  array['Contratos', public._drive_carpeta_contrato(c.id), 'Actas', public._drive_semana(a.created_at),
+                        'Acta ' || lpad(coalesce(a.numero, 0)::text, 2, '0')],
                   'Acta aprobada (firmada) - ' || v_archivo)
                   from public.actas a join public.contratos c on c.id = a.contrato_id where a.id = r.entidad_id);
       elsif r.entidad = 'orden_compra' then
@@ -172,31 +189,40 @@ begin
     end if;
 
   elsif p_bucket = 'contratistas' then
-    select k.numero_documento, k.nombre, d.tipo, d.nombre_archivo into r
-      from public.contratista_documentos d join public.contratistas k on k.id = d.contratista_id where d.ruta = p_ruta limit 1;
+    -- Los documentos del contratista van en la carpeta de su tercero.
+    select coalesce(t.razon_social, k.nombre) as nombre, coalesce(t.numero_documento, k.numero_documento) as documento,
+           d.tipo, d.nombre_archivo into r
+      from public.contratista_documentos d
+      join public.contratistas k on k.id = d.contratista_id
+      left join public.terceros t on t.id = k.tercero_id
+     where d.ruta = p_ruta limit 1;
     if found then
-      return public._drive_resultado(null, array['Contratistas', r.numero_documento || ' - ' || r.nombre],
+      return public._drive_resultado(null, array['Terceros', public._drive_carpeta_tercero(r.nombre, r.documento)],
                                      r.tipo || ' - ' || coalesce(r.nombre_archivo, v_archivo));
     end if;
 
   elsif p_bucket = 'terceros' then
     select t.numero_documento, t.razon_social into r from public.terceros t where t.rut_ruta = p_ruta limit 1;
     if found then
-      return public._drive_resultado(null, array['Terceros', r.numero_documento || ' - ' || r.razon_social], 'RUT - ' || v_archivo);
+      return public._drive_resultado(null, array['Terceros', public._drive_carpeta_tercero(r.razon_social, r.numero_documento)],
+                                     'RUT - ' || v_archivo);
     end if;
     select t.numero_documento, t.razon_social into r
       from public.terceros_cuentas k join public.terceros t on t.id = k.tercero_id where k.certificacion_ruta = p_ruta limit 1;
     if found then
-      return public._drive_resultado(null, array['Terceros', r.numero_documento || ' - ' || r.razon_social],
+      return public._drive_resultado(null, array['Terceros', public._drive_carpeta_tercero(r.razon_social, r.numero_documento)],
                                      'Certificación bancaria - ' || v_archivo);
     end if;
 
   elsif p_bucket = 'dispersores' then
     if v_carpeta = 'pse' then
-      select p.referencia into r from public.pagos p
+      select p.referencia, p.anio, p.semana, p.creado_en into r from public.pagos p
        where p.pago_comprobante_ruta = p_ruta or p.pago_soporte_ruta = p_ruta limit 1;
       if found then
-        return public._drive_resultado(null, array['Pagos', 'PSE y otros medios'],
+        return public._drive_resultado(null,
+          array['Pagos', 'PSE y otros medios',
+                case when r.anio is not null and r.semana is not null
+                     then r.anio || ' - Semana ' || lpad(r.semana::text, 2, '0') else public._drive_semana(r.creado_en) end],
                                        coalesce('REF ' || r.referencia || ' - ', '') || v_archivo);
       end if;
     else
@@ -220,6 +246,7 @@ $$;
 
 revoke all on function public._drive_semana(timestamptz) from public, anon, authenticated;
 revoke all on function public._drive_carpetas_oc(uuid) from public, anon, authenticated;
+revoke all on function public._drive_carpeta_tercero(text, text) from public, anon, authenticated;
 revoke all on function public._drive_destino(text, text) from public, anon, authenticated;
 
 commit;
