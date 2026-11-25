@@ -2247,10 +2247,15 @@ la app NO calcula retenciones, Contabilidad las escribe; dispersores después).
 - **Celular** (2026-11-17): el menú lateral muestra un nivel a la vez con "Volver" y se cierra al elegir
   una pestaña; en Consolidado y Realizar Pagos los filtros van arriba (`PanelFiltros apilarEnCelular`
   + `flex-col md:flex-row` en la página; las demás pantallas con filtros siguen igual).
+- **Pagos › Informes** (`ayf.informes`, `/ayf/informes`, `20270101006600`, 2026-11-25, decisión del usuario):
+  se elige el tipo de informe en los filtros; el primero es **Dispersores generados** (una fila por dispersor,
+  solo el soporte PDF, no los archivos del banco). Dada a Contabilidad y Contabilidad Barranquilla. No cambió
+  permisos de tablas: ven los dispersores con algún pago de sus consolidados (`dispersiones_select`,
+  `dispersores_archivos_select`). Ojo: el soporte PDF trae todos los pagos de la tanda.
 - **Sin scroll de lado** (2026-11-24/25, decisión del usuario): `TablaExcel ajustarAncho` mide el marco
   (ResizeObserver): las columnas `fija` conservan su `ancho` y las demás se reparten el resto en proporción a
-  su `ancho` (el texto que no cabe se corta, completo en el title). Lo usan el Registro de requisiciones y la
-  pestaña Todos del Consolidado. **Mostrar anulados** (Consolidado › Todos, apagado por omisión):
+  su `ancho` (el texto que no cabe se corta, completo en el title). Lo usan el Registro de requisiciones, la
+  pestaña Todos del Consolidado, el Consolidado Gerencia e Informes. **Mostrar anulados** (Consolidado › Todos, apagado por omisión):
   `FiltrosConsolidado.incluirAnulados`; sin él la lista y el conteo de Todos no traen anulados (salvo
   filtrando el estado Anulado).
 - **Filtros plegados encima de la tabla** (2026-11-24, todas las pantallas con panel de filtros): al

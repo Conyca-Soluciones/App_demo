@@ -216,7 +216,7 @@ export function ConsolidadoGerenciaView() {
     {
       clave: "soporte",
       titulo: "Soporte",
-      ancho: 120,
+      ancho: 135,
       ordenable: false,
       texto: (p) => soportes[p.id]?.nombre ?? "",
       celda: (p) => {
@@ -395,6 +395,8 @@ export function ConsolidadoGerenciaView() {
           ) : (
             <>
               <TablaExcel dosLineas
+                // Sin scroll de lado (decisión del usuario, 2026-11-25).
+                ajustarAncho
                 filas={filas}
                 columnas={columnas}
                 claveFila={(f) => f.id}
