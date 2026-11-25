@@ -430,6 +430,17 @@ function ContenidoTercero({
   const dvCalculado = esNit && datos.numeroDocumento ? String(calcularDvNit(datos.numeroDocumento)) : ""
 
   function guardarDatos() {
+    // De NIT a persona: el nombre va en casillas y hay que escribirlo (antes salía "React error #441").
+    if (!esNit && tercero.tipoDocumento === "NIT") {
+      const faltan: Record<string, string> = {}
+      if (!datos.primerNombre.trim()) faltan.primerNombre = "Escribe el primer nombre."
+      if (!datos.primerApellido.trim()) faltan.primerApellido = "Escribe el primer apellido."
+      if (Object.keys(faltan).length > 0) {
+        setErroresDatos(faltan)
+        setError(`Al cambiar a ${datos.tipoDocumento} hay que escribir el nombre de la persona: falta ${Object.values(faltan).map((t) => t.replace("Escribe el ", "").replace(".", "")).join(" y ")}.`)
+        return
+      }
+    }
     if (
       documentoCambio &&
       !window.confirm(
@@ -441,7 +452,11 @@ function ContenidoTercero({
     )
       return
     setErroresDatos({})
-    void ejecutar(() => actualizarTercero(tercero.id, { ...datos, dv: dvCalculado }), "Datos guardados.")
+    void ejecutar(async () => {
+      const r = await actualizarTercero(tercero.id, { ...datos, dv: dvCalculado })
+      if (!r.ok) throw new Error(r.error)
+      return r.valor
+    }, "Datos guardados.")
   }
 
   const [eliminando, setEliminando] = useState(false)
@@ -451,7 +466,8 @@ function ContenidoTercero({
     setError(null)
     setAviso(null)
     try {
-      await eliminarTercero(tercero.id)
+      const r = await eliminarTercero(tercero.id)
+      if (!r.ok) throw new Error(r.error)
       onEliminado(tercero.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo eliminar el tercero.")

@@ -235,7 +235,22 @@ export async function crearTercero(
 // número y DV (decisión del usuario, 2026-11-24). Si cambia el documento (o el nombre o el
 // contacto), sus proveedores y contratistas toman el dato nuevo y quedan en revisión
 // (20270101006100). Un pago apunta al tercero: ve el documento nuevo.
-export async function actualizarTercero(id: string, crudo: DatosTercero): Promise<Tercero> {
+// En producción Next.js esconde el mensaje de un error lanzado por una acción (en pantalla
+// sale "React error #441"): estas dos lo DEVUELVEN para que se vea (2026-11-25).
+export type ResultadoAccion<T> = { ok: true; valor: T } | { ok: false; error: string }
+async function resultado<T>(f: () => Promise<T>): Promise<ResultadoAccion<T>> {
+  try {
+    return { ok: true, valor: await f() }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "No se pudo completar la acción." }
+  }
+}
+
+export async function actualizarTercero(id: string, crudo: DatosTercero): Promise<ResultadoAccion<Tercero>> {
+  return resultado(() => actualizarTerceroLanza(id, crudo))
+}
+
+async function actualizarTerceroLanza(id: string, crudo: DatosTercero): Promise<Tercero> {
   await requerirAccion("editar_terceros")
   const supabase = await createClient()
   const { data: actual, error: errActual } = await supabase
@@ -320,11 +335,14 @@ export async function actualizarTercero(id: string, crudo: DatosTercero): Promis
 
 // Eliminar un tercero (20270101006200): Financiera y el Administrador, solo si no se usa en
 // nada; si se usa, la base dice dónde. Queda en la Auditoría.
-export async function eliminarTercero(id: string): Promise<void> {
-  await requerirAccion("editar_terceros")
-  const supabase = await createClient()
-  const { error } = await supabase.rpc("eliminar_tercero", { p_id: id })
-  if (error) throw new Error(error.message)
+export async function eliminarTercero(id: string): Promise<ResultadoAccion<null>> {
+  return resultado(async () => {
+    await requerirAccion("editar_terceros")
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("eliminar_tercero", { p_id: id })
+    if (error) throw new Error(error.message)
+    return null
+  })
 }
 
 // Correo, teléfono, dirección y ciudad del tercero desde Contratistas o Proveedores
