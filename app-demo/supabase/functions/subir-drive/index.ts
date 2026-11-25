@@ -1,12 +1,14 @@
 // Función de Supabase "subir-drive" (20270101006800): toma la cola drive_cola y
-// copia cada archivo de Storage a la unidad compartida de Google Drive de CONYCA,
-// en carpetas por proyecto (Proyectos/001 - CODIGO/Contratos/CJ-001-0001/...).
+// copia cada archivo de Storage a Google Drive, dentro de la CARPETA RAÍZ de la copia
+// (la carpeta "CONYCA ERP" de la unidad compartida de CONYCA), en carpetas por
+// proyecto (Proyectos/001 - CODIGO/Contratos/CJ-001-0001/...).
 // La llama pg_cron cada minuto, solo si ajustes_drive.activo y hay algo por subir.
 // Se publica desde el panel de Supabase con "Verify JWT" apagado (como
 // enviar-correos): solo procesa la cola, no recibe datos.
 //
-// La cuenta de servicio entra a la unidad compartida como MIEMBRO (Administrador
-// de contenido): no hace falta delegación de dominio.
+// La carpeta raíz se comparte con la cuenta de servicio como "Administrador de
+// contenido" (solo esa carpeta, no toda la unidad): no hace falta delegación de
+// dominio. También sirve el id de una unidad compartida completa.
 //
 // Secretos (Supabase › Edge Functions › Secrets; nunca en el código):
 //   DRIVE_SA_JSON  llave JSON de la cuenta de servicio (si falta, usa GMAIL_SA_JSON,
@@ -14,7 +16,7 @@
 //   DRIVE_SUB      opcional: correo a nombre de quien sube (delegación de dominio);
 //                  sin él sube la cuenta de servicio misma
 // SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los pone Supabase solo.
-// El id de la unidad compartida va en la tabla ajustes_drive (unidad_id).
+// El id de la carpeta raíz va en la tabla ajustes_drive (unidad_id).
 
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 
@@ -71,10 +73,10 @@ class Drive {
 
   constructor(
     private token: string,
-    private unidad: string,
+    raiz: string,
     private sb: SupabaseClient
   ) {
-    this.cache.set("", unidad) // la raíz de la unidad compartida
+    this.cache.set("", raiz) // la carpeta raíz de la copia
   }
 
   private async pedir(url: string, init: RequestInit = {}): Promise<Response> {
@@ -100,8 +102,8 @@ class Drive {
     const busqueda = new URLSearchParams({
       q,
       fields: "files(id)",
-      corpora: "drive",
-      driveId: this.unidad,
+      // Buscar en todas las unidades: la raíz puede ser una carpeta dentro de una unidad compartida.
+      corpora: "allDrives",
       supportsAllDrives: "true",
       includeItemsFromAllDrives: "true",
       pageSize: "1",

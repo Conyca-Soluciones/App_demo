@@ -1371,10 +1371,13 @@ proyecto dentro de la app).
   `drive_carpetas` (clave `proyecto:<id>` para la del proyecto: cambiar el código del proyecto no crea otra).
 - Es copia, no espejo: cambiar o borrar un soporte en la app no toca Drive; sobreescribir la MISMA ruta sí
   actualiza el archivo en Drive.
-- Google: la cuenta de servicio de los correos (o `DRIVE_SA_JSON`) es MIEMBRO de la unidad compartida
-  (Administrador de contenido), con la API de Drive activada en su proyecto de Google Cloud; `DRIVE_SUB` solo
-  si se quiere subir a nombre de una persona (delegación de dominio). Se publica con "Verify JWT" apagado.
-- **Nace apagada.** Encender: `update ajustes_drive set unidad_id = '<id de la unidad>', activo = true;` y
+- Google: proyecto **CONYCA 360** de Google Cloud, API de Drive habilitada (2026-11-25). La copia va dentro de
+  la carpeta **CONYCA ERP** de la unidad compartida que ya tenía CONYCA (`ajustes_drive.unidad_id` = id de esa
+  carpeta; también serviría el de una unidad completa). Solo ESA carpeta se comparte con la cuenta de servicio
+  de los correos, `correos-360@conyca-360.iam.gserviceaccount.com` (o la de `DRIVE_SA_JSON`), como
+  Administrador de contenido: no ve el resto de la unidad. `DRIVE_SUB` solo si se quiere subir a nombre de una
+  persona (delegación de dominio). La función se publica con "Verify JWT" apagado.
+- **Nace apagada.** Encender: `update ajustes_drive set unidad_id = '<id de la carpeta CONYCA ERP>', activo = true;` y
   `select drive_encolar_existentes();` para copiar lo que ya había. Ver cómo va: `select estado, count(*) from
   drive_cola group by 1` (y `ultimo_error` de los que fallan).
 
