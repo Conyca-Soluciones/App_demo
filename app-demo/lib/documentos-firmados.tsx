@@ -22,6 +22,7 @@ import { OrdenCompraPDF } from "@/components/orden-compra-pdf"
 import { OtrosiPDF } from "@/components/otrosi-pdf"
 import type { MinutaOtrosi } from "@/lib/otrosi"
 import { pdfMinutaContrato } from "@/lib/pdf-minuta-contrato"
+import { cargarOrdenCompraDetalle } from "@/lib/ordenes-compra-detalle"
 
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,35 @@ export async function pdfOrdenCompra(supabase: Supabase, id: string): Promise<Pd
   if (orden.estado !== "aprobada") throw new Error("Solo se puede descargar el PDF de una orden ya aprobada.")
   const generar = async () => new Uint8Array(await renderToBuffer(<OrdenCompraPDF orden={orden} firmas={f.firmas} />))
   return { nombre: `${orden.codigo}.pdf`, ...(await firmadoOVivo("orden_compra", id, true, f, generar)) }
+}
+
+// Congela el PDF de una OC recién aprobada SIN la sesión del usuario (service
+// role), para que entre solo a la copia en Drive (20270101006800) aunque nadie
+// lo abra. Lo llama aprobarPago después de responder (after). Mismo archivo y
+// misma versión que pdfOrdenCompra: si ya está congelado no hace nada. Sin la
+// firma de quien aprobó no se congela (igual que al abrirlo).
+export async function congelarPdfOrdenCompra(id: string): Promise<void> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return
+  const admin = createAdminClient()
+  const orden = await cargarOrdenCompraDetalle(admin, id)
+  if (orden.estado !== "aprobada") return
+  const [{ data: firmas, error: errorFirmas }, { data: congelado, error: errorCongelado }] = await Promise.all([
+    admin
+      .from("documento_firmas")
+      .select("papel, nombre, cargo, imagen, codigo, firmado_at")
+      .eq("entidad", "orden_compra")
+      .eq("entidad_id", id)
+      .order("firmado_at"),
+    admin.from("documentos_firmados").select("ruta, sha256, created_at").eq("entidad", "orden_compra").eq("entidad_id", id).maybeSingle(),
+  ])
+  if (errorFirmas) throw new Error(errorFirmas.message)
+  if (errorCongelado) throw new Error(errorCongelado.message)
+  const f = mapFirmasDeDocumento({ firmas: firmas ?? [], congelado })
+  const principal = firmaPrincipal("orden_compra", f.firmas)
+  if (!principal) return
+  if (f.congelado?.ruta === `orden_compra/${id}-${principal.codigo}.pdf`) return
+  const generar = async () => new Uint8Array(await renderToBuffer(<OrdenCompraPDF orden={orden} firmas={f.firmas} />))
+  await pdfCongelado("orden_compra", id, principal.codigo, f.congelado, generar)
 }
 
 // ---------------------------------------------------------------- acta de aprobación de póliza

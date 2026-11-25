@@ -1351,6 +1351,45 @@ panel con "Verify JWT" apagado; `GMAIL_SA_JSON`, `GMAIL_USUARIO`, `GMAIL_REMITEN
   8:00) de 002300 se quitaron en `20270101002700_quitar_resumenes_correo.sql`. Por correo solo salen
   avisos puntuales. `perfiles.correo_resumen` queda sin uso.
 
+## Copia de los archivos en Google Drive (2026-11-25)
+
+`20270101006800_copia_drive.sql` (reversa en `supabase/reversa/`) y la función de Supabase **`subir-drive`**
+(`supabase/functions/subir-drive/index.ts`). Decisiones del usuario: Drive es una COPIA (Supabase sigue
+siendo donde vive cada archivo; si Drive falla la app no cambia), en una UNIDAD COMPARTIDA de CONYCA, por
+proyecto, al momento (cola). Sin pestaña en la app por ahora (la idea es mostrar después la carpeta del
+proyecto dentro de la app).
+- `trg_drive_encolar` (AFTER INSERT/UPDATE en `storage.objects`) mete cada archivo nuevo o sobreescrito en
+  `drive_cola` (nunca hace fallar una subida). `_drive_destino(bucket, ruta)` lo ubica por la tabla donde la
+  app lo registró: `Proyectos/<001 - CODIGO>/Contratos/<CJ>/` (documentos, firmado, Pólizas, Otrosí N° n,
+  `Actas/<año> - Semana NN/Acta NN/`), `Órdenes de compra/<año> - Semana NN/<PROVEEDOR>/<OC>/` (soportes,
+  Facturas, Entradas, PDF firmado), `Requisiciones/<año> - Semana NN/<RQ>/`, `Pagos administrativos/<año> -
+  Semana NN/<PA>/`, `SINCO/Cuadro n/`. La semana (`20270101006900`, decisión del usuario) es la ISO en que se
+  CREÓ el registro, en hora de Colombia (`_drive_semana`): una factura que llega después queda en la carpeta de
+  su OC. Sin proyecto: `Terceros/<NOMBRE - documento>/` con TODOS los documentos del tercero (RUT,
+  certificaciones bancarias y los del contratista: cédula, cámara de comercio...), `Pagos/Dispersores/<año> -
+  Semana NN/` y `Pagos/PSE y otros medios/<año> - Semana NN/` (semana del pago), `Balances/`. Lo que
+  no se ubica en 24 h va a `Otros/<bucket>/` (el navegador sube antes de registrar: se reintenta cada 15 min).
+  Un bucket nuevo: agregar su rama en `_drive_destino`.
+- pg_cron `subir-drive` cada minuto llama la función solo si `ajustes_drive.activo` y hay algo por subir;
+  `tomar_drive` / `marcar_drive` (solo service_role), hasta 5 intentos. Carpetas ya creadas en
+  `drive_carpetas` (clave `proyecto:<id>` para la del proyecto: cambiar el código del proyecto no crea otra).
+- Es copia, no espejo: cambiar o borrar un soporte en la app no toca Drive; sobreescribir la MISMA ruta sí
+  actualiza el archivo en Drive.
+- **PDF de la OC**: antes solo se congelaba (y llegaba a Drive) cuando alguien lo abría. Ahora `aprobarPago`
+  (Aprobación de pagos), si el pago es de una OC, llama `congelarPdfOrdenCompra` con `after()`: lo genera con
+  la service role (`cargarOrdenCompraDetalle`, `lib/ordenes-compra-detalle.ts`, la misma lectura de
+  `obtenerOrdenCompraDetalle` con el cliente que se le pase), para que no salga incompleto cuando quien aprueba
+  no ve el proyecto (A&F). Mismo archivo y versión que al abrirlo; sin la firma de quien aprobó no se congela.
+- Google: proyecto **CONYCA 360** de Google Cloud, API de Drive habilitada (2026-11-25). La copia va dentro de
+  la carpeta **CONYCA ERP** de la unidad compartida que ya tenía CONYCA (`ajustes_drive.unidad_id` = id de esa
+  carpeta; también serviría el de una unidad completa). Solo ESA carpeta se comparte con la cuenta de servicio
+  de los correos, `correos-360@conyca-360.iam.gserviceaccount.com` (o la de `DRIVE_SA_JSON`), como
+  Administrador de contenido: no ve el resto de la unidad. `DRIVE_SUB` solo si se quiere subir a nombre de una
+  persona (delegación de dominio). La función se publica con "Verify JWT" apagado.
+- **Nace apagada.** Encender: `update ajustes_drive set unidad_id = '<id de la carpeta CONYCA ERP>', activo = true;` y
+  `select drive_encolar_existentes();` para copiar lo que ya había. Ver cómo va: `select estado, count(*) from
+  drive_cola group by 1` (y `ultimo_error` de los que fallan).
+
 ## Cuadros de SINCO (2026-11-13, temporal)
 
 `20270101002800_cuadros_sinco.sql` (reversa en `supabase/reversa/`). Decisiones del usuario: los
@@ -5029,6 +5068,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
+`20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
+`20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
