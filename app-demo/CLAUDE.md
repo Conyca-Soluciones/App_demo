@@ -1375,6 +1375,14 @@ proyecto dentro de la app).
   `drive_carpetas` (clave `proyecto:<id>` para la del proyecto: cambiar el código del proyecto no crea otra).
 - Es copia, no espejo: cambiar o borrar un soporte en la app no toca Drive; sobreescribir la MISMA ruta sí
   actualiza el archivo en Drive.
+- **Requisiciones: Excel semanal, sin anexos** (`20270101007000`, decisión del usuario): los anexos de las
+  requisiciones ya no se copian (el disparador salta el bucket `requisiciones`). Cada lunes 00:30 (Colombia),
+  pg_cron `informe-requisiciones-drive` llama `subir-drive` con `{"informe": "requisiciones"}` y la función arma
+  UN Excel por proyecto con las requisiciones CREADAS la semana anterior (`requisiciones_semana_drive(lunes)`,
+  solo service_role): una fila por insumo, columnas del Excel del Registro (cantidad en unidad de compra) más
+  Anexos (enlace fijo de la app). Va en `Proyectos/<proyecto>/Requisiciones/<año> - Semana NN/Requisiciones
+  <año> - Semana NN.xlsx`; `{"lunes": "AAAA-MM-DD"}` genera otra semana y volver a generarla reemplaza el
+  archivo (`drive_informes`). El estado es el del momento en que se genera.
 - **PDF de la OC**: antes solo se congelaba (y llegaba a Drive) cuando alguien lo abría. Ahora `aprobarPago`
   (Aprobación de pagos), si el pago es de una OC, llama `congelarPdfOrdenCompra` con `after()`: lo genera con
   la service role (`cargarOrdenCompraDetalle`, `lib/ordenes-compra-detalle.ts`, la misma lectura de
@@ -5070,6 +5078,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
+`20270101007000` Drive: Excel semanal de requisiciones por proyecto; los anexos de requisiciones ya no se copian.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
