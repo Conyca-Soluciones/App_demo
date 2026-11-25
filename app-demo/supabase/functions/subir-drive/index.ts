@@ -17,6 +17,12 @@
 //                  sin él sube la cuenta de servicio misma
 // SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los pone Supabase solo.
 // El id de la carpeta raíz va en la tabla ajustes_drive (unidad_id).
+//
+// Con el cuerpo {"informe": "requisiciones"} (pg_cron, lunes 00:30 en Colombia;
+// 20270101007000) en vez de la cola arma el Excel semanal de requisiciones de cada
+// proyecto (las creadas la semana anterior) y lo sube a
+// Proyectos/<proyecto>/Requisiciones/<año> - Semana NN/. {"lunes": "AAAA-MM-DD"}
+// genera otra semana; volver a generarla reemplaza el archivo.
 
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2"
 
@@ -179,12 +185,174 @@ class Drive {
 
 const mensaje = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-Deno.serve(async () => {
+// ------------------------------------------------------------------ Excel semanal de requisiciones
+
+type FilaRequisicion = {
+  id: string
+  codigo: string
+  solicitado_por: string
+  insumo_codigo: number | null
+  insumo: string
+  unidad: string
+  cantidad: number
+  fecha_requisicion: string
+  fecha_requerida: string | null
+  fecha_estimada: string | null
+  estado: string
+  estado_compra: string | null
+  tipo: string
+  anexos: number
+}
+type SemanaRequisiciones = {
+  lunes: string
+  semana: string
+  url_app: string | null
+  proyectos: { proyecto_id: string; destino: Destino; filas: FilaRequisicion[] }[]
+}
+
+const ESTADO: Record<string, string> = { pendiente: "Pendiente", aprobada: "Aprobada", rechazada: "Rechazada", cancelada: "Cancelada" }
+const COMPRA: Record<string, string> = {
+  completa: "Completa",
+  parcial: "Compra parcial",
+  pendiente: "Pendiente",
+  rechazada_compras: "Rechazada por Compras",
+}
+const AZUL = "FF4070A1"
+const COLUMNAS = [
+  { titulo: "Requisición", ancho: 15 },
+  { titulo: "Solicitado por", ancho: 24 },
+  { titulo: "Insumo solicitado", ancho: 48 },
+  { titulo: "Unidad", ancho: 14 },
+  { titulo: "Cantidad solicitada", ancho: 14 },
+  { titulo: "Fecha de requisición", ancho: 14 },
+  { titulo: "Fecha requerida", ancho: 14 },
+  { titulo: "Fecha estimada de entrega", ancho: 14 },
+  { titulo: "Estado", ancho: 12 },
+  { titulo: "Estado de la compra", ancho: 20 },
+  { titulo: "Tipo", ancho: 16 },
+  { titulo: "Anexos", ancho: 16 },
+]
+
+// "AAAA-MM-DD" -> fecha de Excel a medianoche UTC (Excel no tiene zona horaria).
+const fechaExcel = (ymd: string | null) => {
+  if (!ymd) return null
+  const [a, m, d] = ymd.split("-").map(Number)
+  return new Date(Date.UTC(a, m - 1, d))
+}
+const ddmmaaaa = (ymd: string) => ymd.split("-").reverse().join("/")
+const sumarDias = (ymd: string, n: number) => {
+  const f = fechaExcel(ymd)!
+  f.setUTCDate(f.getUTCDate() + n)
+  return f.toISOString().slice(0, 10)
+}
+
+// Lunes de la semana anterior, en hora de Colombia (UTC-5 todo el año).
+function lunesSemanaAnterior(): string {
+  const hoy = new Date(Date.now() - 5 * 3600 * 1000)
+  const dia = hoy.getUTCDay() || 7 // 1 = lunes ... 7 = domingo
+  hoy.setUTCDate(hoy.getUTCDate() - (dia - 1) - 7)
+  return hoy.toISOString().slice(0, 10)
+}
+
+async function excelRequisiciones(s: SemanaRequisiciones, p: SemanaRequisiciones["proyectos"][number]): Promise<Blob> {
+  const ExcelJS = (await import("npm:exceljs@4.4.0")).default
+  const libro = new ExcelJS.Workbook()
+  const hoja = libro.addWorksheet("Requisiciones")
+  const n = COLUMNAS.length
+  COLUMNAS.forEach((c, i) => (hoja.getColumn(i + 1).width = c.ancho))
+
+  hoja.mergeCells(1, 1, 1, n)
+  const titulo = hoja.getCell(1, 1)
+  titulo.value = `Requisiciones · ${p.destino.proyecto_nombre ?? ""} · ${s.semana}`
+  titulo.font = { bold: true, size: 14, color: { argb: AZUL } }
+  hoja.mergeCells(2, 1, 2, n)
+  hoja.getCell(2, 1).value =
+    `Requisiciones creadas del ${ddmmaaaa(s.lunes)} al ${ddmmaaaa(sumarDias(s.lunes, 6))}, con su estado al generar este archivo. ` +
+    "Cantidades en la unidad de compra."
+  hoja.getCell(2, 1).font = { italic: true, color: { argb: "FF555555" } }
+
+  const encabezado = hoja.getRow(4)
+  COLUMNAS.forEach((c, i) => {
+    const celda = encabezado.getCell(i + 1)
+    celda.value = c.titulo
+    celda.font = { bold: true, color: { argb: "FFFFFFFF" } }
+    celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } }
+    celda.alignment = { vertical: "middle", horizontal: "center", wrapText: true }
+  })
+  encabezado.height = 30
+
+  p.filas.forEach((f, i) => {
+    const fila = hoja.getRow(5 + i)
+    const valores = [
+      f.codigo,
+      f.solicitado_por,
+      f.insumo_codigo != null ? `${f.insumo_codigo} - ${f.insumo}` : f.insumo,
+      f.unidad,
+      Number(f.cantidad),
+      fechaExcel(f.fecha_requisicion),
+      fechaExcel(f.fecha_requerida),
+      fechaExcel(f.fecha_estimada),
+      ESTADO[f.estado] ?? f.estado,
+      f.estado_compra ? (COMPRA[f.estado_compra] ?? f.estado_compra) : "",
+      f.tipo,
+    ]
+    valores.forEach((v, k) => (fila.getCell(k + 1).value = v))
+    fila.getCell(5).numFmt = Number.isInteger(Number(f.cantidad)) ? "#,##0" : "#,##0.##"
+    const anexos = fila.getCell(12)
+    if (f.anexos > 0 && s.url_app) {
+      anexos.value = { text: `Ver anexos (${f.anexos})`, hyperlink: `${s.url_app}/almacen/comprar-pedidos/anexos/${f.id}` }
+      anexos.font = { color: { argb: "FF0563C1" }, underline: true }
+    } else {
+      anexos.value = f.anexos > 0 ? f.anexos : ""
+    }
+  })
+  for (const c of [6, 7, 8]) hoja.getColumn(c).numFmt = "dd/mm/yyyy"
+  hoja.views = [{ state: "frozen", ySplit: 4 }]
+  hoja.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + Math.max(p.filas.length, 1), column: n } }
+
+  const buffer = await libro.xlsx.writeBuffer()
+  return new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+}
+
+async function informeRequisiciones(sb: SupabaseClient, raiz: string, lunesPedido: unknown): Promise<Response> {
+  const lunes = typeof lunesPedido === "string" && /^\d{4}-\d{2}-\d{2}$/.test(lunesPedido) ? lunesPedido : lunesSemanaAnterior()
+  const { data, error } = await sb.rpc("requisiciones_semana_drive", { p_lunes: lunes })
+  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+  const semana = data as SemanaRequisiciones
+  if (semana.proyectos.length === 0) return new Response(JSON.stringify({ informe: "requisiciones", semana: semana.semana, archivos: 0 }))
+
+  const drive = new Drive(await tokenGoogle(), raiz, sb)
+  const resultado: { proyecto: string | null; filas: number; error?: string }[] = []
+  for (const p of semana.proyectos) {
+    try {
+      const clave = `requisiciones:${p.proyecto_id}:${semana.lunes}`
+      const { data: previo } = await sb.from("drive_informes").select("drive_file_id").eq("clave", clave).maybeSingle()
+      const carpeta = await drive.carpetaDestino(p.destino)
+      const id = await drive.subir(await excelRequisiciones(semana, p), p.destino.nombre ?? "Requisiciones.xlsx", carpeta, previo?.drive_file_id ?? null)
+      await sb.from("drive_informes").upsert({ clave, drive_file_id: id, actualizado_en: new Date().toISOString() }, { onConflict: "clave" })
+      resultado.push({ proyecto: p.destino.proyecto_nombre, filas: p.filas.length })
+    } catch (e) {
+      resultado.push({ proyecto: p.destino.proyecto_nombre, filas: p.filas.length, error: mensaje(e) })
+    }
+  }
+  return new Response(JSON.stringify({ informe: "requisiciones", semana: semana.semana, archivos: resultado }))
+}
+
+Deno.serve(async (req: Request) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!)
 
   const { data: ajustes, error: errorAjustes } = await sb.from("ajustes_drive").select("activo, unidad_id").eq("id", true).maybeSingle()
   if (errorAjustes) return new Response(JSON.stringify({ error: errorAjustes.message }), { status: 500 })
   if (!ajustes?.activo || !ajustes.unidad_id) return new Response(JSON.stringify({ subidos: 0, motivo: "apagada" }))
+
+  const cuerpo = await req.json().catch(() => ({}))
+  if (cuerpo?.informe === "requisiciones") {
+    try {
+      return await informeRequisiciones(sb, ajustes.unidad_id, cuerpo.lunes)
+    } catch (e) {
+      return new Response(JSON.stringify({ error: mensaje(e) }), { status: 500 })
+    }
+  }
 
   const { data, error } = await sb.rpc("tomar_drive", { p_limite: 10 })
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 })
