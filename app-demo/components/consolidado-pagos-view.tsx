@@ -906,31 +906,31 @@ export function ConsolidadoPagosView({
                   Liquidar sin retenciones{seleccion.size > 0 ? ` (${seleccion.size})` : ""}
                 </Button>
               )}
-              <div className="ml-auto flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={descargarExcel}>
-                  {ocupado === "excel" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-                  Descargar Excel de liquidación
-                </Button>
-                {puedeLiquidar && (
-                  <>
-                    <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={() => archivoRef.current?.click()}>
-                      {ocupado === "subir" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
-                      Subir Excel liquidado
-                    </Button>
-                    <input
-                      ref={archivoRef}
-                      type="file"
-                      accept=".xlsx"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0]
-                        e.target.value = ""
-                        if (f) subirExcel(f)
-                      }}
-                    />
-                  </>
-                )}
-              </div>
+              {/* Excel de liquidación: solo Contabilidad (liquidar_pagos) y solo en Por liquidar y
+                  Observados (decisión del usuario, 2026-11-25). */}
+              {enLiquidacion && puedeLiquidar && (
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={descargarExcel}>
+                    {ocupado === "excel" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                    Descargar Excel de liquidación
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={ocupado !== null} onClick={() => archivoRef.current?.click()}>
+                    {ocupado === "subir" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
+                    Subir Excel liquidado
+                  </Button>
+                  <input
+                    ref={archivoRef}
+                    type="file"
+                    accept=".xlsx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      e.target.value = ""
+                      if (f) subirExcel(f)
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
