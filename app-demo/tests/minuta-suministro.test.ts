@@ -200,3 +200,40 @@ describe("datos nuevos de la solicitud y del contratista", () => {
     expect(m.contratistaCedulaExpedida).toBe("Cúcuta")
   })
 })
+
+describe("contrato a valor global con lista de ítems (20270101006500)", () => {
+  it("la tabla lista los ítems (vacío donde no hay cantidad o precio) y el total es el valor global", () => {
+    const m = minutaSuministroPorDefecto(
+      detalle({
+        anexoTipo: "valor_global",
+        items: [],
+        itemsGlobales: [
+          { descripcion: "ACPM", unidad: "gal", cantidad: null, valorUnitario: null },
+          { descripcion: "Resma de papel", unidad: null, cantidad: 20, valorUnitario: 18_500 },
+        ],
+      }),
+      extra,
+      "2026-11-25"
+    )
+    expect(m.items).toEqual([
+      { actividad: "ACPM", unidad: "gal", cantidad: "", valorUnitario: "" },
+      { actividad: "Resma de papel", unidad: "", cantidad: "20", valorUnitario: "18.500" },
+    ])
+    expect(m.totalEsValorGlobal).toBe(true)
+    expect(m.valor).toBe("10.000.000")
+  })
+
+  it("sin lista sigue la línea GL; valores unitarios suman la tabla", () => {
+    const global = minutaSuministroPorDefecto(detalle({ anexoTipo: "valor_global", items: [] }), extra, "2026-11-25")
+    expect(global.items).toHaveLength(1)
+    expect(global.totalEsValorGlobal).toBe(true)
+    expect(minutaSuministroPorDefecto(detalle(), extra, "2026-11-25").totalEsValorGlobal).toBe(false)
+  })
+
+  it("una minuta guardada sin el dato toma el de la solicitud", () => {
+    const defecto = minutaSuministroPorDefecto(detalle({ anexoTipo: "valor_global", items: [] }), extra, "2026-11-25")
+    expect(mezclarMinutaSuministro(defecto, { objeto: "Otro" }).totalEsValorGlobal).toBe(true)
+    expect(mezclarMinutaSuministro(defecto, { totalEsValorGlobal: false }).totalEsValorGlobal).toBe(false)
+    expect(mezclarMinutaSuministro(defecto, { totalEsValorGlobal: "si" }).totalEsValorGlobal).toBe(true)
+  })
+})

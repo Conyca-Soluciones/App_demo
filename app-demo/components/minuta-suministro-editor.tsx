@@ -274,7 +274,9 @@ export function MinutaSuministroEditor({ detalle, puedeEditar }: { detalle: Soli
             etiqueta="Detalle"
           />
           <p className="text-xs text-muted-foreground">
-            Cambiar la tabla aquí solo cambia el documento; las cantidades reservadas del presupuesto siguen siendo las de la solicitud.
+            {m.totalEsValorGlobal
+              ? "Contrato a valor global: la tabla es la lista de lo que se puede usar (cantidad y precio pueden ir vacíos) y el total del PDF es el valor del contrato."
+              : "Cambiar la tabla aquí solo cambia el documento; las cantidades reservadas del presupuesto siguen siendo las de la solicitud."}
           </p>
         </Seccion>
 
@@ -284,10 +286,12 @@ export function MinutaSuministroEditor({ detalle, puedeEditar }: { detalle: Soli
               ayuda:
                 valorNumero === null
                   ? "Escribe el valor en pesos, por ejemplo 1.500.000."
-                  : `${pesos(valorNumero)}${Math.abs(valorNumero - totalItems) >= 0.01 ? ` · la tabla suma ${pesos(totalItems)}` : " · igual al total de la tabla"}`,
+                  : m.totalEsValorGlobal
+                    ? `${pesos(valorNumero)} · valor global: es el total de la tabla en el PDF`
+                    : `${pesos(valorNumero)}${Math.abs(valorNumero - totalItems) >= 0.01 ? ` · la tabla suma ${pesos(totalItems)}` : " · igual al total de la tabla"}`,
             })}
             <div className="flex items-end">
-              {editable && valorNumero !== totalItems && totalItems > 0 && (
+              {editable && !m.totalEsValorGlobal && valorNumero !== totalItems && totalItems > 0 && (
                 <Button type="button" size="sm" variant="outline" disabled={guardando} onClick={() => cambiarValor(formatoValor.format(totalItems))}>
                   Usar el total de la tabla
                 </Button>

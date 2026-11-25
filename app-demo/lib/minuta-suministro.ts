@@ -54,6 +54,10 @@ export type MinutaSuministro = {
   objeto: string
   obra: string
   items: ItemAnexoMinuta[]
+  // Contrato a valor global (20270101006500): la tabla es la lista de lo que se
+  // puede usar y el TOTAL es el valor global, no la suma de la tabla. Sin dato
+  // (minutas guardadas antes) = lo de la solicitud.
+  totalEsValorGlobal: boolean
   // Segunda: valor y forma de pago
   valor: string
   valorLetras: string
@@ -177,8 +181,16 @@ export function minutaSuministroPorDefecto(d: SolicitudContratoDetalle, extra: D
     .filter(Boolean)
     .join(" ")
 
+  const itemsGlobales = d.anexoTipo === "valor_global" ? (d.itemsGlobales ?? []) : []
   const items: ItemAnexoMinuta[] =
-    d.items.length > 0
+    itemsGlobales.length > 0
+      ? itemsGlobales.map((it) => ({
+          actividad: it.descripcion,
+          unidad: it.unidad ?? "",
+          cantidad: it.cantidad !== null ? numeroTexto(it.cantidad) : "",
+          valorUnitario: it.valorUnitario !== null ? numeroTexto(it.valorUnitario) : "",
+        }))
+      : d.items.length > 0
       ? d.items.map((it) => ({
           actividad: [it.codigo, it.actividad].filter(Boolean).join(" "),
           unidad: it.unidad,
@@ -208,6 +220,7 @@ export function minutaSuministroPorDefecto(d: SolicitudContratoDetalle, extra: D
     objeto: sinPuntoFinal(d.objeto),
     obra: d.proyectoNombre ?? "",
     items,
+    totalEsValorGlobal: d.anexoTipo === "valor_global",
     valor: numeroTexto(d.valor),
     valorLetras: valorEnLetras(d.valor),
     formaPago,
@@ -245,6 +258,7 @@ export function minutaSuministroVacia(): MinutaSuministro {
     objeto: "",
     obra: "",
     items: [],
+    totalEsValorGlobal: false,
     valor: "",
     valorLetras: "",
     formaPago: "",
@@ -290,6 +304,8 @@ export function mezclarMinutaSuministro(defecto: MinutaSuministro, guardada: unk
       if (l) r.clausulasAdicionales = l.map((x) => ({ titulo: String(x.titulo ?? ""), texto: String(x.texto ?? "") }))
     } else if (Array.isArray(base)) {
       if (Array.isArray(valor)) r[clave] = valor.map((x) => String(x ?? ""))
+    } else if (clave === "totalEsValorGlobal") {
+      if (typeof valor === "boolean") r[clave] = valor
     } else if (clave === "contratistaTipoPersona") {
       if (valor === "natural" || valor === "juridica") r[clave] = valor
     } else if (clave === "contratistaTipoDocumento") {
