@@ -201,7 +201,7 @@ describe("datos nuevos de la solicitud y del contratista", () => {
   })
 })
 
-describe("contrato a valor global con lista de ítems (20270101006600)", () => {
+describe("contrato a valor global con lista de ítems (20270101006700)", () => {
   it("la tabla lista los ítems (vacío donde no hay cantidad o precio) y el total es el valor global", () => {
     const m = minutaSuministroPorDefecto(
       detalle({

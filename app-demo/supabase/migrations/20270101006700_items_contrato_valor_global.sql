@@ -20,7 +20,7 @@
 --
 -- Se creó y se aplicó en Supabase (2026-11-25) con el número 20270101006500, que
 -- también usa otra migración de ese día (terceros_nombres_primero); se renombró a
--- 006600. El comentario de la tabla y el texto que el parche deja en
+-- 006600, que también quedó repetido (pestana_informes_pagos), y luego a 006700. El comentario de la tabla y el texto que el parche deja en
 -- _guardar_solicitud_contrato siguen diciendo "(20270101006500)": así quedaron en
 -- la base y la reversa los busca tal cual. No cambiarlos.
 
