@@ -1,6 +1,8 @@
 "use server"
 
+import { after } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { congelarPdfOrdenCompra } from "@/lib/documentos-firmados"
 import { obtenerPermisosRol, requerirAccion, requerirPestana } from "@/lib/permisos"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { CAMPOS_PAGO, CAMPOS_PAGO_TERCERO_INNER, conProyectos, mapPago } from "@/lib/pagos-db"
@@ -60,7 +62,20 @@ export async function aprobarPago(pagoId: string): Promise<Pago> {
   const supabase = await createClient()
   const { error } = await supabase.rpc("aprobar_pago", { p_pago_id: pagoId })
   if (error) throw new Error(error.message)
-  return await obtenerPago(pagoId)
+  const pago = await obtenerPago(pagoId)
+  // Pago de una OC: la orden queda aprobada y su PDF firmado se congela de una
+  // vez (después de responder), así entra solo a la copia en Drive.
+  const ordenId = pago.ordenCompraId
+  if (ordenId) {
+    after(async () => {
+      try {
+        await congelarPdfOrdenCompra(ordenId)
+      } catch (e) {
+        console.error(`No se pudo congelar el PDF de la OC ${ordenId}:`, e instanceof Error ? e.message : e)
+      }
+    })
+  }
+  return pago
 }
 
 // Pago de un acta: aprobar todo (valor null) o un AVANCE (valor menor; lo que

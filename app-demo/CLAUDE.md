@@ -1375,6 +1375,11 @@ proyecto dentro de la app).
   `drive_carpetas` (clave `proyecto:<id>` para la del proyecto: cambiar el código del proyecto no crea otra).
 - Es copia, no espejo: cambiar o borrar un soporte en la app no toca Drive; sobreescribir la MISMA ruta sí
   actualiza el archivo en Drive.
+- **PDF de la OC**: antes solo se congelaba (y llegaba a Drive) cuando alguien lo abría. Ahora `aprobarPago`
+  (Aprobación de pagos), si el pago es de una OC, llama `congelarPdfOrdenCompra` con `after()`: lo genera con
+  la service role (`cargarOrdenCompraDetalle`, `lib/ordenes-compra-detalle.ts`, la misma lectura de
+  `obtenerOrdenCompraDetalle` con el cliente que se le pase), para que no salga incompleto cuando quien aprueba
+  no ve el proyecto (A&F). Mismo archivo y versión que al abrirlo; sin la firma de quien aprobó no se congela.
 - Google: proyecto **CONYCA 360** de Google Cloud, API de Drive habilitada (2026-11-25). La copia va dentro de
   la carpeta **CONYCA ERP** de la unidad compartida que ya tenía CONYCA (`ajustes_drive.unidad_id` = id de esa
   carpeta; también serviría el de una unidad completa). Solo ESA carpeta se comparte con la cuenta de servicio
