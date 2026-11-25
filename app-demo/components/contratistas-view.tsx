@@ -79,7 +79,7 @@ const fechaCreacion = (iso: string) =>
 // Página
 // ---------------------------------------------------------------------------
 
-export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
+export function ContratistasView({ puedeCrear, revisar = null }: { puedeCrear: boolean; revisar?: string | null }) {
   // Una página (50) a la vez, filtrada y ordenada en la base: la lista va a
   // crecer mucho. null = todavía no se consultó: no se trae nada hasta
   // presionar Consultar (los filtros por omisión consultan todos).
@@ -103,9 +103,7 @@ export function ContratistasView({ puedeCrear }: { puedeCrear: boolean }) {
   const [consulta, setConsulta] = useState<{ filtros: FiltrosContratistas; pagina: number; orden: OrdenExcel; vez: number } | null>(null)
 
   // ?revisar=<id>: viene de Mis pendientes (su tercero cambió); abre ese contratista.
-  const [revisarPedido] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("revisar")
-  )
+  const [revisarPedido] = useState<string | null>(revisar)
   useEffect(() => {
     if (!revisarPedido) return
     let activo = true

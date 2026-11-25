@@ -70,7 +70,7 @@ export function AvisoRevisionTercero({
       <p className="flex items-start gap-2 font-medium">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         En revisión: Financiera cambió su tercero{revision.pedidaPor ? ` (${revision.pedidaPor})` : ""} el{" "}
-        {formatearFechaHora(revision.desde)}.
+        {formatearFechaHora(revision.desde).replace(/\.$/, "")}.
       </p>
       <p className="text-xs">
         Verifica los datos del {nombre}. Mientras no se marque como revisado no se le hacen{" "}

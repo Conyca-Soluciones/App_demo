@@ -452,7 +452,15 @@ function NuevoProveedorDialog({
 // Página
 // ---------------------------------------------------------------------------
 
-export function ProveedoresView({ puedeEditar, puedeRevisar = false }: { puedeEditar: boolean; puedeRevisar?: boolean }) {
+export function ProveedoresView({
+  puedeEditar,
+  puedeRevisar = false,
+  revisar = null,
+}: {
+  puedeEditar: boolean
+  puedeRevisar?: boolean
+  revisar?: string | null
+}) {
   const [proveedores, setProveedores] = useState<Proveedor[] | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState("")
@@ -468,9 +476,7 @@ export function ProveedoresView({ puedeEditar, puedeRevisar = false }: { puedeEd
   // Ventana del proveedor (doble clic): datos fijos; con "Editar", los mismos
   // campos se vuelven editables (se guarda cada uno al salir, como antes).
   // ?revisar=<id> (viene de Mis pendientes, su tercero cambió): abre ese proveedor.
-  const [viendoId, setViendoId] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("revisar")
-  )
+  const [viendoId, setViendoId] = useState<string | null>(revisar)
   const [editandoVentana, setEditandoVentana] = useState(false)
 
   useEffect(() => {
