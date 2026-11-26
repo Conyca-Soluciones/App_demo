@@ -1516,6 +1516,8 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   `separarFilasDeGastos` las guarda con `liquidar_gastos_caja_menor` (un llamado por reembolso), los comentarios de
   esas filas van como observación del pago, y un reembolso ya liquidado sin cambios cuenta "sin cambios"
   (`mismaLiquidacionDeGastos`).
+  **Checkbox + «Liquidar sin retenciones»** también sirve para el reembolso: sus gastos sin liquidar pasan sin
+  retenciones (`filasSinRetenciones`; los ya liquidados se dejan) y, con todos, el reembolso queda liquidado.
 - **Soporte del reembolso** (2026-11-26, decisiones del usuario): un solo PDF con la relación de gastos, las firmas
   registradas del responsable, de quien revisó en Financiera y de quien aprueba (`firmas_caja_menor`,
   `20270101007700`; sin firma sale el nombre y "Sin firma registrada") y, después, el soporte de cada gasto en el orden
