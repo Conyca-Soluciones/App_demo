@@ -852,7 +852,10 @@ Detalle completo en `REPORTE-cambios-y-rendimiento.md`. Lo no obvio:
   `terceros_rut_select` llamaba a `_puede_ver_rut` sin ese permiso y, como las
   políticas de lectura de Storage se juntan para todos los buckets, abrir una
   póliza fallaba con "permission denied for function _puede_ver_rut"
-  (arreglado en `20270101001500`).
+  (arreglado en `20270101001500`). Pasó otra vez el 2026-11-26: `terceros_cuentas_select` empezó a
+  llamar a `_puede_revisar_cuentas` y Terceros dejó de abrir (arreglado en `20270101007300`). Antes de
+  aplicar una política nueva, revisar `has_function_privilege('authenticated', '<función>', 'execute')`
+  de cada función que llame.
 - Permisos fallan CERRADO: si `permisos_rol_usuario` falla, el middleware
   niega el acceso (solo rutas libres) y no lo guarda en su caché de 30 s.
 - Middleware usa `getClaims()` (JWT ES256 validado localmente), no
@@ -5122,6 +5125,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101007000` Drive: Excel semanal de requisiciones por proyecto; los anexos de requisiciones ya no se copian.
 `20270101007100` documentos del contratista desde el detalle (reemplazar, agregar, quitar opcionales) y certificación bancaria solo en Terceros.
 `20270101007200` Terceros para todos (cuentas enmascaradas fuera de A&F) y acción para cambiar RUT y certificación bancaria.
+`20270101007300` permiso de ejecución de `_puede_revisar_cuentas` (lo usa la política de cuentas de terceros).
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 
