@@ -2168,6 +2168,22 @@ contratistas con `tercero_id` (hecho), 3) proveedores con `tercero_id` (hecho), 
   `eliminar_tercero`, `editar_terceros`): solo si no se usa en pagos, proveedor, contratista, OC, contratos, actas,
   otrosí ni pagos administrativos (si no, dice dónde); borra sus cuentas, deja los archivos en el bucket y queda en
   la Auditoría ("Tercero borrado").
+- **Terceros para todos; RUT y certificación los cambia más gente** (`20270101007200`, reversa en
+  `supabase/reversa/`, decisiones del usuario 2026-11-26). La pestaña `ayf.terceros` la tienen todos los
+  roles. Las cuentas completas solo las lee A&F (`terceros_cuentas_select` = editar o verificar terceros,
+  Aprobación de pagos o algún consolidado); los demás las ven ENMASCARADAS con
+  `cuentas_terceros_enmascaradas` (`listarTerceros` / `obtenerTercero` lo deciden en el servidor,
+  `Tercero.cuentasCompletas`) y sin los filtros por cuenta. Acción **`cambiar_documentos_terceros`**
+  ("Cambiar RUT y certificación bancaria"; Compras, Líder Compras, Área Técnica, Líder Técnico, Director de
+  obra y Financiera): en la ficha del tercero, "Certificación" / "Cambiar certificación" en cada cuenta
+  (`components/certificacion-cuenta.tsx`, `guardar_certificacion_cuenta`) y "Cambiar RUT" (`RutTercero`,
+  `guardar_rut_tercero`). Una certificación nueva en una cuenta ACTIVA la deja PENDIENTE (sale en Cuentas
+  por verificar y sus pagos quedan con novedad) salvo que la suba quien verifica. Un RUT nuevo subido por
+  alguien que no es de A&F queda `terceros.rut_por_revisar`: Mis pendientes `rut_por_revisar` a quien
+  verifica (enlace `/ayf/terceros?tercero=<id>`) y botón "Revisado" (`marcar_rut_revisado`); no bloquea las
+  cuentas. El archivo anterior se queda en el bucket. Jurídica (con `ver_datos_bancarios`) ve la
+  certificación vigente de la cuenta en la solicitud de contrato (`CertificacionesContratista`,
+  `components/certificaciones-contratista.tsx`, también en el detalle del contratista), con su estado.
 - **Crear es para todos, editar solo A&F** (`20261221000000_terceros_crear_para_todos.sql`):
   `crear_tercero(p_datos, p_cuenta)` (SECURITY DEFINER, cualquier sesión) valida
   lo mismo que `validarTercero` / `validarCuenta`, crea tercero y cuenta en una
@@ -3738,8 +3754,9 @@ seguridad social, SOAT, cotización...) van con el contrato, después.
   intentar corrige sus datos.
 - **La certificación bancaria vive solo en Terceros** (misma migración): ya no
   es documento del contratista (`DOCUMENTOS_POR_PERSONA` no la trae;
-  `crear_contratista` no la pide y ni crear ni editar la aceptan). La cambia
-  Financiera en la cuenta del tercero. El detalle muestra, a quien tiene
+  `crear_contratista` no la pide y ni crear ni editar la aceptan). Se cambia en
+  la cuenta del tercero (Terceros, acción `cambiar_documentos_terceros`,
+  `20270101007200`) y la nueva queda pendiente de verificar en Financiera. El detalle muestra, a quien tiene
   `ver_datos_bancarios`, la de cada cuenta (`certificaciones_contratista`; el
   bucket `terceros` solo lo lee A&F, así que `enlaceCertificacionContratista`
   firma con la service role) y, como historia, la que el contratista tenía antes.
@@ -5104,6 +5121,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
 `20270101007000` Drive: Excel semanal de requisiciones por proyecto; los anexos de requisiciones ya no se copian.
 `20270101007100` documentos del contratista desde el detalle (reemplazar, agregar, quitar opcionales) y certificación bancaria solo en Terceros.
+`20270101007200` Terceros para todos (cuentas enmascaradas fuera de A&F) y acción para cambiar RUT y certificación bancaria.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

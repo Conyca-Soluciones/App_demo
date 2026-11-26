@@ -51,6 +51,8 @@ export type CuentaTercero = {
   verificadaEn: string | null
   verificadaPor: string | null
   observaciones: string | null
+  // Nombre del archivo de la certificación bancaria; null = no la tiene.
+  certificacionNombre: string | null
 }
 
 // Lo básico de un tercero (crear_tercero y tercero_por_documento,
@@ -87,6 +89,10 @@ export type Tercero = {
   observaciones: string | null
   // Nombre del archivo del RUT (20270101000300); null = no lo tiene.
   rutNombre: string | null
+  // RUT cambiado por alguien que no es de A&F: lo revisa Financiera (20270101007200).
+  rutPorRevisar: boolean
+  // false = los números de cuenta vienen enmascarados (quien no es de A&F).
+  cuentasCompletas: boolean
   cuentas: CuentaTercero[]
 }
 

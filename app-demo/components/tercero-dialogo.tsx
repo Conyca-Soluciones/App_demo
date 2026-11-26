@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { extensionArchivo, revisarArchivoTercero } from "@/lib/archivos-tercero"
 import { RutTercero } from "@/components/rut-tercero"
+import { CertificacionCuenta } from "@/components/certificacion-cuenta"
 import { BadgeCheck, Download, History, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +23,7 @@ import {
   eliminarTercero,
   enlaceCertificacionTercero,
   inactivarCuenta,
+  obtenerTercero,
   reactivarCuenta,
   verificarCuenta,
 } from "@/app/(app)/ayf/terceros/actions"
@@ -269,6 +271,7 @@ export function TerceroDialogo({
   bancos,
   puedeEditar,
   puedeVerificar,
+  puedeCambiarDocumentos = false,
   onCambio,
   onCerrar,
   onEliminado,
@@ -277,6 +280,8 @@ export function TerceroDialogo({
   bancos: Banco[]
   puedeEditar: boolean
   puedeVerificar: boolean
+  /** Acción "Cambiar RUT y certificación bancaria" (20270101007200). */
+  puedeCambiarDocumentos?: boolean
   onCambio: (t: Tercero) => void
   onCerrar: () => void
   /** Se eliminó el tercero (20270101006200): la lista lo quita. */
@@ -292,6 +297,7 @@ export function TerceroDialogo({
             bancos={bancos}
             puedeEditar={puedeEditar}
             puedeVerificar={puedeVerificar}
+            puedeCambiarDocumentos={puedeCambiarDocumentos}
             onCambio={onCambio}
             onEliminado={(id) => {
               onEliminado?.(id)
@@ -309,6 +315,7 @@ function ContenidoTercero({
   bancos,
   puedeEditar,
   puedeVerificar,
+  puedeCambiarDocumentos,
   onCambio,
   onEliminado,
 }: {
@@ -316,9 +323,12 @@ function ContenidoTercero({
   bancos: Banco[]
   puedeEditar: boolean
   puedeVerificar: boolean
+  puedeCambiarDocumentos: boolean
   onCambio: (t: Tercero) => void
   onEliminado: (id: string) => void
 }) {
+  const esAyf = puedeEditar || puedeVerificar
+  const puedeDocumentos = esAyf || puedeCambiarDocumentos
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -573,8 +583,11 @@ function ContenidoTercero({
         <RutTercero
           terceroId={tercero.id}
           nombreArchivo={tercero.rutNombre}
-          puedeSubir={puedeEditar || puedeVerificar}
-          onCambio={(nombre) => onCambio({ ...tercero, rutNombre: nombre })}
+          puedeSubir={puedeDocumentos}
+          porRevisar={tercero.rutPorRevisar}
+          puedeMarcarRevisado={esAyf}
+          onCambio={(nombre) => onCambio({ ...tercero, rutNombre: nombre, rutPorRevisar: !esAyf })}
+          onRevisado={() => onCambio({ ...tercero, rutPorRevisar: false })}
         />
       </section>
 
@@ -643,6 +656,14 @@ function ContenidoTercero({
                     </div>
                     <div className="font-mono text-sm">{c.numeroCuenta}</div>
                     {c.etiqueta && <div className="text-xs text-muted-foreground">{c.etiqueta}</div>}
+                    <div className="pt-1.5">
+                      <CertificacionCuenta
+                        cuenta={c}
+                        puedeCambiar={puedeDocumentos}
+                        verifica={puedeVerificar}
+                        onGuardada={(mensaje) => void ejecutar(() => obtenerTercero(tercero.id), mensaje)}
+                      />
+                    </div>
                     {c.estado === "ACTIVO" && c.verificadaPor && (
                       <div className="text-xs text-muted-foreground">
                         Verificada por {c.verificadaPor}

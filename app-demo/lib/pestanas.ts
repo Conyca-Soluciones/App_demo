@@ -193,6 +193,7 @@ export const ACCIONES: Accion[] = [
   { clave: "cargar_cuadros_sinco", titulo: "Cargar cuadros de SINCO", descripcion: "Subir los cuadros de pagos aprobados en SINCO (los pagos entran a Preparación del Consolidado), elegir quién adjunta los soportes y anular un cuadro mal cargado.", seccion: "A&F" },
   { clave: "registrar_movimientos_bancarios", titulo: "Registrar movimientos bancarios", descripcion: "En Balances: saldos de inicio de las cuentas, ingresos, egresos externos y traslados internos (crear, editar y eliminar).", seccion: "A&F" },
   { clave: "editar_terceros", titulo: "Editar terceros", descripcion: "Corregir terceros y agregar o corregir sus cuentas bancarias (crear un tercero lo puede cualquiera; las cuentas nuevas quedan pendientes de verificar).", seccion: "A&F" },
+  { clave: "cambiar_documentos_terceros", titulo: "Cambiar RUT y certificación bancaria", descripcion: "En Terceros: ver y cambiar el RUT del tercero y la certificación bancaria de cada cuenta. Una certificación nueva deja la cuenta pendiente de verificar y un RUT nuevo queda por revisar en Financiera.", seccion: "A&F" },
   { clave: "verificar_terceros", titulo: "Verificar cuentas de terceros", descripcion: "Confirmar que la cuenta bancaria de un tercero es correcta antes de poder pagarle. Ver el historial de cambios.", seccion: "A&F" },
 ]
 

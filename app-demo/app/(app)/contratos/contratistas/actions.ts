@@ -306,8 +306,10 @@ export async function quitarDocumentoContratista(
 }
 
 // Certificaciones bancarias de las cuentas del tercero del contratista (viven en
-// Terceros). Solo con ver_datos_bancarios: la base lo exige.
-export async function certificacionesContratista(id: string): Promise<CertificacionCuenta[]> {
+// Terceros). Solo con ver_datos_bancarios (la base lo exige): sin el permiso
+// devuelve null y la pantalla no muestra nada.
+export async function certificacionesContratista(id: string): Promise<CertificacionCuenta[] | null> {
+  if (!(await puedeVerDatosBancarios())) return null
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("certificaciones_contratista", { p_id: id })
   if (error) throw new Error(error.message)

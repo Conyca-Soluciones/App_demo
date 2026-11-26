@@ -9,16 +9,28 @@ import { CuentasPorVerificar } from "@/components/cuentas-por-verificar"
 export function TercerosPestanas({
   puedeEditar,
   puedeVerificar,
+  puedeCambiarDocumentos,
+  terceroInicial,
   vistaInicial,
 }: {
   puedeEditar: boolean
   puedeVerificar: boolean
+  puedeCambiarDocumentos: boolean
+  terceroInicial: string | null
   vistaInicial: "terceros" | "verificar"
 }) {
+  const vistaTerceros = (
+    <TercerosView
+      puedeEditar={puedeEditar}
+      puedeVerificar={puedeVerificar}
+      puedeCambiarDocumentos={puedeCambiarDocumentos}
+      terceroInicial={terceroInicial}
+    />
+  )
   // Solo quien edita o verifica terceros revisa cuentas (Contabilidad solo consulta).
   const conVerificar = puedeEditar || puedeVerificar
   const [vista, setVista] = useState(conVerificar ? vistaInicial : "terceros")
-  if (!conVerificar) return <TercerosView puedeEditar={puedeEditar} puedeVerificar={puedeVerificar} />
+  if (!conVerificar) return vistaTerceros
   const pestanas = [
     { valor: "terceros" as const, titulo: "Terceros" },
     { valor: "verificar" as const, titulo: "Cuentas por verificar" },
@@ -49,7 +61,7 @@ export function TercerosPestanas({
         ))}
       </div>
       {vista === "terceros" ? (
-        <TercerosView puedeEditar={puedeEditar} puedeVerificar={puedeVerificar} />
+        vistaTerceros
       ) : (
         <CuentasPorVerificar puedeEditar={puedeEditar} puedeVerificar={puedeVerificar} />
       )}

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { VisorDocumento } from "@/components/visor-documento"
+import { CertificacionesContratista } from "@/components/certificaciones-contratista"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { OtrosisDelContrato } from "@/components/otrosis-del-contrato"
 import { BadgePolizaContrato } from "@/components/badge-poliza"
@@ -455,6 +456,14 @@ export function DetalleSolicitudContrato({
                       )
                     })}
                   </TablaDocumentos>
+                  {/* La certificación vive en la cuenta de su tercero (Terceros): sale la vigente. */}
+                  <CertificacionesContratista
+                    key={`cert-${detalle.contratistaId}`}
+                    contratistaId={detalle.contratistaId}
+                    titulo="Certificación bancaria (de su cuenta en Terceros)"
+                    anteriores={detalle.contratistaDocumentos.filter((d) => d.tipo === "certificacion_bancaria")}
+                    onVer={setViendo}
+                  />
                 </div>
                 </>
               )}

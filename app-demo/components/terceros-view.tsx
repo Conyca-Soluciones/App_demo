@@ -49,7 +49,19 @@ function EstadoTercero({ t }: { t: Tercero }) {
   )
 }
 
-export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boolean; puedeVerificar: boolean }) {
+export function TercerosView({
+  puedeEditar,
+  puedeVerificar,
+  puedeCambiarDocumentos = false,
+  terceroInicial = null,
+}: {
+  puedeEditar: boolean
+  puedeVerificar: boolean
+  puedeCambiarDocumentos?: boolean
+  terceroInicial?: string | null
+}) {
+  // El número completo de las cuentas y los filtros por cuenta: solo A&F (20270101007200).
+  const cuentasCompletas = puedeEditar || puedeVerificar
   // null = todavía no se consultó: no se muestra nada hasta presionar Consultar.
   const [terceros, setTerceros] = useState<Tercero[] | null>(null)
   const [cargando, setCargando] = useState(false)
@@ -80,6 +92,24 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los terceros."))
       .finally(() => setCargando(false))
   }
+
+  // ?tercero=<id>: abre ese tercero (Mis pendientes) y limpia la dirección.
+  const [terceroPedido] = useState(terceroInicial)
+  useEffect(() => {
+    if (!terceroPedido) return
+    let activo = true
+    obtenerTercero(terceroPedido)
+      .then((t: Tercero) => activo && setAbierto(t))
+      .catch((e) => activo && setError(e instanceof Error ? e.message : "No se pudo abrir el tercero."))
+      .finally(() => {
+        const url = new URL(window.location.href)
+        url.searchParams.delete("tercero")
+        window.history.replaceState(null, "", url.toString())
+      })
+    return () => {
+      activo = false
+    }
+  }, [terceroPedido])
 
   useEffect(() => {
     listarBancos()
@@ -188,6 +218,8 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
             />
           </div>
 
+          {cuentasCompletas && (
+          <>
           <div className="space-y-1.5">
             <Label>Banco de la cuenta</Label>
             <Select value={bancoId} onValueChange={(v) => setBancoId(v ?? "todos")}>
@@ -221,6 +253,8 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
               </SelectContent>
             </Select>
           </div>
+          </>
+          )}
         </PanelFiltros>
 
         {/* relative: con los filtros plegados, "Nuevo tercero" sube a la línea del botón Filtros. */}
@@ -283,6 +317,7 @@ export function TercerosView({ puedeEditar, puedeVerificar }: { puedeEditar: boo
         bancos={bancos}
         puedeEditar={puedeEditar}
         puedeVerificar={puedeVerificar}
+        puedeCambiarDocumentos={puedeCambiarDocumentos}
         onCambio={actualizarFila}
         onCerrar={() => setAbierto(null)}
         onEliminado={(id) => setTerceros((actuales) => (actuales ? actuales.filter((x) => x.id !== id) : actuales))}

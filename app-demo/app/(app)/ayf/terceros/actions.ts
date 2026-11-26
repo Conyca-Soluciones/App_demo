@@ -27,12 +27,12 @@ const PESTANA = "ayf.terceros"
 // máximo 50 terceros, así que es UNA consulta sin importar cuántas cuentas haya.
 const CAMPOS_CUENTA = `
   id, banco_id, tipo_cuenta, numero_cuenta, etiqueta, estado, verificada_en,
-  verificada_por, observaciones, banco:bancos(nombre)
+  verificada_por, observaciones, certificacion_nombre, banco:bancos(nombre)
 `
 const CAMPOS_TERCERO = `
   id, tipo_documento, numero_documento, dv, razon_social, nombres, apellidos,
   primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-  correo, telefono, direccion, ciudad, observaciones, rut_nombre
+  correo, telefono, direccion, ciudad, observaciones, rut_nombre, rut_por_revisar
 `
 
 function mapCuenta(c: any): CuentaTercero {
@@ -47,6 +47,7 @@ function mapCuenta(c: any): CuentaTercero {
     verificadaEn: c.verificada_en,
     verificadaPor: c.verificada_por,
     observaciones: c.observaciones,
+    certificacionNombre: c.certificacion_nombre ?? null,
   }
 }
 
@@ -54,7 +55,7 @@ function contactoDe(t: any): ContactoTercero {
   return { correo: t.correo ?? "", telefono: t.telefono ?? "", direccion: t.direccion ?? "", ciudad: t.ciudad ?? "" }
 }
 
-function mapTercero(t: any): Tercero {
+function mapTercero(t: any, cuentasCompletas = true): Tercero {
   const cuentas = ((t.cuentas ?? []) as any[]).map(mapCuenta)
   // Orden estable y barato (pocas cuentas por tercero): pendientes primero.
   const peso = { PENDIENTE: 0, ACTIVO: 1, INACTIVO: 2 } as const
@@ -74,6 +75,8 @@ function mapTercero(t: any): Tercero {
     contacto: contactoDe(t),
     observaciones: t.observaciones,
     rutNombre: t.rut_nombre ?? null,
+    rutPorRevisar: Boolean(t.rut_por_revisar),
+    cuentasCompletas,
     cuentas,
   }
 }
@@ -81,6 +84,33 @@ function mapTercero(t: any): Tercero {
 function mensajeError(error: { code?: string; message: string }): string {
   if (error.code === "23505") return "Ya existe un registro con esos datos (documento o cuenta repetida)."
   return error.message
+}
+
+// El número completo de las cuentas solo lo ve A&F (editar o verificar terceros):
+// los demás que ven Terceros las leen enmascaradas (20270101007200).
+async function veCuentasCompletas(): Promise<boolean> {
+  const permisos = await obtenerPermisosRol()
+  return Boolean(
+    permisos &&
+      (permisos.esAdministrador || permisos.acciones.includes("editar_terceros") || permisos.acciones.includes("verificar_terceros"))
+  )
+}
+
+// Terceros leídos sin sus cuentas + las cuentas enmascaradas, en una sola llamada.
+async function conCuentasEnmascaradas(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  filas: any[]
+): Promise<Tercero[]> {
+  if (filas.length === 0) return []
+  const { data, error } = await supabase.rpc("cuentas_terceros_enmascaradas", { p_terceros: filas.map((t) => t.id) })
+  if (error) throw new Error(error.message)
+  const porTercero = new Map<string, any[]>()
+  for (const c of (data ?? []) as any[]) {
+    const lista = porTercero.get(c.tercero_id) ?? []
+    lista.push({ ...c, banco: { nombre: c.banco } })
+    porTercero.set(c.tercero_id, lista)
+  }
+  return filas.map((t) => mapTercero({ ...t, cuentas: porTercero.get(t.id) ?? [] }, false))
 }
 
 // Abierta a cualquier usuario con sesión (la tabla bancos se lee sin
@@ -109,34 +139,44 @@ export async function listarTerceros(
   const nombre = filtros.nombre?.trim() ?? ""
   if (nombre && !puedeBuscar(nombre)) throw new Error("Escribe al menos 2 letras para buscar por nombre.")
   const documento = soloDigitos(filtros.documento ?? "")
-  const filtraCuenta = Boolean(filtros.bancoId || filtros.estadoCuenta)
+  const completas = await veCuentasCompletas()
+  // Sin el número completo tampoco se filtra por la cuenta (no se lee la tabla).
+  const filtraCuenta = completas && Boolean(filtros.bancoId || filtros.estadoCuenta)
 
   // Dos formas del select (literales, para que el cliente infiera bien): con
   // el join !inner solo cuando se filtra por algo de la cuenta. El alias
   // `filtro` es aparte de `cuentas`, así la lista muestra TODAS las cuentas
   // del tercero aunque se haya filtrado por una.
-  let query: any = filtraCuenta
-    ? supabase
-        .from("terceros")
-        .select(`${CAMPOS_TERCERO}, cuentas:terceros_cuentas(${CAMPOS_CUENTA}), filtro:terceros_cuentas!inner(id)`)
-    : supabase.from("terceros").select(`${CAMPOS_TERCERO}, cuentas:terceros_cuentas(${CAMPOS_CUENTA})`)
+  let query: any = !completas
+    ? supabase.from("terceros").select(CAMPOS_TERCERO)
+    : filtraCuenta
+      ? supabase
+          .from("terceros")
+          .select(`${CAMPOS_TERCERO}, cuentas:terceros_cuentas(${CAMPOS_CUENTA}), filtro:terceros_cuentas!inner(id)`)
+      : supabase.from("terceros").select(`${CAMPOS_TERCERO}, cuentas:terceros_cuentas(${CAMPOS_CUENTA})`)
 
   query = query.order("razon_social", { ascending: true }).order("id", { ascending: true })
 
   if (documento) query = query.like("numero_documento", `${documento}%`)
   if (nombre && nombre !== COMODIN_LISTAR) query = query.ilike("razon_social", `%${nombre}%`)
-  if (filtros.bancoId) query = query.eq("filtro.banco_id", filtros.bancoId)
-  if (filtros.estadoCuenta) query = query.eq("filtro.estado", filtros.estadoCuenta)
+  if (filtraCuenta && filtros.bancoId) query = query.eq("filtro.banco_id", filtros.bancoId)
+  if (filtraCuenta && filtros.estadoCuenta) query = query.eq("filtro.estado", filtros.estadoCuenta)
 
   const { data, error } = await query.range(...rangoPagina(pagina))
   if (error) throw new Error(error.message)
   const { filas, hayMas } = cortarPagina((data ?? []) as any[])
-  return { terceros: filas.map(mapTercero), hayMas }
+  return { terceros: completas ? filas.map((t) => mapTercero(t)) : await conCuentasEnmascaradas(supabase, filas), hayMas }
 }
 
 export async function obtenerTercero(id: string): Promise<Tercero> {
   await requerirPestana(PESTANA)
   const supabase = await createClient()
+  if (!(await veCuentasCompletas())) {
+    const { data, error } = await supabase.from("terceros").select(CAMPOS_TERCERO).eq("id", id).maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!data) throw new Error("El tercero no existe o no tienes acceso.")
+    return (await conCuentasEnmascaradas(supabase, [data]))[0]
+  }
   const { data, error } = await supabase
     .from("terceros")
     .select(`${CAMPOS_TERCERO}, cuentas:terceros_cuentas(${CAMPOS_CUENTA})`)
@@ -145,6 +185,13 @@ export async function obtenerTercero(id: string): Promise<Tercero> {
   if (error) throw new Error(error.message)
   if (!data) throw new Error("El tercero no existe o no tienes acceso.")
   return mapTercero(data)
+}
+
+// Financiera da por revisado un RUT que cambió alguien de fuera de A&F.
+export async function marcarRutRevisado(terceroId: string): Promise<void> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc("marcar_rut_revisado", { p_tercero_id: terceroId })
+  if (error) throw new Error(error.message)
 }
 
 const mapBasico = (t: any): TerceroBasico => ({
