@@ -68,6 +68,12 @@ export function rutaNotificacion(n: AvisoParaRuta): string {
       n.tipo === "otrosi_por_revisar" || n.tipo === "otrosi_por_aprobar" || n.tipo === "otrosi_devuelto_subgerencia"
     return aJuridicaOGerencia ? `/contratos/aprobacion-otrosi?ver=${n.entidadId}` : `/contratos/otrosi?ver=${n.entidadId}`
   }
+  // Caja menor (20270101007400): a Financiera y a Líder Financiera, su bandeja;
+  // al responsable, su legalización en Pagos administrativos.
+  if (n.entidadTipo === "caja_menor")
+    return n.tipo === "caja_menor_por_revisar" || n.tipo === "caja_menor_por_aprobar"
+      ? `/ayf/cajas-menores?ver=${n.entidadId}`
+      : `/ayf/pagos-administrativos?caja_menor=${n.entidadId}`
   // Requisición administrativa aprobada o rechazada: a quien la hizo.
   if (n.entidadTipo === "requisicion_admin") return `/ayf/pagos-administrativos?ver=${n.entidadId}`
   // Insumo nuevo aprobado o rechazado: al presupuesto (del proyecto actual).

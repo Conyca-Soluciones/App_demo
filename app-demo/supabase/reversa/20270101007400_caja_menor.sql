@@ -52,7 +52,7 @@ $$;
 
 drop trigger if exists trg_caja_menor_sigue_cuadro on public.requisiciones_admin;
 
-drop function if exists public.personas_caja_menor();
+drop function if exists public.opciones_caja_menor();
 drop function if exists public.legalizacion_de_cuadro(uuid);
 drop function if exists public.detalle_legalizacion_caja_menor(uuid);
 drop function if exists public.listar_legalizaciones_caja_menor(text, boolean);

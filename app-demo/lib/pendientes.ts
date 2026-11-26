@@ -43,6 +43,11 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   mi_contrato_por_firmar: { titulo: "Contratos: subir la copia firmada por el contratista", accion: "Adjuntar", orden: 5.1 },
   mi_otrosi_por_firmar: { titulo: "Otrosí: subir la copia firmada por el contratista", accion: "Adjuntar", orden: 5.2 },
   mi_req_admin_rechazada: { titulo: "Mis pagos administrativos rechazados", accion: "Corregir", orden: 6 },
+  // Caja menor (20270101007400).
+  mi_caja_menor_devuelta: { titulo: "Mi caja menor devuelta", accion: "Corregir", orden: 6.2 },
+  caja_menor_corte: { titulo: "Caja menor: corte del 27", accion: "Legalizar", orden: 6.3 },
+  caja_menor_por_revisar: { titulo: "Cajas menores por revisar (soportes)", accion: "Revisar", orden: 40.2 },
+  caja_menor_por_aprobar: { titulo: "Cajas menores por aprobar", accion: "Aprobar", orden: 40.3 },
   req_por_aprobar: { titulo: "Requisiciones por aprobar", accion: "Aprobar", orden: 10 },
   req_extra_por_aprobar: { titulo: "Requisiciones extraordinarias por aprobar", accion: "Aprobar", orden: 10.5 },
   req_administrativa_por_aprobar: { titulo: "Requisiciones administrativas por aprobar", accion: "Aprobar", orden: 10.6 },

@@ -106,6 +106,13 @@ export function mapCajaMenor(c: any): CajaMenor {
   }
 }
 
+// Listas para crear una caja (opciones_caja_menor).
+export type OpcionesCajaMenor = {
+  personas: { id: string; nombre: string }[]
+  empresas: { id: string; razonSocial: string }[]
+  proyectos: { id: string; codigo: string | null; nombre: string; empresaId: string | null }[]
+}
+
 // Datos de la caja que llena Financiera.
 export type CajaMenorForm = {
   responsableId: string

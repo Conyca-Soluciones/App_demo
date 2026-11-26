@@ -843,15 +843,22 @@ returns uuid language sql stable security definer set search_path = public as $$
    order by l.aprobada_en desc nulls last limit 1
 $$;
 
--- Personas para elegir el responsable (Financiera).
-create or replace function public.personas_caja_menor()
+-- Listas para crear una caja (Financiera no tiene proyectos asignados): personas,
+-- grupos empresariales y todos los proyectos.
+create or replace function public.opciones_caja_menor()
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 begin
   if not (public.es_admin(auth.uid()) or public.tiene_accion(auth.uid(), 'gestionar_cajas_menores')) then
     raise exception 'No autorizado.';
   end if;
-  return coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'nombre', p.nombre) order by p.nombre)
-                     from public.perfiles p where btrim(coalesce(p.nombre, '')) <> ''), '[]'::jsonb);
+  return jsonb_build_object(
+    'personas', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'nombre', p.nombre) order by p.nombre)
+                            from public.perfiles p where btrim(coalesce(p.nombre, '')) <> ''), '[]'::jsonb),
+    'empresas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'razon_social', e.razon_social) order by e.razon_social)
+                            from public.empresas e), '[]'::jsonb),
+    'proyectos', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'codigo', p.codigo, 'nombre', p.nombre,
+                                                               'empresa_id', p.empresa_id) order by p.codigo nulls last, p.nombre)
+                             from public.proyectos p), '[]'::jsonb));
 end;
 $$;
 
@@ -988,7 +995,7 @@ revoke execute on function public.aprobar_legalizacion_caja_menor(uuid, text, te
 revoke execute on function public.listar_legalizaciones_caja_menor(text, boolean) from public;
 revoke execute on function public.detalle_legalizacion_caja_menor(uuid) from public;
 revoke execute on function public.legalizacion_de_cuadro(uuid) from public;
-revoke execute on function public.personas_caja_menor() from public;
+revoke execute on function public.opciones_caja_menor() from public;
 grant execute on function public.guardar_caja_menor(uuid, jsonb) to authenticated;
 grant execute on function public.cerrar_caja_menor(uuid, text) to authenticated;
 grant execute on function public.mi_caja_menor() to authenticated;
@@ -1000,6 +1007,6 @@ grant execute on function public.aprobar_legalizacion_caja_menor(uuid, text, tex
 grant execute on function public.listar_legalizaciones_caja_menor(text, boolean) to authenticated;
 grant execute on function public.detalle_legalizacion_caja_menor(uuid) to authenticated;
 grant execute on function public.legalizacion_de_cuadro(uuid) to authenticated;
-grant execute on function public.personas_caja_menor() to authenticated;
+grant execute on function public.opciones_caja_menor() to authenticated;
 
 commit;

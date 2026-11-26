@@ -181,3 +181,29 @@ describe("mapLegalizacionDetalle", () => {
     expect(mapLegalizacionDetalle({ estado: "raro" }).estado).toBe("por_revisar")
   })
 })
+
+describe("plantilla de Excel (ida y vuelta)", () => {
+  it("lo que se llena en la plantilla se lee igual", async () => {
+    const { construirPlantillaCajaMenor } = await import("@/lib/excel-caja-menor")
+    const XLSX = await import("xlsx")
+    const proyectos = [{ id: "p1", codigo: "900-CS-YOP-MALECÓN", nombre: "Malecón" }]
+    const libro = await construirPlantillaCajaMenor(proyectos, null)
+    const hoja = libro.getWorksheet("Caja menor")!
+    let filaEnc = 0
+    hoja.eachRow((r, n) => {
+      if (!filaEnc && r.getCell(1).value === "Fecha") filaEnc = n
+    })
+    expect(filaEnc).toBeGreaterThan(0)
+    const f = hoja.getRow(filaEnc + 1)
+    ;[new Date(Date.UTC(2026, 10, 20)), "900-CS-YOP-MALECÓN", "F-1", "900123456-7", "Ferretería", "Tornillos", "Obra", 150000].forEach(
+      (v, i) => (f.getCell(i + 1).value = v)
+    )
+    const buffer = await libro.xlsx.writeBuffer()
+    const leido = XLSX.read(buffer, { type: "array", cellDates: true })
+    const filas = XLSX.utils.sheet_to_json<unknown[]>(leido.Sheets["Caja menor"], { header: 1, defval: null, raw: true })
+    const r = leerFilasCajaMenor(filas, proyectos)
+    expect(r.errores).toEqual([])
+    expect(r.gastos).toHaveLength(1)
+    expect(r.gastos[0]).toMatchObject({ fecha: "2026-11-20", proyectoId: "p1", documento: "900123456-7", valor: "150000" })
+  })
+})
