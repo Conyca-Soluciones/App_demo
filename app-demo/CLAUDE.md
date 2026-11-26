@@ -1519,7 +1519,9 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
 - **Soporte del reembolso** (2026-11-26, decisiones del usuario): un solo PDF con la relación de gastos, las firmas
   registradas del responsable, de quien revisó en Financiera y de quien aprueba (`firmas_caja_menor`,
   `20270101007700`; sin firma sale el nombre y "Sin firma registrada") y, después, el soporte de cada gasto en el orden
-  de la tabla (imágenes como páginas del PDF; los PDF se pegan con `lib/unir-pdfs.ts`).
+  de la tabla (imágenes como páginas del PDF; los PDF se pegan con `lib/unir-pdfs.ts`, librería `pdf-lib`, y cada
+  página pegada lleva arriba la marca "Soporte · Gasto N · …"). Un soporte que no es PDF, JPG ni PNG detiene la
+  aprobación con un mensaje.
 - **En la ventana del pago** del reembolso no hay campos de liquidación: solo el recuadro azul con «Ver soporte» y
   «Liquidar gastos», que cierra la ventana y abre la pantalla completa (`LiquidarGastosCajaMenor`, portal a pantalla
   completa; en celular una tarjeta por gasto).
