@@ -10,6 +10,7 @@
 import { leerNumero } from "@/lib/contratos"
 import { hoyColombia } from "@/lib/fechas"
 import { AZUL_MARCA_CONYCA, agregarEncabezadoMarca, obtenerBufferLogoConyca } from "@/lib/marca-conyca"
+import { rutaSoporteGasto } from "@/lib/caja-menor-consolidado"
 import {
   anticiposOrigen,
   cuadreLiquidacion,
@@ -277,7 +278,9 @@ export async function construirLibroLiquidacion(pagos: Pago[], opciones: { titul
     ORDEN.forEach((c, i) => {
       const celda = fila.getCell(i + 1)
       if (c.clave === "soporte") {
-        celda.value = { text: "Ver", hyperlink: `${opciones.origenUrl}${rutaSoportePago(p.id)}` }
+        // Fila de un gasto de caja menor: su factura (20270101007600).
+        const ruta = p.cajaMenorGasto ? rutaSoporteGasto(p.cajaMenorGasto.gastoId) : rutaSoportePago(p.id)
+        celda.value = { text: "Ver", hyperlink: `${opciones.origenUrl}${ruta}` }
         celda.font = { color: { argb: "FF1F5FBF" }, underline: true }
       } else if (c.clave === "valorAPagar") {
         celda.value = p.valorAPagar != null ? { formula: formulaValor(r), result: p.valorAPagar } : { formula: formulaValor(r) }

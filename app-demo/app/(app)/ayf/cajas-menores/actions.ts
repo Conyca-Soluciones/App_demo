@@ -26,6 +26,7 @@ import {
   type ResultadoAccion,
   type ResultadoLiquidacionGastos,
 } from "@/lib/caja-menor"
+import type { GastosDePago } from "@/lib/caja-menor-consolidado"
 
 // Caja menor (20270101007400). Todo pasa por funciones de la base, que vuelven
 // a validar los permisos: el responsable (sus cajas y legalizaciones), Financiera
@@ -125,6 +126,87 @@ export async function legalizacionDeCuadro(requisicionAdminId: string): Promise<
   const { data, error } = await supabase.rpc("legalizacion_de_cuadro", { p_requisicion_admin_id: requisicionAdminId })
   if (error) throw new Error(error.message)
   return data ? String(data) : null
+}
+
+/**
+ * Los gastos de la caja menor de cada pago (el reembolso), para mostrarlos como
+ * filas en el Consolidado y en el Excel de liquidación. Con la RLS de quien
+ * consulta (Contabilidad los ve por su consolidado). Pagos que no son de caja
+ * menor no salen.
+ */
+export async function gastosCajaMenorDePagos(pagoIds: string[]): Promise<Record<string, GastosDePago>> {
+  const ids = [...new Set(pagoIds)].filter(Boolean)
+  if (ids.length === 0) return {}
+  if (ids.length > 2000) throw new Error("Como mucho 2000 pagos a la vez.")
+  const supabase = await clienteConSesion()
+  const pagos: any[] = []
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase
+      .from("pagos")
+      .select("id, requisicion_admin_id, liquidacion_estado")
+      .in("id", ids.slice(i, i + 100))
+      .not("requisicion_admin_id", "is", null)
+    if (error) throw new Error(error.message)
+    pagos.push(...(data ?? []))
+  }
+  const reqIds = [...new Set(pagos.map((p) => p.requisicion_admin_id as string))]
+  if (reqIds.length === 0) return {}
+  const legalizaciones: any[] = []
+  for (let i = 0; i < reqIds.length; i += 100) {
+    const { data, error } = await supabase
+      .from("caja_menor_legalizaciones")
+      .select(
+        "id, codigo, requisicion_admin_id, caja_menor_gastos(id, orden, fecha, proyecto_id, numero_factura, documento, nombre, concepto, destino, valor, soporte_ruta, soporte_nombre, soporte_mime, soporte_tamano, liq_base, liq_iva, retefuente, reteiva, reteica, valor_a_pagar, liquidado_en)"
+      )
+      .in("requisicion_admin_id", reqIds.slice(i, i + 100))
+    if (error) throw new Error(error.message)
+    legalizaciones.push(...(data ?? []))
+  }
+  const porReq = new Map(legalizaciones.map((l) => [l.requisicion_admin_id as string, l]))
+  const salida: Record<string, GastosDePago> = {}
+  for (const p of pagos) {
+    const l = porReq.get(p.requisicion_admin_id)
+    if (!l) continue
+    const gastos = ((l.caja_menor_gastos ?? []) as any[])
+      .sort((a, b) => a.orden - b.orden)
+      .map((g) => ({
+        id: String(g.id),
+        orden: Number(g.orden),
+        fecha: String(g.fecha ?? ""),
+        proyectoId: String(g.proyecto_id ?? ""),
+        proyectoCodigo: null,
+        proyectoNombre: "",
+        solicitadoPorNombre: null,
+        numeroFactura: String(g.numero_factura ?? ""),
+        documento: String(g.documento ?? ""),
+        nombre: String(g.nombre ?? ""),
+        concepto: String(g.concepto ?? ""),
+        destino: String(g.destino ?? ""),
+        valor: Number(g.valor ?? 0),
+        soporte: { ruta: String(g.soporte_ruta ?? ""), nombre: String(g.soporte_nombre ?? ""), mime: g.soporte_mime ?? null, tamano: g.soporte_tamano ?? null },
+        liquidacion:
+          g.valor_a_pagar == null
+            ? null
+            : {
+                base: g.liq_base == null ? null : Number(g.liq_base),
+                iva: g.liq_iva == null ? null : Number(g.liq_iva),
+                retefuente: Number(g.retefuente ?? 0),
+                reteiva: Number(g.reteiva ?? 0),
+                reteica: Number(g.reteica ?? 0),
+                valorAPagar: Number(g.valor_a_pagar),
+                liquidadoEn: g.liquidado_en ?? null,
+                liquidadoPorNombre: null,
+              },
+      }))
+    salida[p.id] = {
+      pagoId: String(p.id),
+      legalizacionId: String(l.id),
+      codigo: String(l.codigo),
+      pagoLiquidacionEstado: p.liquidacion_estado ?? null,
+      gastos,
+    }
+  }
+  return salida
 }
 
 // ---------------------------------------------------------------- A&F

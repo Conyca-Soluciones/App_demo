@@ -1505,6 +1505,17 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   (`caja_menor_gastos.liq_base`… `valor_a_pagar`), o "Sin retenciones" (valor a pagar = valor del gasto); se puede
   guardar parcial. Con todos liquidados, la función liquida el pago con la SUMA por `liquidar_pagos_lote` (mismas
   reglas) y anota `liquidada` en el historial de la caja. Para cambiar un gasto ya liquidado: "Devolver a Por liquidar".
+  **Cada gasto se ve como un pago en el Consolidado** (decisión del usuario): debajo del reembolso sale una fila por
+  gasto con las mismas columnas (quien vendió, valor, retenciones, valor a pagar, soporte); en Por liquidar y
+  Observados salen desplegadas (flecha en la REF para plegar). Son filas de pantalla, no pagos: id
+  `gasto:<pago>:<gasto>` (`lib/caja-menor-consolidado.ts`: `filaDeGasto`, `conFilasDeGastos`; `Pago.cajaMenor` /
+  `Pago.cajaMenorGasto`), cargadas con `gastosCajaMenorDePagos` (RLS de quien consulta). Doble clic = ventana del
+  gasto con Anterior / Siguiente (`components/ventana-gasto-caja-menor.tsx`). Soporte con enlace fijo
+  `/ayf/soporte-pago/gasto/<gasto>`. El total de la página y la dispersión siguen siendo del pago (un solo pago). En el
+  **Excel de liquidación** el reembolso se reemplaza por una fila por gasto (`paraExcelConGastos`); al subir,
+  `separarFilasDeGastos` las guarda con `liquidar_gastos_caja_menor` (un llamado por reembolso), los comentarios de
+  esas filas van como observación del pago, y un reembolso ya liquidado sin cambios cuenta "sin cambios"
+  (`mismaLiquidacionDeGastos`).
 - **Errores visibles**: las acciones de la caja menor que cambian algo DEVUELVEN `ResultadoAccion` (`valorDe` lo
   lanza en el navegador), porque en producción Next.js esconde el mensaje de un error lanzado (pasó al cerrar una caja
   con una legalización devuelta: no se veía el motivo).

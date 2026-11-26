@@ -152,6 +152,10 @@ export type Pago = {
   liqAnticiposDescuentos: number | null
   valorAPagar: number | null
   ultimoComentario: { texto: string; tipo: TipoComentarioPago; autor: string | null; creadoEn: string; total: number } | null
+  // Caja menor en el Consolidado (lib/caja-menor-consolidado.ts, solo en pantalla y Excel):
+  // el reembolso lleva `cajaMenor`; cada gasto se muestra como una fila con `cajaMenorGasto`.
+  cajaMenor?: { legalizacionId: string; codigo: string; nGastos: number }
+  cajaMenorGasto?: { pagoId: string; gastoId: string; orden: number; codigo: string; fecha: string; soporteNombre: string }
 }
 
 // ---------------------------------------------------------------------------

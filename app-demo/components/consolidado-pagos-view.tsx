@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { confirmar, pedirTexto } from "@/components/ui/confirmar"
-import { CheckCircle2, Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
+import { CheckCircle2, ChevronDown, ChevronRight, Download, FileText, Loader2, Paperclip, Send, Upload } from "lucide-react"
 import * as XLSX from "xlsx"
 import { HistorialDialog } from "@/components/historial-timeline"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +25,18 @@ import { cuentasParaPagar, deshacerPagoPse } from "@/app/(app)/ayf/realizar-pago
 import type { CuentaEmpresa } from "@/lib/dispersores/pagos-dispersor"
 import { descargarExcelLiquidacion, leerFilasLiquidacion, type AvisoFilaLiquidacion, type ErrorFilaLiquidacion } from "@/lib/excel-liquidacion"
 import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
+import { VentanaGastoCajaMenor } from "@/components/ventana-gasto-caja-menor"
+import {
+  conFilasDeGastos,
+  esFilaGasto,
+  mismaLiquidacionDeGastos,
+  paraExcelConGastos,
+  rutaSoporteGasto,
+  separarFilasDeGastos,
+  type GastosDePago,
+} from "@/lib/caja-menor-consolidado"
+import { valorDe } from "@/lib/caja-menor"
+import { gastosCajaMenorDePagos, liquidarGastosCajaMenor } from "@/app/(app)/ayf/cajas-menores/actions"
 import {
   asignarTerceroPago,
   buscarTercerosParaPago,
@@ -37,6 +49,7 @@ import {
   devolverPagosAPreparacion,
   liquidarPagos,
   listarConsolidado,
+  obtenerPagoConsolidado,
   obtenerAlertasConsolidado,
   pagosParaExcelLiquidacion,
   reintentarPagos,
@@ -97,6 +110,9 @@ const valorAPagarDe = (p: Pago) => p.valorAPagar ?? p.valor
 
 type ReporteSubida = {
   liquidados: number
+  // Gastos de caja menor liquidados (20270101007600) y reembolsos que quedaron liquidados.
+  gastosLiquidados: number
+  reembolsosLiquidados: number
   observados: number
   sinCambios: number
   sinTocar: number
@@ -168,6 +184,23 @@ export function ConsolidadoPagosView({
   const [aviso, setAviso] = useState<string | null>(null)
   const [reporte, setReporte] = useState<ReporteSubida | null>(null)
   const archivoRef = useRef<HTMLInputElement>(null)
+  // Caja menor (20270101007600): los gastos de cada reembolso de la página, qué
+  // reembolsos cambiaron de desplegado (en Por liquidar y Observados salen
+  // desplegados) y la fila de gasto que se ve en su ventana.
+  const [gastosCaja, setGastosCaja] = useState<Record<string, GastosDePago>>({})
+  const [alternados, setAlternados] = useState<Set<string>>(new Set())
+  const [gastoViendo, setGastoViendo] = useState<number | null>(null)
+
+  function cargarGastosCaja(lista: Pago[]) {
+    const ids = lista.filter((p) => p.requisicionAdminId).map((p) => p.id)
+    if (ids.length === 0) {
+      setGastosCaja({})
+      return
+    }
+    gastosCajaMenorDePagos(ids)
+      .then((g: Record<string, GastosDePago>) => setGastosCaja(g))
+      .catch(() => setGastosCaja({}))
+  }
 
   function cargarAlertas() {
     obtenerAlertasConsolidado(clave)
@@ -201,6 +234,7 @@ export function ConsolidadoPagosView({
     listarConsolidado(clave, filtros, pag)
       .then((r: { pagos: Pago[]; hayMas: boolean; soportes: Record<string, SoportePago>; dispersores: Record<string, string> }) => {
         setPagos(r.pagos)
+        cargarGastosCaja(r.pagos)
         setSoportes(r.soportes)
         setDispersores(r.dispersores)
         setPagina(pag)
@@ -258,6 +292,12 @@ export function ConsolidadoPagosView({
   // aunque ya no sea de esta etapa, para no perder el lugar) y el conteo.
   function cambioDePago(p: Pago) {
     setPagos((lista) => (lista ? lista.map((x) => (x.id === p.id ? p : x)) : lista))
+    // Reembolso de caja menor: sus filas de gasto también (se pudieron liquidar desde la ventana del pago).
+    if (gastosCaja[p.id]) {
+      gastosCajaMenorDePagos([p.id])
+        .then((g: Record<string, GastosDePago>) => setGastosCaja((x) => ({ ...x, ...g })))
+        .catch(() => undefined)
+    }
     if (ultimosFiltros) {
       conteoEtapasConsolidado(clave, ultimosFiltros)
         .then((c: ConteoEtapas) => setConteo(c))
@@ -413,7 +453,9 @@ export function ConsolidadoPagosView({
       if (!ultimosFiltros) return null
       const lista = await pagosParaExcelLiquidacion(clave, ultimosFiltros)
       if (lista.length === 0) return "No hay pagos enviados a liquidar con estos filtros."
-      await descargarExcelLiquidacion(lista, titulo)
+      // Cada reembolso de caja menor sale como una fila por gasto.
+      const gastos = await gastosCajaMenorDePagos(lista.filter((p) => p.requisicionAdminId).map((p) => p.id))
+      await descargarExcelLiquidacion(paraExcelConGastos(lista, gastos), titulo)
       return null
     })
 
@@ -436,18 +478,70 @@ export function ConsolidadoPagosView({
           itemDe.set(String(id), String(f?.[0] ?? ""))
         }
       })
-      const resultados: ResultadoLiquidacion[] = leido.filas.length > 0 ? await liquidarPagos(leido.filas) : []
+      // Filas de gasto de caja menor (20270101007600): se guardan en cada gasto y
+      // sus comentarios van como observación del pago del reembolso.
+      const separado = separarFilasDeGastos(leido.filas)
+      const comentariosReembolso = [...separado.comentariosPorPago].map(([pagoId, textos]) => ({
+        pagoId,
+        base: null,
+        iva: null,
+        retefuente: null,
+        reteiva: null,
+        reteica: null,
+        asumidas: null,
+        liquidaciones: null,
+        anticiposDescuentos: null,
+        valorAPagar: null,
+        sinRetenciones: false,
+        comentario: textos.join(" | "),
+      }))
+      const filasPagos = [...separado.pagos, ...comentariosReembolso]
+      const resultados: ResultadoLiquidacion[] = filasPagos.length > 0 ? await liquidarPagos(filasPagos) : []
       const cuenta = (r: ResultadoLiquidacion["resultado"]) => resultados.filter((x) => x.resultado === r).length
+      let gastosLiquidados = 0
+      let reembolsosLiquidados = 0
+      let gastosSinCambios = 0
+      const erroresGastos: { fila: number | null; item: string; mensaje: string }[] = []
+      if (separado.gastosPorPago.size > 0) {
+        const actuales = await gastosCajaMenorDePagos([...separado.gastosPorPago.keys()])
+        for (const [pagoId, grupo] of separado.gastosPorPago) {
+          const primera = grupo[0].filaId
+          const cm = actuales[pagoId]
+          if (cm?.pagoLiquidacionEstado === "liquidado") {
+            // Excel de ida y vuelta: un reembolso ya liquidado sin cambios no es error.
+            if (mismaLiquidacionDeGastos(grupo.map((x) => x.fila), cm.gastos)) gastosSinCambios += grupo.length
+            else
+              erroresGastos.push({
+                fila: filaDe.get(primera) ?? null,
+                item: itemDe.get(primera) ?? "",
+                mensaje: "Ese reembolso de caja menor ya está liquidado: para cambiar un gasto, devuelve el pago a Por liquidar.",
+              })
+            continue
+          }
+          const r = await liquidarGastosCajaMenor(
+            pagoId,
+            grupo.map((x) => x.fila)
+          )
+          if (!r.ok) erroresGastos.push({ fila: filaDe.get(primera) ?? null, item: itemDe.get(primera) ?? "", mensaje: r.error })
+          else {
+            gastosLiquidados += grupo.length
+            if (r.valor.pagoLiquidado) reembolsosLiquidados++
+          }
+        }
+      }
       setReporte({
         liquidados: cuenta("liquidado"),
+        gastosLiquidados,
+        reembolsosLiquidados,
         observados: cuenta("observado"),
-        sinCambios: cuenta("sin_cambios"),
+        sinCambios: cuenta("sin_cambios") + gastosSinCambios,
         sinTocar: leido.sinTocar,
         errores: [
           ...leido.errores,
           ...resultados
             .filter((x) => x.resultado === "error")
             .map((x) => ({ fila: filaDe.get(x.pagoId) ?? null, item: itemDe.get(x.pagoId) ?? "", mensaje: x.mensaje ?? "No se pudo guardar." })),
+          ...erroresGastos,
         ],
         avisos: leido.avisos,
       })
@@ -505,7 +599,41 @@ export function ConsolidadoPagosView({
         />
       ) : null,
   }
-  const colItem: ColumnaExcel<Pago> = { clave: "item", titulo: "REF", ancho: 96, fija: true, alinear: "center", texto: (p) => p.referencia ?? "", claseCelda: "font-medium tabular-nums" }
+  // Caja menor: el reembolso se despliega en una fila por gasto (en Por liquidar y
+  // Observados sale desplegado).
+  const desplegado = (pagoId: string) => (enLiquidacion ? !alternados.has(pagoId) : alternados.has(pagoId))
+  const alternar = (pagoId: string) =>
+    setAlternados((s) => {
+      const n = new Set(s)
+      if (n.has(pagoId)) n.delete(pagoId)
+      else n.add(pagoId)
+      return n
+    })
+  const colItem: ColumnaExcel<Pago> = {
+    clave: "item",
+    titulo: "REF",
+    ancho: 108,
+    fija: true,
+    alinear: "center",
+    texto: (p) => p.referencia ?? "",
+    claseCelda: "font-medium tabular-nums",
+    celda: (p) =>
+      p.cajaMenor ? (
+        <button
+          type="button"
+          className="inline-flex items-center gap-0.5 hover:underline"
+          title={desplegado(p.id) ? "Ocultar los gastos de la caja menor" : `Ver los ${p.cajaMenor.nGastos} gastos de la caja menor`}
+          onClick={() => alternar(p.id)}
+        >
+          {desplegado(p.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          {p.referencia ?? "—"}
+        </button>
+      ) : p.cajaMenorGasto ? (
+        <span className="pl-3 text-xs font-normal text-muted-foreground">↳ gasto {p.cajaMenorGasto.orden}</span>
+      ) : (
+        (p.referencia ?? "")
+      ),
+  }
   const colSemana: ColumnaExcel<Pago> = {
     clave: "semana",
     titulo: "Semana",
@@ -626,9 +754,19 @@ export function ConsolidadoPagosView({
     titulo: "Soporte",
     ancho: 135,
     ordenable: false,
-    texto: (p) => soportes[p.id]?.nombre ?? "",
+    texto: (p) => (p.cajaMenorGasto ? p.cajaMenorGasto.soporteNombre : (soportes[p.id]?.nombre ?? "")),
     celda: (p) =>
-      soportes[p.id] ? (
+      p.cajaMenorGasto ? (
+        <a
+          href={rutaSoporteGasto(p.cajaMenorGasto.gastoId)}
+          target="_blank"
+          rel="noreferrer"
+          title={p.cajaMenorGasto.soporteNombre}
+          className={buttonVariants({ size: "sm", variant: "ghost", className: "h-8 gap-1 px-2" })}
+        >
+          <Paperclip className="h-4 w-4" /> Ver soporte
+        </a>
+      ) : soportes[p.id] ? (
         <a
           href={rutaSoportePago(p.id)}
           target="_blank"
@@ -693,6 +831,11 @@ export function ConsolidadoPagosView({
           : [...base, colCuenta, colProyecto, colSolicita, colDocumento, colValorAPagar, colEtapa, colSoporte]),
   ]
   const camposTarjeta = columnas.map((c) => c.clave).filter((c) => !["sel", "item", "semana", "empresa", "tercero"].includes(c))
+  // La tabla: los pagos y, debajo de cada reembolso de caja menor desplegado, sus gastos.
+  const filasTabla = conFilasDeGastos(pagos ?? [], gastosCaja, desplegado)
+  const filasGasto = filasTabla.filter(esFilaGasto)
+  const filaGastoViendo = gastoViendo != null ? filasGasto[gastoViendo] : null
+  const padreGastoViendo = filaGastoViendo ? (pagos ?? []).find((p) => p.id === filaGastoViendo.cajaMenorGasto?.pagoId) ?? null : null
   const pagoOrigen = origenDe
 
   return (
@@ -951,15 +1094,21 @@ export function ConsolidadoPagosView({
               <TablaExcel dosLineas
                 // Todos: sin scroll de lado (decisión del usuario, 2026-11-25).
                 ajustarAncho={etapa === "todos"}
-                filas={pagos}
+                filas={filasTabla}
                 columnas={columnas}
                 claveFila={(p) => p.id}
-                onDobleClickFila={(p) => setIndiceViendo(pagos.findIndex((x) => x.id === p.id))}
+                onDobleClickFila={(p) =>
+                  p.cajaMenorGasto
+                    ? setGastoViendo(filasGasto.findIndex((x) => x.id === p.id))
+                    : setIndiceViendo(pagos.findIndex((x) => x.id === p.id))
+                }
                 tituloFila={AYUDA_DOBLE_CLIC}
                 // Los anulados (no se pagan) van en gris; sin cuenta bancaria (y no
                 // PSE), en rojo; los observados, en rojo suave.
                 fondoFila={(p) =>
-                  p.estado === "anulado" || p.estado === "rechazado"
+                  p.cajaMenorGasto
+                    ? "bg-sky-50/70"
+                    : p.estado === "anulado" || p.estado === "rechazado"
                     ? "bg-muted/60 text-muted-foreground"
                     : pagoSinCuenta(p)
                       ? "bg-red-100/80"
@@ -996,6 +1145,24 @@ export function ConsolidadoPagosView({
           )}
         </div>
       </div>
+
+      <VentanaGastoCajaMenor
+        filas={filasGasto}
+        indice={gastoViendo}
+        padre={padreGastoViendo}
+        puedeLiquidar={puedeLiquidar}
+        onIndice={setGastoViendo}
+        onCerrar={() => setGastoViendo(null)}
+        onGuardado={(pagoId) => {
+          // Se recargan los gastos de ese reembolso y el pago (puede quedar liquidado).
+          gastosCajaMenorDePagos([pagoId])
+            .then((g: Record<string, GastosDePago>) => setGastosCaja((x) => ({ ...x, ...g })))
+            .catch(() => undefined)
+          obtenerPagoConsolidado(pagoId)
+            .then((p: Pago) => cambioDePago(p))
+            .catch(() => undefined)
+        }}
+      />
 
       <VentanaPagoLiquidacion
         pagos={pagos ?? []}
@@ -1067,6 +1234,12 @@ export function ConsolidadoPagosView({
                 <li>
                   <strong>{reporte.liquidados}</strong> liquidados
                 </li>
+                {reporte.gastosLiquidados > 0 && (
+                  <li>
+                    <strong>{reporte.gastosLiquidados}</strong> gastos de caja menor guardados
+                    {reporte.reembolsosLiquidados > 0 ? ` (${reporte.reembolsosLiquidados} reembolso(s) quedaron liquidados con la suma)` : ""}
+                  </li>
+                )}
                 <li>
                   <strong>{reporte.observados}</strong> observados (con comentario para Financiera)
                 </li>
