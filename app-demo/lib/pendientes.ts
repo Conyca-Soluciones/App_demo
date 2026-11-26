@@ -65,6 +65,7 @@ export const GRUPOS_PENDIENTES: Record<string, DefGrupo> = {
   saldo_acta_por_pagar: { titulo: "Saldos de actas por pagar", accion: "Pagar saldo", orden: 40.7 },
   pago_sin_tercero: { titulo: "Pagos aprobados sin tercero o cuenta", accion: "Resolver", orden: 41 },
   cuenta_por_verificar: { titulo: "Cuentas de terceros por verificar", accion: "Verificar", orden: 42 },
+  rut_por_revisar: { titulo: "RUT de terceros por revisar", accion: "Revisar", orden: 42.5 },
   pago_observado: { titulo: "Pagos observados por Contabilidad", accion: "Responder", orden: 43 },
   pago_por_liquidar: { titulo: "Pagos por liquidar", accion: "Liquidar", orden: 44 },
   proveedor_en_revision: { titulo: "Proveedores en revisión (su tercero cambió)", accion: "Revisar", orden: 20.5 },

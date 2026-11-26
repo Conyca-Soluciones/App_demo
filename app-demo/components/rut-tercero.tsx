@@ -1,26 +1,36 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { FileText, Loader2, Upload } from "lucide-react"
+import { BadgeCheck, FileText, Loader2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { enlaceRutTercero, guardarRutTercero } from "@/app/(app)/ayf/rut-actions"
+import { marcarRutRevisado } from "@/app/(app)/ayf/terceros/actions"
 import { extensionArchivo, revisarArchivoTercero } from "@/lib/archivos-tercero"
 
 // RUT de un tercero que ya existe: "Ver RUT" y, con permiso, subirlo o
-// cambiarlo (ficha del tercero y Preparación del Consolidado).
+// cambiarlo (ficha del tercero y Preparación del Consolidado). Un RUT que cambió
+// alguien de fuera de A&F queda "por revisar" hasta que Financiera lo marca
+// revisado (20270101007200).
 export function RutTercero({
   terceroId,
   nombreArchivo,
   puedeSubir,
+  porRevisar = false,
+  puedeMarcarRevisado = false,
   onCambio,
+  onRevisado,
 }: {
   terceroId: string
   nombreArchivo: string | null
   puedeSubir: boolean
+  porRevisar?: boolean
+  puedeMarcarRevisado?: boolean
   onCambio?: (nombre: string) => void
+  onRevisado?: () => void
 }) {
   const [nombre, setNombre] = useState(nombreArchivo)
+  const [pendiente, setPendiente] = useState(porRevisar)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const archivoRef = useRef<HTMLInputElement>(null)
@@ -51,10 +61,25 @@ export function RutTercero({
       subido = true
       await guardarRutTercero(terceroId, { ruta, nombre: f.name, mime: f.type })
       setNombre(f.name)
+      setPendiente(!puedeMarcarRevisado)
       onCambio?.(f.name)
     } catch (e) {
       if (subido) await supabase.storage.from("terceros").remove([ruta])
       setError(e instanceof Error ? e.message : "No se pudo guardar el RUT.")
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  async function revisado() {
+    setOcupado(true)
+    setError(null)
+    try {
+      await marcarRutRevisado(terceroId)
+      setPendiente(false)
+      onRevisado?.()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo marcar el RUT como revisado.")
     } finally {
       setOcupado(false)
     }
@@ -74,6 +99,14 @@ export function RutTercero({
           <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={() => archivoRef.current?.click()}>
             {ocupado ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
             {nombre ? "Cambiar RUT" : "Subir RUT"}
+          </Button>
+        )}
+        {pendiente && nombre && (
+          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Por revisar en Financiera</span>
+        )}
+        {pendiente && nombre && puedeMarcarRevisado && (
+          <Button type="button" size="sm" variant="outline" disabled={ocupado} onClick={revisado}>
+            <BadgeCheck className="mr-1.5 h-4 w-4" /> Revisado
           </Button>
         )}
         <input

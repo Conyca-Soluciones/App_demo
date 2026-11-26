@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { CuentasTercero } from "@/components/cuentas-tercero"
+import { CertificacionesContratista, type DocumentoEnVisor } from "@/components/certificaciones-contratista"
 import { SelectorTercero } from "@/components/selector-tercero"
 import type { TerceroBasico } from "@/lib/terceros"
 import { formatearFechaSinHora } from "@/lib/fechas"
@@ -39,20 +40,16 @@ import {
   validarArchivo,
   validarContratista,
   type CampoContratista,
-  type CertificacionCuenta,
   type Contratista,
   type DatosContratista,
-  type DocumentoContratista,
   type DocumentoRequerido,
   type FiltrosContratistas,
   type TipoDocumentoContratista,
   type TipoPersona,
 } from "@/lib/contratistas"
 import {
-  certificacionesContratista,
   crearContratista,
   editarContratista,
-  enlaceCertificacionContratista,
   enlaceDocumentoContratista,
   guardarDocumentoContratista,
   listarContratistas,
@@ -372,8 +369,6 @@ export function ContratistasView({ puedeCrear, revisar = null }: { puedeCrear: b
 // Detalle (datos + documentos)
 // ---------------------------------------------------------------------------
 
-type DocumentoEnVisor = { titulo: string; nombreArchivo: string; mime: string; cargarUrl: () => Promise<string> }
-
 function DetalleContratistaDialog({
   contratista: c,
   puedeGestionar,
@@ -539,7 +534,7 @@ function DetalleContratistaDialog({
               <h3 className="text-sm font-semibold">Cuenta bancaria (en Terceros)</h3>
               <CuentasTercero terceroId={c.terceroId} />
               {c.datosBancariosVisibles && (
-                <CertificacionesTercero
+                <CertificacionesContratista
                   key={`cert-${c.id}`}
                   contratistaId={c.id}
                   anteriores={certificacionesAnteriores}
@@ -686,91 +681,6 @@ function DetalleContratistaDialog({
         </Dialog>
       </DialogContent>
     </Dialog>
-  )
-}
-
-// Certificación bancaria de las cuentas del tercero (vive en Terceros, la cambia
-// Financiera) y las que el contratista tenía antes, solo para ver. Solo se monta
-// con ver_datos_bancarios.
-function CertificacionesTercero({
-  contratistaId,
-  anteriores,
-  onVer,
-}: {
-  contratistaId: string
-  anteriores: DocumentoContratista[]
-  onVer: (d: DocumentoEnVisor) => void
-}) {
-  const [carga, setCarga] = useState<{ lista: CertificacionCuenta[] | null; error: string | null } | null>(null)
-
-  useEffect(() => {
-    let vigente = true
-    certificacionesContratista(contratistaId)
-      .then((lista: CertificacionCuenta[]) => vigente && setCarga({ lista, error: null }))
-      .catch((e) => vigente && setCarga({ lista: null, error: e instanceof Error ? e.message : "No se pudo cargar la certificación." }))
-    return () => {
-      vigente = false
-    }
-  }, [contratistaId])
-
-  return (
-    <div className="space-y-1 pt-1">
-      <p className="text-xs font-medium text-muted-foreground">Certificación bancaria</p>
-      {!carga ? (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="size-3 animate-spin" /> Cargando…
-        </p>
-      ) : carga.error ? (
-        <p className="text-xs text-destructive">{carga.error}</p>
-      ) : carga.lista!.length === 0 ? (
-        <p className="text-xs text-amber-700">Su cuenta no tiene certificación en Terceros: la sube Financiera.</p>
-      ) : (
-        <ul className="space-y-1">
-          {carga.lista!.map((k) => (
-            <li key={k.cuentaId} className="flex items-center gap-2 text-sm">
-              <span className="min-w-0 flex-1 truncate" title={k.nombreArchivo}>
-                {[k.banco, k.tipoCuenta, k.numeroFinal ? `…${k.numeroFinal}` : null].filter(Boolean).join(" · ")}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  onVer({
-                    titulo: "Certificación bancaria",
-                    nombreArchivo: k.nombreArchivo,
-                    mime: k.mime,
-                    cargarUrl: () => enlaceCertificacionContratista(contratistaId, k.cuentaId),
-                  })
-                }
-              >
-                <Eye className="size-4" /> Ver
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {anteriores.map((d) => (
-        <div key={d.id} className="flex items-center gap-2 text-sm">
-          <span className="min-w-0 flex-1 truncate text-muted-foreground" title={d.nombreArchivo}>
-            Anterior, del contratista ({fechaCreacion(d.subidoAt)})
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              onVer({
-                titulo: "Certificación bancaria anterior",
-                nombreArchivo: d.nombreArchivo,
-                mime: d.mime,
-                cargarUrl: () => enlaceDocumentoContratista(d.id),
-              })
-            }
-          >
-            <Eye className="size-4" /> Ver
-          </Button>
-        </div>
-      ))}
-    </div>
   )
 }
 
