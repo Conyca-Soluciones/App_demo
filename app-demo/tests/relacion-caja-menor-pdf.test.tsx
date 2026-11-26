@@ -4,6 +4,9 @@ import { renderToBuffer } from "@react-pdf/renderer"
 import { RelacionCajaMenorPDF } from "@/components/relacion-caja-menor-pdf"
 import { mapLegalizacionDetalle } from "@/lib/caja-menor"
 
+// PNG de 1x1 (para la firma y para un soporte en imagen).
+const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
 describe("RelacionCajaMenorPDF", () => {
   it("genera el PDF de la relación de gastos", async () => {
     const detalle = mapLegalizacionDetalle({
@@ -22,5 +25,22 @@ describe("RelacionCajaMenorPDF", () => {
     )
     expect(pdf.subarray(0, 4).toString()).toBe("%PDF")
     expect(pdf.length).toBeGreaterThan(1000)
+
+    // Con firmas y un soporte en imagen: una página más por el soporte.
+    const conTodo = await renderToBuffer(
+      createElement(RelacionCajaMenorPDF, {
+        detalle,
+        logo: null,
+        generado: "26/11/2026",
+        aprobadoPor: "Lider",
+        firmas: [
+          { papel: "responsable", nombre: "Inge", fecha: "2026-11-26T15:00:00Z", imagen: `data:image/png;base64,${PNG}` },
+          { papel: "aprobador", nombre: "Lider", fecha: null, imagen: null },
+        ],
+        anexos: [{ titulo: "Gasto 1 · Ferretería", imagen: Buffer.from(PNG, "base64") }],
+      }) as never
+    )
+    const paginas = (b: Buffer) => (b.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length
+    expect(paginas(conTodo)).toBe(paginas(pdf) + 1)
   })
 })

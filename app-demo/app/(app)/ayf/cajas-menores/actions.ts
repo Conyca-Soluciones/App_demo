@@ -7,7 +7,8 @@ import { renderToBuffer } from "@react-pdf/renderer"
 import { createClient } from "@/lib/supabase/server"
 import { obtenerUsuarioId, requerirPestana } from "@/lib/permisos"
 import { formatearFechaHora, hoyColombia } from "@/lib/fechas"
-import { RelacionCajaMenorPDF } from "@/components/relacion-caja-menor-pdf"
+import { RelacionCajaMenorPDF, type AnexoImagenRelacion, type FirmaRelacion } from "@/components/relacion-caja-menor-pdf"
+import { unirPdfs } from "@/lib/unir-pdfs"
 import {
   cajaParaGuardar,
   gastoParaGuardar,
@@ -49,6 +50,17 @@ async function clienteAyf() {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+const formatoPesosPdf = (n: number) =>
+  "$ " + n.toLocaleString("es-CO", { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
+
+// Tipo del archivo por sus primeros bytes (no por el nombre): PDF, JPG o PNG.
+function tipoArchivo(b: Uint8Array): "pdf" | "imagen" | null {
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return "pdf" // %PDF
+  if (b[0] === 0xff && b[1] === 0xd8) return "imagen" // JPG
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "imagen" // PNG
+  return null
+}
 
 // ---------------------------------------------------------------- responsable
 export async function miCajaMenor(): Promise<CajaMenor | null> {
@@ -297,16 +309,44 @@ async function aprobarLegalizacionLiderLanza(id: string): Promise<string> {
   } catch {
     logo = null
   }
-  const pdf = new Uint8Array(
+  // Firmas registradas del responsable, de quien revisó y de quien aprueba (20270101007700).
+  const { data: firmasCrudas } = await supabase.rpc("firmas_caja_menor", { p_legalizacion: id })
+  const firmas = ((firmasCrudas ?? []) as any[]).filter(Boolean).map((f) => ({
+    papel: f.papel,
+    nombre: String(f.nombre ?? ""),
+    fecha: f.fecha ?? null,
+    imagen: f.imagen ?? null,
+  })) as FirmaRelacion[]
+
+  // El soporte de cada gasto va en el mismo PDF, después de la tabla: las
+  // imágenes como páginas; los PDF se pegan al final, en el orden de la tabla.
+  const anexos: AnexoImagenRelacion[] = []
+  const soportesPdf: { titulo: string; bytes: Uint8Array }[] = []
+  for (const g of detalle.gastos) {
+    const titulo = `Gasto ${g.orden} · ${g.nombre} · Fact. ${g.numeroFactura} · ${formatoPesosPdf(g.valor)}`
+    const { data: archivo, error: eDescarga } = await supabase.storage.from("cajas_menores").download(g.soporte.ruta)
+    if (eDescarga || !archivo) throw new Error(`No se pudo leer el soporte del gasto ${g.orden}: vuelve a intentarlo.`)
+    const bytes = new Uint8Array(await archivo.arrayBuffer())
+    const tipo = tipoArchivo(bytes)
+    if (tipo === "pdf") soportesPdf.push({ titulo, bytes })
+    else if (tipo === "imagen") anexos.push({ titulo, imagen: Buffer.from(bytes) })
+    else throw new Error(`El soporte del gasto ${g.orden} no es PDF, JPG ni PNG.`)
+  }
+
+  const relacion = new Uint8Array(
     await renderToBuffer(
       createElement(RelacionCajaMenorPDF, {
         detalle,
         logo,
         generado: formatearFechaHora(new Date().toISOString()),
         aprobadoPor: (yo as any)?.nombre ?? "Líder Financiera",
+        firmas,
+        anexos,
+        pdfsAparte: soportesPdf.map((x) => x.titulo),
       }) as never
     )
   )
+  const pdf = await unirPdfs(relacion, soportesPdf)
   const nombre = `Relacion caja menor ${detalle.codigo}.pdf`
   const ruta = `${uid}/caja-menor-${detalle.codigo}-${Date.now()}.pdf`
   const { error: e2 } = await supabase.storage

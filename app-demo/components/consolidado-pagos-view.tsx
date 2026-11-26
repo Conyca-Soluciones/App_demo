@@ -26,6 +26,7 @@ import type { CuentaEmpresa } from "@/lib/dispersores/pagos-dispersor"
 import { descargarExcelLiquidacion, leerFilasLiquidacion, type AvisoFilaLiquidacion, type ErrorFilaLiquidacion } from "@/lib/excel-liquidacion"
 import { EtiquetasPago, textoEtiquetasPago } from "@/components/etiquetas-pago"
 import { VentanaGastoCajaMenor } from "@/components/ventana-gasto-caja-menor"
+import { LiquidarGastosCajaMenor } from "@/components/liquidar-gastos-caja-menor"
 import {
   conFilasDeGastos,
   esFilaGasto,
@@ -190,6 +191,8 @@ export function ConsolidadoPagosView({
   const [gastosCaja, setGastosCaja] = useState<Record<string, GastosDePago>>({})
   const [alternados, setAlternados] = useState<Set<string>>(new Set())
   const [gastoViendo, setGastoViendo] = useState<number | null>(null)
+  // "Liquidar gastos" de un reembolso, en pantalla completa (se abre desde la ventana del pago).
+  const [pantallaGastos, setPantallaGastos] = useState<{ pagoId: string; legalizacionId: string; editable: boolean } | null>(null)
 
   function cargarGastosCaja(lista: Pago[]) {
     const ids = lista.filter((p) => p.requisicionAdminId).map((p) => p.id)
@@ -1164,7 +1167,33 @@ export function ConsolidadoPagosView({
         }}
       />
 
+      {pantallaGastos && (
+        <LiquidarGastosCajaMenor
+          abierto
+          pagoId={pantallaGastos.pagoId}
+          legalizacionId={pantallaGastos.legalizacionId}
+          editable={pantallaGastos.editable}
+          onCerrar={() => setPantallaGastos(null)}
+          onGuardado={(r) => {
+            const pagoId = pantallaGastos.pagoId
+            setPantallaGastos(null)
+            setAviso(
+              r.pagoLiquidado
+                ? "Caja menor: todos los gastos liquidados, el reembolso quedó liquidado con la suma."
+                : `Caja menor: guardados ${r.liquidados} de ${r.gastos} gasto(s).`
+            )
+            obtenerPagoConsolidado(pagoId)
+              .then((p: Pago) => cambioDePago(p))
+              .catch(() => undefined)
+          }}
+        />
+      )}
+
       <VentanaPagoLiquidacion
+        onLiquidarGastosCaja={(d) => {
+          setIndiceViendo(null)
+          setPantallaGastos({ pagoId: d.pago.id, legalizacionId: d.legalizacionId, editable: d.editable })
+        }}
         pagos={pagos ?? []}
         indice={indiceViendo}
         soportes={soportes}
