@@ -1502,6 +1502,8 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   que la RLS no lea otra tabla; los soportes se leen con `_rutas_cajas_menores_visibles` (INVOKER).
 - Avisos (entidad `caja_menor`), historial (`historial_eventos`, entidad `caja_menor`, se ve en el detalle), Mis
   pendientes (`caja_menor_por_revisar`, `caja_menor_por_aprobar`, `mi_caja_menor_devuelta`) y Drive (`Proyectos/<proyecto de la caja>/Cajas menores/<semana>/<CM>/`).
+- `contadores_proyecto_tipo_check` lista los tipos de consecutivo por proyecto: un código nuevo por proyecto
+  necesita su tipo ahí (faltó `caja_menor`, se agregó en `20270101007500`).
 - Pendiente (no se hizo): arqueos, retenciones (las sigue haciendo Contabilidad al liquidar), que los gastos sumen
   por proyecto en Control del proyecto, y otros tipos de pago administrativo (reembolso ordinario).
 
@@ -5161,6 +5163,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
+`20270101007500` contador de proyecto tipo caja_menor (faltaba en el CHECK; sin ella, enviar la legalización falla).
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
