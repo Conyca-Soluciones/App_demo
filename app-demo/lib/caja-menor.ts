@@ -4,7 +4,7 @@
 // El responsable sube su LEGALIZACIÓN con todos los gastos y sus soportes:
 // Financiera revisa -> Líder Financiera da el okay -> la app crea el cuadro de
 // pago (reembolso al responsable) y Gerencia lo aprueba en Aprobación de pagos.
-// Las reglas del procedimiento (70 %, corte del 27) solo avisan.
+// Las reglas del procedimiento (70 %, tope) solo avisan; no hay recordatorio del 27.
 //
 // Archivo plano: tipos, validación, avisos y lectura del Excel (pruebas en
 // tests/caja-menor.test.ts).
@@ -12,11 +12,11 @@
 
 import { leerNumero } from "@/lib/contratos"
 
+const formatoPesos = (n: number) => "$ " + n.toLocaleString("es-CO", { maximumFractionDigits: 2 })
+
 export const MAX_GASTOS_CAJA_MENOR = 200
 // Procedimiento: legalizar cuando se haya gastado como máximo el 70 %.
 export const PORCENTAJE_LEGALIZAR = 70
-// Corte mensual: el 27 de cada mes se pasan los soportes.
-export const DIA_CORTE_CAJA_MENOR = 27
 
 export type EstadoLegalizacion = "por_revisar" | "por_aprobar" | "en_gerencia" | "aprobada" | "devuelta" | "cancelada"
 
@@ -250,8 +250,7 @@ export const porcentajeDeCaja = (total: number, monto: number) => (monto > 0 ? M
 /**
  * Avisos del procedimiento para lo que se va a enviar. Ninguno bloquea
  * (decisión del usuario): gastos que pasan el monto de la caja o un gasto solo
- * más grande que la caja (el procedimiento no lo permite). El corte del 27 sale
- * en Mis pendientes del responsable.
+ * más grande que la caja (el procedimiento no lo permite).
  */
 export function avisosLegalizacion(valores: number[], monto: number): string[] {
   const avisos: string[] = []
@@ -276,7 +275,7 @@ export function avisosLegalizacion(valores: number[], monto: number): string[] {
 /** Texto informativo: cuánto de la caja se está legalizando. */
 export const textoPorcentajeCaja = (total: number, monto: number) =>
   monto > 0
-    ? `Esta legalización es el ${porcentajeDeCaja(total, monto)} % de la caja. El procedimiento pide legalizar al llegar al ${PORCENTAJE_LEGALIZAR} % o el ${DIA_CORTE_CAJA_MENOR} de cada mes.`
+    ? `Estos gastos son el ${porcentajeDeCaja(total, monto)} % del monto de tu caja (${formatoPesos(monto)}). El procedimiento pide legalizar cuando se haya gastado como máximo el ${PORCENTAJE_LEGALIZAR} %.`
     : ""
 
 // ---------------------------------------------------------------- legalización (lista y detalle)

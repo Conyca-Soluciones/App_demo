@@ -4,7 +4,7 @@ import { RequisicionesAdminPagina } from "@/components/requisiciones-admin-pagin
 // Ruta libre (no es de ninguna pestaña de la matriz): los pagos
 // administrativos (antes "requisiciones administrativas") los hace cualquier
 // usuario con sesión. ?ver=<id> abre uno (aviso de la campanita o Mis pendientes).
-// ?caja_menor=<id> abre una legalización de caja menor (o "nueva", corte del 27).
+// ?caja_menor=<id> abre una legalización de caja menor (o "nueva", el formulario).
 export default async function PagosAdministrativosPage({
   searchParams,
 }: {

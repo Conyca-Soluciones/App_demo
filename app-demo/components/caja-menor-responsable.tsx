@@ -48,7 +48,7 @@ type Edicion = { id: string; codigo: string; gastos: GastoForm[] }
 // Caja menor del responsable (en Pagos administrativos): sube su legalización
 // con todos los gastos (en la tabla o con el Excel) y el soporte de cada uno, y
 // consulta las suyas. `abrir` = id de una legalización (aviso o Mis pendientes)
-// o "nueva" (corte del 27).
+// o "nueva" (abre el formulario).
 export function CajaMenorResponsable({ abrir }: { abrir: string | null }) {
   const [caja, setCaja] = useState<CajaMenor | null | undefined>(undefined)
   const [proyectos, setProyectos] = useState<ProyectoCajaMenor[]>([])

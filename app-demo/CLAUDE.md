@@ -1468,8 +1468,8 @@ Consolidado Gerencia: total de todo lo filtrado (`total_consolidado_gerencia`).
 
 `20270101007400_caja_menor.sql` (reversa en `supabase/reversa/`), procedimiento GF-PR-001 v2. Decisiones del
 usuario: solo gastos y reembolso (el desembolso inicial va por fuera); el responsable sube TODOS los gastos de una
-vez (no uno por uno mientras pasan); concepto en texto libre; las reglas del procedimiento (70 %, corte del 27,
-tope) solo avisan, nada bloquea; las devoluciones vuelven siempre al responsable.
+vez (no uno por uno mientras pasan); concepto en texto libre; las reglas del procedimiento (70 % y tope) solo
+avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelven siempre al responsable.
 - **Caja** (`cajas_menores`, pestaña `ayf.cajas_menores` › Cajas): Financiera (acción `gestionar_cajas_menores`) la
   crea con responsable (`perfiles`), monto, tercero y cuenta a donde se reembolsa (de Terceros, no inactiva), grupo
   empresarial y proyecto o área (`guardar_caja_menor`; listas con `opciones_caja_menor`, que trae todos los
@@ -1496,8 +1496,7 @@ tope) solo avisan, nada bloquea; las devoluciones vuelven siempre al responsable
   acciones, Aprobación de pagos y quien ve algún consolidado. Las tablas guardan una copia de `responsable_id` para
   que la RLS no lea otra tabla; los soportes se leen con `_rutas_cajas_menores_visibles` (INVOKER).
 - Avisos (entidad `caja_menor`), historial (`historial_eventos`, entidad `caja_menor`, se ve en el detalle), Mis
-  pendientes (`caja_menor_por_revisar`, `caja_menor_por_aprobar`, `mi_caja_menor_devuelta`, `caja_menor_corte` del 27
-  si no ha enviado legalización desde el 27) y Drive (`Proyectos/<proyecto de la caja>/Cajas menores/<semana>/<CM>/`).
+  pendientes (`caja_menor_por_revisar`, `caja_menor_por_aprobar`, `mi_caja_menor_devuelta`) y Drive (`Proyectos/<proyecto de la caja>/Cajas menores/<semana>/<CM>/`).
 - Pendiente (no se hizo): arqueos, retenciones (las sigue haciendo Contabilidad al liquidar), que los gastos sumen
   por proyecto en Control del proyecto, y otros tipos de pago administrativo (reembolso ordinario).
 

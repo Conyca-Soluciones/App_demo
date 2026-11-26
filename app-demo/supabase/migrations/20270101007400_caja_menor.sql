@@ -12,8 +12,8 @@
 --      aprueba en Aprobación de pagos como cualquier cuadro)
 --   -> aprobada (Gerencia aprobó el pago; sigue por consolidado y dispersor).
 -- Cualquiera de los tres puede devolver (siempre al responsable, que corrige y
--- vuelve a empezar por Financiera). Las reglas del procedimiento (70 %, corte
--- del 27, tope) solo avisan: nada se bloquea.
+-- vuelve a empezar por Financiera). Las reglas del procedimiento (70 %, tope)
+-- solo avisan: nada se bloquea. Sin recordatorio del corte del 27.
 --
 -- Va antes que el código. Reversa: supabase/reversa/20270101007400_caja_menor.sql
 -- ===========================================================================
@@ -934,8 +934,9 @@ begin
     || ancla);
   end if;
 
-  -- Mis pendientes: revisar (Financiera), aprobar (Líder Financiera), devuelta y
-  -- corte del 27 (responsable). Se agregan al final.
+  -- Mis pendientes: revisar (Financiera), aprobar (Líder Financiera) y devuelta
+  -- (responsable). Se agregan al final. Sin recordatorio del corte del 27
+  -- (decisión del usuario).
   v := pg_get_functiondef('public._pendientes_de(uuid)'::regprocedure);
   ancla := E'   group by c.id, c.numero, c.archivo, c.cargado_en, c.cargado_por;\n';
   if position('caja_menor_por_revisar' in v) > 0 then
@@ -968,17 +969,7 @@ begin
     || E'         l.valor_total, l.devuelta_en, l.devuelta_por, null::date, ''/ayf/pagos-administrativos?caja_menor='' || l.id\n'
     || E'    from caja_menor_legalizaciones l\n'
     || E'    join cajas_menores k on k.id = l.caja_id\n'
-    || E'   where l.estado = ''devuelta'' and l.responsable_id = p_uid\n'
-    || E'  union all\n'
-    || E'  select ''caja_menor_corte'', ''hacer'', k.id, k.proyecto_id,\n'
-    || E'         ''Caja menor N° '' || k.numero, ''Corte del 27: envía la legalización de los gastos del mes'',\n'
-    || E'         null::numeric, null::timestamptz, null::uuid,\n'
-    || E'         (date_trunc(''month'', v_hoy) + interval ''1 month - 1 day'')::date, ''/ayf/pagos-administrativos?caja_menor=nueva''\n'
-    || E'    from cajas_menores k\n'
-    || E'   where k.responsable_id = p_uid and k.estado = ''abierta'' and extract(day from v_hoy) >= 27\n'
-    || E'     and not exists (select 1 from caja_menor_legalizaciones l\n'
-    || E'                      where l.caja_id = k.id and l.estado <> ''cancelada''\n'
-    || E'                        and (l.enviada_en at time zone ''America/Bogota'')::date >= date_trunc(''month'', v_hoy)::date + 26);\n');
+    || E'   where l.estado = ''devuelta'' and l.responsable_id = p_uid;\n');
   end if;
 end;
 $$;
