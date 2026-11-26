@@ -3,7 +3,7 @@
 import { AvisoRevisionTercero } from "@/components/aviso-revision-tercero"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, Download, Eye, FileUp, History, Loader2, Pencil, Plus, X } from "lucide-react"
+import { CheckCircle2, Download, Eye, FileUp, History, Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { HistorialTimeline } from "@/components/historial-timeline"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -31,24 +31,33 @@ import {
   DOCUMENTOS_POR_PERSONA,
   TIPOS_DOCUMENTO_PERSONA,
   documentoFormateado,
+  documentoQuitable,
   esDocumentoContratista,
+  extensionArchivo,
+  rutaDocumentoNuevo,
   tipoPersonaDeTercero,
   validarArchivo,
   validarContratista,
   type CampoContratista,
+  type CertificacionCuenta,
   type Contratista,
   type DatosContratista,
   type DocumentoContratista,
+  type DocumentoRequerido,
   type FiltrosContratistas,
   type TipoDocumentoContratista,
   type TipoPersona,
 } from "@/lib/contratistas"
 import {
+  certificacionesContratista,
   crearContratista,
   editarContratista,
+  enlaceCertificacionContratista,
   enlaceDocumentoContratista,
+  guardarDocumentoContratista,
   listarContratistas,
   listarContratistasPagina,
+  quitarDocumentoContratista,
   type DocumentoSubido,
 } from "@/app/(app)/contratos/contratistas/actions"
 
@@ -59,11 +68,9 @@ const ETIQUETA_PERSONA: Record<TipoPersona, string> = { natural: "Natural", juri
 const PLANTILLA_AUTORIZACION_DATOS = "/plantillas/GA-F-025-V4-autorizacion-tratamiento-datos-personales.pdf"
 
 // Documentos obligatorios entregados / exigidos, para la columna y el detalle.
-// Sin permiso de datos bancarios la certificación bancaria no se ve: no cuenta.
+// La certificación bancaria ya no cuenta: vive en la cuenta del tercero.
 function resumenDocumentos(c: Contratista) {
-  const exigidos = DOCUMENTOS_POR_PERSONA[c.tipoPersona].filter(
-    (d) => d.obligatorio && (c.datosBancariosVisibles || d.tipo !== "certificacion_bancaria")
-  )
+  const exigidos = DOCUMENTOS_POR_PERSONA[c.tipoPersona].filter((d) => d.obligatorio)
   const tiene = new Set(c.documentos.map((d) => d.tipo))
   return { entregados: exigidos.filter((d) => tiene.has(d.tipo)).length, total: exigidos.length }
 }
@@ -340,7 +347,13 @@ export function ContratistasView({ puedeCrear, revisar = null }: { puedeCrear: b
 
       <DetalleContratistaDialog
         contratista={detalle}
+        puedeGestionar={puedeCrear}
         onCerrar={() => setDetalle(null)}
+        onActualizado={(c, mensaje) => {
+          setDetalle(c)
+          setContratistas((prev) => prev && prev.map((x) => (x.id === c.id ? c : x)))
+          setAviso(`${c.nombre} · ${mensaje}`)
+        }}
         onEditar={
           puedeCrear
             ? (c) => {
@@ -359,18 +372,28 @@ export function ContratistasView({ puedeCrear, revisar = null }: { puedeCrear: b
 // Detalle (datos + documentos)
 // ---------------------------------------------------------------------------
 
+type DocumentoEnVisor = { titulo: string; nombreArchivo: string; mime: string; cargarUrl: () => Promise<string> }
+
 function DetalleContratistaDialog({
   contratista: c,
+  puedeGestionar,
   onCerrar,
   onEditar,
+  onActualizado,
 }: {
   contratista: Contratista | null
+  puedeGestionar: boolean
   onCerrar: () => void
   onEditar?: (c: Contratista) => void
+  onActualizado: (c: Contratista, mensaje: string) => void
 }) {
   // Documento abierto en el visor (dentro del mismo diálogo).
-  const [viendo, setViendo] = useState<{ id: string; titulo: string; nombreArchivo: string; mime: string } | null>(null)
+  const [viendo, setViendo] = useState<DocumentoEnVisor | null>(null)
   const [verHistorial, setVerHistorial] = useState(false)
+  // Documento que se está guardando o quitando (uno a la vez) y el último error.
+  const [ocupado, setOcupado] = useState<TipoDocumentoContratista | null>(null)
+  const [errorDoc, setErrorDoc] = useState<{ tipo: TipoDocumentoContratista; mensaje: string } | null>(null)
+  const [quitando, setQuitando] = useState<DocumentoRequerido | null>(null)
 
   const campos: [string, string][] = c
     ? [
@@ -395,14 +418,86 @@ function DetalleContratistaDialog({
     : []
 
   const documentoPorTipo = new Map(c?.documentos.map((d) => [d.tipo, d]) ?? [])
+  // Certificaciones que el contratista tenía antes de que vivieran en Terceros.
+  const certificacionesAnteriores = c?.documentos.filter((d) => d.tipo === "certificacion_bancaria") ?? []
+
+  // Sube el archivo y lo guarda como el documento de ese tipo. Con la misma
+  // extensión sobrescribe el archivo en su ruta (la copia de Drive se actualiza).
+  async function reemplazar(req: DocumentoRequerido, archivo: File | undefined) {
+    if (!c || !archivo) return
+    const err = validarArchivo(archivo)
+    if (err) {
+      setErrorDoc({ tipo: req.tipo, mensaje: err })
+      return
+    }
+    setErrorDoc(null)
+    setOcupado(req.tipo)
+    const supabase = createClient()
+    const actual = documentoPorTipo.get(req.tipo)
+    const { ruta, sobrescribe } = rutaDocumentoNuevo(
+      c.id,
+      req.tipo,
+      extensionArchivo(archivo.name, archivo.type),
+      actual?.ruta ?? null,
+      crypto.randomUUID().slice(0, 8)
+    )
+    let subido = false
+    try {
+      const { error } = await supabase.storage
+        .from("contratistas")
+        .upload(ruta, archivo, { contentType: archivo.type, upsert: sobrescribe })
+      if (error) throw new Error(`No se pudo subir "${archivo.name}": ${error.message}`)
+      subido = true
+      const r = await guardarDocumentoContratista(c.id, {
+        tipo: req.tipo,
+        ruta,
+        nombreArchivo: archivo.name,
+        tamano: archivo.size,
+        mime: archivo.type,
+      })
+      // El archivo anterior ya no es documento de nadie (si falla, solo queda suelto).
+      if (r.rutaAnterior) await supabase.storage.from("contratistas").remove([r.rutaAnterior])
+      onActualizado(r.contratista, `${req.titulo}: ${actual ? "reemplazado" : "agregado"}.`)
+    } catch (e) {
+      // Un archivo en ruta nueva que no quedó guardado se borra. Uno sobrescrito
+      // ya quedó en su lugar: al volver a intentar se corrigen sus datos.
+      if (subido && !sobrescribe) await supabase.storage.from("contratistas").remove([ruta])
+      setErrorDoc({
+        tipo: req.tipo,
+        mensaje:
+          (e instanceof Error ? e.message : "No se pudo guardar el documento.") +
+          (subido && sobrescribe ? " El archivo nuevo ya se subió: vuelve a intentarlo para terminar." : ""),
+      })
+    } finally {
+      setOcupado(null)
+    }
+  }
+
+  async function quitar(req: DocumentoRequerido) {
+    if (!c) return
+    setQuitando(null)
+    setErrorDoc(null)
+    setOcupado(req.tipo)
+    try {
+      const r = await quitarDocumentoContratista(c.id, req.tipo)
+      await createClient().storage.from("contratistas").remove([r.ruta])
+      onActualizado(r.contratista, `${req.titulo}: quitado.`)
+    } catch (e) {
+      setErrorDoc({ tipo: req.tipo, mensaje: e instanceof Error ? e.message : "No se pudo quitar el documento." })
+    } finally {
+      setOcupado(null)
+    }
+  }
 
   return (
     <Dialog
       open={c !== null}
       onOpenChange={(abierto) => {
+        if (!abierto && ocupado) return
         if (!abierto) {
           setViendo(null)
           setVerHistorial(false)
+          setErrorDoc(null)
           onCerrar()
         }
       }}
@@ -412,7 +507,7 @@ function DetalleContratistaDialog({
           <DialogTitle className="flex flex-wrap items-center gap-2 pr-8">
             <span className="min-w-0 flex-1">{c?.nombre}</span>
             {c && onEditar && !viendo && (
-              <Button size="sm" variant="outline" onClick={() => onEditar(c)}>
+              <Button size="sm" variant="outline" onClick={() => onEditar(c)} disabled={ocupado !== null}>
                 <Pencil className="size-4" /> Editar
               </Button>
             )}
@@ -423,7 +518,7 @@ function DetalleContratistaDialog({
             titulo={viendo.titulo}
             nombreArchivo={viendo.nombreArchivo}
             mime={viendo.mime}
-            cargarUrl={() => enlaceDocumentoContratista(viendo.id)}
+            cargarUrl={viendo.cargarUrl}
             onVolver={() => setViendo(null)}
           />
         )}
@@ -443,32 +538,110 @@ function DetalleContratistaDialog({
             <section className="space-y-1">
               <h3 className="text-sm font-semibold">Cuenta bancaria (en Terceros)</h3>
               <CuentasTercero terceroId={c.terceroId} />
+              {c.datosBancariosVisibles && (
+                <CertificacionesTercero
+                  key={`cert-${c.id}`}
+                  contratistaId={c.id}
+                  anteriores={certificacionesAnteriores}
+                  onVer={setViendo}
+                />
+              )}
             </section>
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Documentos generales</h3>
+              <div>
+                <h3 className="text-sm font-semibold">Documentos generales</h3>
+                {puedeGestionar && (
+                  <p className="text-xs text-muted-foreground">
+                    PDF, JPG o PNG de hasta 10 MB. Cada cambio se guarda al momento y queda en el historial.
+                  </p>
+                )}
+              </div>
               <ul className="divide-y rounded-md border">
                 {DOCUMENTOS_POR_PERSONA[c.tipoPersona].map((req) => {
                   const doc = documentoPorTipo.get(req.tipo)
+                  const idInput = `reemplazar-${c.id}-${req.tipo}`
+                  const esteOcupado = ocupado === req.tipo
                   return (
-                    <li key={req.tipo} className="flex items-center gap-3 px-3 py-2 text-sm">
+                    <li key={req.tipo} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
                       <div className="min-w-0 flex-1">
                         <p>{req.titulo}</p>
-                        {doc && <p className="truncate text-xs text-muted-foreground" title={doc.nombreArchivo}>{doc.nombreArchivo}</p>}
+                        {doc && (
+                          <p className="truncate text-xs text-muted-foreground" title={doc.nombreArchivo}>
+                            {doc.nombreArchivo} · {fechaCreacion(doc.subidoAt)}
+                          </p>
+                        )}
+                        {errorDoc?.tipo === req.tipo && <p className="text-xs text-destructive">{errorDoc.mensaje}</p>}
                       </div>
+                      {esteOcupado && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
                       {doc ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setViendo({ id: doc.id, titulo: req.titulo, nombreArchivo: doc.nombreArchivo, mime: doc.mime })}
+                          disabled={esteOcupado}
+                          onClick={() =>
+                            setViendo({
+                              titulo: req.titulo,
+                              nombreArchivo: doc.nombreArchivo,
+                              mime: doc.mime,
+                              cargarUrl: () => enlaceDocumentoContratista(doc.id),
+                            })
+                          }
                         >
                           <Eye className="size-4" />
                           Ver
                         </Button>
                       ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {req.tipo === "certificacion_bancaria" && !c.datosBancariosVisibles ? "Restringido" : req.obligatorio ? "Falta" : "No aplica"}
-                        </span>
+                        !puedeGestionar && (
+                          <span className="text-xs text-muted-foreground">{req.obligatorio ? "Falta" : "No aplica"}</span>
+                        )
+                      )}
+                      {puedeGestionar && (
+                        <>
+                          {/* Formato GA-F-025 en blanco: se descarga, se firma y se adjunta aquí mismo. */}
+                          {req.tipo === "autorizacion_datos" && !doc && (
+                            <a
+                              href={PLANTILLA_AUTORIZACION_DATOS}
+                              download="GA-F-025 V4 Autorizacion de tratamiento de datos personales.pdf"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted"
+                            >
+                              <Download className="size-4" />
+                              Plantilla
+                            </a>
+                          )}
+                          <input
+                            id={idInput}
+                            type="file"
+                            accept="application/pdf,image/jpeg,image/png"
+                            className="sr-only"
+                            disabled={ocupado !== null}
+                            onChange={(e) => {
+                              void reemplazar(req, e.target.files?.[0])
+                              e.target.value = ""
+                            }}
+                          />
+                          <label
+                            htmlFor={idInput}
+                            className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm hover:bg-muted ${
+                              ocupado !== null ? "pointer-events-none opacity-50" : ""
+                            } ${!doc && req.obligatorio ? "border-amber-400" : ""}`}
+                          >
+                            <FileUp className="size-4" />
+                            {doc ? "Reemplazar" : "Adjuntar"}
+                          </label>
+                          {doc && documentoQuitable(c.tipoPersona, req.tipo) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              disabled={ocupado !== null}
+                              onClick={() => setQuitando(req)}
+                            >
+                              <Trash2 className="size-4" />
+                              Quitar
+                            </Button>
+                          )}
+                        </>
                       )}
                     </li>
                   )
@@ -486,14 +659,118 @@ function DetalleContratistaDialog({
               </div>
               {verHistorial && (
                 <div className="rounded-md border p-3">
-                  <HistorialTimeline tipo="contratista" id={c.id} />
+                  {/* La clave cambia con cada edición: el historial se vuelve a leer. */}
+                  <HistorialTimeline key={c.editadoAt ?? c.createdAt} tipo="contratista" id={c.id} />
                 </div>
               )}
             </section>
           </div>
         )}
+        <Dialog open={quitando !== null} onOpenChange={(abrir) => !abrir && setQuitando(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Quitar {quitando?.titulo.toLowerCase()}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              El archivo se quita del contratista y queda anotado en el historial. La copia que ya está en Google Drive se conserva.
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setQuitando(null)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={() => quitando && void quitar(quitando)}>
+                <Trash2 className="size-4" /> Quitar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// Certificación bancaria de las cuentas del tercero (vive en Terceros, la cambia
+// Financiera) y las que el contratista tenía antes, solo para ver. Solo se monta
+// con ver_datos_bancarios.
+function CertificacionesTercero({
+  contratistaId,
+  anteriores,
+  onVer,
+}: {
+  contratistaId: string
+  anteriores: DocumentoContratista[]
+  onVer: (d: DocumentoEnVisor) => void
+}) {
+  const [carga, setCarga] = useState<{ lista: CertificacionCuenta[] | null; error: string | null } | null>(null)
+
+  useEffect(() => {
+    let vigente = true
+    certificacionesContratista(contratistaId)
+      .then((lista: CertificacionCuenta[]) => vigente && setCarga({ lista, error: null }))
+      .catch((e) => vigente && setCarga({ lista: null, error: e instanceof Error ? e.message : "No se pudo cargar la certificación." }))
+    return () => {
+      vigente = false
+    }
+  }, [contratistaId])
+
+  return (
+    <div className="space-y-1 pt-1">
+      <p className="text-xs font-medium text-muted-foreground">Certificación bancaria</p>
+      {!carga ? (
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-3 animate-spin" /> Cargando…
+        </p>
+      ) : carga.error ? (
+        <p className="text-xs text-destructive">{carga.error}</p>
+      ) : carga.lista!.length === 0 ? (
+        <p className="text-xs text-amber-700">Su cuenta no tiene certificación en Terceros: la sube Financiera.</p>
+      ) : (
+        <ul className="space-y-1">
+          {carga.lista!.map((k) => (
+            <li key={k.cuentaId} className="flex items-center gap-2 text-sm">
+              <span className="min-w-0 flex-1 truncate" title={k.nombreArchivo}>
+                {[k.banco, k.tipoCuenta, k.numeroFinal ? `…${k.numeroFinal}` : null].filter(Boolean).join(" · ")}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  onVer({
+                    titulo: "Certificación bancaria",
+                    nombreArchivo: k.nombreArchivo,
+                    mime: k.mime,
+                    cargarUrl: () => enlaceCertificacionContratista(contratistaId, k.cuentaId),
+                  })
+                }
+              >
+                <Eye className="size-4" /> Ver
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {anteriores.map((d) => (
+        <div key={d.id} className="flex items-center gap-2 text-sm">
+          <span className="min-w-0 flex-1 truncate text-muted-foreground" title={d.nombreArchivo}>
+            Anterior, del contratista ({fechaCreacion(d.subidoAt)})
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onVer({
+                titulo: "Certificación bancaria anterior",
+                nombreArchivo: d.nombreArchivo,
+                mime: d.mime,
+                cargarUrl: () => enlaceDocumentoContratista(d.id),
+              })
+            }
+          >
+            <Eye className="size-4" /> Ver
+          </Button>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -519,12 +796,6 @@ const claseCampo = (conError: boolean) =>
     conError ? "border-destructive" : ""
   }`
 
-function extension(archivo: File) {
-  const desdeNombre = archivo.name.includes(".") ? archivo.name.split(".").pop()!.toLowerCase() : ""
-  if (/^[a-z0-9]{2,5}$/.test(desdeNombre)) return desdeNombre
-  return archivo.type === "application/pdf" ? "pdf" : archivo.type === "image/png" ? "png" : "jpg"
-}
-
 // Datos del contratista en el formulario (todo como texto), para editarlo.
 function formularioDesde(c: Contratista): DatosContratista {
   return {
@@ -541,9 +812,9 @@ function formularioDesde(c: Contratista): DatosContratista {
   }
 }
 
-// Con `editando`, el mismo formulario corrige un contratista: datos llenos, el
-// tipo de persona fijo y los documentos actuales; solo se suben los que se
-// reemplazan o agregan.
+// Con `editando`, el mismo formulario corrige los datos de un contratista (el
+// tipo de persona queda fijo). Los documentos de un contratista que ya existe se
+// cambian uno a uno desde su detalle (20270101007100), no aquí.
 function ContratistaFormDialog({
   abierto,
   editando,
@@ -565,16 +836,8 @@ function ContratistaFormDialog({
   const [paso, setPaso] = useState<"subiendo" | "guardando" | null>(null)
   const guardando = paso !== null
   const juridica = valores.tipoPersona === "juridica"
-  // Al editar sin permiso de datos bancarios no se muestran ni se piden (la
-  // base los deja como estaban), ni la certificación bancaria.
-  const sinBancarios = Boolean(editando && !editando.datosBancariosVisibles)
-  const documentos = DOCUMENTOS_POR_PERSONA[valores.tipoPersona].filter(
-    (d) => !sinBancarios || d.tipo !== "certificacion_bancaria"
-  )
-  const actuales = useMemo(
-    () => new Map<TipoDocumentoContratista, DocumentoContratista>((editando?.documentos ?? []).map((d) => [d.tipo, d])),
-    [editando]
-  )
+  // Solo al crear: al editar, los documentos se cambian desde el detalle.
+  const documentos = editando ? [] : DOCUMENTOS_POR_PERSONA[valores.tipoPersona]
   // El tercero del contratista (20261222000000): SelectorTercero lo busca por
   // documento o lo crea con el formulario de A&F. Al editar queda fijo.
   const [tercero, setTercero] = useState<TerceroBasico | null>(() =>
@@ -657,13 +920,13 @@ function ContratistaFormDialog({
 
     const r = validarContratista(valores)
     const faltan: Partial<Record<TipoDocumentoContratista, string>> = {}
-    for (const d of documentos) if (d.obligatorio && !archivos[d.tipo] && !actuales.has(d.tipo)) faltan[d.tipo] = "Adjunta este documento."
+    for (const d of documentos) if (d.obligatorio && !archivos[d.tipo]) faltan[d.tipo] = "Adjunta este documento."
     setErrores(r.ok ? {} : r.errores)
     setErroresArchivo(faltan)
     if (!r.ok || Object.keys(faltan).length > 0) {
       setErrorGeneral(
         editando
-          ? "Revisa los campos marcados: todos los datos y los documentos obligatorios son necesarios."
+          ? "Revisa los campos marcados: todos los datos son necesarios."
           : "Revisa los campos marcados: todos los datos y los documentos obligatorios son necesarios para crear el contratista."
       )
       return
@@ -680,7 +943,7 @@ function ContratistaFormDialog({
           .filter((d) => archivos[d.tipo])
           .map(async (d) => {
             const archivo = archivos[d.tipo]!
-            const ruta = `${id}/${d.tipo}-${marca}.${extension(archivo)}`
+            const ruta = `${id}/${d.tipo}-${marca}.${extensionArchivo(archivo.name, archivo.type)}`
             const { error } = await supabase.storage
               .from("contratistas")
               .upload(ruta, archivo, { contentType: archivo.type, upsert: false })
@@ -692,10 +955,7 @@ function ContratistaFormDialog({
       setPaso("guardando")
       // El contacto es el del tercero (lo copia la base) y solo lo cambia Financiera.
       if (editando) {
-        const r = await editarContratista(id, valores, subidos)
-        // Los archivos reemplazados ya no son documento de nadie: se borran
-        // (si falla, solo queda un archivo suelto, los datos ya se guardaron).
-        if (r.rutasReemplazadas.length > 0) await supabase.storage.from("contratistas").remove(r.rutasReemplazadas)
+        const r = await editarContratista(id, valores, [])
         onGuardado(r.contratista, false)
       } else {
         onGuardado(await crearContratista(id, valores, subidos), true)
@@ -745,7 +1005,7 @@ function ContratistaFormDialog({
         <form id="form-nuevo-contratista" onSubmit={crear} noValidate className="space-y-6">
           {editando && (
             <p className="text-xs text-muted-foreground">
-              El tercero no se cambia aquí. Los documentos actuales se conservan; adjunta uno nuevo solo para reemplazarlo.
+              El tercero no se cambia aquí. Los documentos se reemplazan o agregan desde el detalle del contratista (doble clic).
             </p>
           )}
           <section className="space-y-3">
@@ -828,6 +1088,7 @@ function ContratistaFormDialog({
             </dl>
           </section>
 
+          {!editando && (
           <section className="space-y-3">
             <div>
               <h3 className="text-sm font-semibold">Documentos generales</h3>
@@ -836,7 +1097,6 @@ function ContratistaFormDialog({
             <ul className="divide-y rounded-md border">
               {documentos.map((d) => {
                 const archivo = archivos[d.tipo]
-                const actual = actuales.get(d.tipo)
                 const err = erroresArchivo[d.tipo]
                 const id = `archivo-${d.tipo}`
                 return (
@@ -848,14 +1108,10 @@ function ContratistaFormDialog({
                       </p>
                       {err ? (
                         <p className="text-xs text-destructive">{err}</p>
-                      ) : archivo ? (
-                        <p className="truncate text-xs text-muted-foreground" title={archivo.name}>
-                          {actual ? `Nuevo: ${archivo.name} (reemplaza a ${actual.nombreArchivo})` : archivo.name}
-                        </p>
                       ) : (
-                        actual && (
-                          <p className="truncate text-xs text-muted-foreground" title={actual.nombreArchivo}>
-                            Actual: {actual.nombreArchivo}
+                        archivo && (
+                          <p className="truncate text-xs text-muted-foreground" title={archivo.name}>
+                            {archivo.name}
                           </p>
                         )
                       )}
@@ -890,9 +1146,9 @@ function ContratistaFormDialog({
                       } ${err ? "border-destructive" : ""}`}
                     >
                       <FileUp className="size-4" />
-                      {archivo ? "Cambiar" : actual ? "Reemplazar" : "Adjuntar"}
+                      {archivo ? "Cambiar" : "Adjuntar"}
                     </label>
-                    {archivo && (!d.obligatorio || actual) && (
+                    {archivo && !d.obligatorio && (
                       <button
                         type="button"
                         onClick={() =>
@@ -913,7 +1169,11 @@ function ContratistaFormDialog({
                 )
               })}
             </ul>
+            <p className="text-xs text-muted-foreground">
+              La certificación bancaria va con la cuenta del tercero (Terceros): no se adjunta aquí.
+            </p>
           </section>
+          )}
         </form>
 
         {errorGeneral && <p className="text-sm text-destructive">{errorGeneral}</p>}

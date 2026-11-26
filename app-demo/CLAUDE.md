@@ -3717,9 +3717,33 @@ seguridad social, SOAT, cotización...) van con el contrato, después.
   aparte"), igual en Solicitud de contratos. Funciona porque los enlaces
   firmados de Storage no traen X-Frame-Options ni `Content-Disposition:
   attachment` (revisado).
-- Editar datos y reemplazar o agregar documentos: hecho (botón Editar,
-  `editarContratista` -> `editar_contratista`). **Pendiente**: vencimientos
-  (p. ej. certificación bancaria o cámara de comercio con más de 30 días).
+- Editar datos: botón Editar (`editarContratista` -> `editar_contratista`), solo
+  los datos; los documentos de un contratista que ya existe NO se cambian ahí.
+- **Documentos desde el detalle** (`20270101007100`, decisiones del usuario
+  2026-11-26; reversa en `supabase/reversa/`): en la ventana del contratista
+  (doble clic), quien tiene `gestionar_contratistas` tiene "Reemplazar" /
+  "Adjuntar" en cada documento y "Quitar" solo en los opcionales (hoja de vida;
+  `documentoQuitable`). Cada cambio se guarda solo, sin el formulario completo
+  (un dato de contacto que falte en el tercero ya no lo frena):
+  `guardarDocumentoContratista` -> `guardar_documento_contratista` y
+  `quitarDocumentoContratista` -> `quitar_documento_contratista`. El historial lo
+  escribe el disparador de siempre (subido / reemplazado / quitado).
+  **Mismo tipo de archivo = misma ruta** (`rutaDocumentoNuevo`): el navegador
+  sobrescribe con `upsert` (política `contratistas_archivos_update`, sin leer
+  tablas) para que la copia de Google Drive se actualice en vez de crear otra;
+  `subir-drive` también le pone el nombre nuevo al archivo de Drive (hay que
+  volver a publicar la función). Con otra extensión (PDF -> JPG) va a una ruta
+  nueva, el viejo se borra del bucket y en Drive queda la copia anterior. Si el
+  guardado falla después de sobrescribir, el archivo nuevo ya quedó y volver a
+  intentar corrige sus datos.
+- **La certificación bancaria vive solo en Terceros** (misma migración): ya no
+  es documento del contratista (`DOCUMENTOS_POR_PERSONA` no la trae;
+  `crear_contratista` no la pide y ni crear ni editar la aceptan). La cambia
+  Financiera en la cuenta del tercero. El detalle muestra, a quien tiene
+  `ver_datos_bancarios`, la de cada cuenta (`certificaciones_contratista`; el
+  bucket `terceros` solo lo lee A&F, así que `enlaceCertificacionContratista`
+  firma con la service role) y, como historia, la que el contratista tenía antes.
+- **Pendiente**: vencimientos (p. ej. cámara de comercio con más de 30 días).
 
 
 ## Solicitud de contratos `/contratos/solicitar` (implementado)
@@ -5079,6 +5103,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
 `20270101007000` Drive: Excel semanal de requisiciones por proyecto; los anexos de requisiciones ya no se copian.
+`20270101007100` documentos del contratista desde el detalle (reemplazar, agregar, quitar opcionales) y certificación bancaria solo en Terceros.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

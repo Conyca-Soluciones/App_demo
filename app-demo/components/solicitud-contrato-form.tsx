@@ -847,7 +847,6 @@ export function SolicitudContratoForm({
             </dl>
             <div className="flex flex-wrap gap-1.5">
               {DOCUMENTOS_POR_PERSONA[contratista.tipoPersona].map((d) => {
-                if (d.tipo === "certificacion_bancaria" && !contratista.datosBancariosVisibles) return null
                 const tiene = contratista.documentos.some((x) => x.tipo === d.tipo)
                 if (!tiene && !d.obligatorio) return null
                 return (
