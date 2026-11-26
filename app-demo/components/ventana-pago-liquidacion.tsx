@@ -36,6 +36,8 @@ import {
   obtenerPagoConsolidado,
 } from "@/app/(app)/ayf/consolidado/actions"
 import { generarSoportesPagoManual } from "@/app/(app)/ayf/realizar-pagos/actions"
+import { legalizacionDeCuadro } from "@/app/(app)/ayf/cajas-menores/actions"
+import { LiquidarGastosCajaMenor } from "@/components/liquidar-gastos-caja-menor"
 
 // ---------------------------------------------------------------------------
 // Doble clic en un pago del Consolidado: todo lo del pago en una ventana, para
@@ -179,6 +181,21 @@ function Contenido({
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  // Reembolso de caja menor (20270101007600): se liquida gasto por gasto, no aquí.
+  const [cajaMenor, setCajaMenor] = useState<{ cuadro: string; legalizacion: string | null } | null>(null)
+  const [liquidandoGastos, setLiquidandoGastos] = useState(false)
+
+  useEffect(() => {
+    const cuadro = pago.requisicionAdminId
+    if (!cuadro) return
+    let vigente = true
+    legalizacionDeCuadro(cuadro)
+      .then((id: string | null) => vigente && setCajaMenor({ cuadro, legalizacion: id }))
+      .catch(() => vigente && setCajaMenor({ cuadro, legalizacion: null }))
+    return () => {
+      vigente = false
+    }
+  }, [pago.requisicionAdminId])
 
   useEffect(() => {
     let vigente = true
@@ -194,7 +211,10 @@ function Contenido({
   const enLiquidacion = aprobado && pago.liquidacionEstado != null
   // Ya liquidado: sus valores no se cambian ni se observa (20270101000500).
   const liquidado = pago.liquidacionEstado === "liquidado"
-  const editable = puedeLiquidar && enLiquidacion && !liquidado
+  const legalizacionCaja = cajaMenor && cajaMenor.cuadro === pago.requisicionAdminId ? cajaMenor.legalizacion : null
+  const puedeLiquidarAqui = puedeLiquidar && enLiquidacion && !liquidado
+  // El de caja menor no se escribe aquí: sus valores son la suma de los gastos.
+  const editable = puedeLiquidarAqui && !legalizacionCaja
   const documento = pago.valorDocumento ?? pago.valor
   const numeros = Object.fromEntries(CAMPOS.map((c) => [c.clave, form[c.clave].trim() === "" ? null : leerNumeroOFormula(form[c.clave])])) as Record<
     ClaveCampo,
@@ -483,6 +503,32 @@ function Contenido({
               </label>
             ))}
           </div>
+          {legalizacionCaja && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <span>
+                Reembolso de caja menor: se liquida gasto por gasto. Cuando estén todos, este pago queda liquidado con la suma.
+              </span>
+              <Button size="sm" variant={puedeLiquidarAqui ? "default" : "outline"} disabled={ocupado !== null} onClick={() => setLiquidandoGastos(true)}>
+                {puedeLiquidarAqui ? "Liquidar gastos" : "Ver liquidación por gasto"}
+              </Button>
+              <LiquidarGastosCajaMenor
+                abierto={liquidandoGastos}
+                pagoId={pago.id}
+                legalizacionId={legalizacionCaja}
+                editable={puedeLiquidarAqui}
+                onCerrar={() => setLiquidandoGastos(false)}
+                onGuardado={(r) => {
+                  setLiquidandoGastos(false)
+                  setAviso(
+                    r.pagoLiquidado
+                      ? "Todos los gastos liquidados: el pago quedó liquidado con la suma."
+                      : `Guardado: ${r.liquidados} de ${r.gastos} gasto(s) liquidados.`
+                  )
+                  void refrescar()
+                }}
+              />
+            </div>
+          )}
           {liquidado && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground">Liquidado: los valores se ven pero no se cambian. Para corregirlos, devuélvelo a Por liquidar.</p>

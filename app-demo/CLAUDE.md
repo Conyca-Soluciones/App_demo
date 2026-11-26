@@ -1497,11 +1497,35 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   cuadro de caja menor no se modifica ni se cancela como cuadro (parche a `modificar_requisicion_admin`,
   `cancelar_requisicion_admin`, `detalle_requisicion_admin.editable`); su detalle tiene "Ver gastos y soportes"
   (`GastosDeCuadroCajaMenor`).
+- **Liquidación gasto por gasto** (`20270101007600`, decisiones del usuario: todos los gastos se reembolsan, solo
+  algunos llevan retenciones; Financiera dispersa UN pago). El reembolso sigue siendo un solo pago, pero no se liquida
+  directo (`liquidar_pagos_lote` lo rechaza salvo con la bandera `app.liquidando_caja_menor`; también por Excel). En la
+  ventana del pago del Consolidado, "Liquidar gastos" (`components/liquidar-gastos-caja-menor.tsx`,
+  `liquidar_gastos_caja_menor(pago, filas)`): base, IVA, retefuente, ReteIVA, ReteICA y valor a pagar de cada gasto
+  (`caja_menor_gastos.liq_base`… `valor_a_pagar`), o "Sin retenciones" (valor a pagar = valor del gasto); se puede
+  guardar parcial. Con todos liquidados, la función liquida el pago con la SUMA por `liquidar_pagos_lote` (mismas
+  reglas) y anota `liquidada` en el historial de la caja. Para cambiar un gasto ya liquidado: "Devolver a Por liquidar".
+  **Cada gasto se ve como un pago en el Consolidado** (decisión del usuario): debajo del reembolso sale una fila por
+  gasto con las mismas columnas (quien vendió, valor, retenciones, valor a pagar, soporte); en Por liquidar y
+  Observados salen desplegadas (flecha en la REF para plegar). Son filas de pantalla, no pagos: id
+  `gasto:<pago>:<gasto>` (`lib/caja-menor-consolidado.ts`: `filaDeGasto`, `conFilasDeGastos`; `Pago.cajaMenor` /
+  `Pago.cajaMenorGasto`), cargadas con `gastosCajaMenorDePagos` (RLS de quien consulta). Doble clic = ventana del
+  gasto con Anterior / Siguiente (`components/ventana-gasto-caja-menor.tsx`). Soporte con enlace fijo
+  `/ayf/soporte-pago/gasto/<gasto>`. El total de la página y la dispersión siguen siendo del pago (un solo pago). En el
+  **Excel de liquidación** el reembolso se reemplaza por una fila por gasto (`paraExcelConGastos`); al subir,
+  `separarFilasDeGastos` las guarda con `liquidar_gastos_caja_menor` (un llamado por reembolso), los comentarios de
+  esas filas van como observación del pago, y un reembolso ya liquidado sin cambios cuenta "sin cambios"
+  (`mismaLiquidacionDeGastos`).
+- **Errores visibles**: las acciones de la caja menor que cambian algo DEVUELVEN `ResultadoAccion` (`valorDe` lo
+  lanza en el navegador), porque en producción Next.js esconde el mensaje de un error lanzado (pasó al cerrar una caja
+  con una legalización devuelta: no se veía el motivo).
 - **Quién ve** (`_ve_cajas_menores`, con grant a authenticated porque la usan las políticas): el responsable, las dos
   acciones, Aprobación de pagos y quien ve algún consolidado. Las tablas guardan una copia de `responsable_id` para
   que la RLS no lea otra tabla; los soportes se leen con `_rutas_cajas_menores_visibles` (INVOKER).
 - Avisos (entidad `caja_menor`), historial (`historial_eventos`, entidad `caja_menor`, se ve en el detalle), Mis
   pendientes (`caja_menor_por_revisar`, `caja_menor_por_aprobar`, `mi_caja_menor_devuelta`) y Drive (`Proyectos/<proyecto de la caja>/Cajas menores/<semana>/<CM>/`).
+- `contadores_proyecto_tipo_check` lista los tipos de consecutivo por proyecto: un código nuevo por proyecto
+  necesita su tipo ahí (faltó `caja_menor`, se agregó en `20270101007500`).
 - Pendiente (no se hizo): arqueos, retenciones (las sigue haciendo Contabilidad al liquidar), que los gastos sumen
   por proyecto en Control del proyecto, y otros tipos de pago administrativo (reembolso ordinario).
 
@@ -5161,6 +5185,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
+`20270101007500` contador de proyecto tipo caja_menor (faltaba en el CHECK; sin ella, enviar la legalización falla).
+`20270101007600` caja menor: Contabilidad liquida gasto por gasto y el pago del reembolso queda liquidado con la suma.
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
