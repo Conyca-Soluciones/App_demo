@@ -120,6 +120,14 @@ export function mapCajaMenor(c: any): CajaMenor {
   }
 }
 
+// Lo que devuelven las acciones que cambian algo (en producción Next.js esconde el
+// mensaje de un error lanzado). `valorDe` lo vuelve a lanzar en el navegador.
+export type ResultadoAccion<T> = { ok: true; valor: T } | { ok: false; error: string }
+export function valorDe<T>(r: ResultadoAccion<T>): T {
+  if (!r.ok) throw new Error(r.error)
+  return r.valor
+}
+
 // Listas para crear una caja (opciones_caja_menor).
 export type OpcionesCajaMenor = {
   personas: { id: string; nombre: string }[]

@@ -15,6 +15,7 @@ import { formatoMoneda } from "@/lib/pagos"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
   validarCajaMenor,
+  valorDe,
   type CajaMenor,
   type CajaMenorForm,
   type EstadoLegalizacion,
@@ -211,11 +212,11 @@ function AccionesLegalizacion({
                 Devolver al responsable
               </Button>
               {revisar ? (
-                <Button type="button" disabled={ocupado} onClick={() => ejecutar(() => revisarLegalizacion(d.id, "aprobar", null))}>
+                <Button type="button" disabled={ocupado} onClick={() => ejecutar(async () => valorDe(await revisarLegalizacion(d.id, "aprobar", null)))}>
                   {ocupado && <Loader2 className="mr-1 size-4 animate-spin" />} Soportes revisados: pasar a Líder Financiera
                 </Button>
               ) : (
-                <Button type="button" disabled={ocupado} onClick={() => ejecutar(() => aprobarLegalizacionLider(d.id))}>
+                <Button type="button" disabled={ocupado} onClick={() => ejecutar(async () => valorDe(await aprobarLegalizacionLider(d.id)))}>
                   {ocupado && <Loader2 className="mr-1 size-4 animate-spin" />} Aprobar y enviar el reembolso a Gerencia
                 </Button>
               )}
@@ -242,10 +243,12 @@ function AccionesLegalizacion({
               disabled={ocupado || !motivo.trim()}
               onClick={() =>
                 devolviendo &&
-                ejecutar(() =>
-                  devolviendo.estado === "por_revisar"
-                    ? revisarLegalizacion(devolviendo.id, "devolver", motivo)
-                    : devolverLegalizacionLider(devolviendo.id, motivo)
+                ejecutar(async () =>
+                  valorDe(
+                    devolviendo.estado === "por_revisar"
+                      ? await revisarLegalizacion(devolviendo.id, "devolver", motivo)
+                      : await devolverLegalizacionLider(devolviendo.id, motivo)
+                  )
                 )
               }
             >
@@ -283,7 +286,7 @@ function Cajas({ puedeGestionar }: { puedeGestionar: boolean }) {
     if (!cerrando) return
     setOcupado(true)
     try {
-      await cerrarCajaMenor(cerrando.id, motivo)
+      valorDe(await cerrarCajaMenor(cerrando.id, motivo))
       setCerrando(null)
       setMotivo("")
       setRecarga((r) => r + 1)
@@ -448,7 +451,7 @@ function DialogoCaja({ caja, onCerrar, onGuardada }: { caja: CajaMenor | null; o
     setGuardando(true)
     setError(null)
     try {
-      await guardarCajaMenor(caja?.id ?? null, form)
+      valorDe(await guardarCajaMenor(caja?.id ?? null, form))
       onGuardada()
     } catch (x) {
       setError(x instanceof Error ? x.message : "No se pudo guardar la caja.")

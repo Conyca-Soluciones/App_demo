@@ -23,6 +23,7 @@ import {
   type LegalizacionDetalle,
   type LegalizacionFila,
   type OpcionesCajaMenor,
+  type ResultadoAccion,
 } from "@/lib/caja-menor"
 
 // Caja menor (20270101007400). Todo pasa por funciones de la base, que vuelven
@@ -63,7 +64,7 @@ export async function listarMisLegalizaciones(): Promise<LegalizacionFila[]> {
 }
 
 /** Envía (id null) o corrige y reenvía una devuelta. Los soportes ya van subidos. */
-export async function enviarLegalizacion(id: string | null, gastos: GastoForm[]): Promise<string> {
+async function enviarLegalizacionLanza(id: string | null, gastos: GastoForm[]): Promise<string> {
   const errores = validarLegalizacion(gastos, hoyColombia())
   if (errores.length > 0) {
     const e = errores[0]
@@ -82,7 +83,7 @@ export async function enviarLegalizacion(id: string | null, gastos: GastoForm[])
  * Guarda el borrador (todos los gastos que lleva, ya con sus soportes subidos;
  * reemplaza los de antes). Sin gastos, se borra. Financiera no lo ve.
  */
-export async function guardarBorrador(gastos: GastoForm[]): Promise<string | null> {
+async function guardarBorradorLanza(gastos: GastoForm[]): Promise<string | null> {
   const errores = validarLegalizacion(gastos, hoyColombia())
   if (gastos.length > 0 && errores.length > 0) {
     const e = errores[0]
@@ -95,7 +96,7 @@ export async function guardarBorrador(gastos: GastoForm[]): Promise<string | nul
 }
 
 /** Descarta el borrador y borra sus soportes del bucket. */
-export async function descartarBorrador(): Promise<void> {
+async function descartarBorradorLanza(): Promise<void> {
   const supabase = await clienteResponsable()
   const { data, error } = await supabase.rpc("descartar_borrador_caja_menor")
   if (error) throw new Error(error.message)
@@ -103,7 +104,7 @@ export async function descartarBorrador(): Promise<void> {
   if (rutas.length > 0) await supabase.storage.from("cajas_menores").remove(rutas)
 }
 
-export async function cancelarLegalizacion(id: string, motivo: string): Promise<void> {
+async function cancelarLegalizacionLanza(id: string, motivo: string): Promise<void> {
   const supabase = await clienteResponsable()
   const { error } = await supabase.rpc("cancelar_legalizacion_caja_menor", { p_id: id, p_motivo: motivo })
   if (error) throw new Error(error.message)
@@ -149,7 +150,7 @@ export async function opcionesCajaMenor(): Promise<OpcionesCajaMenor> {
   }
 }
 
-export async function guardarCajaMenor(id: string | null, caja: CajaMenorForm): Promise<string> {
+async function guardarCajaMenorLanza(id: string | null, caja: CajaMenorForm): Promise<string> {
   const e = validarCajaMenor(caja)
   if (e) throw new Error(e)
   const supabase = await clienteAyf()
@@ -158,21 +159,21 @@ export async function guardarCajaMenor(id: string | null, caja: CajaMenorForm): 
   return String(data)
 }
 
-export async function cerrarCajaMenor(id: string, motivo: string): Promise<void> {
+async function cerrarCajaMenorLanza(id: string, motivo: string): Promise<void> {
   const supabase = await clienteAyf()
   const { error } = await supabase.rpc("cerrar_caja_menor", { p_id: id, p_motivo: motivo })
   if (error) throw new Error(error.message)
 }
 
 /** Financiera: pasa a Líder Financiera ("aprobar") o devuelve al responsable. */
-export async function revisarLegalizacion(id: string, accion: "aprobar" | "devolver", motivo: string | null): Promise<void> {
+async function revisarLegalizacionLanza(id: string, accion: "aprobar" | "devolver", motivo: string | null): Promise<void> {
   const supabase = await clienteAyf()
   const { error } = await supabase.rpc("revisar_legalizacion_caja_menor", { p_id: id, p_accion: accion, p_motivo: motivo })
   if (error) throw new Error(error.message)
 }
 
 /** Líder Financiera: devuelve al responsable. */
-export async function devolverLegalizacionLider(id: string, motivo: string): Promise<void> {
+async function devolverLegalizacionLiderLanza(id: string, motivo: string): Promise<void> {
   const supabase = await clienteAyf()
   const { error } = await supabase.rpc("aprobar_legalizacion_caja_menor", {
     p_id: id,
@@ -189,7 +190,7 @@ export async function devolverLegalizacionLider(id: string, motivo: string): Pro
  * reembolso para Gerencia. Si la base no lo acepta, se borra el PDF.
  * Devuelve el id del cuadro.
  */
-export async function aprobarLegalizacionLider(id: string): Promise<string> {
+async function aprobarLegalizacionLiderLanza(id: string): Promise<string> {
   const supabase = await clienteAyf()
   const uid = await obtenerUsuarioId()
   if (!uid) throw new Error("Inicia sesión.")
@@ -235,3 +236,47 @@ export async function aprobarLegalizacionLider(id: string): Promise<string> {
   return String(data)
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ---------------------------------------------------------------- lo que llama la pantalla
+// En producción Next.js esconde el mensaje de un error lanzado por una acción (en
+// pantalla sale un error genérico, "React error #441"): las que cambian algo DEVUELVEN
+// el error para que se vea el motivo (p. ej. "La caja tiene una legalización en curso").
+async function resultado<T>(f: () => Promise<T>): Promise<ResultadoAccion<T>> {
+  try {
+    return { ok: true, valor: await f() }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "No se pudo completar la acción." }
+  }
+}
+
+export async function enviarLegalizacion(id: string | null, gastos: GastoForm[]): Promise<ResultadoAccion<string>> {
+  return resultado(() => enviarLegalizacionLanza(id, gastos))
+}
+export async function guardarBorrador(gastos: GastoForm[]): Promise<ResultadoAccion<string | null>> {
+  return resultado(() => guardarBorradorLanza(gastos))
+}
+export async function descartarBorrador(): Promise<ResultadoAccion<void>> {
+  return resultado(() => descartarBorradorLanza())
+}
+export async function cancelarLegalizacion(id: string, motivo: string): Promise<ResultadoAccion<void>> {
+  return resultado(() => cancelarLegalizacionLanza(id, motivo))
+}
+export async function guardarCajaMenor(id: string | null, caja: CajaMenorForm): Promise<ResultadoAccion<string>> {
+  return resultado(() => guardarCajaMenorLanza(id, caja))
+}
+export async function cerrarCajaMenor(id: string, motivo: string): Promise<ResultadoAccion<void>> {
+  return resultado(() => cerrarCajaMenorLanza(id, motivo))
+}
+export async function revisarLegalizacion(
+  id: string,
+  accion: "aprobar" | "devolver",
+  motivo: string | null
+): Promise<ResultadoAccion<void>> {
+  return resultado(() => revisarLegalizacionLanza(id, accion, motivo))
+}
+export async function devolverLegalizacionLider(id: string, motivo: string): Promise<ResultadoAccion<void>> {
+  return resultado(() => devolverLegalizacionLiderLanza(id, motivo))
+}
+export async function aprobarLegalizacionLider(id: string): Promise<ResultadoAccion<string>> {
+  return resultado(() => aprobarLegalizacionLiderLanza(id))
+}

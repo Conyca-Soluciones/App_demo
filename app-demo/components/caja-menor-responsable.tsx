@@ -27,6 +27,7 @@ import {
   totalGastos,
   validarGasto,
   valorGasto,
+  valorDe,
   type CajaMenor,
   type ErrorFilaCajaMenor,
   type GastoForm,
@@ -329,7 +330,7 @@ function FormularioLegalizacion({
     const subidas: string[] = []
     try {
       const listos = await gastosConSoportes(subidas)
-      await guardarBorrador(listos)
+      valorDe(await guardarBorrador(listos))
       // Los soportes de los gastos que se quitaron ya no los usa nadie.
       const usadas = new Set(listos.map((g) => g.soporte?.ruta))
       const sobran = (borrador ?? []).map((g) => g.soporte?.ruta).filter((r): r is string => Boolean(r) && !usadas.has(r))
@@ -350,7 +351,7 @@ function FormularioLegalizacion({
     setGuardando(true)
     setError(null)
     try {
-      await descartarBorrador()
+      valorDe(await descartarBorrador())
       onBorradorGuardado(null)
       setGastos([gastoVacio(caja.proyectoId)])
       setErrores({})
@@ -369,7 +370,7 @@ function FormularioLegalizacion({
     const subidas: string[] = []
     try {
       const listos = await gastosConSoportes(subidas)
-      onEnviada(await enviarLegalizacion(edicion?.id ?? null, listos))
+      onEnviada(valorDe(await enviarLegalizacion(edicion?.id ?? null, listos)))
     } catch (e) {
       // Lo que se alcanzó a subir no quedó en ningún gasto: se borra.
       if (subidas.length > 0) await createClient().storage.from("cajas_menores").remove(subidas)
@@ -630,7 +631,7 @@ function MisLegalizaciones({
     if (!cancelando) return
     setOcupado(true)
     try {
-      await cancelarLegalizacion(cancelando.id, motivo)
+      valorDe(await cancelarLegalizacion(cancelando.id, motivo))
       setCancelando(null)
       setMotivo("")
       onCerrarVer()
