@@ -1523,8 +1523,9 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   página pegada lleva arriba la marca "Soporte · Gasto N · …"). Un soporte que no es PDF, JPG ni PNG detiene la
   aprobación con un mensaje.
 - **En la ventana del pago** del reembolso no hay campos de liquidación: solo el recuadro azul con «Ver soporte» y
-  «Liquidar gastos», que cierra la ventana y abre la pantalla completa (`LiquidarGastosCajaMenor`, portal a pantalla
-  completa; en celular una tarjeta por gasto).
+  «Liquidar gastos», que cierra la ventana, despliega los gastos en la tabla y abre el primero en su ventana (la de los
+  pagos, con Anterior / Siguiente). Se probó una pantalla completa aparte y se quitó (decisión del usuario: que se vea
+  como los demás pagos).
 - **Errores visibles**: las acciones de la caja menor que cambian algo DEVUELVEN `ResultadoAccion` (`valorDe` lo
   lanza en el navegador), porque en producción Next.js esconde el mensaje de un error lanzado (pasó al cerrar una caja
   con una legalización devuelta: no se veía el motivo).
