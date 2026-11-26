@@ -33,6 +33,7 @@ import {
   paraExcelConGastos,
   rutaSoporteGasto,
   separarFilasDeGastos,
+  filasSinRetenciones,
   type GastosDePago,
 } from "@/lib/caja-menor-consolidado"
 import { valorDe } from "@/lib/caja-menor"
@@ -425,8 +426,25 @@ export function ConsolidadoPagosView({
 
   const sinRetencionesSeleccionados = () =>
     correr("sin", async () => {
+      // Reembolsos de caja menor marcados: sus gastos sin liquidar pasan sin
+      // retenciones y, con todos liquidados, el reembolso queda liquidado con la suma.
+      const cajas = [...seleccion].filter((id) => gastosCaja[id])
+      const normales = [...seleccion].filter((id) => !gastosCaja[id])
+      let reembolsos = 0
+      const fallosCaja: string[] = []
+      if (cajas.length > 0) {
+        const actuales = await gastosCajaMenorDePagos(cajas)
+        for (const pagoId of cajas) {
+          const cm = actuales[pagoId]
+          const filas = cm ? filasSinRetenciones(cm) : []
+          if (filas.length === 0) continue
+          const res = await liquidarGastosCajaMenor(pagoId, filas)
+          if (!res.ok) fallosCaja.push(`${cm?.codigo ?? "Caja menor"}: ${res.error}`)
+          else if (res.valor.pagoLiquidado) reembolsos++
+        }
+      }
       const r = await liquidarPagos(
-        [...seleccion].map((id) => ({
+        normales.map((id) => ({
           pagoId: id,
           base: null,
           iva: null,
@@ -443,9 +461,10 @@ export function ConsolidadoPagosView({
       )
       recargar()
       const malos = r.filter((x) => x.resultado === "error")
-      return `${plural(r.filter((x) => x.resultado === "liquidado").length, "pago liquidado", "pagos liquidados")} sin retenciones.${
-        malos.length ? ` ${plural(malos.length, "no se pudo", "no se pudieron")}: ${malos[0].mensaje}` : ""
-      }`
+      const mensajes = [...malos.map((x) => x.mensaje ?? "No se pudo liquidar."), ...fallosCaja]
+      return `${plural(r.filter((x) => x.resultado === "liquidado").length + reembolsos, "pago liquidado", "pagos liquidados")} sin retenciones${
+        reembolsos > 0 ? ` (${plural(reembolsos, "reembolso de caja menor", "reembolsos de caja menor")} con todos sus gastos)` : ""
+      }.${mensajes.length ? ` ${plural(mensajes.length, "no se pudo", "no se pudieron")}: ${mensajes[0]}` : ""}`
     })
 
   const descargarExcel = () =>

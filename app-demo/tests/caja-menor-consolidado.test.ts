@@ -9,6 +9,7 @@ import {
   paraExcelConGastos,
   rutaSoporteGasto,
   separarFilasDeGastos,
+  filasSinRetenciones,
   type GastosDePago,
 } from "@/lib/caja-menor-consolidado"
 import type { FilaLiquidacion, Pago } from "@/lib/pagos"
@@ -93,3 +94,13 @@ describe("filas de gasto en el Consolidado", () => {
     expect(mismaLiquidacionDeGastos([{ ...filas[0], valor_a_pagar: 90000 }], liquidado)).toBe(false)
   })
 })
+
+describe("liquidar sin retenciones con el reembolso marcado", () => {
+  it("solo los gastos sin liquidar, sin retenciones; los liquidados se dejan", () => {
+    expect(filasSinRetenciones(cm)).toEqual([
+      { gasto_id: "g2", base: null, iva: null, retefuente: null, reteiva: null, reteica: null, valor_a_pagar: null, sin_retenciones: true },
+    ])
+    expect(filasSinRetenciones({ gastos: [gasto("g9", 1, 10, {})] })).toEqual([])
+  })
+})
+

@@ -192,3 +192,24 @@ export function mismaLiquidacionDeGastos(filas: FilaGastoParaGuardar[], gastos: 
     )
   })
 }
+
+/**
+ * "Liquidar sin retenciones" con el reembolso marcado en el Consolidado: los
+ * gastos que todavía no están liquidados pasan sin retenciones (valor a pagar =
+ * valor del gasto); los que ya tienen su liquidación se dejan como están.
+ */
+export function filasSinRetenciones(cm: Pick<GastosDePago, "gastos">): FilaGastoParaGuardar[] {
+  return cm.gastos
+    .filter((g) => g.liquidacion == null)
+    .map((g) => ({
+      gasto_id: g.id,
+      base: null,
+      iva: null,
+      retefuente: null,
+      reteiva: null,
+      reteica: null,
+      valor_a_pagar: null,
+      sin_retenciones: true,
+    }))
+}
+
