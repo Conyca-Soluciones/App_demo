@@ -4,7 +4,13 @@ import type { LegalizacionDetalle } from "@/lib/caja-menor"
 
 // Relación de gastos de una caja menor (formato de control GF-F-016): el
 // soporte del cuadro de pago del reembolso. La genera la app cuando Líder
-// Financiera da el okay (20270101007400) y queda en el ítem del cuadro.
+// Financiera da el okay (20270101007400) y queda en el ítem del cuadro. Lleva
+// las firmas registradas (responsable, Financiera y Líder Financiera;
+// 20270101007700) y, después de la tabla, el soporte de cada gasto: las
+// imágenes como páginas de este PDF; los PDF se pegan después (pdf-lib).
+
+export type FirmaRelacion = { papel: "responsable" | "revisor" | "aprobador"; nombre: string; fecha: string | null; imagen: string | null }
+export type AnexoImagenRelacion = { titulo: string; imagen: Buffer }
 
 const AZUL = "#3E70A1"
 const GRIS = "#5C6672"
@@ -25,7 +31,12 @@ const s = StyleSheet.create({
   celda: { paddingVertical: 3, paddingHorizontal: 3 },
   total: { flexDirection: "row", justifyContent: "flex-end", marginTop: 6, fontFamily: "Helvetica-Bold", fontSize: 10 },
   firmas: { flexDirection: "row", marginTop: 24, justifyContent: "space-between" },
-  firma: { width: "31%", borderTopWidth: 1, borderTopColor: "#16211A", paddingTop: 3 },
+  firma: { width: "31%" },
+  firmaEspacio: { height: 46, justifyContent: "flex-end", marginBottom: 2 },
+  firmaImagen: { maxHeight: 44, maxWidth: 150, objectFit: "contain" },
+  firmaLinea: { borderTopWidth: 1, borderTopColor: "#16211A", paddingTop: 3 },
+  anexoTitulo: { fontFamily: "Helvetica-Bold", fontSize: 10, color: AZUL, marginBottom: 8 },
+  anexoImagen: { width: "100%", height: "92%", objectFit: "contain" },
   pie: { position: "absolute", bottom: 18, left: 32, right: 32, fontSize: 7, color: GRIS, textAlign: "center" },
 })
 
@@ -49,12 +60,37 @@ export function RelacionCajaMenorPDF({
   logo,
   generado,
   aprobadoPor,
+  firmas = [],
+  anexos = [],
+  pdfsAparte = [],
 }: {
   detalle: LegalizacionDetalle
   logo: Buffer | null
   generado: string
   aprobadoPor: string
+  firmas?: FirmaRelacion[]
+  // Soportes en imagen: una página por cada uno, después de la tabla.
+  anexos?: AnexoImagenRelacion[]
+  // Soportes en PDF que se pegan al final (solo para nombrarlos en la tabla).
+  pdfsAparte?: string[]
 }) {
+  const firmaDe = (papel: FirmaRelacion["papel"]) => firmas.find((f) => f?.papel === papel) ?? null
+  const bloqueFirma = (papel: FirmaRelacion["papel"], nombre: string, rol: string) => {
+    const f = firmaDe(papel)
+    return (
+      <View style={s.firma}>
+        <View style={s.firmaEspacio}>{f?.imagen ? <Image src={f.imagen} style={s.firmaImagen} /> : null}</View>
+        <View style={s.firmaLinea}>
+          <Text style={s.val}>{f?.nombre ?? nombre}</Text>
+          <Text style={s.etq}>
+            {rol}
+            {f?.fecha ? ` · ${formatearFechaHora(f.fecha)}` : ""}
+          </Text>
+          {!f?.imagen && <Text style={s.etq}>Sin firma registrada</Text>}
+        </View>
+      </View>
+    )
+  }
   const caja = detalle.caja
   const valores = (g: LegalizacionDetalle["gastos"][number]) => [
     String(g.orden),
@@ -120,21 +156,16 @@ export function RelacionCajaMenorPDF({
         </View>
 
         <View style={s.firmas} wrap={false}>
-          <View style={s.firma}>
-            <Text style={s.val}>{detalle.responsableNombre}</Text>
-            <Text style={s.etq}>Responsable de la caja menor</Text>
-          </View>
-          <View style={s.firma}>
-            <Text style={s.val}>{detalle.revisadaPorNombre ?? "—"}</Text>
-            <Text style={s.etq}>
-              Revisó los soportes (Financiera){detalle.revisadaEn ? ` · ${formatearFechaHora(detalle.revisadaEn)}` : ""}
-            </Text>
-          </View>
-          <View style={s.firma}>
-            <Text style={s.val}>{aprobadoPor}</Text>
-            <Text style={s.etq}>Aprobó (Líder Financiera) · {generado}</Text>
-          </View>
+          {bloqueFirma("responsable", detalle.responsableNombre, "Responsable de la caja menor")}
+          {bloqueFirma("revisor", detalle.revisadaPorNombre ?? "—", "Revisó los soportes (Financiera)")}
+          {bloqueFirma("aprobador", aprobadoPor, `Aprobó (Líder Financiera) · ${generado}`)}
         </View>
+
+        {(anexos.length > 0 || pdfsAparte.length > 0) && (
+          <Text style={[s.etq, { marginTop: 14 }]}>
+            Soportes de los gastos: van a continuación, en el orden de la tabla.
+          </Text>
+        )}
 
         <Text
           style={s.pie}
@@ -142,6 +173,17 @@ export function RelacionCajaMenorPDF({
           render={({ pageNumber, totalPages }) => `CONYCA 360 · ${detalle.codigo} · Página ${pageNumber} de ${totalPages}`}
         />
       </Page>
+      {anexos.map((a, i) => (
+        <Page key={i} size="LETTER" style={s.pagina}>
+          <Text style={s.anexoTitulo}>{a.titulo}</Text>
+          <Image src={a.imagen} style={s.anexoImagen} />
+          <Text
+            style={s.pie}
+            fixed
+            render={({ pageNumber, totalPages }) => `CONYCA 360 · ${detalle.codigo} · Página ${pageNumber} de ${totalPages}`}
+          />
+        </Page>
+      ))}
     </Document>
   )
 }

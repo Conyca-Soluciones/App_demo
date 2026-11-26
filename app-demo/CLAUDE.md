@@ -1516,6 +1516,15 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   `separarFilasDeGastos` las guarda con `liquidar_gastos_caja_menor` (un llamado por reembolso), los comentarios de
   esas filas van como observación del pago, y un reembolso ya liquidado sin cambios cuenta "sin cambios"
   (`mismaLiquidacionDeGastos`).
+- **Soporte del reembolso** (2026-11-26, decisiones del usuario): un solo PDF con la relación de gastos, las firmas
+  registradas del responsable, de quien revisó en Financiera y de quien aprueba (`firmas_caja_menor`,
+  `20270101007700`; sin firma sale el nombre y "Sin firma registrada") y, después, el soporte de cada gasto en el orden
+  de la tabla (imágenes como páginas del PDF; los PDF se pegan con `lib/unir-pdfs.ts`, librería `pdf-lib`, y cada
+  página pegada lleva arriba la marca "Soporte · Gasto N · …"). Un soporte que no es PDF, JPG ni PNG detiene la
+  aprobación con un mensaje.
+- **En la ventana del pago** del reembolso no hay campos de liquidación: solo el recuadro azul con «Ver soporte» y
+  «Liquidar gastos», que cierra la ventana y abre la pantalla completa (`LiquidarGastosCajaMenor`, portal a pantalla
+  completa; en celular una tarjeta por gasto).
 - **Errores visibles**: las acciones de la caja menor que cambian algo DEVUELVEN `ResultadoAccion` (`valorDe` lo
   lanza en el navegador), porque en producción Next.js esconde el mensaje de un error lanzado (pasó al cerrar una caja
   con una legalización devuelta: no se veía el motivo).
@@ -5187,6 +5196,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
 `20270101007500` contador de proyecto tipo caja_menor (faltaba en el CHECK; sin ella, enviar la legalización falla).
 `20270101007600` caja menor: Contabilidad liquida gasto por gasto y el pago del reembolso queda liquidado con la suma.
+`20270101007700` firmas en el soporte de la caja menor (`firmas_caja_menor`).
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).

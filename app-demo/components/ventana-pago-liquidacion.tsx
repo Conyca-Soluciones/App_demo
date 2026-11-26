@@ -37,7 +37,6 @@ import {
 } from "@/app/(app)/ayf/consolidado/actions"
 import { generarSoportesPagoManual } from "@/app/(app)/ayf/realizar-pagos/actions"
 import { legalizacionDeCuadro } from "@/app/(app)/ayf/cajas-menores/actions"
-import { LiquidarGastosCajaMenor } from "@/components/liquidar-gastos-caja-menor"
 
 // ---------------------------------------------------------------------------
 // Doble clic en un pago del Consolidado: todo lo del pago en una ventana, para
@@ -103,6 +102,7 @@ export function VentanaPagoLiquidacion({
   onHistorial,
   onTercero,
   onOrigen,
+  onLiquidarGastosCaja,
 }: {
   pagos: Pago[]
   indice: number | null
@@ -115,6 +115,9 @@ export function VentanaPagoLiquidacion({
   onHistorial: (p: Pago) => void
   onTercero: (p: Pago) => void
   onOrigen: (p: Pago) => void
+  // Reembolso de caja menor: abre la pantalla completa de "Liquidar gastos" (la
+  // ventana del pago se cierra; no van una encima de otra).
+  onLiquidarGastosCaja: (d: { pago: Pago; legalizacionId: string; editable: boolean }) => void
 }) {
   const pago = indice != null ? pagos[indice] ?? null : null
   return (
@@ -134,6 +137,7 @@ export function VentanaPagoLiquidacion({
             onHistorial={() => onHistorial(pago)}
             onTercero={() => onTercero(pago)}
             onOrigen={() => onOrigen(pago)}
+            onLiquidarGastosCaja={onLiquidarGastosCaja}
           />
         )}
       </DialogContent>
@@ -162,6 +166,7 @@ function Contenido({
   onHistorial,
   onTercero,
   onOrigen,
+  onLiquidarGastosCaja,
 }: {
   pago: Pago
   soporte: SoportePago | null
@@ -174,6 +179,7 @@ function Contenido({
   onHistorial: () => void
   onTercero: () => void
   onOrigen: () => void
+  onLiquidarGastosCaja: (d: { pago: Pago; legalizacionId: string; editable: boolean }) => void
 }) {
   const [form, setForm] = useState<Record<ClaveCampo, string>>(() => formularioDe(pago))
   const [comentarios, setComentarios] = useState<ComentarioPago[] | null>(null)
@@ -183,7 +189,6 @@ function Contenido({
   const [aviso, setAviso] = useState<string | null>(null)
   // Reembolso de caja menor (20270101007600): se liquida gasto por gasto, no aquí.
   const [cajaMenor, setCajaMenor] = useState<{ cuadro: string; legalizacion: string | null } | null>(null)
-  const [liquidandoGastos, setLiquidandoGastos] = useState(false)
 
   useEffect(() => {
     const cuadro = pago.requisicionAdminId
@@ -473,13 +478,16 @@ function Contenido({
         <div className="space-y-3 rounded-md border p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-sm font-medium">Liquidación</h3>
+            {!legalizacionCaja && (
             <span className="text-xs text-muted-foreground">
               Esperado según los descuentos: <span className="tabular-nums">{formatoMoneda(cuadre.esperado)}</span>
               {cuadre.diferencia != null && Math.abs(cuadre.diferencia) >= 1 && (
                 <span className="ml-2 font-medium text-red-700">No cuadra por {formatoMoneda(cuadre.diferencia)}</span>
               )}
             </span>
+            )}
           </div>
+          {!legalizacionCaja && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {CAMPOS.map((c) => (
               <label key={c.clave} className="min-w-0 space-y-1">
@@ -503,30 +511,42 @@ function Contenido({
               </label>
             ))}
           </div>
+          )}
           {legalizacionCaja && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-              <span>
-                Reembolso de caja menor: se liquida gasto por gasto. Cuando estén todos, este pago queda liquidado con la suma.
-              </span>
-              <Button size="sm" variant={puedeLiquidarAqui ? "default" : "outline"} disabled={ocupado !== null} onClick={() => setLiquidandoGastos(true)}>
-                {puedeLiquidarAqui ? "Liquidar gastos" : "Ver liquidación por gasto"}
-              </Button>
-              <LiquidarGastosCajaMenor
-                abierto={liquidandoGastos}
-                pagoId={pago.id}
-                legalizacionId={legalizacionCaja}
-                editable={puedeLiquidarAqui}
-                onCerrar={() => setLiquidandoGastos(false)}
-                onGuardado={(r) => {
-                  setLiquidandoGastos(false)
-                  setAviso(
-                    r.pagoLiquidado
-                      ? "Todos los gastos liquidados: el pago quedó liquidado con la suma."
-                      : `Guardado: ${r.liquidados} de ${r.gastos} gasto(s) liquidados.`
-                  )
-                  void refrescar()
-                }}
-              />
+            // Reembolso de caja menor: no se escriben valores aquí (son la suma de los gastos).
+            <div className="space-y-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900">
+              <p>
+                Reembolso de caja menor: se liquida gasto por gasto. Cuando estén todos, este pago queda liquidado con la suma y
+                Financiera lo dispersa como un solo pago.
+              </p>
+              {liquidado && pago.valorAPagar != null && (
+                <p>
+                  Valor a pagar del reembolso: <span className="font-semibold tabular-nums">{formatoMoneda(pago.valorAPagar)}</span>
+                  {" · "}Retenciones:{" "}
+                  <span className="tabular-nums">
+                    {formatoMoneda((pago.retefuente ?? 0) + (pago.reteiva ?? 0) + (pago.reteica ?? 0))}
+                  </span>
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={rutaSoportePago(pago.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={buttonVariants({ size: "sm", variant: "outline", className: "gap-1.5 bg-white" })}
+                >
+                  <Paperclip className="h-4 w-4" /> Ver soporte
+                </a>
+                <Button
+                  size="sm"
+                  variant={puedeLiquidarAqui ? "default" : "outline"}
+                  className={puedeLiquidarAqui ? "" : "bg-white"}
+                  disabled={ocupado !== null}
+                  onClick={() => onLiquidarGastosCaja({ pago, legalizacionId: legalizacionCaja, editable: puedeLiquidarAqui })}
+                >
+                  {puedeLiquidarAqui ? "Liquidar gastos" : "Ver liquidación por gasto"}
+                </Button>
+              </div>
             </div>
           )}
           {liquidado && (
