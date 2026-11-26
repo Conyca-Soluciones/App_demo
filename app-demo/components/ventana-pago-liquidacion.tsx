@@ -115,8 +115,8 @@ export function VentanaPagoLiquidacion({
   onHistorial: (p: Pago) => void
   onTercero: (p: Pago) => void
   onOrigen: (p: Pago) => void
-  // Reembolso de caja menor: abre la pantalla completa de "Liquidar gastos" (la
-  // ventana del pago se cierra; no van una encima de otra).
+  // Reembolso de caja menor: cierra esta ventana y abre el primer gasto en su
+  // ventana (como un pago), con sus filas desplegadas en la tabla.
   onLiquidarGastosCaja: (d: { pago: Pago; legalizacionId: string; editable: boolean }) => void
 }) {
   const pago = indice != null ? pagos[indice] ?? null : null
