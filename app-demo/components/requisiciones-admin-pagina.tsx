@@ -13,6 +13,7 @@ import { PaginacionSimple } from "@/components/paginacion-simple"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { DetalleRequisicionAdmin, EtiquetaEstadoReqAdmin } from "@/components/detalle-requisicion-admin"
 import { RequisicionAdminForm, type EdicionReqAdmin } from "@/components/requisicion-admin-form"
+import { CajaMenorResponsable } from "@/components/caja-menor-responsable"
 import { formatoMoneda } from "@/lib/pagos"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
@@ -38,7 +39,47 @@ const ESTADOS: EstadoReqAdmin[] = ["por_aprobar", "rechazada", "aprobada", "canc
 
 // Requisiciones administrativas: realizar una (o corregirla) y consultar las
 // mías. ?ver=<id> abre una (aviso de la campanita o Mis pendientes).
-export function RequisicionesAdminPagina({ verInicial }: { verInicial: string | null }) {
+// Tipo de pago administrativo (20270101007400): el cuadro de pagos de siempre o
+// la caja menor. Después vendrán otros (reembolso...).
+type TipoPagoAdmin = "cuadro" | "caja_menor"
+
+export function RequisicionesAdminPagina({
+  verInicial,
+  cajaMenorInicial = null,
+}: {
+  verInicial: string | null
+  cajaMenorInicial?: string | null
+}) {
+  const [tipo, setTipo] = useState<TipoPagoAdmin>(cajaMenorInicial ? "caja_menor" : "cuadro")
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Tipo de pago:</span>
+        {(
+          [
+            { valor: "cuadro", etiqueta: "Cuadro de pagos" },
+            { valor: "caja_menor", etiqueta: "Caja menor" },
+          ] as const
+        ).map((t) => (
+          <Button
+            key={t.valor}
+            type="button"
+            size="sm"
+            variant={tipo === t.valor ? "default" : "outline"}
+            onClick={() => setTipo(t.valor)}
+          >
+            {t.etiqueta}
+          </Button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1">
+        {tipo === "caja_menor" ? <CajaMenorResponsable abrir={cajaMenorInicial} /> : <CuadroDePagos verInicial={verInicial} />}
+      </div>
+    </div>
+  )
+}
+
+function CuadroDePagos({ verInicial }: { verInicial: string | null }) {
   const [pestana, setPestana] = useState<Pestana>(verInicial ? "mias" : "nueva")
   const [opciones, setOpciones] = useState<OpcionesReqAdmin | null>(null)
   const [errorOpciones, setErrorOpciones] = useState<string | null>(null)

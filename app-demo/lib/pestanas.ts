@@ -123,6 +123,10 @@ export const PESTANAS: Pestana[] = [
   // Antes eran para todos (sin matriz); desde 20270101001400 se dan por rol.
   { clave: "ayf.pagos_administrativos", titulo: "Pagos administrativos", modulo: "ayf", seccion: "Administrativo", url: "/ayf/pagos-administrativos", rutas: ["/ayf/pagos-administrativos"] },
   { clave: "ayf.requisiciones_administrativas", titulo: "Requisiciones administrativas", modulo: "ayf", seccion: "Administrativo", url: "/ayf/requisiciones-administrativas", rutas: ["/ayf/requisiciones-administrativas"] },
+  // Caja menor (20270101007400): Financiera crea las cajas y revisa las
+  // legalizaciones; Líder Financiera da el okay. El responsable sube la suya
+  // desde Pagos administrativos.
+  { clave: "ayf.cajas_menores", titulo: "Cajas menores", modulo: "ayf", seccion: "Administrativo", url: "/ayf/cajas-menores", rutas: ["/ayf/cajas-menores"] },
   { clave: "ayf.aprobacion_pagos", titulo: "Aprobación de pagos", modulo: "ayf", seccion: "Pagos", url: "/ayf/aprobacion-pagos", rutas: ["/ayf/aprobacion-pagos", "/contratos/acta-pdf", "/ayf/soporte-pago", "/ayf/soporte-dispersor"] },
   // Un consolidado por pestaña (20261210000000): quien solo tiene una no ve los
   // otros (sin subgrupo "Consolidados", para no dar pistas). "/ayf/consolidado"
@@ -187,6 +191,8 @@ export const ACCIONES: Accion[] = [
   { clave: "gestionar_contratistas", titulo: "Gestionar contratistas", descripcion: "Crear contratistas con sus datos y documentos generales.", seccion: "Contratos" },
   { clave: "aprobar_pagos", titulo: "Aprobar pagos", descripcion: "Aprobar o rechazar los pagos pendientes (por ahora, los saldos de órdenes de compra con anticipo).", seccion: "A&F" },
   { clave: "gestionar_pagos", titulo: "Gestionar pagos", descripcion: "Elegir el tercero y la cuenta de un pago cuando no se resolvieron solos, generar los pagos de una orden ya aprobada, enviar pagos a liquidar y responder lo que Contabilidad observa.", seccion: "A&F" },
+  { clave: "gestionar_cajas_menores", titulo: "Gestionar cajas menores", descripcion: "En Cajas menores: crear, editar y cerrar las cajas (responsable, monto y cuenta del reembolso) y revisar los soportes de las legalizaciones (pasarlas a Líder Financiera o devolverlas).", seccion: "A&F" },
+  { clave: "aprobar_cajas_menores", titulo: "Aprobar cajas menores", descripcion: "Dar el okay a las legalizaciones de caja menor que Financiera ya revisó: se crea el cuadro de pago del reembolso, que pasa a Gerencia en Aprobación de pagos. También puede devolverlas.", seccion: "A&F" },
   { clave: "liquidar_pagos", titulo: "Liquidar pagos", descripcion: "Escribir la liquidación de los pagos enviados a liquidar (en la pantalla o con el Excel) y observar los que no se pueden liquidar.", seccion: "A&F" },
   { clave: "generar_dispersores", titulo: "Generar dispersores", descripcion: "En Realizar Pagos: asignar la cuenta a debitar, confirmar cuentas, sacar pagos del dispersor y generar los archivos del banco (los pagos quedan dispersados).", seccion: "A&F" },
   { clave: "pagar_pse", titulo: "Pagar PSE", descripcion: "En el Consolidado, pestaña PSE: escoger la cuenta a debitar y marcar como pagados los pagos por PSE ya liquidados (con el comprobante), o deshacerlo si el pago no salió.", seccion: "A&F" },

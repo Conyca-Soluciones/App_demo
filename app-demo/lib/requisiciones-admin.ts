@@ -106,7 +106,14 @@ export const ETIQUETA_SOPORTE_REQ_ADMIN: Record<TipoSoporteReqAdmin, string> = {
   factura: "Factura",
   cuenta_cobro: "Cuenta de cobro",
 }
-export type SoporteReqAdmin = { ruta: string; nombre: string; mime: string | null; tamano: number | null; tipo: TipoSoporteReqAdmin }
+// El reembolso de una caja menor lleva como soporte la relación de gastos (PDF
+// que genera la app al aprobarlo Líder Financiera; 20270101007400).
+export type TipoSoporteItemReqAdmin = TipoSoporteReqAdmin | "relacion_caja_menor"
+export const ETIQUETA_SOPORTE_ITEM_REQ_ADMIN: Record<TipoSoporteItemReqAdmin, string> = {
+  ...ETIQUETA_SOPORTE_REQ_ADMIN,
+  relacion_caja_menor: "Relación de caja menor",
+}
+export type SoporteReqAdmin = { ruta: string; nombre: string; mime: string | null; tamano: number | null; tipo: TipoSoporteItemReqAdmin }
 
 export type ItemFormReqAdmin = {
   clave: string // llave de React
@@ -341,7 +348,13 @@ export type ItemReqAdmin = {
   pagoMotivoRechazo: string | null
 }
 
+// 'cuadro' = el de siempre; 'caja_menor' = reembolso de una caja menor (lo crea la app).
+export type TipoCuadroReqAdmin = "cuadro" | "caja_menor"
+
 export type RequisicionAdminDetalle = Omit<RequisicionAdminFila, "empresas"> & {
+  tipo: TipoCuadroReqAdmin
+  // La legalización de caja menor que originó el cuadro (solo tipo caja_menor).
+  cajaMenorLegalizacionId: string | null
   esMia: boolean
   // Quien la hizo la modifica o la cancela mientras A&F no haya aprobado
   // ningún pago (lo calcula la base).
@@ -385,6 +398,8 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
   const { empresas: _empresas, ...fila } = mapFilaReqAdmin(r)
   return {
     ...fila,
+    tipo: r.tipo === "caja_menor" ? "caja_menor" : "cuadro",
+    cajaMenorLegalizacionId: r.caja_menor_legalizacion_id ?? null,
     esMia: Boolean(r.es_mia),
     editable: Boolean(r.editable),
     motivoCancelacion: r.motivo_cancelacion ?? null,
@@ -420,7 +435,8 @@ export function mapDetalleReqAdmin(r: any): RequisicionAdminDetalle {
             nombre: String(i.soporte.nombre ?? ""),
             mime: i.soporte.mime ?? null,
             tamano: i.soporte.tamano == null ? null : Number(i.soporte.tamano),
-            tipo: i.soporte.tipo === "cuenta_cobro" ? "cuenta_cobro" : "factura",
+            tipo:
+              i.soporte.tipo === "cuenta_cobro" || i.soporte.tipo === "relacion_caja_menor" ? i.soporte.tipo : "factura",
           }
         : null,
       pagoItem: i.pago_item ?? null,
@@ -457,6 +473,6 @@ export function itemFormDesdeDetalle(i: ItemReqAdmin): ItemFormReqAdmin {
     observaciones: i.observaciones ?? "",
     soporte: i.soporte,
     archivoSoporte: null,
-    tipoSoporte: i.soporte?.tipo ?? "factura",
+    tipoSoporte: i.soporte?.tipo === "cuenta_cobro" ? "cuenta_cobro" : "factura",
   }
 }

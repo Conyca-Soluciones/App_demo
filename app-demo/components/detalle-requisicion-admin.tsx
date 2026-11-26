@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { TablaExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { HistorialTimeline } from "@/components/historial-timeline"
+import { GastosDeCuadroCajaMenor } from "@/components/gastos-cuadro-caja-menor"
 import { CLASE_ESTADO_PAGO, ETIQUETA_ESTADO_PAGO, formatoMoneda, type EstadoPago } from "@/lib/pagos"
 import { formatearFechaHora } from "@/lib/fechas"
 import {
@@ -290,6 +291,10 @@ export function DetalleRequisicionAdmin({ detalle }: { detalle: RequisicionAdmin
         <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
           <span className="font-medium">Cancelada:</span> {detalle.motivoCancelacion}
         </p>
+      )}
+
+      {detalle.tipo === "caja_menor" && detalle.cajaMenorLegalizacionId && (
+        <GastosDeCuadroCajaMenor legalizacionId={detalle.cajaMenorLegalizacionId} />
       )}
 
       <TablaExcel dosLineas

@@ -1464,6 +1464,47 @@ anticipos y/o descuentos por ítem (`requisicion_admin_items.descuentos`; el pag
 `valor_documento` y `descuento_anticipos`). Proyectos del cuadro: los que la persona ve, más FUNCIONAMIENTO.
 Consolidado Gerencia: total de todo lo filtrado (`total_consolidado_gerencia`).
 
+## Caja menor (2026-11-26)
+
+`20270101007400_caja_menor.sql` (reversa en `supabase/reversa/`), procedimiento GF-PR-001 v2. Decisiones del
+usuario: solo gastos y reembolso (el desembolso inicial va por fuera); el responsable va guardando sus gastos en un
+BORRADOR (en las fechas que quiera) y lo envía cuando quiere legalizar; concepto en texto libre; las reglas del procedimiento (70 % y tope) solo
+avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelven siempre al responsable.
+- **Caja** (`cajas_menores`, pestaña `ayf.cajas_menores` › Cajas): Financiera (acción `gestionar_cajas_menores`) la
+  crea con responsable (`perfiles`), monto, tercero y cuenta a donde se reembolsa (de Terceros, no inactiva), grupo
+  empresarial y proyecto o área (`guardar_caja_menor`; listas con `opciones_caja_menor`, que trae todos los
+  proyectos porque Financiera no tiene proyectos asignados). Una abierta por responsable; para cambiar de
+  responsable se cierra y se abre otra (`cerrar_caja_menor`, no con una legalización en curso).
+- **Legalización** (`caja_menor_legalizaciones` + `caja_menor_gastos`, código `CM-001-0001` = consecutivo del
+  proyecto de la caja, contador 'caja_menor'): en Pagos administrativos, selector "Tipo de pago: Cuadro de pagos |
+  Caja menor" (`components/caja-menor-responsable.tsx`). Por gasto: fecha, proyecto, solicitado por (el usuario),
+  número de factura, NIT o cédula, nombre o razón social, concepto, destino, valor total pagado y soporte
+  obligatorio (bucket privado `cajas_menores`, `<uid>/...`). Tabla en pantalla o plantilla de Excel
+  (`lib/excel-caja-menor.ts`, lectura en `leerFilasCajaMenor`). **Borrador** (estado `borrador`, uno por caja):
+  "Guardar borrador" (`guardar_borrador_caja_menor`, reemplaza todos sus gastos; sin gastos se borra) y "Descartar
+  borrador" (`descartar_borrador_caja_menor`, devuelve las rutas de los soportes para borrarlas); Financiera no lo ve
+  (RLS por `estado <> 'borrador'` y `caja_menor_gastos.borrador`; listas y detalle lo excluyen); el código CM se da
+  al crearlo. `enviar_legalizacion_caja_menor(null, gastos)` envía el borrador (o crea la legalización si no hay);
+  con un id, corrige una devuelta. Se puede tener un borrador mientras otra legalización está en curso, pero no
+  enviarlo hasta que la anterior pase a Gerencia. `cancelar_legalizacion_caja_menor` (por revisar o devuelta).
+- **Flujo**: `por_revisar` (Financiera revisa los soportes, `revisar_legalizacion_caja_menor`) -> `por_aprobar`
+  (rol nuevo **Líder Financiera** `lider_financiera` = Financiera + `aprobar_cajas_menores`, para Yesenia López) ->
+  `en_gerencia`: `aprobarLegalizacionLider` genera la relación de gastos en PDF (`components/relacion-caja-menor-pdf.tsx`),
+  la sube a `requisiciones_admin/<uid>/` y `aprobar_legalizacion_caja_menor` crea un cuadro de pago
+  `requisiciones_admin.tipo = 'caja_menor'` con UN ítem (reembolso al tercero de la caja, código PA, soporte tipo
+  `relacion_caja_menor`, creado_por = el responsable) -> Gerencia lo aprueba en Aprobación de pagos como cualquier
+  cuadro y `trg_caja_menor_sigue_cuadro` deja la legalización `aprobada`; si lo rechaza, vuelve `devuelta`. El
+  cuadro de caja menor no se modifica ni se cancela como cuadro (parche a `modificar_requisicion_admin`,
+  `cancelar_requisicion_admin`, `detalle_requisicion_admin.editable`); su detalle tiene "Ver gastos y soportes"
+  (`GastosDeCuadroCajaMenor`).
+- **Quién ve** (`_ve_cajas_menores`, con grant a authenticated porque la usan las políticas): el responsable, las dos
+  acciones, Aprobación de pagos y quien ve algún consolidado. Las tablas guardan una copia de `responsable_id` para
+  que la RLS no lea otra tabla; los soportes se leen con `_rutas_cajas_menores_visibles` (INVOKER).
+- Avisos (entidad `caja_menor`), historial (`historial_eventos`, entidad `caja_menor`, se ve en el detalle), Mis
+  pendientes (`caja_menor_por_revisar`, `caja_menor_por_aprobar`, `mi_caja_menor_devuelta`) y Drive (`Proyectos/<proyecto de la caja>/Cajas menores/<semana>/<CM>/`).
+- Pendiente (no se hizo): arqueos, retenciones (las sigue haciendo Contabilidad al liquidar), que los gastos sumen
+  por proyecto en Control del proyecto, y otros tipos de pago administrativo (reembolso ordinario).
+
 ## Balances (A&F, 2026-11-12)
 
 `20270101001200_balances.sql` (reversa en `supabase/reversa/`; solo agrega, más un parche a
@@ -5119,6 +5160,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
+`20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
 `20270101006700` ítems opcionales de un contrato de suministro a valor global.
 `20270101006800` copia de los archivos de la app en Google Drive (nace apagada).
 `20270101006900` Drive: carpetas por semana (OC, requisiciones, pagos administrativos, actas, PSE), por proveedor (OC) y por tercero (sus documentos juntos).
