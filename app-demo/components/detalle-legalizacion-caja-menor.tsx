@@ -71,6 +71,25 @@ const COLUMNAS_GASTOS: ColumnaExcel<GastoDetalle>[] = [
     celda: (g) => <span className="tabular-nums">{formatoMoneda(g.valor)}</span>,
   },
   {
+    clave: "liquidacion",
+    titulo: "Liquidación (Contabilidad)",
+    ancho: 190,
+    alinear: "right",
+    texto: (g) => (g.liquidacion ? formatoMoneda(g.liquidacion.valorAPagar) : ""),
+    valorOrden: (g) => g.liquidacion?.valorAPagar ?? null,
+    celda: (g) => {
+      const l = g.liquidacion
+      if (!l) return <span className="text-xs text-muted-foreground">Sin liquidar</span>
+      const ret = l.retefuente + l.reteiva + l.reteica
+      return (
+        <span className="tabular-nums">
+          {formatoMoneda(l.valorAPagar)}
+          <span className="block text-xs text-muted-foreground">{ret > 0 ? `Retenciones ${formatoMoneda(ret)}` : "Sin retenciones"}</span>
+        </span>
+      )
+    },
+  },
+  {
     clave: "soporte",
     titulo: "Soporte",
     ancho: 110,

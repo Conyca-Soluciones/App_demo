@@ -352,6 +352,19 @@ export type GastoDetalle = {
   destino: string
   valor: number
   soporte: SoporteGasto
+  // Liquidación de Contabilidad (20270101007600); null = sin liquidar.
+  liquidacion: LiquidacionGasto | null
+}
+
+export type LiquidacionGasto = {
+  base: number | null
+  iva: number | null
+  retefuente: number
+  reteiva: number
+  reteica: number
+  valorAPagar: number
+  liquidadoEn: string | null
+  liquidadoPorNombre: string | null
 }
 
 export type EventoLegalizacion = { evento: string; fecha: string; usuarioNombre: string | null; motivo: string | null }
@@ -360,6 +373,8 @@ export type LegalizacionDetalle = LegalizacionFila & {
   gastos: GastoDetalle[]
   eventos: EventoLegalizacion[]
   caja: CajaMenor | null
+  // El pago del reembolso (cuando ya hay cuadro): Contabilidad liquida sus gastos.
+  pago: { id: string; estado: string; liquidacionEstado: string | null; referencia: string | null } | null
 }
 
 export const ETIQUETA_EVENTO_LEGALIZACION: Record<string, string> = {
@@ -368,6 +383,7 @@ export const ETIQUETA_EVENTO_LEGALIZACION: Record<string, string> = {
   revisada: "Financiera revisó los soportes",
   aprobada_lider: "Líder Financiera la aprobó (pasa a Gerencia)",
   aprobada_gerencia: "Gerencia aprobó el pago",
+  liquidada: "Contabilidad liquidó todos los gastos (el pago queda liquidado)",
   devuelta: "Devuelta al responsable",
   cancelada: "Cancelada",
 }
@@ -428,6 +444,18 @@ export function mapLegalizacionDetalle(r: any): LegalizacionDetalle {
         mime: g.soporte?.mime ?? null,
         tamano: g.soporte?.tamano == null ? null : Number(g.soporte.tamano),
       },
+      liquidacion: g.liquidacion
+        ? {
+            base: g.liquidacion.base == null ? null : Number(g.liquidacion.base),
+            iva: g.liquidacion.iva == null ? null : Number(g.liquidacion.iva),
+            retefuente: Number(g.liquidacion.retefuente ?? 0),
+            reteiva: Number(g.liquidacion.reteiva ?? 0),
+            reteica: Number(g.liquidacion.reteica ?? 0),
+            valorAPagar: Number(g.liquidacion.valor_a_pagar ?? 0),
+            liquidadoEn: g.liquidacion.liquidado_en ?? null,
+            liquidadoPorNombre: g.liquidacion.liquidado_por_nombre ?? null,
+          }
+        : null,
     })),
     eventos: (Array.isArray(r.eventos) ? r.eventos : []).map((e: any) => ({
       evento: String(e.evento),
@@ -436,6 +464,14 @@ export function mapLegalizacionDetalle(r: any): LegalizacionDetalle {
       motivo: e.motivo ?? null,
     })),
     caja: r.caja ? mapCajaMenor(r.caja) : null,
+    pago: r.pago
+      ? {
+          id: String(r.pago.id),
+          estado: String(r.pago.estado ?? ""),
+          liquidacionEstado: r.pago.liquidacion_estado ?? null,
+          referencia: r.pago.referencia ?? null,
+        }
+      : null,
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -622,3 +658,89 @@ export function leerFilasCajaMenor(
   }
   return { gastos, errores }
 }
+
+// ---------------------------------------------------------------- liquidación por gasto (Contabilidad)
+// Contabilidad liquida cada gasto; cuando están todos, el pago del reembolso queda
+// liquidado con la suma (liquidar_gastos_caja_menor, 20270101007600).
+export const CAMPOS_LIQUIDACION_GASTO = [
+  { clave: "base", titulo: "Base" },
+  { clave: "iva", titulo: "IVA" },
+  { clave: "retefuente", titulo: "Retefuente" },
+  { clave: "reteiva", titulo: "ReteIVA" },
+  { clave: "reteica", titulo: "ReteICA" },
+  { clave: "valorAPagar", titulo: "Valor a pagar" },
+] as const
+export type ClaveLiquidacionGasto = (typeof CAMPOS_LIQUIDACION_GASTO)[number]["clave"]
+export type FormLiquidacionGasto = Record<ClaveLiquidacionGasto, string>
+
+const numTexto = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","))
+
+export function formLiquidacionGasto(g: Pick<GastoDetalle, "liquidacion">): FormLiquidacionGasto {
+  const l = g.liquidacion
+  return {
+    base: numTexto(l?.base),
+    iva: numTexto(l?.iva),
+    retefuente: numTexto(l?.retefuente),
+    reteiva: numTexto(l?.reteiva),
+    reteica: numTexto(l?.reteica),
+    valorAPagar: numTexto(l?.valorAPagar),
+  }
+}
+
+/** Lo que se manda a la base por gasto; error si un número no se entiende o pasa el valor del gasto. */
+export function filaLiquidacionGasto(
+  g: Pick<GastoDetalle, "id" | "orden" | "valor">,
+  f: FormLiquidacionGasto,
+  leer: (texto: string) => number | null = leerNumero
+): { gasto_id: string; base: number | null; iva: number | null; retefuente: number | null; reteiva: number | null; reteica: number | null; valor_a_pagar: number | null } {
+  const n: Partial<Record<ClaveLiquidacionGasto, number | null>> = {}
+  for (const c of CAMPOS_LIQUIDACION_GASTO) {
+    const t = f[c.clave].trim()
+    if (!t) {
+      n[c.clave] = null
+      continue
+    }
+    const v = leer(t)
+    if (v == null || !Number.isFinite(v) || v < 0) throw new Error(`Gasto ${g.orden}: "${c.titulo}" tiene que ser un número mayor o igual a cero.`)
+    n[c.clave] = Math.round(v * 100) / 100
+  }
+  const algo = CAMPOS_LIQUIDACION_GASTO.some((c) => n[c.clave] != null)
+  if (algo && n.valorAPagar == null) throw new Error(`Gasto ${g.orden}: escribe el valor a pagar (o usa «Sin retenciones»).`)
+  if (n.valorAPagar != null && (n.valorAPagar <= 0 || n.valorAPagar > g.valor))
+    throw new Error(`Gasto ${g.orden}: el valor a pagar debe ser mayor que cero y no más que el valor del gasto.`)
+  return {
+    gasto_id: g.id,
+    base: n.base ?? null,
+    iva: n.iva ?? null,
+    retefuente: n.retefuente ?? null,
+    reteiva: n.reteiva ?? null,
+    reteica: n.reteica ?? null,
+    valor_a_pagar: n.valorAPagar ?? null,
+  }
+}
+
+/** "Sin retenciones": retenciones en 0 y valor a pagar = valor del gasto (base e IVA se conservan). */
+export const sinRetencionesGasto = (g: Pick<GastoDetalle, "valor">, f: FormLiquidacionGasto): FormLiquidacionGasto => ({
+  ...f,
+  retefuente: "0",
+  reteiva: "0",
+  reteica: "0",
+  valorAPagar: numTexto(g.valor),
+})
+
+/** Cuántos gastos van liquidados y la suma de lo que se paga (lo que quedará en el pago). */
+export function resumenLiquidacionGastos(gastos: Pick<GastoDetalle, "liquidacion">[]) {
+  const hechos = gastos.filter((g) => g.liquidacion != null)
+  return {
+    total: gastos.length,
+    liquidados: hechos.length,
+    valorAPagar: Math.round(hechos.reduce((s, g) => s + (g.liquidacion?.valorAPagar ?? 0), 0) * 100) / 100,
+    retenciones:
+      Math.round(
+        hechos.reduce((s, g) => s + (g.liquidacion ? g.liquidacion.retefuente + g.liquidacion.reteiva + g.liquidacion.reteica : 0), 0) * 100
+      ) / 100,
+  }
+}
+
+export type ResultadoLiquidacionGastos = { gastos: number; liquidados: number; pagoLiquidado: boolean }
+

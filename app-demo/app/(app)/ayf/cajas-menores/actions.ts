@@ -24,6 +24,7 @@ import {
   type LegalizacionFila,
   type OpcionesCajaMenor,
   type ResultadoAccion,
+  type ResultadoLiquidacionGastos,
 } from "@/lib/caja-menor"
 
 // Caja menor (20270101007400). Todo pasa por funciones de la base, que vuelven
@@ -116,6 +117,14 @@ export async function obtenerLegalizacion(id: string): Promise<LegalizacionDetal
   const { data, error } = await supabase.rpc("detalle_legalizacion_caja_menor", { p_id: id })
   if (error) throw new Error(error.message)
   return mapLegalizacionDetalle(data)
+}
+
+/** La legalización de un cuadro de caja menor (null si el cuadro no es de caja menor). */
+export async function legalizacionDeCuadro(requisicionAdminId: string): Promise<string | null> {
+  const supabase = await clienteConSesion()
+  const { data, error } = await supabase.rpc("legalizacion_de_cuadro", { p_requisicion_admin_id: requisicionAdminId })
+  if (error) throw new Error(error.message)
+  return data ? String(data) : null
 }
 
 // ---------------------------------------------------------------- A&F
@@ -280,3 +289,20 @@ export async function devolverLegalizacionLider(id: string, motivo: string): Pro
 export async function aprobarLegalizacionLider(id: string): Promise<ResultadoAccion<string>> {
   return resultado(() => aprobarLegalizacionLiderLanza(id))
 }
+
+// Contabilidad liquida los gastos de la caja menor del pago (20270101007600); con
+// todos liquidados el pago queda liquidado con la suma.
+async function liquidarGastosLanza(pagoId: string, filas: Record<string, unknown>[]): Promise<ResultadoLiquidacionGastos> {
+  const supabase = await clienteConSesion()
+  const { data, error } = await supabase.rpc("liquidar_gastos_caja_menor", { p_pago: pagoId, p_filas: filas })
+  if (error) throw new Error(error.message)
+  const d = (data ?? {}) as { gastos?: number; liquidados?: number; pago_liquidado?: boolean }
+  return { gastos: Number(d.gastos ?? 0), liquidados: Number(d.liquidados ?? 0), pagoLiquidado: Boolean(d.pago_liquidado) }
+}
+export async function liquidarGastosCajaMenor(
+  pagoId: string,
+  filas: Record<string, unknown>[]
+): Promise<ResultadoAccion<ResultadoLiquidacionGastos>> {
+  return resultado(() => liquidarGastosLanza(pagoId, filas))
+}
+

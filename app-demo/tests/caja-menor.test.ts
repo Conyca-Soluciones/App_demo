@@ -222,3 +222,24 @@ describe("borrador", () => {
     expect(mapCajaMenor({ id: "c", numero: 1 }).borrador).toBeNull()
   })
 })
+
+describe("liquidación por gasto", () => {
+  it("arma la fila de cada gasto y valida el valor a pagar", async () => {
+    const { filaLiquidacionGasto, formLiquidacionGasto, sinRetencionesGasto } = await import("@/lib/caja-menor")
+    const g = { id: "g1", orden: 1, valor: 100000, liquidacion: null }
+    const vacio = formLiquidacionGasto(g)
+    expect(filaLiquidacionGasto(g, vacio)).toMatchObject({ gasto_id: "g1", valor_a_pagar: null, retefuente: null })
+    expect(filaLiquidacionGasto(g, sinRetencionesGasto(g, vacio))).toMatchObject({ retefuente: 0, reteica: 0, valor_a_pagar: 100000 })
+    expect(filaLiquidacionGasto(g, { ...vacio, retefuente: "2.500", valorAPagar: "97.500" })).toMatchObject({ retefuente: 2500, valor_a_pagar: 97500 })
+    expect(() => filaLiquidacionGasto(g, { ...vacio, retefuente: "2500" })).toThrow(/valor a pagar/)
+    expect(() => filaLiquidacionGasto(g, { ...vacio, valorAPagar: "120.000" })).toThrow(/no más que el valor/)
+    expect(() => filaLiquidacionGasto(g, { ...vacio, iva: "abc" })).toThrow(/número/)
+  })
+  it("resume lo liquidado", async () => {
+    const { resumenLiquidacionGastos } = await import("@/lib/caja-menor")
+    const l = (vap: number, ret: number) => ({ liquidacion: { base: null, iva: null, retefuente: ret, reteiva: 0, reteica: 0, valorAPagar: vap, liquidadoEn: null, liquidadoPorNombre: null } })
+    expect(resumenLiquidacionGastos([l(97100, 2900), l(50000, 0), { liquidacion: null }])).toEqual({
+      total: 3, liquidados: 2, valorAPagar: 147100, retenciones: 2900,
+    })
+  })
+})
