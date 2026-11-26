@@ -20,6 +20,7 @@ import {
   avisosLegalizacion,
   codigoListaProyectoCaja,
   gastoFormDesdeDetalle,
+  esGastoVacio,
   gastoVacio,
   leerFilasCajaMenor,
   textoPorcentajeCaja,
@@ -37,9 +38,12 @@ import type { OpcionesReqAdmin } from "@/lib/requisiciones-admin"
 import { opcionesRequisicionAdmin } from "@/app/(app)/ayf/pagos-administrativos/actions"
 import {
   cancelarLegalizacion,
+  descartarBorrador,
   enviarLegalizacion,
+  guardarBorrador,
   listarMisLegalizaciones,
   miCajaMenor,
+  obtenerLegalizacion,
 } from "@/app/(app)/ayf/cajas-menores/actions"
 
 type Pestana = "nueva" | "mias"
@@ -57,17 +61,23 @@ export function CajaMenorResponsable({ abrir }: { abrir: string | null }) {
   const [edicion, setEdicion] = useState<Edicion | null>(null)
   const [version, setVersion] = useState(0)
   const [verId, setVerId] = useState<string | null>(abrir && abrir !== "nueva" ? abrir : null)
+  // Los gastos guardados en el borrador (se cargan al entrar).
+  const [borrador, setBorrador] = useState<GastoForm[] | null>(null)
 
   useEffect(() => {
     let vigente = true
     Promise.all([miCajaMenor(), opcionesRequisicionAdmin()])
-      .then(([c, o]: [CajaMenor | null, OpcionesReqAdmin]) => {
-        if (!vigente) return
-        setCaja(c)
+      .then(async ([c, o]: [CajaMenor | null, OpcionesReqAdmin]) => {
         const lista: ProyectoCajaMenor[] = o.proyectos.map((p) => ({ id: p.id, codigo: p.codigo, nombre: p.nombre }))
         if (c && !lista.some((p) => p.id === c.proyectoId))
           lista.unshift({ id: c.proyectoId, codigo: c.proyectoCodigo, nombre: c.proyectoNombre })
+        const gastosBorrador = c?.borrador
+          ? (await obtenerLegalizacion(c.borrador.id)).gastos.map(gastoFormDesdeDetalle)
+          : null
+        if (!vigente) return
         setProyectos(lista)
+        setBorrador(gastosBorrador)
+        setCaja(c)
       })
       .catch((e) => vigente && setError(e instanceof Error ? e.message : "No se pudo cargar tu caja menor."))
     return () => {
@@ -82,6 +92,7 @@ export function CajaMenorResponsable({ abrir }: { abrir: string | null }) {
   }
 
   function alEnviar(id: string) {
+    if (!edicion) setBorrador(null)
     setEdicion(null)
     setVersion((v) => v + 1)
     setVerId(id)
@@ -120,7 +131,7 @@ export function CajaMenorResponsable({ abrir }: { abrir: string | null }) {
             </p>
           </div>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Última legalización</p>
+            <p className="text-xs text-muted-foreground">Última legalización enviada</p>
             <p className="truncate font-medium">
               {caja.ultimaLegalizacion ? `${caja.ultimaLegalizacion.codigo} · ${formatoMoneda(caja.ultimaLegalizacion.valorTotal)}` : "—"}
             </p>
@@ -135,7 +146,7 @@ export function CajaMenorResponsable({ abrir }: { abrir: string | null }) {
       <div className="flex gap-1.5 border-b">
         {(
           [
-            ...(caja ? [{ valor: "nueva" as const, etiqueta: edicion ? `Corregir ${edicion.codigo}` : "Nueva legalización" }] : []),
+            ...(caja ? [{ valor: "nueva" as const, etiqueta: edicion ? `Corregir ${edicion.codigo}` : borrador ? "Mi borrador" : "Nueva legalización" }] : []),
             { valor: "mias" as const, etiqueta: "Mis legalizaciones" },
           ] as const
         ).map((p) => (
@@ -159,6 +170,8 @@ export function CajaMenorResponsable({ abrir }: { abrir: string | null }) {
             caja={caja}
             proyectos={proyectos}
             edicion={edicion}
+            borrador={edicion ? null : borrador}
+            onBorradorGuardado={setBorrador}
             onEnviada={alEnviar}
             onCancelarEdicion={() => setEdicion(null)}
           />
@@ -176,16 +189,26 @@ function FormularioLegalizacion({
   caja,
   proyectos,
   edicion,
+  borrador,
+  onBorradorGuardado,
   onEnviada,
   onCancelarEdicion,
 }: {
   caja: CajaMenor
   proyectos: ProyectoCajaMenor[]
   edicion: Edicion | null
+  // Gastos ya guardados en el borrador (null = no hay borrador).
+  borrador: GastoForm[] | null
+  onBorradorGuardado: (gastos: GastoForm[] | null) => void
   onEnviada: (id: string) => void
   onCancelarEdicion: () => void
 }) {
-  const [gastos, setGastos] = useState<GastoForm[]>(() => edicion?.gastos ?? [gastoVacio(caja.proyectoId)])
+  const [gastos, setGastos] = useState<GastoForm[]>(
+    () => edicion?.gastos ?? (borrador && borrador.length > 0 ? [...borrador, gastoVacio(borrador[borrador.length - 1].proyectoId)] : [gastoVacio(caja.proyectoId)])
+  )
+  const [guardando, setGuardando] = useState(false)
+  const [guardadoEn, setGuardadoEn] = useState<string | null>(null)
+  const [descartar, setDescartar] = useState(false)
   const [errores, setErrores] = useState<Record<number, string>>({})
   const [erroresExcel, setErroresExcel] = useState<ErrorFilaCajaMenor[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -234,7 +257,7 @@ function FormularioLegalizacion({
         return
       }
       // Las filas vacías del formulario se reemplazan por las del Excel.
-      const llenas = gastos.filter((g) => g.numeroFactura || g.nombre || g.valor || g.archivoSoporte || g.soporte)
+      const llenas = gastos.filter((g) => !esGastoVacio(g))
       if (llenas.length + r.gastos.length > MAX_GASTOS_CAJA_MENOR) {
         setError(`Quedarían ${llenas.length + r.gastos.length} gastos; el máximo es ${MAX_GASTOS_CAJA_MENOR}.`)
         return
@@ -248,14 +271,16 @@ function FormularioLegalizacion({
     }
   }
 
+  // Valida las filas con algo escrito (la fila en blanco del final no cuenta).
   function revisar(): boolean {
     const e: Record<number, string> = {}
     gastos.forEach((g, i) => {
+      if (esGastoVacio(g)) return
       const m = validarGasto(g, hoy)
       if (m) e[i] = m
     })
     setErrores(e)
-    if (gastos.length === 0) {
+    if (gastos.every(esGastoVacio)) {
       setError("Agrega al menos un gasto.")
       return false
     }
@@ -267,32 +292,83 @@ function FormularioLegalizacion({
     return true
   }
 
+  // Sube los soportes elegidos (bucket privado cajas_menores, carpeta del
+  // usuario) y devuelve los gastos con algo escrito, listos para el servidor.
+  async function gastosConSoportes(subidas: string[]): Promise<GastoForm[]> {
+    const conDatos = gastos.filter((g) => !esGastoVacio(g))
+    let uid: string | null = null
+    if (conDatos.some((g) => g.archivoSoporte)) {
+      const { data } = await createClient().auth.getUser()
+      uid = data.user?.id ?? null
+      if (!uid) throw new Error("Inicia sesión otra vez para subir los soportes.")
+    }
+    const listos: GastoForm[] = []
+    for (let i = 0; i < conDatos.length; i++) {
+      const { archivoSoporte, ...g } = conDatos[i]
+      if (archivoSoporte && uid) {
+        const ruta = rutaSoporte(uid, `gasto-${i + 1}`, archivoSoporte)
+        const { error: e } = await createClient()
+          .storage.from("cajas_menores")
+          .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
+        if (e) throw new Error(`Gasto ${i + 1}: no se pudo subir el soporte (${e.message}).`)
+        subidas.push(ruta)
+        listos.push({ ...g, soporte: { ruta, nombre: archivoSoporte.name, mime: archivoSoporte.type, tamano: archivoSoporte.size } })
+      } else {
+        listos.push(g)
+      }
+    }
+    return listos
+  }
+
+  // Guarda el borrador: los gastos quedan en la app (Financiera no los ve)
+  // y se pueden seguir agregando otro día.
+  async function guardarBorradorAhora() {
+    if (!revisar()) return
+    setGuardando(true)
+    setError(null)
+    const subidas: string[] = []
+    try {
+      const listos = await gastosConSoportes(subidas)
+      await guardarBorrador(listos)
+      // Los soportes de los gastos que se quitaron ya no los usa nadie.
+      const usadas = new Set(listos.map((g) => g.soporte?.ruta))
+      const sobran = (borrador ?? []).map((g) => g.soporte?.ruta).filter((r): r is string => Boolean(r) && !usadas.has(r))
+      if (sobran.length > 0) await createClient().storage.from("cajas_menores").remove(sobran)
+      onBorradorGuardado(listos.length > 0 ? listos : null)
+      setGastos([...listos, gastoVacio(listos[listos.length - 1]?.proyectoId ?? caja.proyectoId)])
+      setErrores({})
+      setGuardadoEn(new Date().toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" }))
+    } catch (e) {
+      if (subidas.length > 0) await createClient().storage.from("cajas_menores").remove(subidas)
+      setError(e instanceof Error ? e.message : "No se pudo guardar el borrador.")
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function descartarAhora() {
+    setGuardando(true)
+    setError(null)
+    try {
+      await descartarBorrador()
+      onBorradorGuardado(null)
+      setGastos([gastoVacio(caja.proyectoId)])
+      setErrores({})
+      setGuardadoEn(null)
+      setDescartar(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descartar el borrador.")
+    } finally {
+      setGuardando(false)
+    }
+  }
+
   async function enviar() {
     setEnviando(true)
     setError(null)
     const subidas: string[] = []
     try {
-      let uid: string | null = null
-      if (gastos.some((g) => g.archivoSoporte)) {
-        const { data } = await createClient().auth.getUser()
-        uid = data.user?.id ?? null
-        if (!uid) throw new Error("Inicia sesión otra vez para subir los soportes.")
-      }
-      const listos: GastoForm[] = []
-      for (let i = 0; i < gastos.length; i++) {
-        const { archivoSoporte, ...g } = gastos[i]
-        if (archivoSoporte && uid) {
-          const ruta = rutaSoporte(uid, `gasto-${i + 1}`, archivoSoporte)
-          const { error: e } = await createClient()
-            .storage.from("cajas_menores")
-            .upload(ruta, archivoSoporte, { contentType: archivoSoporte.type, upsert: false })
-          if (e) throw new Error(`Gasto ${i + 1}: no se pudo subir el soporte (${e.message}).`)
-          subidas.push(ruta)
-          listos.push({ ...g, soporte: { ruta, nombre: archivoSoporte.name, mime: archivoSoporte.type, tamano: archivoSoporte.size } })
-        } else {
-          listos.push(g)
-        }
-      }
+      const listos = await gastosConSoportes(subidas)
       onEnviada(await enviarLegalizacion(edicion?.id ?? null, listos))
     } catch (e) {
       // Lo que se alcanzó a subir no quedó en ningún gasto: se borra.
@@ -307,9 +383,10 @@ function FormularioLegalizacion({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Escribe todos los gastos de la caja (o llénalos en la plantilla de Excel y súbela) y adjunta el soporte de cada uno:
+        Registra cada gasto con su soporte cuando ocurra y pulsa «Guardar borrador»: queda guardado (Financiera no lo ve) y
+        puedes seguir agregando gastos otro día. También puedes llenarlos en la plantilla de Excel y subirla. El soporte de cada uno es la
         factura, cuenta de cobro o recibo original, con nombre y NIT o cédula de quien vendió, número, fecha, detalle y valor.
-        Va a Financiera, que revisa los soportes; después Líder Financiera la aprueba y el reembolso pasa a Gerencia.
+        Cuando quieras legalizar, pulsa «Enviar a Financiera»: Financiera revisa los soportes, Líder Financiera la aprueba y el reembolso pasa a Gerencia.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -464,18 +541,46 @@ function FormularioLegalizacion({
       ))}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex justify-end">
-        <Button type="button" disabled={enviando} onClick={() => revisar() && setConfirmar(true)}>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {guardadoEn && !edicion && <span className="mr-auto text-xs text-muted-foreground">Borrador guardado a las {guardadoEn}</span>}
+        {!edicion && borrador && (
+          <Button type="button" variant="ghost" disabled={guardando || enviando} onClick={() => setDescartar(true)}>
+            Descartar borrador
+          </Button>
+        )}
+        {!edicion && (
+          <Button type="button" variant="outline" disabled={guardando || enviando} onClick={guardarBorradorAhora}>
+            {guardando && <Loader2 className="mr-1 size-4 animate-spin" />} Guardar borrador
+          </Button>
+        )}
+        <Button type="button" disabled={enviando || guardando} onClick={() => revisar() && setConfirmar(true)}>
           {edicion ? "Corregir y enviar otra vez" : "Enviar a Financiera"}
         </Button>
       </div>
+
+      <Dialog open={descartar} onOpenChange={(o) => !guardando && setDescartar(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Descartar el borrador</DialogTitle>
+            <DialogDescription>Se borran los gastos guardados y sus soportes. No se puede deshacer.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={guardando} onClick={() => setDescartar(false)}>
+              Volver
+            </Button>
+            <Button type="button" variant="destructive" disabled={guardando} onClick={descartarAhora}>
+              {guardando && <Loader2 className="mr-1 size-4 animate-spin" />} Descartar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmar} onOpenChange={(o) => !enviando && setConfirmar(o)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Enviar la legalización</DialogTitle>
             <DialogDescription>
-              {gastos.length} gasto(s) por {formatoMoneda(total)}. Va a Financiera para revisar los soportes.
+              {gastos.filter((g) => !esGastoVacio(g)).length} gasto(s) por {formatoMoneda(total)}. Va a Financiera para revisar los soportes.
             </DialogDescription>
           </DialogHeader>
           {avisos.length > 0 && <p className="text-sm text-amber-800">{avisos.join(" ")}</p>}

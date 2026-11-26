@@ -1467,8 +1467,8 @@ Consolidado Gerencia: total de todo lo filtrado (`total_consolidado_gerencia`).
 ## Caja menor (2026-11-26)
 
 `20270101007400_caja_menor.sql` (reversa en `supabase/reversa/`), procedimiento GF-PR-001 v2. Decisiones del
-usuario: solo gastos y reembolso (el desembolso inicial va por fuera); el responsable sube TODOS los gastos de una
-vez (no uno por uno mientras pasan); concepto en texto libre; las reglas del procedimiento (70 % y tope) solo
+usuario: solo gastos y reembolso (el desembolso inicial va por fuera); el responsable va guardando sus gastos en un
+BORRADOR (en las fechas que quiera) y lo envía cuando quiere legalizar; concepto en texto libre; las reglas del procedimiento (70 % y tope) solo
 avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelven siempre al responsable.
 - **Caja** (`cajas_menores`, pestaña `ayf.cajas_menores` › Cajas): Financiera (acción `gestionar_cajas_menores`) la
   crea con responsable (`perfiles`), monto, tercero y cuenta a donde se reembolsa (de Terceros, no inactiva), grupo
@@ -1480,8 +1480,13 @@ avisan, nada bloquea; sin recordatorio del corte del 27; las devoluciones vuelve
   Caja menor" (`components/caja-menor-responsable.tsx`). Por gasto: fecha, proyecto, solicitado por (el usuario),
   número de factura, NIT o cédula, nombre o razón social, concepto, destino, valor total pagado y soporte
   obligatorio (bucket privado `cajas_menores`, `<uid>/...`). Tabla en pantalla o plantilla de Excel
-  (`lib/excel-caja-menor.ts`, lectura en `leerFilasCajaMenor`). Una en curso por caja.
-  `enviar_legalizacion_caja_menor` (también para corregir una devuelta), `cancelar_legalizacion_caja_menor`.
+  (`lib/excel-caja-menor.ts`, lectura en `leerFilasCajaMenor`). **Borrador** (estado `borrador`, uno por caja):
+  "Guardar borrador" (`guardar_borrador_caja_menor`, reemplaza todos sus gastos; sin gastos se borra) y "Descartar
+  borrador" (`descartar_borrador_caja_menor`, devuelve las rutas de los soportes para borrarlas); Financiera no lo ve
+  (RLS por `estado <> 'borrador'` y `caja_menor_gastos.borrador`; listas y detalle lo excluyen); el código CM se da
+  al crearlo. `enviar_legalizacion_caja_menor(null, gastos)` envía el borrador (o crea la legalización si no hay);
+  con un id, corrige una devuelta. Se puede tener un borrador mientras otra legalización está en curso, pero no
+  enviarlo hasta que la anterior pase a Gerencia. `cancelar_legalizacion_caja_menor` (por revisar o devuelta).
 - **Flujo**: `por_revisar` (Financiera revisa los soportes, `revisar_legalizacion_caja_menor`) -> `por_aprobar`
   (rol nuevo **Líder Financiera** `lider_financiera` = Financiera + `aprobar_cajas_menores`, para Yesenia López) ->
   `en_gerencia`: `aprobarLegalizacionLider` genera la relación de gastos en PDF (`components/relacion-caja-menor-pdf.tsx`),

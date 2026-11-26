@@ -207,3 +207,18 @@ describe("plantilla de Excel (ida y vuelta)", () => {
     expect(r.gastos[0]).toMatchObject({ fecha: "2026-11-20", proyectoId: "p1", documento: "900123456-7", valor: "150000" })
   })
 })
+
+describe("borrador", () => {
+  it("la fila en blanco no cuenta", async () => {
+    const { esGastoVacio } = await import("@/lib/caja-menor")
+    expect(esGastoVacio(gastoVacio("p1"))).toBe(true)
+    expect(esGastoVacio(gasto())).toBe(false)
+    expect(esGastoVacio({ ...gastoVacio("p1"), valor: "10" })).toBe(false)
+  })
+  it("la caja trae el borrador de quien consulta", async () => {
+    const { mapCajaMenor } = await import("@/lib/caja-menor")
+    const c = mapCajaMenor({ id: "c", numero: 1, monto: 3000000, borrador: { id: "b", codigo: "CM-001-0002", n_gastos: 3, valor_total: "450000.00" } })
+    expect(c.borrador).toMatchObject({ id: "b", nGastos: 3, valorTotal: 450000 })
+    expect(mapCajaMenor({ id: "c", numero: 1 }).borrador).toBeNull()
+  })
+})

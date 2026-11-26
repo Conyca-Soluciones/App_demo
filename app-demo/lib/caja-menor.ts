@@ -18,9 +18,10 @@ export const MAX_GASTOS_CAJA_MENOR = 200
 // Procedimiento: legalizar cuando se haya gastado como máximo el 70 %.
 export const PORCENTAJE_LEGALIZAR = 70
 
-export type EstadoLegalizacion = "por_revisar" | "por_aprobar" | "en_gerencia" | "aprobada" | "devuelta" | "cancelada"
+export type EstadoLegalizacion = "borrador" | "por_revisar" | "por_aprobar" | "en_gerencia" | "aprobada" | "devuelta" | "cancelada"
 
 export const ETIQUETA_ESTADO_LEGALIZACION: Record<EstadoLegalizacion, string> = {
+  borrador: "Borrador",
   por_revisar: "En Financiera",
   por_aprobar: "En Líder Financiera",
   en_gerencia: "En Gerencia",
@@ -30,6 +31,7 @@ export const ETIQUETA_ESTADO_LEGALIZACION: Record<EstadoLegalizacion, string> = 
 }
 
 export const CLASE_ESTADO_LEGALIZACION: Record<EstadoLegalizacion, string> = {
+  borrador: "border-gray-300 bg-gray-50 text-gray-600",
   por_revisar: "border-amber-300 bg-amber-50 text-amber-700",
   por_aprobar: "border-amber-300 bg-amber-50 text-amber-700",
   en_gerencia: "border-blue-300 bg-blue-50 text-blue-700",
@@ -66,11 +68,14 @@ export type CajaMenor = {
   cerradaEn: string | null
   motivoCierre: string | null
   ultimaLegalizacion: { id: string; codigo: string; estado: EstadoLegalizacion; enviadaEn: string; valorTotal: number } | null
+  // Los gastos que el responsable lleva guardados sin enviar (solo se lo devuelve a él).
+  borrador: { id: string; codigo: string; nGastos: number; valorTotal: number; actualizadoEn: string } | null
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function mapCajaMenor(c: any): CajaMenor {
   const u = c.ultima_legalizacion
+  const b = c.borrador
   return {
     id: String(c.id),
     numero: Number(c.numero),
@@ -101,6 +106,15 @@ export function mapCajaMenor(c: any): CajaMenor {
           estado: esEstadoLegalizacion(u.estado) ? u.estado : "por_revisar",
           enviadaEn: String(u.enviada_en ?? ""),
           valorTotal: Number(u.valor_total ?? 0),
+        }
+      : null,
+    borrador: b
+      ? {
+          id: String(b.id),
+          codigo: String(b.codigo ?? ""),
+          nGastos: Number(b.n_gastos ?? 0),
+          valorTotal: Number(b.valor_total ?? 0),
+          actualizadoEn: String(b.actualizado_en ?? ""),
         }
       : null,
   }
@@ -194,6 +208,11 @@ export const valorGasto = (g: Pick<GastoForm, "valor">): number | null => {
 }
 
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/
+
+/** Fila sin nada escrito (la última fila en blanco del formulario): no se guarda. */
+export const esGastoVacio = (g: GastoForm) =>
+  !g.fecha && !g.numeroFactura.trim() && !g.documento.trim() && !g.nombre.trim() && !g.concepto.trim() &&
+  !g.destino.trim() && !g.valor.trim() && !g.soporte && !g.archivoSoporte
 
 /** Primer error del gasto (null = completo). Mismas reglas que _guardar_gastos_caja_menor. */
 export function validarGasto(g: GastoForm, hoy: string): string | null {

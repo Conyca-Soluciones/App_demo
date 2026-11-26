@@ -78,6 +78,31 @@ export async function enviarLegalizacion(id: string | null, gastos: GastoForm[])
   return String(data)
 }
 
+/**
+ * Guarda el borrador (todos los gastos que lleva, ya con sus soportes subidos;
+ * reemplaza los de antes). Sin gastos, se borra. Financiera no lo ve.
+ */
+export async function guardarBorrador(gastos: GastoForm[]): Promise<string | null> {
+  const errores = validarLegalizacion(gastos, hoyColombia())
+  if (gastos.length > 0 && errores.length > 0) {
+    const e = errores[0]
+    throw new Error(e.indice >= 0 ? `Gasto ${e.indice + 1}: ${e.mensaje}` : e.mensaje)
+  }
+  const supabase = await clienteResponsable()
+  const { data, error } = await supabase.rpc("guardar_borrador_caja_menor", { p_gastos: gastos.map(gastoParaGuardar) })
+  if (error) throw new Error(error.message)
+  return data ? String(data) : null
+}
+
+/** Descarta el borrador y borra sus soportes del bucket. */
+export async function descartarBorrador(): Promise<void> {
+  const supabase = await clienteResponsable()
+  const { data, error } = await supabase.rpc("descartar_borrador_caja_menor")
+  if (error) throw new Error(error.message)
+  const rutas = ((data ?? []) as string[]).filter(Boolean)
+  if (rutas.length > 0) await supabase.storage.from("cajas_menores").remove(rutas)
+}
+
 export async function cancelarLegalizacion(id: string, motivo: string): Promise<void> {
   const supabase = await clienteResponsable()
   const { error } = await supabase.rpc("cancelar_legalizacion_caja_menor", { p_id: id, p_motivo: motivo })

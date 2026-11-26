@@ -63,6 +63,9 @@ drop function if exists public.revisar_legalizacion_caja_menor(uuid, text, text)
 drop function if exists public._devolver_legalizacion_caja_menor(public.caja_menor_legalizaciones, text, text);
 drop function if exists public.cancelar_legalizacion_caja_menor(uuid, text);
 drop function if exists public.enviar_legalizacion_caja_menor(uuid, jsonb);
+drop function if exists public.descartar_borrador_caja_menor();
+drop function if exists public.guardar_borrador_caja_menor(jsonb);
+drop function if exists public._borrador_caja_menor(public.cajas_menores, boolean);
 drop function if exists public._guardar_gastos_caja_menor(uuid, uuid, jsonb);
 drop function if exists public.listar_cajas_menores(boolean);
 drop function if exists public.mi_caja_menor();

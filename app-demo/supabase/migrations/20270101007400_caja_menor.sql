@@ -3,9 +3,10 @@
 --
 -- Alcance: solo gastos y reembolso. Financiera crea la caja (responsable,
 -- monto, tercero y cuenta a donde se reembolsa, grupo empresarial y proyecto);
--- el desembolso inicial va por fuera. El responsable sube su LEGALIZACIÓN con
--- todos los gastos (pantalla o Excel) y el soporte de cada uno:
---   por_revisar (Financiera revisa los soportes)
+-- el desembolso inicial va por fuera. El responsable va registrando sus gastos
+-- (pantalla o Excel, cada uno con su soporte) en un BORRADOR que guarda cuando
+-- quiere y que Financiera no ve; cuando quiere legalizar, lo envía:
+--   borrador -> por_revisar (Financiera revisa los soportes)
 --   -> por_aprobar (Líder Financiera da el okay)
 --   -> en_gerencia (la app crea sola el cuadro de pago: requisiciones_admin
 --      tipo 'caja_menor', un ítem = el reembolso al responsable; Gerencia lo
@@ -68,7 +69,7 @@ create table if not exists public.caja_menor_legalizaciones (
   responsable_id uuid not null references public.perfiles(id),
   codigo text not null unique, -- CM-001-0001 (consecutivo del proyecto de la caja)
   estado text not null default 'por_revisar'
-    check (estado in ('por_revisar', 'por_aprobar', 'en_gerencia', 'aprobada', 'devuelta', 'cancelada')),
+    check (estado in ('borrador', 'por_revisar', 'por_aprobar', 'en_gerencia', 'aprobada', 'devuelta', 'cancelada')),
   n_gastos smallint not null check (n_gastos between 1 and 200),
   valor_total numeric(16, 2) not null check (valor_total > 0),
   creada_en timestamptz not null default now(),
@@ -88,6 +89,9 @@ create table if not exists public.caja_menor_legalizaciones (
 -- ya pasó a Gerencia).
 create unique index if not exists caja_menor_legalizaciones_una_en_curso
   on public.caja_menor_legalizaciones (caja_id) where estado in ('por_revisar', 'por_aprobar', 'devuelta');
+-- Un borrador por caja (los gastos que el responsable va registrando antes de enviar).
+create unique index if not exists caja_menor_legalizaciones_un_borrador
+  on public.caja_menor_legalizaciones (caja_id) where estado = 'borrador';
 create index if not exists caja_menor_legalizaciones_caja_idx on public.caja_menor_legalizaciones (caja_id, enviada_en desc);
 create index if not exists caja_menor_legalizaciones_responsable_idx on public.caja_menor_legalizaciones (responsable_id);
 create index if not exists caja_menor_legalizaciones_estado_idx on public.caja_menor_legalizaciones (estado, enviada_en);
@@ -110,7 +114,9 @@ create table if not exists public.caja_menor_gastos (
   soporte_ruta text not null,
   soporte_nombre text not null,
   soporte_mime text,
-  soporte_tamano bigint
+  soporte_tamano bigint,
+  -- Copia de "la legalización es un borrador": Financiera no ve los gastos del borrador.
+  borrador boolean not null default false
 );
 create index if not exists caja_menor_gastos_legalizacion_idx on public.caja_menor_gastos (legalizacion_id, orden);
 create index if not exists caja_menor_gastos_responsable_idx on public.caja_menor_gastos (responsable_id);
@@ -143,10 +149,12 @@ create policy cajas_menores_select on public.cajas_menores for select to authent
   using (responsable_id = (select auth.uid()) or (select public._ve_cajas_menores((select auth.uid()))));
 drop policy if exists caja_menor_legalizaciones_select on public.caja_menor_legalizaciones;
 create policy caja_menor_legalizaciones_select on public.caja_menor_legalizaciones for select to authenticated
-  using (responsable_id = (select auth.uid()) or (select public._ve_cajas_menores((select auth.uid()))));
+  using (responsable_id = (select auth.uid())
+         or (estado <> 'borrador' and (select public._ve_cajas_menores((select auth.uid())))));
 drop policy if exists caja_menor_gastos_select on public.caja_menor_gastos;
 create policy caja_menor_gastos_select on public.caja_menor_gastos for select to authenticated
-  using (responsable_id = (select auth.uid()) or (select public._ve_cajas_menores((select auth.uid()))));
+  using (responsable_id = (select auth.uid())
+         or (not borrador and (select public._ve_cajas_menores((select auth.uid())))));
 -- Se escribe solo por las funciones de abajo (SECURITY DEFINER).
 
 -- 4. Soportes de los gastos: bucket privado cajas_menores (<usuario>/<archivo>) ----
@@ -353,8 +361,8 @@ begin
     raise exception 'La caja no existe o ya está cerrada.';
   end if;
   if exists (select 1 from public.caja_menor_legalizaciones l
-              where l.caja_id = p_id and l.estado in ('por_revisar', 'por_aprobar', 'devuelta')) then
-    raise exception 'La caja tiene una legalización en curso: termínala o que el responsable la cancele antes de cerrar.';
+              where l.caja_id = p_id and l.estado in ('borrador', 'por_revisar', 'por_aprobar', 'devuelta')) then
+    raise exception 'La caja tiene una legalización en curso o un borrador: termínala o que el responsable la envíe o la descarte antes de cerrar.';
   end if;
   update public.cajas_menores
      set estado = 'cerrada', cerrada_por = auth.uid(), cerrada_en = now(), motivo_cierre = btrim(p_motivo)
@@ -382,8 +390,12 @@ returns jsonb language sql stable security definer set search_path = public as $
     'ultima_legalizacion', (select jsonb_build_object('id', l.id, 'codigo', l.codigo, 'estado', l.estado,
                                                       'enviada_en', l.enviada_en, 'valor_total', l.valor_total)
                               from public.caja_menor_legalizaciones l
-                             where l.caja_id = c.id and l.estado <> 'cancelada'
-                             order by l.enviada_en desc limit 1))
+                             where l.caja_id = c.id and l.estado not in ('cancelada', 'borrador')
+                             order by l.enviada_en desc limit 1),
+    'borrador', (select jsonb_build_object('id', l.id, 'codigo', l.codigo, 'n_gastos', l.n_gastos,
+                                           'valor_total', l.valor_total, 'actualizado_en', l.enviada_en)
+                   from public.caja_menor_legalizaciones l
+                  where l.caja_id = c.id and l.estado = 'borrador' and c.responsable_id = auth.uid() limit 1))
   from public.cajas_menores c
   join public.perfiles pr on pr.id = c.responsable_id
   join public.terceros t on t.id = c.tercero_id
@@ -512,12 +524,77 @@ end;
 $$;
 revoke execute on function public._guardar_gastos_caja_menor(uuid, uuid, jsonb) from public;
 
--- Enviar (p_id null) o corregir y reenviar una devuelta (p_id). Vuelve a Financiera.
+-- El borrador de la caja (lo crea si p_crear y no hay). El código CM se da al
+-- crearlo (si se descarta, el número queda sin usar).
+create or replace function public._borrador_caja_menor(p_caja public.cajas_menores, p_crear boolean)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  v_id uuid;
+begin
+  select l.id into v_id from public.caja_menor_legalizaciones l
+   where l.caja_id = p_caja.id and l.estado = 'borrador' for update;
+  if v_id is null and p_crear then
+    insert into public.caja_menor_legalizaciones (caja_id, responsable_id, codigo, estado, n_gastos, valor_total)
+    values (p_caja.id, p_caja.responsable_id,
+            'CM-' || public._numero_proyecto(p_caja.proyecto_id) || '-'
+                  || public._con_ceros(public._siguiente_consecutivo(p_caja.proyecto_id, 'caja_menor'), 4),
+            'borrador', 1, 1)
+    returning id into v_id;
+  end if;
+  return v_id;
+end;
+$$;
+revoke execute on function public._borrador_caja_menor(public.cajas_menores, boolean) from public;
+
+-- Guardar el borrador (todos los gastos que lleva; reemplaza los de antes). Sin
+-- gastos, el borrador se borra. Financiera no lo ve hasta que se envía.
+create or replace function public.guardar_borrador_caja_menor(p_gastos jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_caja public.cajas_menores;
+  v_id uuid;
+begin
+  select * into v_caja from public.cajas_menores where responsable_id = v_uid and estado = 'abierta' for update;
+  if v_caja.id is null then
+    raise exception 'No tienes una caja menor abierta: pídela a Financiera.';
+  end if;
+  if p_gastos is null or jsonb_typeof(p_gastos) <> 'array' or jsonb_array_length(p_gastos) = 0 then
+    delete from public.caja_menor_legalizaciones where caja_id = v_caja.id and estado = 'borrador';
+    return null;
+  end if;
+  v_id := public._borrador_caja_menor(v_caja, true);
+  perform public._guardar_gastos_caja_menor(v_id, v_uid, p_gastos);
+  update public.caja_menor_gastos set borrador = true where legalizacion_id = v_id;
+  -- enviada_en del borrador = última vez que se guardó.
+  update public.caja_menor_legalizaciones set enviada_en = now() where id = v_id;
+  return v_id;
+end;
+$$;
+
+-- Descartar el borrador: devuelve las rutas de sus soportes para que la app los borre.
+create or replace function public.descartar_borrador_caja_menor()
+returns text[] language plpgsql security definer set search_path = public as $$
+declare
+  v_rutas text[];
+begin
+  select array_agg(g.soporte_ruta) into v_rutas
+    from public.caja_menor_gastos g
+    join public.caja_menor_legalizaciones l on l.id = g.legalizacion_id
+    join public.cajas_menores c on c.id = l.caja_id
+   where c.responsable_id = auth.uid() and l.estado = 'borrador';
+  delete from public.caja_menor_legalizaciones l using public.cajas_menores c
+   where c.id = l.caja_id and c.responsable_id = auth.uid() and l.estado = 'borrador';
+  return coalesce(v_rutas, '{}');
+end;
+$$;
+
+-- Enviar (p_id null: el borrador o una nueva) o corregir y reenviar una devuelta (p_id). Vuelve a Financiera.
 create or replace function public.enviar_legalizacion_caja_menor(p_id uuid, p_gastos jsonb)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
-  v_caja record;
+  v_caja public.cajas_menores;
   v_l record;
   v_id uuid := p_id;
   v_total numeric;
@@ -534,12 +611,8 @@ begin
                 where l.caja_id = v_caja.id and l.estado in ('por_revisar', 'por_aprobar', 'devuelta')) then
       raise exception 'Ya tienes una legalización en curso: espera a que pase a Gerencia (o corrígela si te la devolvieron).';
     end if;
-    insert into public.caja_menor_legalizaciones (caja_id, responsable_id, codigo, n_gastos, valor_total)
-    values (v_caja.id, v_uid,
-            'CM-' || public._numero_proyecto(v_caja.proyecto_id) || '-'
-                  || public._con_ceros(public._siguiente_consecutivo(v_caja.proyecto_id, 'caja_menor'), 4),
-            1, 1)
-    returning id into v_id;
+    -- Si tiene un borrador, ese es el que se envía; si no, se crea la legalización.
+    v_id := public._borrador_caja_menor(v_caja, true);
   else
     select * into v_l from public.caja_menor_legalizaciones where id = p_id for update;
     if v_l.id is null or v_l.responsable_id <> v_uid then
@@ -555,6 +628,7 @@ begin
   end if;
 
   v_total := public._guardar_gastos_caja_menor(v_id, v_uid, p_gastos);
+  update public.caja_menor_gastos set borrador = false where legalizacion_id = v_id;
   update public.caja_menor_legalizaciones
      set estado = 'por_revisar', enviada_en = now(),
          revisada_por = null, revisada_en = null, aprobada_por = null, aprobada_en = null
@@ -795,6 +869,7 @@ begin
     select jsonb_agg(public._legalizacion_caja_menor_fila(x.id) order by x.enviada_en desc)
       from (select l.id, l.enviada_en from public.caja_menor_legalizaciones l
              where (not p_solo_mias or l.responsable_id = v_uid)
+               and l.estado <> 'borrador'
                and (p_estado is null or p_estado = '' or l.estado = p_estado)
              order by l.enviada_en desc limit 500) x), '[]'::jsonb);
 end;
@@ -806,7 +881,8 @@ declare
   v_l record;
 begin
   select * into v_l from public.caja_menor_legalizaciones where id = p_id;
-  if v_l.id is null or (v_l.responsable_id is distinct from auth.uid() and not public._ve_cajas_menores(auth.uid())) then
+  if v_l.id is null or (v_l.responsable_id is distinct from auth.uid()
+                        and (v_l.estado = 'borrador' or not public._ve_cajas_menores(auth.uid()))) then
     raise exception 'La legalización no existe o no tienes acceso.';
   end if;
   return public._legalizacion_caja_menor_fila(p_id) || jsonb_build_object(
@@ -921,14 +997,14 @@ begin
   else
   execute replace(v, ancla,
        E'  elsif p_bucket = ''cajas_menores'' then\n'
-    || E'    select c.proyecto_id, l.codigo, l.enviada_en, g.orden, g.soporte_nombre into r\n'
+    || E'    select c.proyecto_id, l.codigo, l.creada_en, g.orden, g.soporte_nombre into r\n'
     || E'      from public.caja_menor_gastos g\n'
     || E'      join public.caja_menor_legalizaciones l on l.id = g.legalizacion_id\n'
     || E'      join public.cajas_menores c on c.id = l.caja_id\n'
     || E'     where g.soporte_ruta = p_ruta order by l.enviada_en desc limit 1;\n'
     || E'    if found then\n'
     || E'      return public._drive_resultado(r.proyecto_id,\n'
-    || E'        array[''Cajas menores'', public._drive_semana(r.enviada_en), r.codigo],\n'
+    || E'        array[''Cajas menores'', public._drive_semana(r.creada_en), r.codigo],\n'
     || E'        ''Gasto '' || lpad(r.orden::text, 2, ''0'') || '' - '' || coalesce(r.soporte_nombre, v_archivo));\n'
     || E'    end if;\n\n'
     || ancla);
@@ -981,6 +1057,8 @@ revoke execute on function public.mi_caja_menor() from public;
 revoke execute on function public.listar_cajas_menores(boolean) from public;
 revoke execute on function public.enviar_legalizacion_caja_menor(uuid, jsonb) from public;
 revoke execute on function public.cancelar_legalizacion_caja_menor(uuid, text) from public;
+revoke execute on function public.guardar_borrador_caja_menor(jsonb) from public;
+revoke execute on function public.descartar_borrador_caja_menor() from public;
 revoke execute on function public.revisar_legalizacion_caja_menor(uuid, text, text) from public;
 revoke execute on function public.aprobar_legalizacion_caja_menor(uuid, text, text, jsonb) from public;
 revoke execute on function public.listar_legalizaciones_caja_menor(text, boolean) from public;
@@ -993,6 +1071,8 @@ grant execute on function public.mi_caja_menor() to authenticated;
 grant execute on function public.listar_cajas_menores(boolean) to authenticated;
 grant execute on function public.enviar_legalizacion_caja_menor(uuid, jsonb) to authenticated;
 grant execute on function public.cancelar_legalizacion_caja_menor(uuid, text) to authenticated;
+grant execute on function public.guardar_borrador_caja_menor(jsonb) to authenticated;
+grant execute on function public.descartar_borrador_caja_menor() to authenticated;
 grant execute on function public.revisar_legalizacion_caja_menor(uuid, text, text) to authenticated;
 grant execute on function public.aprobar_legalizacion_caja_menor(uuid, text, text, jsonb) to authenticated;
 grant execute on function public.listar_legalizaciones_caja_menor(text, boolean) to authenticated;
