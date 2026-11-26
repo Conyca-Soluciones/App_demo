@@ -165,7 +165,8 @@ class Drive {
 
     let inicio: Response | null = null
     if (idExistente) {
-      inicio = await iniciar(`${API_SUBIDA}/${idExistente}?uploadType=resumable&supportsAllDrives=true&fields=id`, "PATCH", {})
+      // Con el nombre: al reemplazar un documento en su misma ruta, Drive muestra el archivo nuevo.
+      inicio = await iniciar(`${API_SUBIDA}/${idExistente}?uploadType=resumable&supportsAllDrives=true&fields=id`, "PATCH", { name: nombre })
       if (inicio.status === 404) inicio = null // lo borraron en Drive: se sube de nuevo
     }
     if (!inicio) {

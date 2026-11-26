@@ -26,11 +26,14 @@ export type TipoDocumentoContratista =
 
 export type DocumentoRequerido = { tipo: TipoDocumentoContratista; titulo: string; obligatorio: boolean }
 
+// La certificación bancaria ya no es documento del contratista: vive en la
+// cuenta de su tercero (Terceros, la verifica Financiera; 20270101007100). Las
+// que ya tenía el contratista se conservan como historia (tipo
+// "certificacion_bancaria" en contratista_documentos, solo lectura).
 export const DOCUMENTOS_POR_PERSONA: Record<TipoPersona, DocumentoRequerido[]> = {
   natural: [
     { tipo: "cedula", titulo: "Copia de la cédula de ciudadanía", obligatorio: true },
     { tipo: "rut", titulo: "RUT", obligatorio: true },
-    { tipo: "certificacion_bancaria", titulo: "Certificación bancaria", obligatorio: true },
     { tipo: "hoja_vida", titulo: "Hoja de vida (si aplica)", obligatorio: false },
     { tipo: "autorizacion_datos", titulo: "Autorización para el tratamiento de datos personales", obligatorio: true },
   ],
@@ -38,7 +41,6 @@ export const DOCUMENTOS_POR_PERSONA: Record<TipoPersona, DocumentoRequerido[]> =
     { tipo: "camara_comercio", titulo: "Cámara de comercio", obligatorio: true },
     { tipo: "rut", titulo: "RUT", obligatorio: true },
     { tipo: "cedula_representante", titulo: "Cédula del representante legal", obligatorio: true },
-    { tipo: "certificacion_bancaria", titulo: "Certificación bancaria", obligatorio: true },
     { tipo: "autorizacion_datos", titulo: "Autorización para el tratamiento de datos personales", obligatorio: true },
     { tipo: "consulta_oficial_cumplimiento", titulo: "Consulta de Oficial de Cumplimiento", obligatorio: true },
   ],
@@ -97,6 +99,8 @@ export type Contratista = {
 
 export type DocumentoContratista = {
   id: string
+  // Ruta en el bucket (para sobrescribir el archivo al reemplazarlo).
+  ruta: string
   tipo: TipoDocumentoContratista
   nombreArchivo: string
   tamano: number
@@ -192,6 +196,54 @@ export function validarArchivo(archivo: File): string | null {
   if (archivo.size > TAMANO_MAXIMO) return "El archivo pesa más de 10 MB."
   if (archivo.size === 0) return "El archivo está vacío."
   return null
+}
+
+// Solo los documentos opcionales (hoja de vida) se pueden quitar; los
+// obligatorios solo se reemplazan (quitar_documento_contratista).
+export function documentoQuitable(tipoPersona: TipoPersona, tipo: TipoDocumentoContratista): boolean {
+  const req = DOCUMENTOS_POR_PERSONA[tipoPersona].find((d) => d.tipo === tipo)
+  return Boolean(req && !req.obligatorio)
+}
+
+// Extensión del archivo para su ruta en el bucket: la del nombre, o la del tipo.
+export function extensionArchivo(nombre: string, mime: string): string {
+  const desdeNombre = nombre.includes(".") ? nombre.split(".").pop()!.toLowerCase() : ""
+  if (/^[a-z0-9]{2,5}$/.test(desdeNombre)) return desdeNombre
+  return mime === "application/pdf" ? "pdf" : mime === "image/png" ? "png" : "jpg"
+}
+
+// Dónde se sube el reemplazo de un documento. Con la misma extensión se
+// sobrescribe el archivo en su MISMA ruta (decisión del usuario: así la copia de
+// Google Drive se actualiza en vez de crear otra). Con otra extensión (PDF ->
+// JPG), o si no había documento, va a una ruta nueva.
+export function rutaDocumentoNuevo(
+  contratistaId: string,
+  tipo: TipoDocumentoContratista,
+  extension: string,
+  rutaActual: string | null,
+  marca: string
+): { ruta: string; sobrescribe: boolean } {
+  if (rutaActual && rutaActual.startsWith(`${contratistaId}/`)) {
+    const archivo = rutaActual.slice(contratistaId.length + 1)
+    const ext = archivo.includes(".") ? archivo.split(".").pop()!.toLowerCase() : ""
+    if (ext === extension.toLowerCase() && !archivo.startsWith("certificacion_bancaria")) {
+      return { ruta: rutaActual, sobrescribe: true }
+    }
+  }
+  return { ruta: `${contratistaId}/${tipo}-${marca}.${extension.toLowerCase()}`, sobrescribe: false }
+}
+
+// Certificación bancaria de una cuenta del tercero del contratista (solo con
+// ver_datos_bancarios; certificaciones_contratista).
+export type CertificacionCuenta = {
+  cuentaId: string
+  banco: string | null
+  tipoCuenta: string | null
+  numeroFinal: string | null
+  estado: string | null
+  nombreArchivo: string
+  mime: string
+  subidaEn: string | null
 }
 
 export function documentoFormateado(c: Pick<Contratista, "tipoDocumento" | "numeroDocumento" | "digitoVerificacion">) {

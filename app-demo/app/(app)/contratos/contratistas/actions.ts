@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { traerTodo } from "@/lib/supabase/traer-todo"
 import { cortarPagina, rangoPagina } from "@/lib/paginacion"
 import { COMODIN_LISTAR } from "@/lib/busqueda"
@@ -10,6 +11,7 @@ import {
   MIME_PERMITIDOS,
   TAMANO_MAXIMO,
   validarContratista,
+  type CertificacionCuenta,
   type Contratista,
   type DatosContratista,
   type FiltrosContratistas,
@@ -25,7 +27,7 @@ const SELECT_CONTRATISTA = `
   updated_at, updated_by,
   creador:perfiles!contratistas_created_by_fkey(nombre),
   editor:perfiles!contratistas_updated_by_fkey(nombre),
-  documentos:contratista_documentos(id, tipo, nombre_archivo, tamano, mime, subido_at)
+  documentos:contratista_documentos(id, tipo, ruta, nombre_archivo, tamano, mime, subido_at)
 `
 
 function mapContratista(f: any): Contratista {
@@ -54,6 +56,7 @@ function mapContratista(f: any): Contratista {
     documentos: ((f.documentos ?? []) as any[]).map((d) => ({
       id: d.id,
       tipo: d.tipo,
+      ruta: d.ruta,
       nombreArchivo: d.nombre_archivo,
       tamano: Number(d.tamano),
       mime: d.mime,
@@ -259,6 +262,83 @@ export async function editarContratista(
   const { data, error: errorLeer } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
   if (errorLeer) throw new Error(errorLeer.message)
   return { contratista: (await conDatosBancarios(supabase, [mapContratista(data)]))[0], rutasReemplazadas: (viejas as string[] | null) ?? [] }
+}
+
+async function leerContratista(supabase: Awaited<ReturnType<typeof createClient>>, id: string): Promise<Contratista> {
+  const { data, error } = await supabase.from("contratistas").select(SELECT_CONTRATISTA).eq("id", id).single()
+  if (error) throw new Error(error.message)
+  return (await conDatosBancarios(supabase, [mapContratista(data)]))[0]
+}
+
+// Reemplaza o agrega UN documento desde el detalle, sin el formulario completo
+// (20270101007100). El navegador ya subió el archivo (en la misma ruta si lo
+// sobrescribió). Devuelve el contratista y la ruta del archivo anterior si
+// quedó en otra ruta, que el navegador borra del bucket.
+export async function guardarDocumentoContratista(
+  id: string,
+  documento: DocumentoSubido
+): Promise<{ contratista: Contratista; rutaAnterior: string | null }> {
+  await requerirAccion("gestionar_contratistas")
+  if (documento.tipo === "certificacion_bancaria") {
+    throw new Error("La certificación bancaria va con la cuenta del tercero: la cambia Financiera en Terceros.")
+  }
+  validarArchivosSubidos(id, [documento])
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("guardar_documento_contratista", {
+    p_id: id,
+    p_documento: documentosParaBase([documento])[0],
+  })
+  if (error) throw new Error(error.message)
+  return { contratista: await leerContratista(supabase, id), rutaAnterior: (data as string | null) ?? null }
+}
+
+// Quita un documento opcional (hoja de vida). Devuelve la ruta del archivo, que
+// el navegador borra del bucket (la copia de Drive se queda).
+export async function quitarDocumentoContratista(
+  id: string,
+  tipo: TipoDocumentoContratista
+): Promise<{ contratista: Contratista; ruta: string }> {
+  await requerirAccion("gestionar_contratistas")
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("quitar_documento_contratista", { p_id: id, p_tipo: tipo })
+  if (error) throw new Error(error.message)
+  return { contratista: await leerContratista(supabase, id), ruta: data as string }
+}
+
+// Certificaciones bancarias de las cuentas del tercero del contratista (viven en
+// Terceros). Solo con ver_datos_bancarios: la base lo exige.
+export async function certificacionesContratista(id: string): Promise<CertificacionCuenta[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("certificaciones_contratista", { p_id: id })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as any[]).map((f) => ({
+    cuentaId: f.cuenta_id,
+    banco: f.banco,
+    tipoCuenta: f.tipo_cuenta,
+    numeroFinal: f.numero_final,
+    estado: f.estado,
+    nombreArchivo: f.nombre ?? "Certificación bancaria",
+    mime: f.mime ?? "application/pdf",
+    subidaEn: f.subida_en,
+  }))
+}
+
+// Enlace de 2 minutos a la certificación de una cuenta. El bucket `terceros`
+// solo lo lee A&F: la base decide (certificaciones_contratista) y el enlace se
+// firma con la service role.
+export async function enlaceCertificacionContratista(id: string, cuentaId: string): Promise<string> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("certificaciones_contratista", { p_id: id })
+  if (error) throw new Error(error.message)
+  const fila = ((data ?? []) as any[]).find((f) => f.cuenta_id === cuentaId)
+  if (!fila?.ruta) throw new Error("La certificación no existe o no tienes acceso.")
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("No se pudo abrir la certificación.")
+  const { data: firmado, error: errorUrl } = await createAdminClient().storage.from("terceros").createSignedUrl(fila.ruta, 120)
+  if (errorUrl || !firmado) {
+    console.error("enlaceCertificacionContratista:", errorUrl?.message)
+    throw new Error("No se pudo abrir la certificación.")
+  }
+  return firmado.signedUrl
 }
 
 // Enlace temporal (2 minutos) para ver un documento: el bucket es privado.

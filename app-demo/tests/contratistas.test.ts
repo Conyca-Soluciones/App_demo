@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { esDocumentoContratista, tipoPersonaDeTercero, validarContratista, type DatosContratista } from "@/lib/contratistas"
+import {
+  DOCUMENTOS_POR_PERSONA,
+  documentoQuitable,
+  esDocumentoContratista,
+  extensionArchivo,
+  rutaDocumentoNuevo,
+  tipoPersonaDeTercero,
+  validarContratista,
+  type DatosContratista,
+} from "@/lib/contratistas"
 
 const base: DatosContratista = {
   terceroId: "t1",
@@ -38,5 +47,49 @@ describe("Contratista enlazado al tercero", () => {
     expect(tipoPersonaDeTercero("CC")).toBe("natural")
     expect(esDocumentoContratista("PPT")).toBe(true)
     expect(esDocumentoContratista("TI")).toBe(false)
+  })
+})
+
+describe("documentos del contratista (20270101007100)", () => {
+  const id = "11111111-2222-3333-4444-555555555555"
+
+  it("la certificación bancaria ya no es documento del contratista", () => {
+    for (const lista of Object.values(DOCUMENTOS_POR_PERSONA)) {
+      expect(lista.some((d) => d.tipo === "certificacion_bancaria")).toBe(false)
+    }
+  })
+
+  it("solo se quitan los opcionales", () => {
+    expect(documentoQuitable("natural", "hoja_vida")).toBe(true)
+    expect(documentoQuitable("natural", "cedula")).toBe(false)
+    expect(documentoQuitable("juridica", "rut")).toBe(false)
+    expect(documentoQuitable("juridica", "hoja_vida")).toBe(false)
+    expect(documentoQuitable("natural", "certificacion_bancaria")).toBe(false)
+  })
+
+  it("extensión del nombre, o del tipo si el nombre no la trae", () => {
+    expect(extensionArchivo("RUT 2026.PDF", "application/pdf")).toBe("pdf")
+    expect(extensionArchivo("foto", "image/png")).toBe("png")
+    expect(extensionArchivo("foto", "image/jpeg")).toBe("jpg")
+    expect(extensionArchivo("archivo.final.jpeg", "image/jpeg")).toBe("jpeg")
+  })
+
+  it("con la misma extensión sobrescribe en la misma ruta", () => {
+    expect(rutaDocumentoNuevo(id, "rut", "pdf", `${id}/rut-ab12cd34.pdf`, "nueva000")).toEqual({
+      ruta: `${id}/rut-ab12cd34.pdf`,
+      sobrescribe: true,
+    })
+    expect(rutaDocumentoNuevo(id, "rut", "PDF", `${id}/rut-ab12cd34.pdf`, "nueva000").sobrescribe).toBe(true)
+  })
+
+  it("con otra extensión, sin documento o con una ruta ajena va a una ruta nueva", () => {
+    const nueva = { ruta: `${id}/rut-nueva000.jpg`, sobrescribe: false }
+    expect(rutaDocumentoNuevo(id, "rut", "jpg", `${id}/rut-ab12cd34.pdf`, "nueva000")).toEqual(nueva)
+    expect(rutaDocumentoNuevo(id, "rut", "jpg", null, "nueva000")).toEqual(nueva)
+    expect(rutaDocumentoNuevo(id, "rut", "jpg", `otro/rut-ab12cd34.jpg`, "nueva000")).toEqual(nueva)
+  })
+
+  it("nunca sobrescribe una certificación bancaria", () => {
+    expect(rutaDocumentoNuevo(id, "rut", "pdf", `${id}/certificacion_bancaria-ab12cd34.pdf`, "x1").sobrescribe).toBe(false)
   })
 })
