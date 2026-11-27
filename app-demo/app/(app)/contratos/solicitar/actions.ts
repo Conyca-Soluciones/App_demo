@@ -199,16 +199,26 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
   for (const t of trabajos) {
     const lista = trabajosPorItem.get(t.presupuesto_item_id) ?? []
     lista.push({
-      categoriaId: t.mano_obra_categoria_id,
+      categoriaId: t.mano_obra_categoria_id ?? "",
       nombre: t.nombre,
-      valorTope: Number(t.valor_tope),
+      valorTope: Number(t.valor_tope ?? 0),
       contratado: Number(t.contratado),
       disponible: Number(t.disponible),
+      // Trabajo que espera aprobación (20270101007900): se muestra en gris.
+      pendiente: Boolean(t.pendiente),
     })
     trabajosPorItem.set(t.presupuesto_item_id, lista)
   }
-  const pendientesPorItem = new Map<string, { pendientes: number; manoObra: boolean }>(
-    pendientes.map((p) => [p.presupuesto_item_id, { pendientes: Number(p.pendientes), manoObra: Boolean(p.mano_obra_pendiente) }])
+  const pendientesPorItem = new Map<string, { pendientes: number; manoObra: boolean; manoObraSinDividir: boolean }>(
+    pendientes.map((p) => [
+      p.presupuesto_item_id,
+      {
+        pendientes: Number(p.pendientes),
+        manoObra: Boolean(p.mano_obra_pendiente),
+        // Sin la columna (base sin 20270101007900) cuenta como antes: toda la mano de obra.
+        manoObraSinDividir: p.mano_obra_pendiente_sin_dividir == null ? Boolean(p.mano_obra_pendiente) : Boolean(p.mano_obra_pendiente_sin_dividir),
+      },
+    ])
   )
   return filas.map((f) => ({
     id: f.presupuesto_item_id,
@@ -222,6 +232,7 @@ export async function listarItemsPresupuestoContrato(proyectoId: string): Promis
     disponible: Number(f.disponible),
     pendientes: pendientesPorItem.get(f.presupuesto_item_id)?.pendientes ?? 0,
     manoObraPendiente: pendientesPorItem.get(f.presupuesto_item_id)?.manoObra ?? false,
+    manoObraPendienteSinDividir: pendientesPorItem.get(f.presupuesto_item_id)?.manoObraSinDividir ?? false,
     modalidad: f.modalidad ?? null,
     trabajos: trabajosPorItem.get(f.presupuesto_item_id),
   }))

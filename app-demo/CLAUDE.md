@@ -3617,11 +3617,26 @@ la Loseta (15 und) necesita un contrato de FABRICACIÓN y otro de INSTALACIÓN, 
   actividad se guarda "<ítem> — <trabajo>" (minuta, PDF y actas sin cambios). Cupo por cantidad
   (`_contratado_linea`): trabajo X = cantidad − (completa + X); completa = cantidad − (completa + el
   trabajo más contratado); `_contratado_item` es la vista desde la completa. Tope por und de un
-  trabajo (`_tope_linea_contrato`): su valor del catálogo + su parte de la herramienta menor, sin
+  trabajo (`_tope_linea_contrato`): su valor del catálogo (sin herramienta menor desde `20270101008000`), sin
   pasar del valor del ítem; por encima, la autorización de Gerencia de siempre. En un contrato pueden
   ir varios trabajos del mismo ítem, pero no completa y trabajos a la vez. Formulario: selector de
   trabajo en la actividad (`trabajos_items_contrato`, `cupoActividad` / `tieneTrabajos` en
   `lib/contratos.ts`); al elegir el ítem propone el primer trabajo libre.
+- **Un trabajo aprobado se contrata aunque falten otros** (`20270101007900`, 2026-11-27, decisión del
+  usuario; caso: Loseta 5.3.2 del Malecón, Fabricación aprobada e Instalación en aprobación). Un ítem
+  dividido tiene trabajos aunque solo uno esté aprobado (`_trabajos_item`). En un contrato de mano de obra,
+  `_motivo_linea_no_lista(item, tipo, trabajo)` (la usa `_guardar_solicitud_contrato` en vez de
+  `_motivo_item_no_listo`) no cuenta la mano de obra pendiente de los OTROS trabajos; la mano de obra completa
+  sigue esperando a todos, y otra mano de obra pendiente fuera de la división sigue frenando todo.
+  `trabajos_items_contrato` trae también los trabajos pendientes (`pendiente`, sin categoría ni cupo: en gris
+  en el formulario) y `pendientes_items_contrato` trae `mano_obra_pendiente_sin_dividir`. En TS:
+  `motivoItemNoListo(item, tipo, trabajoId?)` (undefined = el ítem en el buscador, "" / null = completa).
+- **Tope sin herramienta menor** (`20270101008000`, 2026-11-27, decisión del usuario): en TODO contrato de
+  mano de obra (completa, por trabajo y actividades nuevas de otrosí) el tope es el valor aprobado de la mano
+  de obra del catálogo (`_tope_mano_obra_item`), sin el % de herramienta menor del APU. Excepción (decisión
+  del usuario): subcontrato de mano de obra SIN insumos sigue con su línea fija completa, 50 % del precio
+  oficial de mano de obra + herramienta menor. El valor del ítem y `_valor_mano_obra_item` (Control) siguen con ella.
+  Al escribirla no había contratos de mano de obra; en el Malecón bajaron 32 topes (ninguno subió).
 - **Otrosí**: la adición a una actividad de un trabajo usa el cupo de ese trabajo y la nueva fila
   conserva el trabajo; las actividades nuevas son siempre la mano de obra completa.
 - Versión nueva del presupuesto: copia las líneas de mano de obra (los trabajos ya aprobados siguen);
@@ -3900,8 +3915,8 @@ de contratos" (pestaña `contratos.contratos`, todavía sin página).
   ítems para que dos solicitudes simultáneas no pasen juntas): cantidad <=
   presupuestada menos lo ya contratado, y valor unitario <= el del
   presupuesto. **Mano de obra** (`20261124000000`, decisión del usuario):
-  el tope es la mano de obra del APU + herramienta menor
-  (`_valor_mano_obra_item`, `_tope_valor_unitario_item`; en TS
+  el tope es la mano de obra del APU (desde `20270101008000`, 2026-11-27,
+  SIN herramienta menor: el valor aprobado; `_tope_mano_obra_item`, `_tope_valor_unitario_item`; en TS
   `topeValorUnitario`), porque el ítem completo incluye materiales y
   equipos; si el APU no tiene mano de obra (2026-10-20: solo 11 de 184 ítems
   del presupuesto vigente la tienen), el tope es el ítem completo y la
@@ -5218,6 +5233,8 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005400_unidades_requisiciones_y_oc` (otra rama, mismo número) requisiciones en la unidad de compra.
 `20270101005500` requisición extraordinaria en espera de insumos nuevos.
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
+`20270101007900` contratar un trabajo aprobado de la mano de obra dividida aunque falten otros.
+`20270101008000` tope de los contratos de mano de obra sin la herramienta menor (va después de 007900).
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
