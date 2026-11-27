@@ -4,28 +4,23 @@ import { COMODIN_LISTAR } from "@/lib/busqueda"
 import { useEffect, useMemo, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { traerTodo } from "@/lib/supabase/traer-todo"
-import { Download, Loader2, Search, X } from "lucide-react"
+import { Download, History, Loader2, Search, X } from "lucide-react"
 import { descargarExcelMaestroInsumos } from "@/lib/exportar-maestro-insumos"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EncabezadoPagina } from "@/components/encabezado-pagina"
 import { TablaExcel, PaginacionExcel, type ColumnaExcel } from "@/components/tabla-excel"
 import { AYUDA_DOBLE_CLIC, VentanaDetalle, camposDesdeColumnas } from "@/components/ventana-detalle"
 import { Button } from "@/components/ui/button"
+import { HistorialDialog } from "@/components/historial-timeline"
+import { EditarInsumoDialog } from "@/components/editar-insumo-dialog"
+import { vrNetoInsumo } from "@/lib/editar-insumo"
+import { formatearFechaSinHora } from "@/lib/fechas"
+import { puedeEditarInsumos, type InsumoMaestra } from "./actions"
 
-interface Insumo {
-  id: string
-  codigo: number
-  descripcion: string
-  tipo: string | null
-  u_m: string | null
-  agrupacion: string | null
-  // Precio base que precios_efectivos_insumos usa como respaldo cuando el
-  // insumo no tiene historial de compras -- ya NO se edita desde acá
-  // (decisión de negocio: esta pantalla pasó a ser de solo consulta; el
-  // respaldo se fija al crear el insumo, vía el flujo de "solicitar
-  // insumo nuevo" al armar un APU). Se sigue trayendo únicamente como
-  // fallback local, por si el RPC de abajo no devuelve fila para este id.
-  vr_unitario: number | null
+// vr_unitario es el precio de respaldo (SIN IVA) que precios_efectivos_insumos
+// usa cuando el insumo no tiene historial de compras. Se edita en la ventana
+// del insumo ("Editar", quien tiene aprobar_insumos; editar-insumo-dialog.tsx).
+interface Insumo extends InsumoMaestra {
   // Campo calculado del lado del cliente -- NO existe en maestro_insumos.
   // null mientras todavía no se ha calculado (ver fetchPreciosEfectivos).
   precioEfectivo: number | null
@@ -56,6 +51,32 @@ export default function MaestroInsumos() {
   const [filtroAgrupacion, setFiltroAgrupacion] = useState("todos")
 
   const [viendo, setViendo] = useState<Insumo | null>(null)
+  const [editando, setEditando] = useState<Insumo | null>(null)
+  const [historialDe, setHistorialDe] = useState<Insumo | null>(null)
+  const [puedeEditar, setPuedeEditar] = useState(false)
+
+  useEffect(() => {
+    puedeEditarInsumos()
+      .then((p: boolean) => setPuedeEditar(p))
+      .catch(() => setPuedeEditar(false))
+  }, [])
+
+  // Después de guardar: la fila con los datos nuevos y su precio vigente otra
+  // vez (si no tiene compras, el precio vigente es el del maestro).
+  async function alGuardar(actualizado: InsumoMaestra) {
+    let precioEfectivo: number | null = actualizado.vr_unitario
+    try {
+      const { data } = await createClient().rpc("precios_efectivos_insumos", { p_insumo_ids: [actualizado.id] })
+      const fila = (data ?? [])[0]
+      if (fila) precioEfectivo = fila.precio_efectivo as number | null
+    } catch {
+      // se queda con el precio del maestro
+    }
+    const nuevo: Insumo = { ...actualizado, precioEfectivo }
+    setInsumos((prev) => prev.map((i) => (i.id === nuevo.id ? nuevo : i)))
+    setEditando(null)
+    setViendo(nuevo)
+  }
 
   const [columnaOrden, setColumnaOrden] = useState<ColumnaOrdenable>("codigo")
   const [direccionOrden, setDireccionOrden] = useState<Direccion>("asc")
@@ -73,7 +94,9 @@ export default function MaestroInsumos() {
         data = await traerTodo((desde, hasta) =>
           supabase
             .from("maestro_insumos")
-            .select("id, codigo, descripcion, tipo, u_m, agrupacion, vr_unitario")
+            .select(
+              "id, codigo, descripcion, tipo, u_m, agrupacion, vr_unitario, iva_porcentaje, vr_neto, excluye_iva, iva_descontable, usuario_modificacion, fecha_modificacion"
+            )
             .order("codigo")
             .range(desde, hasta)
         )
@@ -83,7 +106,7 @@ export default function MaestroInsumos() {
         return
       }
 
-      setInsumos(data.map((i: any) => ({ ...i, precioEfectivo: null })))
+      setInsumos(data.map((i) => ({ ...(i as InsumoMaestra), precioEfectivo: null })))
       setLoading(false)
     }
 
@@ -268,6 +291,21 @@ export default function MaestroInsumos() {
     return cargandoPreciosEfectivos && insumo.precioEfectivo === null ? "…" : formatearMoneda(insumo.precioEfectivo)
   }
 
+  // Datos del maestro que la tabla no muestra (van en la ventana del insumo).
+  function camposMaestro(i: Insumo) {
+    return [
+      { etiqueta: "Valor unitario del maestro (sin IVA)", valor: formatearMoneda(i.vr_unitario) },
+      { etiqueta: "IVA", valor: i.iva_porcentaje == null ? "" : `${i.iva_porcentaje} %` },
+      { etiqueta: "Valor con IVA", valor: formatearMoneda(i.vr_neto ?? vrNetoInsumo(i.vr_unitario, i.iva_porcentaje, i.excluye_iva)) },
+      { etiqueta: "Excluye IVA", valor: i.excluye_iva ? "Sí" : "No" },
+      { etiqueta: "IVA descontable", valor: i.iva_descontable ? "Sí" : "No" },
+      {
+        etiqueta: "Última modificación",
+        valor: [i.usuario_modificacion, i.fecha_modificacion ? formatearFechaSinHora(i.fecha_modificacion) : null].filter(Boolean).join(" · "),
+      },
+    ]
+  }
+
   // Mismo diseño que Proveedores (components/tabla-excel.tsx). Código y
   // Descripción quedan fijas al hacer scroll horizontal.
   const columnasTabla: ColumnaExcel<Insumo>[] = [
@@ -407,7 +445,33 @@ export default function MaestroInsumos() {
         onCerrar={() => setViendo(null)}
         titulo={viendo?.descripcion}
         subtitulo={viendo ? <span className="font-mono">{viendo.codigo}</span> : undefined}
-        campos={viendo ? camposDesdeColumnas(columnasTabla, viendo, ["acciones"]) : []}
+        campos={viendo ? [...camposDesdeColumnas(columnasTabla, viendo, ["acciones"]), ...camposMaestro(viendo)] : []}
+        onEditar={puedeEditar && viendo ? () => {
+          setEditando(viendo)
+          setViendo(null)
+        } : undefined}
+        acciones={
+          viendo ? (
+            <Button size="sm" variant="outline" onClick={() => setHistorialDe(viendo)}>
+              <History className="size-4" /> Historial
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <EditarInsumoDialog
+        insumo={editando}
+        agrupaciones={agrupaciones}
+        onCerrar={() => setEditando(null)}
+        onGuardado={alGuardar}
+      />
+
+      <HistorialDialog
+        abierto={historialDe !== null}
+        tipo="insumo"
+        id={historialDe?.id ?? null}
+        titulo={historialDe ? `Historial · ${historialDe.codigo} ${historialDe.descripcion}` : "Historial"}
+        onCerrar={() => setHistorialDe(null)}
       />
 
     </>
