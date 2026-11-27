@@ -224,6 +224,12 @@ const EVENTOS_PRESUPUESTO: Record<string, DefEvento> = {
   decisiones_reutilizadas: { etiqueta: "Versión nueva con lo decidido en la anterior", tono: "aviso" },
 }
 
+// Maestra de insumos (20270101007800).
+const EVENTOS_INSUMO: Record<string, DefEvento> = {
+  creado: { etiqueta: "Insumo creado en el maestro", tono: "neutro" },
+  editado: { etiqueta: "Insumo editado", tono: "aviso" },
+}
+
 const EVENTOS_ROL: Record<string, DefEvento> = {
   creado: { etiqueta: "Rol creado", tono: "neutro" },
   renombrado: { etiqueta: "Rol renombrado", tono: "aviso" },
@@ -274,6 +280,7 @@ const EVENTOS_POR_TIPO: Partial<Record<TipoHistorial, Record<string, DefEvento>>
   presupuesto: EVENTOS_PRESUPUESTO,
   rol: EVENTOS_ROL,
   usuario: EVENTOS_USUARIO,
+  insumo: EVENTOS_INSUMO,
 }
 
 // Nombre de cada tipo (para la pantalla de Auditoría).
@@ -297,6 +304,7 @@ export const NOMBRE_TIPO_HISTORIAL: Record<TipoHistorial, string> = {
   presupuesto: "Presupuesto",
   rol: "Rol",
   usuario: "Usuario",
+  insumo: "Insumo",
 }
 
 // "Pestaña: Entradas" / "Acción: Gestionar bodega" desde 'tab.x' / 'accion.x'.
@@ -326,6 +334,15 @@ const NOMBRE_CAMPO: Record<string, string> = {
   nombres: "Nombres",
   apellidos: "Apellidos",
   observaciones: "Observaciones",
+  // maestra de insumos
+  descripcion: "Nombre",
+  tipo: "Tipo",
+  u_m: "Unidad",
+  agrupacion: "Agrupación",
+  vr_unitario: "Valor unitario (sin IVA)",
+  iva_porcentaje: "IVA %",
+  excluye_iva: "Excluye IVA",
+  iva_descontable: "IVA descontable",
 }
 
 
@@ -460,6 +477,7 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     return []
   }
   if ((tipo === "proveedor" || tipo === "contratista") && e.evento === "en_revision") return lineasCambios(d.cambios)
+  if (tipo === "insumo" && e.evento === "editado") return lineasCambios(d.cambios)
   if (tipo === "proveedor") {
     if (e.evento === "editado") return lineasCambios(d.cambios)
     return []

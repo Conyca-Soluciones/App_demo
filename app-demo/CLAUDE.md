@@ -1081,7 +1081,7 @@ historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
   solo hace falta con insumos viejos del maestro en otra unidad; el editor y
   la revisión del import la proponen si el nombre dice cuánto trae ("X 50 KG"). Se quitó
   "Guardar también en el maestro". **OC**: sin cambios ("UM disponible").
-- **Maestra**: sin columna, filtro, editor ni "Revisar sugerencias".
+- **Maestra**: sin columna, filtro, editor ni "Revisar sugerencias" de presentación (editar el insumo sí: ver "Editar un insumo en la Maestra").
 - **Solicitudes repetidas**: "No existe — crear solicitud" guardado línea por
   línea creaba una solicitud por línea (Malecón: 24 de "Repisa ordinario
   3 m"). Ahora `solicitudInsumoParaLinea` reutiliza la pendiente con la misma
@@ -1093,6 +1093,30 @@ historia: `unidad_uso` / `contenido` siguen en la tabla (4 insumos) y
   (con SU cantidad) y la enlaza por el id del insert; antes, el mismo insumo
   dos veces en un APU dejaba las dos revisiones enlazadas a la misma fila.
   `20261231999600` junta las repetidas que ya había (va después).
+
+## Editar un insumo en la Maestra (2026-11-27)
+
+`20270101007800_editar_insumo_maestra.sql` (reversa en `supabase/reversa/`), decisiones del usuario. En
+`/presupuestos/insumos`, doble clic en un insumo abre la ventana (`VentanaDetalle`) con lo que la tabla no
+muestra (valor del maestro sin IVA, IVA, valor con IVA, excluye IVA, IVA descontable, última modificación) y
+el botón **Historial**; quien tiene la acción `aprobar_insumos` (o el Administrador) ve además **Editar**
+(`components/editar-insumo-dialog.tsx`).
+- Se editan nombre, tipo (catálogo `CATEGORIAS_APU`), unidad de compra (`UNIDADES_MAESTRO`), agrupación (de las
+  que ya usa el maestro), valor unitario SIN IVA (formato colombiano o fórmula, más de $ 1), IVA 0/5/19, excluye
+  IVA e IVA descontable: las mismas reglas que al aprobar un insumo nuevo, en `lib/editar-insumo.ts`
+  (`validarEdicionInsumo`, `cambiosInsumo`; pruebas en `tests/editar-insumo.test.ts`), revisadas otra vez en
+  `editarInsumoMaestra` (`app/(app)/presupuestos/insumos/actions.ts`, devuelve `ResultadoAccion`), que además
+  no deja un nombre igual al de OTRO insumo y manda solo lo que cambió (más `usuario_modificacion` = nombre
+  del perfil y `fecha_modificacion`). `vr_neto` lo sigue poniendo `maestro_insumos_vr_neto`.
+- **El código no se cambia**: `trg_insumo_codigo_fijo` lo exige en la base.
+- **Cambiar el precio no toca los APU**: las líneas con precio congelado siguen igual; las que no lo tienen lo
+  toman cuando su APU se recalcula. La tabla sigue mostrando el precio vigente (promedio de compras; el del
+  maestro solo sin compras). Cambiar la unidad avisa que las líneas de APU, requisiciones y compras conservan
+  su unidad y conversión.
+- **Historial** tipo `insumo` (`trg_historial_insumo`, SECURITY DEFINER): `creado` al entrar al maestro y
+  `editado` con los campos que cambiaron (sin `vr_neto` ni quién/cuándo); `datos.descripcion` = "código ·
+  nombre" da la referencia en Admin › Auditoría. Lo ve quien tiene la Maestra, Aprobación de insumos o
+  `aprobar_insumos` (`historial_entidad`, parche por texto).
 
 ## Requisiciones en la unidad de compra (2026-11-23)
 
@@ -5207,6 +5231,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101007100` documentos del contratista desde el detalle (reemplazar, agregar, quitar opcionales) y certificación bancaria solo en Terceros.
 `20270101007200` Terceros para todos (cuentas enmascaradas fuera de A&F) y acción para cambiar RUT y certificación bancaria.
 `20270101007300` permiso de ejecución de `_puede_revisar_cuentas` (lo usa la política de cuentas de terceros).
+`20270101007800` editar insumos en la Maestra: código fijo e historial de insumos.
 **Para saber cuáles faltan: correr `supabase/verificar_migraciones.sql` en el SQL
 Editor de Supabase** (solo consulta; `aplicada = true` en todas = nada pendiente).
 

@@ -30,6 +30,7 @@ export type TipoHistorial =
   | "usuario"
   | "otrosi"
   | "requisicion_admin"
+  | "insumo"
 
 export type EventoHistorial = {
   id: string

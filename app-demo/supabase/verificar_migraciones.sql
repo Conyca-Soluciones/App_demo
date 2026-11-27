@@ -745,5 +745,10 @@ select * from (
   select '20270101003800_borrar_categoria_devuelve_pendientes',
          exists (select 1 from pg_trigger where tgname = 'trg_mo_categoria_borrada')
          and exists (select 1 from pg_trigger where tgname = 'trg_equipo_categoria_borrada')
+  union all
+  select '20270101007800_editar_insumo_maestra',
+         exists (select 1 from pg_trigger where tgname = 'trg_historial_insumo')
+         and exists (select 1 from pg_trigger where tgname = 'trg_insumo_codigo_fijo')
+         and exists (select 1 from pg_proc where proname = 'historial_entidad' and prosrc like '%p_tipo = ''insumo''%')
 ) t
 order by 1;
