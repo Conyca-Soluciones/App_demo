@@ -1028,6 +1028,8 @@ export function SolicitudContratoForm({
                     // Cupo de la actividad: la mano de obra completa o un trabajo (20270101004400).
                     const conTrabajos = Boolean(ref && tieneTrabajos(ref, f.tipo))
                     const cupo = ref ? cupoActividad(ref, f.tipo, it.manoObraCategoriaId) : null
+                    // Con trabajos, lo que frena depende del trabajo elegido (20270101007900).
+                    const noListo = ref ? motivoItemNoListo(ref, f.tipo, conTrabajos ? it.manoObraCategoriaId || null : undefined) : null
                     const disponible = cupo?.disponible ?? 0
                     const excedeCantidad = Boolean(cupo && c !== null && c > disponible)
                     const tope = cupo?.tope ?? 0
@@ -1063,12 +1065,20 @@ export function SolicitudContratoForm({
                                     disabled={enviando}
                                     className={`${claseCampo(!cupo)} my-1`}
                                   >
-                                    <option value="">Mano de obra completa (todos los trabajos)</option>
-                                    {ref.trabajos!.map((t) => (
-                                      <option key={t.categoriaId} value={t.categoriaId}>
-                                        {t.nombre} · disponible {numero(t.disponible)}
-                                      </option>
-                                    ))}
+                                    <option value="" disabled={Boolean(motivoItemNoListo(ref, f.tipo, null))}>
+                                      Mano de obra completa (todos los trabajos)
+                                    </option>
+                                    {ref.trabajos!.map((t, k) =>
+                                      t.pendiente ? (
+                                        <option key={`pendiente-${k}`} value={`pendiente-${k}`} disabled>
+                                          {t.nombre} · en aprobación
+                                        </option>
+                                      ) : (
+                                        <option key={t.categoriaId} value={t.categoriaId}>
+                                          {t.nombre} · disponible {numero(t.disponible)}
+                                        </option>
+                                      )
+                                    )}
                                   </select>
                                 )}
                                 {!cupo ? (
@@ -1083,9 +1093,9 @@ export function SolicitudContratoForm({
                                         : `${pesos(ref.valorUnitario)} c/u`}
                                   </p>
                                 )}
-                                {motivoItemNoListo(ref, f.tipo) && (
+                                {noListo && (
                                   <p className="text-xs text-destructive">
-                                    No se puede contratar todavía: {motivoItemNoListo(ref, f.tipo)?.toLowerCase()}.
+                                    No se puede contratar todavía: {noListo.toLowerCase()}.
                                   </p>
                                 )}
                                 {sinManoObraEnApu(ref, f.tipo) && (
@@ -1125,7 +1135,8 @@ export function SolicitudContratoForm({
                                   const usados = new Set(
                                     f.items.filter((x) => x.presupuestoItemId === item.id).map((x) => x.manoObraCategoriaId)
                                   )
-                                  trabajo = real.trabajos!.find((t) => !usados.has(t.categoriaId) && t.disponible > 0)?.categoriaId ?? ""
+                                  trabajo =
+                                    real.trabajos!.find((t) => !t.pendiente && !usados.has(t.categoriaId) && t.disponible > 0)?.categoriaId ?? ""
                                 }
                                 const cupoNuevo = real ? cupoActividad(real, f.tipo, trabajo) : null
                                 cambiarItem({

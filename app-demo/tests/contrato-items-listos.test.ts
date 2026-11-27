@@ -31,3 +31,32 @@ describe("motivoItemNoListo por modalidad (20270101003900)", () => {
     expect(motivoItemNoListo({ modalidad: null }, "obra")).toBeNull()
   })
 })
+
+describe("motivoItemNoListo con la mano de obra dividida (20270101007900)", () => {
+  const aprobado = { categoriaId: "fab", nombre: "Fabricación", valorTope: 100, contratado: 0, disponible: 15 }
+  const pendiente = { categoriaId: "", nombre: "Instalación", valorTope: 0, contratado: 0, disponible: 0, pendiente: true }
+  const loseta = {
+    modalidad: "mano_obra" as const,
+    manoObraPendiente: true,
+    manoObraPendienteSinDividir: false,
+    trabajos: [aprobado, pendiente],
+  }
+  it("el trabajo aprobado se contrata aunque otro siga en aprobación", () => {
+    expect(motivoItemNoListo(loseta, "mano_obra", "fab")).toBeNull()
+  })
+  it("el ítem se puede elegir en el buscador", () => {
+    expect(motivoItemNoListo(loseta, "mano_obra")).toBeNull()
+  })
+  it("la mano de obra completa espera a que se aprueben todos", () => {
+    expect(motivoItemNoListo(loseta, "mano_obra", null)).toMatch(/trabajos ya aprobados/)
+    expect(motivoItemNoListo(loseta, "mano_obra", "")).toMatch(/trabajos ya aprobados/)
+  })
+  it("otra mano de obra pendiente fuera de la división frena todo", () => {
+    expect(motivoItemNoListo({ ...loseta, manoObraPendienteSinDividir: true }, "mano_obra", "fab")).toMatch(/mano de obra de su APU/)
+  })
+  it("sin ningún trabajo aprobado sigue frenado", () => {
+    expect(motivoItemNoListo({ ...loseta, trabajos: [pendiente, { ...pendiente, nombre: "Otro" }] }, "mano_obra")).toMatch(
+      /mano de obra de su APU/
+    )
+  })
+})

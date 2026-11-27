@@ -525,13 +525,16 @@ export function sumaItemsGlobales(items: ItemGlobalContrato[]): number {
 export type ItemAnexoForm = { presupuestoItemId: string; cantidad: string; valorUnitario: string; manoObraCategoriaId?: string }
 
 // Un trabajo de la mano de obra de un ítem (trabajos_items_contrato): el ítem
-// tiene 2 o más categorías de mano de obra en su APU (se dividió).
+// tiene 2 o más categorías de mano de obra en su APU o se dividió.
 export type TrabajoItemContrato = {
-  categoriaId: string
+  categoriaId: string // "" si todavía no está aprobado
   nombre: string
-  valorTope: number // su valor del catálogo + su parte de la herramienta menor
+  valorTope: number // su valor aprobado en el catálogo, sin herramienta menor (20270101008000)
   contratado: number // completa + lo de este trabajo
   disponible: number
+  // Esperando Aprobación de mano de obra (o rechazado): se muestra pero no se
+  // contrata todavía (20270101007900).
+  pendiente?: boolean
 }
 
 // Ítem del presupuesto vigente que se puede contratar (items_presupuesto_para_contrato).
@@ -542,13 +545,16 @@ export type ItemPresupuestoContrato = {
   unidad: string | null
   cantidad: number // presupuestada
   valorUnitario: number // del presupuesto (ítem completo)
-  valorManoObra: number // mano de obra + herramienta menor del APU (0 = sin mano de obra)
+  valorManoObra: number // tope de mano de obra: el valor aprobado, sin herramienta menor (0 = sin mano de obra)
   contratado: number // ya en otros contratos
   disponible: number // tope de la cantidad
   // Líneas del APU sin resolver (20270101003600): obra y mano de obra solo
   // contratan ítems listos.
   pendientes?: number
   manoObraPendiente?: boolean
+  // Mano de obra pendiente que no es un trabajo de la división: frena también
+  // los trabajos ya aprobados (20270101007900).
+  manoObraPendienteSinDividir?: boolean
   // Modalidad del ítem (20270101003900): decide en qué contrato va.
   modalidad?: "administracion" | "todo_costo" | "mano_obra" | null
   // Trabajos de su mano de obra (20270101004400), si se dividió.
@@ -568,7 +574,7 @@ export function cupoActividad(
   trabajoId?: string | null
 ): { disponible: number; tope: number; trabajo: TrabajoItemContrato | null } | null {
   if (trabajoId && tipo === "mano_obra") {
-    const t = item.trabajos?.find((x) => x.categoriaId === trabajoId)
+    const t = item.trabajos?.find((x) => x.categoriaId === trabajoId && !x.pendiente)
     if (!t) return null
     return { disponible: t.disponible, tope: Math.min(t.valorTope, item.valorUnitario), trabajo: t }
   }
@@ -580,22 +586,44 @@ export function cupoActividad(
 // = obra, subcontrato de mano de obra = mano de obra, administración =
 // ninguno de los dos); mano de obra = falta su mano de obra; obra = cualquier
 // línea del APU sin resolver. Los demás tipos no lo piden.
+// Mano de obra dividida (20270101007900, igual que _motivo_linea_no_lista): un
+// trabajo aprobado se contrata aunque otro siga en aprobación; la mano de obra
+// completa espera a todos. trabajoId: undefined = el ítem (buscador: se puede
+// elegir si tiene algún trabajo aprobado), "" o null = la mano de obra
+// completa, un id = ese trabajo.
 export function motivoItemNoListo(
-  item: { pendientes?: number; manoObraPendiente?: boolean; modalidad?: ItemPresupuestoContrato["modalidad"] },
-  tipo: string
+  item: {
+    pendientes?: number
+    manoObraPendiente?: boolean
+    manoObraPendienteSinDividir?: boolean
+    modalidad?: ItemPresupuestoContrato["modalidad"]
+    trabajos?: TrabajoItemContrato[]
+  },
+  tipo: string,
+  trabajoId?: string | null
 ): string | null {
   if (item.modalidad === "todo_costo" && tipo === "mano_obra") return "Es subcontrato a todo costo: va en un contrato de obra"
   if (item.modalidad === "mano_obra" && tipo === "obra") return "Es subcontrato de mano de obra: va en un contrato de mano de obra"
   if (item.modalidad === "administracion" && (tipo === "obra" || tipo === "mano_obra"))
     return "Se ejecuta por administración: no lleva contrato de obra ni de mano de obra"
-  if (tipo === "mano_obra" && item.manoObraPendiente) return "Falta aprobar la mano de obra de su APU"
+  if (tipo === "mano_obra" && item.manoObraPendiente) {
+    const trabajos = item.trabajos ?? []
+    const soloTrabajosPendientes = !item.manoObraPendienteSinDividir && trabajos.some((t) => t.pendiente)
+    const hayAprobado = trabajos.some((t) => !t.pendiente)
+    if (soloTrabajosPendientes && hayAprobado) {
+      if (trabajoId === undefined || trabajoId) return null
+      return "Falta aprobar un trabajo de su mano de obra: contrata por separado los trabajos ya aprobados"
+    }
+    return "Falta aprobar la mano de obra de su APU"
+  }
   if (tipo === "obra" && (item.pendientes ?? 0) > 0) return `Su APU tiene ${item.pendientes} línea(s) sin resolver`
   return null
 }
 
 // Valor unitario máximo de una actividad según el tipo de contrato (igual que
-// _tope_valor_unitario_item): en mano de obra, la mano de obra del APU (+
-// herramienta menor); si el APU no tiene, el ítem completo. Los demás tipos
+// _tope_valor_unitario_item): en mano de obra, el valor aprobado de la mano de
+// obra del APU, SIN herramienta menor (20270101008000); si el APU no tiene, el
+// ítem completo. Los demás tipos
 // (obra todo costo...), el ítem completo.
 export const topeValorUnitario = (item: { valorUnitario: number; valorManoObra: number }, tipo: string) =>
   tipo === "mano_obra" && item.valorManoObra > 0 ? Math.min(item.valorManoObra, item.valorUnitario) : item.valorUnitario
@@ -792,7 +820,7 @@ export function validarSolicitud(
       }
       const ref = catalogo?.get(it.presupuestoItemId)
       if (ref) {
-        const noListo = motivoItemNoListo(ref, f.tipo)
+        const noListo = motivoItemNoListo(ref, f.tipo, trabajo)
         if (noListo) {
           errores.items = `Ítem ${ref.codigo}: no se puede contratar todavía. ${noListo}.`
           break

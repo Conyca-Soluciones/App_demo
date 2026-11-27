@@ -735,7 +735,8 @@ select * from (
   union all
   select '20270101003600_contratos_solo_items_listos',
          exists (select 1 from pg_proc where proname = 'pendientes_items_contrato')
-         and exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%_motivo_item_no_listo%')
+         and exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato'
+                       and (prosrc like '%_motivo_item_no_listo%' or prosrc like '%_motivo_linea_no_lista%'))
   union all
   select '20270101003700_desperdicio_por_linea_del_excel',
          exists (select 1 from information_schema.columns where table_name = 'item_apu' and column_name = 'desperdicio_clave')
@@ -750,5 +751,17 @@ select * from (
          exists (select 1 from pg_trigger where tgname = 'trg_historial_insumo')
          and exists (select 1 from pg_trigger where tgname = 'trg_insumo_codigo_fijo')
          and exists (select 1 from pg_proc where proname = 'historial_entidad' and prosrc like '%p_tipo = ''insumo''%')
+  union all
+  select '20270101007900_contratar_trabajo_aprobado',
+         exists (select 1 from pg_proc where proname = '_motivo_linea_no_lista')
+         and exists (select 1 from pg_proc where proname = '_guardar_solicitud_contrato' and prosrc like '%_motivo_linea_no_lista%')
+         and exists (select 1 from pg_proc where proname = 'pendientes_items_contrato'
+                       and pg_get_function_result(oid) like '%mano_obra_pendiente_sin_dividir%')
+  union all
+  select '20270101008000_tope_mano_obra_sin_herramienta',
+         exists (select 1 from pg_proc where proname = '_tope_mano_obra_item')
+         and exists (select 1 from pg_proc where proname = '_tope_valor_unitario_item' and prosrc like '%_tope_mano_obra_item%')
+         and exists (select 1 from pg_proc where proname = 'items_presupuesto_para_contrato' and prosrc like '%20270101006600%')
+         and exists (select 1 from pg_proc where proname = '_normalizar_actividades_otrosi' and prosrc like '%20270101006600%')
 ) t
 order by 1;
