@@ -5,6 +5,7 @@ import { requerirPestana } from "@/lib/permisos"
 import { TAMANO_PAGINA, cortarPagina } from "@/lib/paginacion"
 import { hoyColombia } from "@/lib/fechas"
 import { normalizarDireccion, validarDireccion } from "@/lib/direccion-entrega"
+import type { ResultadoAccion } from "@/lib/caja-menor"
 import {
   lineasParaGuardar,
   mapDetalleReqAdministrativa,
@@ -165,14 +166,16 @@ export async function modificarRequisicionAdministrativa(
     observaciones: string
     direccionEntrega: string
   }
-): Promise<void> {
+): Promise<ResultadoAccion<void>> {
+  // Devuelve el motivo en vez de lanzarlo: en producción Next.js esconde el
+  // mensaje de un error lanzado (pasó al modificar una rechazada, 2026-11-28).
   // Si no cambió la fecha, puede quedar en el pasado (la base hace lo mismo).
   const hoy = hoyColombia()
   const minimo = datos.fechaRequerida === datos.fechaOriginal ? "0000-01-01" : hoy
   const error =
     validarReqAdministrativa(datos.lineas, datos.fechaRequerida, minimo, datos.proyectoId) ??
     validarDireccion(datos.direccionEntrega)
-  if (error) throw new Error(error)
+  if (error) return { ok: false, error }
   const supabase = await clienteConSesion()
   const { error: e } = await supabase.rpc("modificar_requisicion_administrativa", {
     p_id: id,
@@ -183,5 +186,6 @@ export async function modificarRequisicionAdministrativa(
     p_observaciones: datos.observaciones.trim() || null,
     p_direccion_entrega: normalizarDireccion(datos.direccionEntrega),
   })
-  if (e) throw new Error(e.message)
+  if (e) return { ok: false, error: e.message }
+  return { ok: true, valor: undefined }
 }

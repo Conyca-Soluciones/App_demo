@@ -4638,6 +4638,13 @@ rechazan. Quien la hizo la cancela mientras no haya OC vigente.
   `requisiciones_admin_espera.lineas` = lo del maestro que falta, `lineas_enviadas` = lo que salió, `requisicion_id` =
   la primera. La tarjeta de la espera dice "Salió en RQ-…" por insumo y "Cancelar lo que falta" (lo que ya salió
   sigue). Caso: la de Ricardo del 22/11 (11 de 14 aprobados) no salía en Requisiciones.
+- **Corregir una administrativa rechazada** (`20270101008200`, 2026-11-28, decisión del usuario): quien la hizo
+  también la modifica si Subgerencia la RECHAZÓ (todas sus líneas rechazadas o canceladas): botón "Corregir y
+  reenviar" del detalle; el formulario llega con los insumos rechazados y el motivo. Al guardar, las líneas vuelven a
+  pendiente (sin quién/cuándo/motivo; el rechazo queda en el historial), la requisición vuelve a por aprobar con el
+  MISMO número y Subgerencia recibe "Requisición administrativa corregida por aprobar"; se puede reenviar sin cambios.
+  El evento `modificada` lleva `reenviada`. `modificarRequisicionAdministrativa` devuelve `ResultadoAccion` (antes
+  lanzaba y en producción no se veía el motivo). Caso: RQ-001-0023.
 - **Modificar una administrativa** (`20270101005100`, 2026-11-20, decisión del usuario): quien la hizo,
   mientras Subgerencia no la haya resuelto (`modificable` en `detalle_requisicion_administrativa`). Mis
   requisiciones › Modificar abre el mismo formulario lleno (sin insumos nuevos): insumos del maestro,
@@ -5245,6 +5252,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101007900` contratar un trabajo aprobado de la mano de obra dividida aunque falten otros.
 `20270101008000` tope de los contratos de mano de obra sin la herramienta menor (va después de 007900).
 `20270101008100` requisición en espera de insumos nuevos: lo aprobado sale de una vez.
+`20270101008200` corregir una requisición administrativa rechazada y reenviarla a Subgerencia.
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
