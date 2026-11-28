@@ -364,8 +364,8 @@ function FormularioReqAdministrativa({
           <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/50 p-3">
             <p className="text-sm text-sky-900">
               <span className="font-medium">Insumos nuevos (no están en el maestro).</span> Se piden a Aprobación de
-              insumos al enviar. La requisición queda en espera y pasa sola a Subgerencia cuando los aprueben; te avisamos
-              por la campanita y por correo.
+              insumos al enviar. Cada vez que se aprueba alguno, lo aprobado (y los insumos del maestro) pasa solo a
+              Subgerencia como requisición; lo que falta sigue en espera. Te avisamos por la campanita y por correo.
             </p>
             <div className="space-y-1.5">
               {nuevos.map((x) => (
@@ -848,7 +848,12 @@ export function TarjetaEspera({
             {titulo ?? e.proyecto ?? "Requisición administrativa"} · para el {formatearFechaSinHora(e.fechaRequerida)}
             {e.urgente && <span className="ml-1 text-amber-700">· Urgente</span>}
           </p>
-          <p className="text-xs text-muted-foreground">Hecha el {formatearFechaHora(e.createdAt)} · todavía sin número</p>
+          <p className="text-xs text-muted-foreground">
+            Hecha el {formatearFechaHora(e.createdAt)} ·{" "}
+            {(e.enviadas?.length ?? 0) > 0
+              ? `lo aprobado ya salió en ${e.enviadas!.join(", ")}; lo que falta sale cuando se apruebe`
+              : "todavía sin número"}
+          </p>
         </div>
         <Badge variant="outline" className={`min-h-6 px-3 text-xs ${etapa.clase}`}>
           {etapa.etiqueta}
@@ -857,7 +862,7 @@ export function TarjetaEspera({
 
       {e.estado === "error" && e.error && (
         <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-red-800">
-          Ya se aprobaron los insumos nuevos, pero la requisición no se pudo crear: {e.error}
+          Ya se aprobaron insumos nuevos, pero la requisición no se pudo crear: {e.error}
         </p>
       )}
 
@@ -882,7 +887,13 @@ export function TarjetaEspera({
                       : "border-sky-300 bg-sky-50 text-sky-700"
                 }
               >
-                {n.estado === "aprobado" ? `Aprobado${n.codigo ? ` (${n.codigo})` : ""}` : n.estado === "rechazado" ? "Rechazado" : "Por aprobar"}
+                {n.estado === "aprobado"
+                  ? n.enviado && n.requisicionCodigo
+                    ? `Salió en ${n.requisicionCodigo}`
+                    : `Aprobado${n.codigo ? ` (${n.codigo})` : ""}`
+                  : n.estado === "rechazado"
+                    ? "Rechazado"
+                    : "Por aprobar"}
               </Badge>{" "}
               {n.itemCodigo && <span className="mr-1 font-mono text-xs text-muted-foreground">Ítem {n.itemCodigo} ·</span>}
               {n.descripcion} · <span className="tabular-nums">{formatoCantidad(n.cantidad)}</span> {n.unidad}
@@ -942,7 +953,7 @@ export function TarjetaEspera({
             </Button>
           )}
           <Button size="sm" variant="outline" className="text-destructive" disabled={procesando} onClick={() => setCancelando(true)}>
-            <X className="size-4" /> Cancelar requisición
+            <X className="size-4" /> {(e.enviadas?.length ?? 0) > 0 ? "Cancelar lo que falta" : "Cancelar requisición"}
           </Button>
         </div>
       )}

@@ -6,6 +6,7 @@ import {
   lineasParaGuardar,
   nuevosParaGuardar,
   mapDetalleReqAdministrativa,
+  mapReqAdministrativaEspera,
   validarReqAdministrativa,
   type LineaFormReqAdministrativa,
 } from "@/lib/requisiciones-administrativas"
@@ -112,5 +113,20 @@ describe("requisición con insumos nuevos (en espera)", () => {
     expect(etapaReqEspera({ ...base, estado: "error" } as never).etiqueta).toBe("No se pudo enviar")
     expect(etapaReqEspera({ ...base, nuevos: [{ estado: "rechazado" }, { estado: "esperando" }] } as never).etiqueta).toMatch(/1 insumo\(s\) rechazado/)
     expect(etapaReqEspera({ ...base, nuevos: [{ estado: "aprobado" }, { estado: "esperando" }] } as never).etiqueta).toMatch(/1 insumo\(s\) nuevo/)
+  })
+})
+
+describe("requisición en espera con parte ya enviada (20270101008100)", () => {
+  it("la etiqueta dice cuántos faltan cuando ya salió algo", () => {
+    const e = { estado: "esperando", enviadas: ["RQ-001-0024"], nuevos: [{ estado: "aprobado" }, { estado: "esperando" }] }
+    expect(etapaReqEspera(e as never).etiqueta).toBe("Faltan 1 insumo(s) nuevo(s) por aprobar")
+  })
+  it("mapea lo enviado y en qué requisición salió", () => {
+    const m = mapReqAdministrativaEspera({
+      id: "e1", estado: "esperando", lineas: [], enviadas: ["RQ-001-0024"],
+      nuevos: [{ id: "n1", descripcion: "GAFAS", cantidad: 8, estado: "aprobado", enviado: true, requisicion_codigo: "RQ-001-0024" }],
+    })
+    expect(m.enviadas).toEqual(["RQ-001-0024"])
+    expect(m.nuevos[0]).toMatchObject({ enviado: true, requisicionCodigo: "RQ-001-0024" })
   })
 })

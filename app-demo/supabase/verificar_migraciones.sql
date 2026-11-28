@@ -763,5 +763,10 @@ select * from (
          and exists (select 1 from pg_proc where proname = '_tope_valor_unitario_item' and prosrc like '%_tope_mano_obra_item%')
          and exists (select 1 from pg_proc where proname = 'items_presupuesto_para_contrato' and prosrc like '%20270101006600%')
          and exists (select 1 from pg_proc where proname = '_normalizar_actividades_otrosi' and prosrc like '%20270101006600%')
+  union all
+  select '20270101008100_requisicion_espera_envio_parcial',
+         exists (select 1 from information_schema.columns where table_name = 'requisiciones_admin_espera_nuevos' and column_name = 'enviado_at')
+         and exists (select 1 from information_schema.columns where table_name = 'requisiciones_admin_espera' and column_name = 'lineas_enviadas')
+         and exists (select 1 from pg_proc where proname = '_enviar_requisicion_espera' and prosrc like '%enviado_at%')
 ) t
 order by 1;
