@@ -19,6 +19,7 @@ import { CampoDireccionEntrega } from "@/components/campo-direccion-entrega"
 import { validarDireccion } from "@/lib/direccion-entrega"
 import { formatearFechaHora, formatearFechaSinHora, hoyColombia } from "@/lib/fechas"
 import { nombreUnidad, UNIDADES_MAESTRO } from "@/lib/unidades"
+import { valorDe } from "@/lib/caja-menor"
 import {
   MAX_LINEAS_REQ_ADMINISTRATIVA,
   etapaReqAdministrativa,
@@ -133,8 +134,9 @@ export function RequisicionesAdministrativasPagina({
 
 // ---------------------------------------------------------------- formulario
 // onEnviada(null): quedó en espera de insumos nuevos (no tiene número todavía).
-// edicion: modificar una requisición pendiente de Subgerencia (20270101005100):
-// mismo formulario lleno, sin cambiar el proyecto ni pedir insumos nuevos.
+// edicion: modificar una requisición pendiente de Subgerencia (20270101005100)
+// o corregir una rechazada, que vuelve a aprobación (20270101008200): mismo
+// formulario lleno, sin pedir insumos nuevos.
 function FormularioReqAdministrativa({
   onEnviada,
   edicion = null,
@@ -147,7 +149,8 @@ function FormularioReqAdministrativa({
   const hoy = hoyColombia()
   const [lineas, setLineas] = useState<LineaFormReqAdministrativa[]>(() =>
     (edicion?.lineas ?? [])
-      .filter((l) => l.estado === "pendiente")
+      // Rechazada: sus insumos (rechazados) se corrigen y vuelven a aprobación.
+      .filter((l) => l.estado === (edicion?.estado === "rechazada" ? "rechazado" : "pendiente"))
       .map((l) => ({
         insumoId: l.insumoId,
         codigo: l.insumoCodigo,
@@ -213,7 +216,7 @@ function FormularioReqAdministrativa({
     setError(null)
     try {
       if (edicion) {
-        await modificarRequisicionAdministrativa(edicion.id, {
+        valorDe(await modificarRequisicionAdministrativa(edicion.id, {
           proyectoId: proyectoId!,
           lineas,
           fechaRequerida,
@@ -221,7 +224,7 @@ function FormularioReqAdministrativa({
           urgente,
           observaciones,
           direccionEntrega: direccion,
-        })
+        }))
         onEnviada(edicion.id)
         return
       }
@@ -278,11 +281,19 @@ function FormularioReqAdministrativa({
     <div className="max-w-5xl space-y-5">
       {edicion && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <span>
-            Modificando la requisición <span className="font-medium">{edicion.codigo}</span>. Mientras Subgerencia no la
-            apruebe puedes cambiar los insumos, el proyecto, las fechas y la dirección. Si cambias el proyecto, recibe el
-            número del proyecto nuevo.
-          </span>
+          {edicion.estado === "rechazada" ? (
+            <span>
+              Corrigiendo la requisición <span className="font-medium">{edicion.codigo}</span>, rechazada por Subgerencia
+              {edicion.resolucion?.motivo ? <>: «{edicion.resolucion.motivo}»</> : ""}. Al guardarla vuelve a aprobación de
+              Subgerencia con el mismo número (si cambias el proyecto, recibe el número del proyecto nuevo).
+            </span>
+          ) : (
+            <span>
+              Modificando la requisición <span className="font-medium">{edicion.codigo}</span>. Mientras Subgerencia no la
+              apruebe puedes cambiar los insumos, el proyecto, las fechas y la dirección. Si cambias el proyecto, recibe el
+              número del proyecto nuevo.
+            </span>
+          )}
           <Button size="sm" variant="outline" onClick={onCancelarEdicion} disabled={enviando}>
             Cancelar modificación
           </Button>
@@ -418,7 +429,13 @@ function FormularioReqAdministrativa({
       <div className="flex justify-end border-t pt-4">
         <Button onClick={enviar} disabled={enviando || lineas.length + nuevos.length === 0 || !proyectoId}>
           {enviando ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}{" "}
-          {edicion ? "Guardar cambios" : nuevos.length > 0 ? "Enviar (espera los insumos nuevos)" : "Enviar a aprobación"}
+          {edicion
+            ? edicion.estado === "rechazada"
+              ? "Guardar y enviar otra vez a aprobación"
+              : "Guardar cambios"
+            : nuevos.length > 0
+              ? "Enviar (espera los insumos nuevos)"
+              : "Enviar a aprobación"}
         </Button>
       </div>
 
@@ -740,7 +757,7 @@ function DetalleDialog({
         <DialogFooter>
           {d?.modificable && !cancelando && (
             <Button variant="outline" onClick={() => onModificar(d)}>
-              <Pencil className="size-4" /> Modificar
+              <Pencil className="size-4" /> {d.estado === "rechazada" ? "Corregir y reenviar" : "Modificar"}
             </Button>
           )}
           {d?.cancelable &&

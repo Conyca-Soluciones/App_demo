@@ -768,5 +768,9 @@ select * from (
          exists (select 1 from information_schema.columns where table_name = 'requisiciones_admin_espera_nuevos' and column_name = 'enviado_at')
          and exists (select 1 from information_schema.columns where table_name = 'requisiciones_admin_espera' and column_name = 'lineas_enviadas')
          and exists (select 1 from pg_proc where proname = '_enviar_requisicion_espera' and prosrc like '%enviado_at%')
+  union all
+  select '20270101008200_reenviar_req_admin_rechazada',
+         exists (select 1 from pg_proc where proname = 'modificar_requisicion_administrativa' and prosrc like '%v_reenviada%')
+         and exists (select 1 from pg_proc where proname = 'detalle_requisicion_administrativa' and prosrc like '%20270101008200%')
 ) t
 order by 1;

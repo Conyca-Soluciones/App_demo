@@ -586,9 +586,13 @@ export function detalleEvento(e: EventoHistorial, tipo: TipoHistorial): string[]
     if (e.evento === "rechazado_por_compras" && d.insumo) return [String(d.insumo)]
     if (e.evento === "modificada") {
       const lineas: string[] = []
-      for (const x of d.agregados ?? []) lineas.push(`Agregó: ${x.insumo} (${x.cantidad}) · ítem ${x.item}`)
-      for (const x of d.quitados ?? []) lineas.push(`Quitó: ${x.insumo} (${x.cantidad}) · ítem ${x.item}`)
-      for (const x of d.cambios ?? []) lineas.push(`${x.insumo} · ítem ${x.item}: cantidad ${x.de} → ${x.a}`)
+      // Rechazada, corregida y enviada otra vez (20270101008200).
+      if (d.reenviada) lineas.push("Corregida después del rechazo y enviada otra vez a aprobación")
+      // Las administrativas no tienen ítem.
+      const item = (x: { item?: string }) => (x.item ? ` · ítem ${x.item}` : "")
+      for (const x of d.agregados ?? []) lineas.push(`Agregó: ${x.insumo} (${x.cantidad})${item(x)}`)
+      for (const x of d.quitados ?? []) lineas.push(`Quitó: ${x.insumo} (${x.cantidad})${item(x)}`)
+      for (const x of d.cambios ?? []) lineas.push(`${x.insumo}${item(x)}: cantidad ${x.de} → ${x.a}`)
       if (d.antes && d.despues) {
         for (const c of CAMPOS_PEDIDO.filter((c) => c.clave !== "cantidad")) {
           if (d.antes[c.clave] !== d.despues[c.clave]) {
