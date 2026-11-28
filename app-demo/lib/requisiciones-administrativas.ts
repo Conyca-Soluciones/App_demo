@@ -100,6 +100,9 @@ export type InsumoNuevoEspera = {
   motivoRechazo: string | null
   codigo: number | null // código en el maestro, ya aprobado
   itemCodigo?: string | null // ítem del presupuesto (requisición extraordinaria en espera)
+  // Ya salió en una requisición (20270101008100): lo aprobado sale de una vez.
+  enviado?: boolean
+  requisicionCodigo?: string | null
 }
 
 export type ReqAdministrativaEspera = {
@@ -114,17 +117,21 @@ export type ReqAdministrativaEspera = {
   proyecto: string | null
   lineas: { insumoId: string; codigo: number; descripcion: string; unidad: string | null; cantidad: number; itemCodigo?: string | null }[]
   nuevos: InsumoNuevoEspera[]
+  // Requisiciones que ya salieron de esta espera con lo aprobado (20270101008100).
+  enviadas?: string[]
 }
 
 // Qué le falta a una requisición en espera (para la etiqueta).
-export function etapaReqEspera(e: Pick<ReqAdministrativaEspera, "estado" | "nuevos">): { etiqueta: string; clase: string } {
+export function etapaReqEspera(e: Pick<ReqAdministrativaEspera, "estado" | "nuevos" | "enviadas">): { etiqueta: string; clase: string } {
   if (e.estado === "error") return { etiqueta: "No se pudo enviar", clase: "border-red-300 bg-red-50 text-red-700" }
   const rechazados = e.nuevos.filter((n) => n.estado === "rechazado").length
   if (rechazados > 0)
     return { etiqueta: `${rechazados} insumo(s) rechazado(s)`, clase: "border-red-300 bg-red-50 text-red-700" }
   const esperando = e.nuevos.filter((n) => n.estado === "esperando").length
   return {
-    etiqueta: `Esperando aprobación de ${esperando} insumo(s) nuevo(s)`,
+    etiqueta: (e.enviadas?.length ?? 0) > 0
+      ? `Faltan ${esperando} insumo(s) nuevo(s) por aprobar`
+      : `Esperando aprobación de ${esperando} insumo(s) nuevo(s)`,
     clase: "border-sky-300 bg-sky-50 text-sky-700",
   }
 }
@@ -255,7 +262,10 @@ export function mapReqAdministrativaEspera(r: any): ReqAdministrativaEspera {
       motivoRechazo: n.motivo_rechazo ?? null,
       codigo: n.codigo != null ? Number(n.codigo) : null,
       itemCodigo: n.item_codigo ?? null,
+      enviado: Boolean(n.enviado),
+      requisicionCodigo: n.requisicion_codigo ?? null,
     })),
+    enviadas: (Array.isArray(r.enviadas) ? r.enviadas : []).map(String),
   }
 }
 export function mapProyectoReqAdministrativa(r: any): ProyectoReqAdministrativa {

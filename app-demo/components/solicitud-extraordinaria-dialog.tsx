@@ -603,8 +603,9 @@ export function SolicitudExtraordinariaDialog({
               })}
               {nuevos.length > 0 && (
                 <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-                  Con insumos nuevos la requisición queda <strong>en espera</strong>: cuando Aprobación de insumos los apruebe, se
-                  crea sola con todos los insumos y pasa a Gerencia. La ves arriba de esta página mientras espera.
+                  Con insumos nuevos la requisición queda <strong>en espera</strong>: cada vez que Aprobación de insumos aprueba
+                  alguno, lo aprobado (y los insumos del maestro) pasa solo a Gerencia como requisición; lo que falta sigue en
+                  espera. La ves arriba de esta página mientras espera.
                 </p>
               )}
             </div>
@@ -727,7 +728,7 @@ function AgregarInsumosNuevosDialog({
           <DialogTitle>Agregar insumos nuevos</DialogTitle>
           <DialogDescription>
             Para el ítem <span className="font-mono">{item.codigo}</span> {item.descripcion}. Van como líneas de la
-            requisición: al guardarla se piden a Aprobación de insumos y la requisición espera hasta que los aprueben.
+            requisición: al guardarla se piden a Aprobación de insumos y cada uno sale en cuanto lo aprueben.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">

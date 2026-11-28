@@ -4629,6 +4629,15 @@ rechazan. Quien la hizo la cancela mientras no haya OC vigente.
   Avisos `requisicion_espera_enviada`, `insumo_requisicion_rechazado`, `requisicion_espera_error` (también por
   correo); los de siempre de insumo aprobado/rechazado no salen para estas solicitudes.
 
+- **Lo aprobado sale de una vez** (`20270101008100`, 2026-11-28, decisión del usuario; cambia lo de arriba y el
+  "en espera" de las extraordinarias): cada vez que se aprueba un insumo nuevo (o se cambia un rechazado por uno del
+  maestro), `_enviar_requisicion_espera` crea una requisición con lo que falta por enviar (las líneas del maestro la
+  primera vez y los nuevos aprobados sin enviar) y la manda a Subgerencia (o a Gerencia, extraordinaria); lo pendiente
+  o rechazado sigue en espera y la espera queda `enviada` cuando ya no queda nada. Automático aunque, si se aprueban de
+  a uno, salgan varias requisiciones pequeñas. `requisiciones_admin_espera_nuevos.enviado_at` / `requisicion_id`;
+  `requisiciones_admin_espera.lineas` = lo del maestro que falta, `lineas_enviadas` = lo que salió, `requisicion_id` =
+  la primera. La tarjeta de la espera dice "Salió en RQ-…" por insumo y "Cancelar lo que falta" (lo que ya salió
+  sigue). Caso: la de Ricardo del 22/11 (11 de 14 aprobados) no salía en Requisiciones.
 - **Modificar una administrativa** (`20270101005100`, 2026-11-20, decisión del usuario): quien la hizo,
   mientras Subgerencia no la haya resuelto (`modificable` en `detalle_requisicion_administrativa`). Mis
   requisiciones › Modificar abre el mismo formulario lleno (sin insumos nuevos): insumos del maestro,
@@ -5235,6 +5244,7 @@ desde otrosí · `20261121000000` otrosí en el contrato ·
 `20270101005600` líneas del APU iguales aunque cambie la tilde o el superíndice.
 `20270101007900` contratar un trabajo aprobado de la mano de obra dividida aunque falten otros.
 `20270101008000` tope de los contratos de mano de obra sin la herramienta menor (va después de 007900).
+`20270101008100` requisición en espera de insumos nuevos: lo aprobado sale de una vez.
 `20270101006300` permisos de requisiciones, anexos y pedidos sin árboles anidados (memoria de la base).
 `20270101006400` permisos de lectura de Storage sin árboles anidados.
 `20270101007400` caja menor (cajas, legalizaciones, rol Líder Financiera, cuadro de pago tipo caja_menor).
